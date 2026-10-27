@@ -61,6 +61,10 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
 - [ ] Adopt the existing adapter with a small maintained patch, or implement the
   smallest direct offscreen Servo adapter; no browser/toolkit rewrite or alternate
   engine. Record every carried upstream patch and a path to remove it.
+- [x] Implement and exercise the bounded synthetic-only software viewport,
+  coalesced async wakes, owned RGBA frames, native theme notification and resize.
+  P01 evidence records three renderer tests; COSMIC composition and complete mail
+  privacy acceptance remain in the separate unchecked rows.
 - [ ] Wire waker/spin/frame-ready/redraw, input, scroll, selection/copy, HiDPI,
   resizing, focus, links and webview teardown; one message viewport at a time.
 - [ ] Forward effective COSMIC dark/light theme through Servo's native method.
