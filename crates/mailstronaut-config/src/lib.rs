@@ -313,7 +313,7 @@ pub struct ValidationError {
 }
 
 impl Config {
-    /// Perform preliminary validation; this is not yet sufficient for applying a configuration.
+    /// Validate all configuration values without accessing the network or filesystem.
     #[must_use]
     pub fn validate(&self) -> Vec<ValidationError> {
         let mut errors = Vec::new();
@@ -329,54 +329,129 @@ impl Config {
             "only version 1 is supported",
         );
         check(
-            self.sync.initial_days > 0
-                && self.sync.poll_seconds > 0
-                && self.sync.max_body_bytes > 0,
-            "sync",
-            "limits must be positive",
+            (1..=3650).contains(&self.sync.initial_days),
+            "sync.initialDays",
+            "outside supported range",
+        );
+        check(
+            (30..=86400).contains(&self.sync.poll_seconds),
+            "sync.pollSeconds",
+            "outside supported range",
+        );
+        check(
+            (1..=16_777_216).contains(&self.sync.max_body_bytes),
+            "sync.maxBodyBytes",
+            "outside supported range",
+        );
+        check(
+            (1..=8760).contains(&self.priority.max_ttl_hours),
+            "priority.maxTtlHours",
+            "outside supported range",
         );
         check(
             self.priority.default_ttl_hours > 0
                 && self.priority.default_ttl_hours <= self.priority.max_ttl_hours,
-            "priority",
-            "TTL must be positive and no greater than the maximum",
+            "priority.defaultTtlHours",
+            "outside supported range",
         );
         check(
             self.priority.model_directory.is_some() == self.priority.model_revision.is_some(),
             "priority",
             "model directory and revision must be supplied together",
         );
+        if let Some(path) = &self.priority.model_directory {
+            check(
+                valid_path(path),
+                "priority.modelDirectory",
+                "absolute path required",
+            );
+        }
+        if let Some(revision) = &self.priority.model_revision {
+            check(
+                valid_text(revision),
+                "priority.modelRevision",
+                "revision required",
+            );
+        }
+        check(
+            self.priority.languages.iter().all(|s| valid_text(s)),
+            "priority.languages",
+            "invalid language",
+        );
+        if let Some(zone) = &self.time_zone {
+            check(
+                zone.parse::<chrono_tz::Tz>().is_ok(),
+                "timeZone",
+                "unknown time zone",
+            );
+        }
+        if let Some(locale) = &self.locale {
+            check(valid_text(locale), "locale", "invalid locale");
+        }
+        check(
+            valid_time(&self.reminders.morning),
+            "reminders.morning",
+            "expected HH:MM",
+        );
+        check(
+            valid_time(&self.reminders.evening),
+            "reminders.evening",
+            "expected HH:MM",
+        );
         for account in &self.accounts {
             check(
-                !account.id.trim().is_empty() && ids.insert(&account.id),
+                valid_id(&account.id) && ids.insert(&account.id),
                 "accounts.id",
-                "account IDs must be nonempty and unique",
+                "invalid or duplicate account ID",
             );
             check(
-                !account.address.trim().is_empty() && !account.user_name.trim().is_empty(),
-                "accounts",
-                "address and username are required",
+                valid_text(&account.address),
+                "accounts.address",
+                "address required",
+            );
+            check(
+                valid_text(&account.display_name),
+                "accounts.displayName",
+                "display name required",
+            );
+            check(
+                valid_text(&account.user_name),
+                "accounts.userName",
+                "username required",
+            );
+            check(
+                account
+                    .smtp_user_name
+                    .as_ref()
+                    .is_none_or(|s| valid_text(s)),
+                "accounts.smtpUserName",
+                "invalid username",
+            );
+            check(
+                account.aliases.iter().all(|s| valid_text(s)),
+                "accounts.aliases",
+                "invalid alias",
             );
             if matches!(account.provider, Provider::Manual) {
                 check(
                     account.imap.is_some() && account.smtp.is_some(),
                     "accounts",
-                    "manual accounts require IMAP and SMTP endpoints",
+                    "manual accounts require endpoints",
                 );
             }
             for endpoint in [&account.imap, &account.smtp].into_iter().flatten() {
                 check(
-                    !endpoint.host.trim().is_empty() && endpoint.port != 0,
+                    valid_host(&endpoint.host) && endpoint.port != 0,
                     "accounts.endpoint",
-                    "host and nonzero port are required",
+                    "invalid host or port",
                 );
             }
             for auth in std::iter::once(&account.auth).chain(account.smtp_auth.iter()) {
                 match auth {
                     Auth::Password { secret_ref } => check(
-                        !secret_ref.trim().is_empty(),
+                        valid_id(secret_ref),
                         "accounts.auth.secretRef",
-                        "credential reference is required",
+                        "invalid credential reference",
                     ),
                     Auth::Oauth2 {
                         provider,
@@ -385,37 +460,135 @@ impl Config {
                         authorization_url,
                         token_url,
                         scopes,
-                        ..
+                        sasl,
                     } => {
                         check(
-                            !client_id.trim().is_empty() && !secret_ref.trim().is_empty(),
-                            "accounts.auth",
-                            "client ID and credential reference are required",
+                            valid_text(client_id),
+                            "accounts.auth.clientId",
+                            "invalid client ID",
+                        );
+                        check(
+                            valid_id(secret_ref),
+                            "accounts.auth.secretRef",
+                            "invalid credential reference",
+                        );
+                        check(
+                            scopes.iter().all(|scope| {
+                                valid_text(scope) && !scope.chars().any(char::is_whitespace)
+                            }),
+                            "accounts.auth.scopes",
+                            "invalid scopes",
                         );
                         if matches!(provider, OAuthProvider::Custom) {
                             check(
-                                authorization_url
-                                    .as_ref()
-                                    .is_some_and(|s| s.starts_with("https://") && s.len() > 8)
-                                    && token_url
-                                        .as_ref()
-                                        .is_some_and(|s| s.starts_with("https://") && s.len() > 8)
-                                    && !scopes.is_empty(),
+                                authorization_url.as_deref().is_some_and(valid_https),
+                                "accounts.auth.authorizationUrl",
+                                "invalid HTTPS endpoint",
+                            );
+                            check(
+                                token_url.as_deref().is_some_and(valid_https),
+                                "accounts.auth.tokenUrl",
+                                "invalid HTTPS endpoint",
+                            );
+                            check(
+                                !scopes.is_empty(),
+                                "accounts.auth.scopes",
+                                "scopes required",
+                            );
+                            check(
+                                sasl.is_some(),
+                                "accounts.auth.sasl",
+                                "SASL mechanism required",
+                            );
+                        } else {
+                            check(
+                                authorization_url.is_none() && token_url.is_none(),
                                 "accounts.auth",
-                                "custom OAuth requires HTTPS endpoints and scopes",
+                                "preset endpoints cannot be overridden",
                             );
                         }
                     }
                 }
             }
             check(
-                account.tls.ca_files.iter().all(|p| p.starts_with('/')),
-                "accounts.tls.caFiles",
-                "CA paths must be absolute",
+                !matches!(account.provider, Provider::Google)
+                    || matches!(
+                        account.auth,
+                        Auth::Oauth2 {
+                            provider: OAuthProvider::Google,
+                            ..
+                        }
+                    ),
+                "accounts.auth",
+                "Google requires Google OAuth",
             );
+            check(
+                !matches!(account.provider, Provider::Icloud)
+                    || matches!(account.auth, Auth::Password { .. }),
+                "accounts.auth",
+                "iCloud requires app password authentication",
+            );
+            check(
+                account.tls.ca_files.iter().all(|p| valid_path(p)),
+                "accounts.tls.caFiles",
+                "absolute paths required",
+            );
+            for folder in [
+                &account.folders.inbox,
+                &account.folders.sent,
+                &account.folders.drafts,
+                &account.folders.trash,
+                &account.folders.archive,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                check(
+                    valid_text(folder),
+                    "accounts.folders",
+                    "invalid mailbox name",
+                );
+            }
         }
         errors
     }
+}
+
+fn valid_text(s: &str) -> bool {
+    !s.trim().is_empty() && !s.chars().any(char::is_control)
+}
+fn valid_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+}
+fn valid_path(s: &str) -> bool {
+    std::path::Path::new(s).is_absolute() && valid_text(s)
+}
+fn valid_time(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    bytes.len() == 5
+        && bytes[2] == b':'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(i, b)| i == 2 || b.is_ascii_digit())
+        && &s[..2] < "24"
+        && &s[3..] < "60"
+}
+fn valid_https(s: &str) -> bool {
+    !s.chars()
+        .any(|c| c.is_whitespace() || c.is_control() || c == '\\')
+        && url::Url::parse(s).is_ok_and(|url| {
+            url.scheme() == "https"
+                && url.host().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.fragment().is_none()
+        })
+}
+fn valid_host(s: &str) -> bool {
+    !s.is_empty() && !s.chars().any(char::is_whitespace) && url::Host::parse(s).is_ok()
 }
 
 /// Maximum configuration source size in bytes.
@@ -432,7 +605,8 @@ pub const MAX_SOURCE_BYTES: usize = 256 * 1024;
 /// Returns a redacted error when the source is too large, cannot be evaluated,
 /// or does not pass validation. Evaluator diagnostics may contain user input and
 /// are deliberately not returned.
-pub fn evaluate_in_helper(source: &str) -> Result<Config, &'static str> {
+#[cfg(test)]
+fn evaluate_unisolated(source: &str) -> Result<Config, &'static str> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("configuration exceeds the source size limit");
     }
@@ -450,7 +624,7 @@ mod tests {
 
     #[test]
     fn pure_expression_and_defaults() {
-        let result = evaluate_in_helper(
+        let result = evaluate_unisolated(
             r#"let n = 1; in { schemaVersion = if n == 1 then n else 2; accounts = []; }"#,
         );
         let Ok(config) = result else {
@@ -468,14 +642,40 @@ mod tests {
             "{ schemaVersion = 1; password = \"synthetic-secret\"; }",
             "{ schemaVersion = builtins.readFile /etc/passwd; }",
         ] {
-            let error = evaluate_in_helper(source).err();
+            let error = evaluate_unisolated(source).err();
             assert_eq!(error, Some("invalid configuration expression or schema"));
         }
     }
 
     #[test]
+    fn tagged_auth_spike_exposes_bridge_failure() {
+        let auth: Result<Auth, _> =
+            snix_serde::from_str(r#"{ kind = "password"; secretRef = "test"; }"#);
+        assert!(
+            auth.is_err(),
+            "the upstream bridge behavior changed; revisit this regression"
+        );
+    }
+
+    #[test]
+    fn url_and_time_validation_rejects_malformed_values() {
+        assert!(valid_https("https://identity.example.test/token"));
+        for url in [
+            "http://example.test",
+            "https://user:synthetic-secret@example.test",
+            "https://example.test/#fragment",
+            "https://",
+            "https://example.test\\path",
+        ] {
+            assert!(!valid_https(url));
+        }
+        assert!(valid_time("09:00"));
+        assert!(!valid_time("24:60"));
+    }
+
+    #[test]
     fn rejects_unsupported_version_and_oversize_source() {
-        assert!(evaluate_in_helper("{ schemaVersion = 2; }").is_err());
-        assert!(evaluate_in_helper(&" ".repeat(MAX_SOURCE_BYTES + 1)).is_err());
+        assert!(evaluate_unisolated("{ schemaVersion = 2; }").is_err());
+        assert!(evaluate_unisolated(&" ".repeat(MAX_SOURCE_BYTES + 1)).is_err());
     }
 }

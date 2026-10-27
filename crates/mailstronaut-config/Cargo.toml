@@ -12,6 +12,8 @@ categories.workspace = true
 readme.workspace = true
 
 [dependencies]
+chrono-tz.workspace = true
+url.workspace = true
 serde.workspace = true
 snix-serde.workspace = true
 
