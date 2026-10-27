@@ -99,7 +99,20 @@
           nativeBuildInputs = [
             pkgs.pkg-config
             pkgs.makeWrapper
+            pkgs.clang
+            pkgs.cmake
+            pkgs.ninja
+            pkgs.python3
+            pkgs.perl
+            pkgs.libclang
           ];
+          LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+          # SpiderMonkey's xsum disables format warnings itself; keep all other
+          # Nix hardening rather than making that warning conflict fatal.
+          hardeningDisable = [ "format" ];
+          preBuild = ''
+            export AS="$CC"
+          '';
           buildInputs = with pkgs; [
             libxkbcommon
             wayland
@@ -123,6 +136,11 @@
             pkgs.rustfmt
           ];
           preCheck = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:''${LD_LIBRARY_PATH:-}"
+            export LIBGL_ALWAYS_SOFTWARE=1
+            export EGL_PLATFORM=surfaceless
+            export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
+            export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri"
             cargo fmt --all -- --check
             cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings
           '';
@@ -180,33 +198,17 @@
           pkgs = pkgsFor system;
         in
         {
-          servo-probe = pkgs.mkShell {
-            inputsFrom = [ self.devShells.${system}.default ];
-            # inputsFrom merges build inputs, not arbitrary environment settings.
-            inherit (self.devShells.${system}.default)
-              CARGO_UNSTABLE_CODEGEN_BACKEND
-              CARGO_UNSTABLE_PROFILE_RUSTFLAGS
-              CARGO_PROFILE_DEV_CODEGEN_BACKEND
-              CARGO_PROFILE_TEST_CODEGEN_BACKEND
-              CARGO_PROFILE_RELEASE_CODEGEN_BACKEND
-              CARGO_PROFILE_DEV_RUSTFLAGS
-              CARGO_PROFILE_TEST_RUSTFLAGS
-              ;
-            packages = with pkgs; [
-              clang
-              cmake
-              ninja
-              python3
-              perl
-              libclang
-            ];
-            LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-            shellHook = ''
-              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:$LD_LIBRARY_PATH"
-            '';
-          };
+          # Retain the experiment's entry point without a second environment.
+          servo-probe = self.devShells.${system}.default;
           default = pkgs.mkShell {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
+            LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+            shellHook = ''
+              export AS="$CC"
+              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:$LD_LIBRARY_PATH"
+              NIX_HARDENING_ENABLE=" ''${NIX_HARDENING_ENABLE:-} "
+              export NIX_HARDENING_ENABLE=''${NIX_HARDENING_ENABLE// format / }
+            '';
             CARGO_UNSTABLE_CODEGEN_BACKEND = "true";
             CARGO_UNSTABLE_PROFILE_RUSTFLAGS = "true";
             CARGO_PROFILE_DEV_CODEGEN_BACKEND = "cranelift";
@@ -218,6 +220,11 @@
               (debugToolchainFor pkgs)
               clang
               wild
+              cmake
+              ninja
+              python3
+              perl
+              libclang
               pkg-config
               libxkbcommon
               wayland
