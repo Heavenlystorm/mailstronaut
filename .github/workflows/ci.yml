@@ -1,0 +1,50 @@
+name: Nix checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container:
+      # Official minimal Nix image; manifest-list digest verified 2026-10-27.
+      image: nixos/nix:2.34.9@sha256:53b5ec518b696373829ea305c3c07a8c870113e44648c88ec484ef078550fd4f
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Container-local only; no extra privileged namespace capability is needed.
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        accept-flake-config = false
+        sandbox = false
+    steps:
+      - name: Fetch exact source revision
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_REVISION: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${SOURCE_REPOSITORY}/tarball/${SOURCE_REVISION}" \
+            --output /tmp/mailstronaut-source.tar.gz
+          tar --extract --gzip --file /tmp/mailstronaut-source.tar.gz --strip-components=1
+          rm /tmp/mailstronaut-source.tar.gz
+      - name: Build, format, lint and test through Nix
+        run: nix flake check --no-update-lock-file --print-build-logs
+      - name: Installed package smoke check
+        run: nix run --no-update-lock-file

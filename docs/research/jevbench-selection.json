@@ -1,0 +1,63 @@
+{
+  "source": "https://benchmarkheaven.com/api/jevbench/latest",
+  "retrieved_date_utc": "2026-10-27",
+  "observed_revision": "v1.7.11",
+  "raw_response_sha256": "641d63f5254fbdf3b791f0fba692c743a1b9f942f1baf9910689c29597355c75",
+  "note": "Selected factual metadata only. Generic decision results are not email accuracy or laptop benchmarks. Raw latency retains the reported hardware condition.",
+  "selected_systems": [
+    {
+      "key": "fastino-gliner-2-5-decide",
+      "name": "Fastino GLiNER-2.5-Decide (hosted API)",
+      "source_url": "https://fastino.ai/",
+      "measured_in": "v1.6.1",
+      "ranked": true,
+      "p50_seconds_measured": 0.42045173048973083,
+      "measurement_condition": "api-end-to-end"
+    },
+    {
+      "key": "kev-0.6b",
+      "name": "kev 0.6B (research preview)",
+      "source_url": "https://github.com/jaredpalmer/kev",
+      "measured_in": "v1.6.0",
+      "ranked": true,
+      "p50_seconds_measured": 0.056589895160868764,
+      "measurement_condition": "on-GPU, no network"
+    },
+    {
+      "key": "modernbert-jev-v2",
+      "name": "modernbert-jev v2",
+      "source_url": "https://huggingface.co/ksonny4/modernbert-jev-v2",
+      "measured_in": "v1.6.8",
+      "ranked": false,
+      "p50_seconds_measured": 2.5996471606194973,
+      "measurement_condition": "on-CPU, no network"
+    },
+    {
+      "key": "phocinae-largha-150m-v1",
+      "name": "Phocinae-Largha-150M-v1",
+      "source_url": "https://huggingface.co/Phocinae/Phocinae-Largha-150M-v1",
+      "measured_in": "v1.6.15",
+      "ranked": true,
+      "p50_seconds_measured": 0.484241258000111,
+      "measurement_condition": "on-CPU, no network"
+    },
+    {
+      "key": "quyet-1-0-small-en",
+      "name": "Quyet-1.0-Small-EN (Chinh Nguyen, ModernBERT-base encoder with fixed heads)",
+      "source_url": "https://huggingface.co/chinhnc/Quyet-1.0-Small-EN",
+      "measured_in": "v1.6.0",
+      "ranked": true,
+      "p50_seconds_measured": 0.01468971849681111,
+      "measurement_condition": "on-GPU, no network"
+    },
+    {
+      "key": "raw-qwen3-0.6b",
+      "name": "Raw Qwen3 0.6B direct logits",
+      "source_url": "https://huggingface.co/Qwen/Qwen3-0.6B",
+      "measured_in": "v1.6.0",
+      "ranked": true,
+      "p50_seconds_measured": 0.029423376079648733,
+      "measurement_condition": "on-GPU, no network"
+    }
+  ]
+}
