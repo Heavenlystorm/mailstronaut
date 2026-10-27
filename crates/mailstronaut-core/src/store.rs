@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, TransactionBehavior, params};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
@@ -38,6 +38,8 @@ pub struct Store {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// A hash-named destination is not the expected regular file.
+    CorruptBlob,
     /// Filesystem access failed.
     Io(io::Error),
     /// Schema migration failed.
@@ -115,37 +117,52 @@ impl Store {
         return Ok(Self { blobs, connection });
     }
 
-    /// Write a blob atomically before committing a database reference.
+    /// Ensure an account with this stable configuration ID exists.
     ///
     /// # Errors
-    /// Returns an error if the filesystem cannot persist the blob.
-    #[inline]
+    /// Returns an error if SQLite cannot save the account.
     #[expect(
         clippy::needless_return,
-        reason = "Restriction group also requires explicit return."
-    )]
-    #[expect(
         clippy::question_mark_used,
-        reason = "Propagate concrete I/O and database failures without repetitive matches."
+        reason = "Explicit returns and concise error propagation are both required here."
     )]
-    pub fn write_blob(&self, bytes: &[u8]) -> Result<String, Error> {
-        use std::io::Write as _;
-        let hash = format!("{:x}", Sha256::digest(bytes));
-        let destination = self.blobs.join(&hash);
-        if destination.exists() {
-            return Ok(hash);
-        }
-        let mut temporary = tempfile::NamedTempFile::new_in(&self.blobs)?;
-        temporary
-            .as_file()
-            .set_permissions(fs::Permissions::from_mode(0o600))?;
-        temporary.write_all(bytes)?;
-        temporary.as_file().sync_all()?;
-        temporary
-            .persist(&destination)
-            .map_err(|error| return error.error)?;
-        fs::File::open(&self.blobs)?.sync_all()?;
-        return Ok(hash);
+    #[inline]
+    pub fn ensure_account(&mut self, account_id: &str) -> Result<(), Error> {
+        self.connection.execute(
+            "INSERT OR IGNORE INTO accounts (id) VALUES (?1)",
+            params![account_id],
+        )?;
+        return Ok(());
+    }
+
+    /// Persist an original message and commit its reference, returning its local ID.
+    ///
+    /// The account must already exist. The immediate transaction coordinates with
+    /// collection by other store handles; an unsuccessful insert can leave an orphan.
+    /// Each call creates a distinct message, even for identical content. Canonical
+    /// account-local deduplication requires message identity metadata and is future work.
+    /// This blocking operation must run on the future dedicated store worker.
+    ///
+    /// # Errors
+    /// Returns an error on an invalid existing blob, filesystem, or SQLite failure.
+    #[expect(
+        clippy::needless_return,
+        clippy::question_mark_used,
+        reason = "Explicit returns and concise error propagation are both required here."
+    )]
+    #[inline]
+    pub fn ingest_message(&mut self, account_id: &str, bytes: &[u8]) -> Result<i64, Error> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let hash = write_blob(&self.blobs, bytes)?;
+        transaction.execute(
+            "INSERT INTO messages (account_id, blob_hash) VALUES (?1, ?2)",
+            params![account_id, hash],
+        )?;
+        let id = transaction.last_insert_rowid();
+        transaction.commit()?;
+        return Ok(id);
     }
 
     /// Clear the rebuildable search index without evicting message bodies or durable state.
@@ -185,14 +202,24 @@ impl Store {
         clippy::filetype_is_file,
         reason = "Only regular blob files may be deleted; leave other filesystem entries untouched."
     )]
-    pub fn collect_orphan_blobs(&self) -> Result<(), Error> {
+    pub fn collect_orphan_blobs(&mut self) -> Result<(), Error> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         for result in fs::read_dir(&self.blobs)? {
             let entry = result?;
             let filename = entry.file_name();
             let Some(name) = filename.to_str() else {
                 continue;
             };
-            let count: i64 = self.connection.query_row(
+            if name.len() != 64
+                || !name
+                    .bytes()
+                    .all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            {
+                continue;
+            }
+            let count: i64 = transaction.query_row(
                 "SELECT count(*) FROM messages WHERE blob_hash = ?1",
                 params![name],
                 |row| return row.get(0),
@@ -201,8 +228,61 @@ impl Store {
                 fs::remove_file(entry.path())?;
             }
         }
+        transaction.commit()?;
         return Ok(());
     }
+}
+
+/// Persist and validate a content-addressed original while holding the SQLite writer lock.
+#[expect(
+    clippy::needless_return,
+    clippy::question_mark_used,
+    clippy::filetype_is_file,
+    clippy::indexing_slicing,
+    reason = "Chunk lengths are bounded by the buffer; this helper isolates blob persistence and validation."
+)]
+#[cfg_attr(
+    not(test),
+    expect(
+        clippy::single_call_fn,
+        reason = "The helper isolates blob persistence and validation."
+    )
+)]
+fn write_blob(blobs: &Path, bytes: &[u8]) -> Result<String, Error> {
+    use std::io::{Read as _, Write as _};
+    let hash = format!("{:x}", Sha256::digest(bytes));
+    let destination = blobs.join(&hash);
+    match fs::symlink_metadata(&destination) {
+        Ok(metadata) => {
+            if !metadata.file_type().is_file()
+                || usize::try_from(metadata.len()).ok() != Some(bytes.len())
+            {
+                return Err(Error::CorruptBlob);
+            }
+            let mut file = fs::File::open(&destination)?;
+            let mut buffer: [u8; 8192] = [0; 8192];
+            for chunk in bytes.chunks(buffer.len()) {
+                file.read_exact(&mut buffer[..chunk.len()])?;
+                if &buffer[..chunk.len()] != chunk {
+                    return Err(Error::CorruptBlob);
+                }
+            }
+            return Ok(hash);
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    let mut temporary = tempfile::NamedTempFile::new_in(blobs)?;
+    temporary
+        .as_file()
+        .set_permissions(fs::Permissions::from_mode(0o600))?;
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary
+        .persist_noclobber(&destination)
+        .map_err(|error| return error.error)?;
+    fs::File::open(blobs)?.sync_all()?;
+    return Ok(hash);
 }
 
 #[cfg(test)]
@@ -213,7 +293,9 @@ impl Store {
 )]
 mod tests {
     use super::Store;
+    use core::time::Duration;
     use rusqlite::params;
+    use std::fs;
 
     #[test]
     #[expect(
@@ -223,15 +305,14 @@ mod tests {
     fn index_clear_preserves_durable_state_and_referenced_blob() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = Store::open(dir.path()).unwrap();
-        let hash = store.write_blob(b"synthetic message").unwrap();
-        assert_eq!(hash, store.write_blob(b"synthetic message").unwrap());
-        let orphan = store.write_blob(b"unreferenced synthetic blob").unwrap();
+        let hash = super::write_blob(&store.blobs, b"synthetic message").unwrap();
+        let orphan = super::write_blob(&store.blobs, b"unreferenced synthetic blob").unwrap();
         store.connection.execute_batch("INSERT INTO accounts VALUES ('a'); INSERT INTO folders VALUES (7, 'a', 'INBOX', 42, 1); INSERT INTO drafts VALUES ('d', x'01'); INSERT INTO outbox VALUES ('o', x'02', 'pending');").unwrap();
         store.connection.execute("INSERT INTO messages (id, account_id, message_id, subject, preview, blob_hash) VALUES (11, 'a', '<synthetic>', 'subject', 'preview', ?1)", params![hash]).unwrap();
         store.connection.execute_batch("INSERT INTO memberships VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
         store.clear_rebuildable_indexes().unwrap();
         drop(store);
-        let reopened = Store::open(dir.path()).unwrap();
+        let mut reopened = Store::open(dir.path()).unwrap();
         let search_count: i64 = reopened
             .connection
             .query_row("SELECT count(*) FROM message_search", [], |row| row.get(0))
@@ -308,6 +389,111 @@ mod tests {
         reopened.collect_orphan_blobs().unwrap();
         assert!(reopened.blobs.join(&hash).exists());
         assert!(!reopened.blobs.join(&orphan).exists());
+    }
+
+    #[test]
+    #[expect(
+        clippy::question_mark_used,
+        reason = "Concise SQLite row decoding in this test."
+    )]
+    fn ingestion_reopens_and_shares_blobs_without_collapsing_messages() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(dir.path()).unwrap();
+        store.ensure_account("a").unwrap();
+        store.ensure_account("b").unwrap();
+        let first = store.ingest_message("a", b"synthetic mail").unwrap();
+        let second = store.ingest_message("a", b"synthetic mail").unwrap();
+        let third = store.ingest_message("b", b"synthetic mail").unwrap();
+        assert_ne!(first, second);
+        assert_ne!(second, third);
+        drop(store);
+        let mut reopened = Store::open(dir.path()).unwrap();
+        let (rows, hashes): (i64, i64) = reopened
+            .connection
+            .query_row(
+                "SELECT count(*), count(DISTINCT blob_hash) FROM messages",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((rows, hashes), (3, 1));
+        reopened.collect_orphan_blobs().unwrap();
+        assert_eq!(fs::read_dir(&reopened.blobs).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn writer_lock_prevents_collection_before_reference_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut writer = Store::open(dir.path()).unwrap();
+        writer.ensure_account("a").unwrap();
+        let mut collector = Store::open(dir.path()).unwrap();
+        collector.connection.busy_timeout(Duration::ZERO).unwrap();
+        let tx = writer
+            .connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        let hash = super::write_blob(&writer.blobs, b"in flight").unwrap();
+        collector.collect_orphan_blobs().unwrap_err();
+        assert!(writer.blobs.join(&hash).exists());
+        tx.execute(
+            "INSERT INTO messages (account_id, blob_hash) VALUES ('a', ?1)",
+            params![hash],
+        )
+        .unwrap();
+        tx.commit().unwrap();
+        collector.collect_orphan_blobs().unwrap();
+        assert!(writer.blobs.join(&hash).exists());
+        let collector_tx = collector
+            .connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        writer.connection.busy_timeout(Duration::ZERO).unwrap();
+        writer.ingest_message("a", b"blocked").unwrap_err();
+        collector_tx.rollback().unwrap();
+    }
+
+    #[test]
+    fn failed_insert_leaves_collectible_orphan() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(dir.path()).unwrap();
+        store.ensure_account("a").unwrap();
+        store.connection.execute_batch("CREATE TRIGGER fail_insert BEFORE INSERT ON messages BEGIN SELECT RAISE(ABORT, 'test'); END;").unwrap();
+        store.ingest_message("a", b"orphan").unwrap_err();
+        assert_eq!(fs::read_dir(&store.blobs).unwrap().count(), 1);
+        let count: i64 = store
+            .connection
+            .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        store.collect_orphan_blobs().unwrap();
+        assert_eq!(fs::read_dir(&store.blobs).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn corruption_and_symlinks_are_rejected_and_unknown_files_retained() {
+        use sha2::Digest as _;
+        use std::os::unix::fs::symlink;
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(dir.path()).unwrap();
+        store.ensure_account("a").unwrap();
+        let hash = format!("{:x}", sha2::Sha256::digest(b"synthetic"));
+        let path = store.blobs.join(&hash);
+        fs::write(&path, b"corrupted").unwrap();
+        assert!(matches!(
+            store.ingest_message("a", b"synthetic"),
+            Err(super::Error::CorruptBlob)
+        ));
+        fs::remove_file(&path).unwrap();
+        let unrelated = store.blobs.join("unrelated");
+        fs::write(&unrelated, b"synthetic").unwrap();
+        symlink(&unrelated, &path).unwrap();
+        assert!(matches!(
+            store.ingest_message("a", b"synthetic"),
+            Err(super::Error::CorruptBlob)
+        ));
+        store.collect_orphan_blobs().unwrap();
+        assert!(path.is_symlink());
+        assert!(unrelated.exists());
     }
 
     #[test]
