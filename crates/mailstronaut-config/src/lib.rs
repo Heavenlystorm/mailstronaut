@@ -1,10 +1,20 @@
 //! Typed, secret-free configuration contract for Mailstronaut.
+#![expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "Schema types are grouped by their configuration sections."
+)]
+#![expect(
+    clippy::multiple_crate_versions,
+    reason = "Pinned Snix and its dependencies require multiple transitive versions."
+)]
+use core::iter::once;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path};
 
 /// Configuration format supported by this crate.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Config {
     /// Format version, currently 1.
     pub schema_version: u32,
@@ -44,6 +54,7 @@ pub struct Config {
 /// Native theme selection.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Appearance {
     #[default]
     /// Follow the system theme.
@@ -56,6 +67,7 @@ pub enum Appearance {
 /// Background operation settings.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Background {
     /// Keep running after the window closes.
     pub enabled: bool,
@@ -65,6 +77,7 @@ pub struct Background {
 /// Notification settings.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Notifications {
     /// Enable notifications.
     pub enabled: bool,
@@ -72,6 +85,8 @@ pub struct Notifications {
     pub show_preview: bool,
 }
 impl Default for Notifications {
+    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
+    #[inline]
     fn default() -> Self {
         Self {
             enabled: true,
@@ -82,6 +97,7 @@ impl Default for Notifications {
 /// Remote-content policy.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Privacy {
     /// Policy for remote content.
     pub remote_content: RemoteContent,
@@ -89,6 +105,7 @@ pub struct Privacy {
 /// Remote resources are never fetched on message open.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum RemoteContent {
     #[default]
     /// Ask before loading remote content.
@@ -99,6 +116,7 @@ pub enum RemoteContent {
 /// Synchronization limits.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Sync {
     /// Initial history in days.
     pub initial_days: u32,
@@ -108,17 +126,20 @@ pub struct Sync {
     pub max_body_bytes: u32,
 }
 impl Default for Sync {
+    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
+    #[inline]
     fn default() -> Self {
         Self {
             initial_days: 30,
             poll_seconds: 300,
-            max_body_bytes: 2_097_152,
+            max_body_bytes: 0x20_0000,
         }
     }
 }
 /// Local priority analysis settings.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Priority {
     /// Whether analysis is enabled.
     pub enabled: bool,
@@ -134,6 +155,8 @@ pub struct Priority {
     pub max_ttl_hours: u32,
 }
 impl Default for Priority {
+    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
+    #[inline]
     fn default() -> Self {
         Self {
             enabled: false,
@@ -148,6 +171,7 @@ impl Default for Priority {
 /// Default reminder times in local time.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Reminders {
     /// Morning time in HH:MM format.
     pub morning: String,
@@ -155,6 +179,8 @@ pub struct Reminders {
     pub evening: String,
 }
 impl Default for Reminders {
+    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
+    #[inline]
     fn default() -> Self {
         Self {
             morning: "09:00".into(),
@@ -165,6 +191,7 @@ impl Default for Reminders {
 /// A configured mailbox; credentials are referenced, never embedded.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Account {
     /// Stable account identifier.
     pub id: String,
@@ -199,6 +226,7 @@ pub struct Account {
 /// Supported endpoint presets.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Provider {
     /// Google preset.
     Google,
@@ -210,6 +238,7 @@ pub enum Provider {
 /// Mail server endpoint.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Endpoint {
     /// Server hostname.
     pub host: String,
@@ -221,6 +250,7 @@ pub struct Endpoint {
 /// Required transport encryption.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Security {
     /// Implicit TLS.
     Tls,
@@ -230,11 +260,13 @@ pub enum Security {
 /// Authentication metadata. Secret values are held in a credential service.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(
+    try_from = "RawAuth",
     tag = "kind",
     rename_all = "lowercase",
     rename_all_fields = "camelCase",
     deny_unknown_fields
 )]
+#[non_exhaustive]
 pub enum Auth {
     /// Password or app password stored by reference.
     Password {
@@ -260,9 +292,82 @@ pub enum Auth {
         sasl: Option<Sasl>,
     },
 }
+/// A typed map avoids Snix's `deserialize_any` string display conversion.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawAuth {
+    /// Corresponding authentication field.
+    kind: AuthKind,
+    /// Corresponding authentication field.
+    secret_ref: String,
+    /// Corresponding authentication field.
+    provider: Option<OAuthProvider>,
+    /// Corresponding authentication field.
+    client_id: Option<String>,
+    /// Corresponding authentication field.
+    authorization_url: Option<String>,
+    /// Corresponding authentication field.
+    token_url: Option<String>,
+    /// Corresponding authentication field.
+    scopes: Option<Vec<String>>,
+    /// Corresponding authentication field.
+    sasl: Option<Sasl>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+/// Typed authentication discriminator.
+enum AuthKind {
+    /// Password authentication.
+    Password,
+    /// OAuth authentication.
+    Oauth2,
+}
+
+#[expect(
+    clippy::implicit_return,
+    reason = "Serde conversion returns the selected variant as a match expression."
+)]
+impl TryFrom<RawAuth> for Auth {
+    type Error = &'static str;
+
+    #[inline]
+    #[expect(
+        clippy::question_mark_used,
+        reason = "Propagate missing required fields concisely."
+    )]
+    fn try_from(raw: RawAuth) -> Result<Self, Self::Error> {
+        match raw.kind {
+            AuthKind::Password => {
+                if raw.provider.is_some()
+                    || raw.client_id.is_some()
+                    || raw.authorization_url.is_some()
+                    || raw.token_url.is_some()
+                    || raw.scopes.is_some()
+                    || raw.sasl.is_some()
+                {
+                    return Err("password authentication has OAuth fields");
+                }
+                Ok(Self::Password {
+                    secret_ref: raw.secret_ref,
+                })
+            }
+            AuthKind::Oauth2 => Ok(Self::Oauth2 {
+                provider: raw.provider.ok_or("OAuth provider required")?,
+                client_id: raw.client_id.ok_or("OAuth client ID required")?,
+                secret_ref: raw.secret_ref,
+                authorization_url: raw.authorization_url,
+                token_url: raw.token_url,
+                scopes: raw.scopes.unwrap_or_default(),
+                sasl: raw.sasl,
+            }),
+        }
+    }
+}
 /// OAuth provider.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum OAuthProvider {
     /// Google preset.
     Google,
@@ -274,6 +379,7 @@ pub enum OAuthProvider {
 /// OAuth SASL mechanism.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Sasl {
     /// XOAUTH2 mechanism.
     Xoauth2,
@@ -283,6 +389,7 @@ pub enum Sasl {
 /// Additional trusted certificate files.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Tls {
     /// Absolute paths to CA files.
     pub ca_files: Vec<String>,
@@ -290,6 +397,7 @@ pub struct Tls {
 /// Explicit server mailbox mappings.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
 pub struct Folders {
     /// Inbox override.
     pub inbox: Option<String>,
@@ -305,6 +413,7 @@ pub struct Folders {
 
 /// A diagnostic containing only a field name and a static message.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ValidationError {
     /// Field path, without user data.
     pub field: &'static str,
@@ -312,12 +421,16 @@ pub struct ValidationError {
     pub message: &'static str,
 }
 
+#[expect(
+    clippy::implicit_return,
+    reason = "Validation accumulates independent field diagnostics in one pass."
+)]
 impl Config {
     /// Validate all configuration values without accessing the network or filesystem.
     #[must_use]
+    #[inline]
     pub fn validate(&self) -> Vec<ValidationError> {
         let mut errors = Vec::new();
-        let mut ids = HashSet::new();
         let mut check = |ok: bool, field: &'static str, message: &'static str| {
             if !ok {
                 errors.push(ValidationError { field, message });
@@ -339,7 +452,7 @@ impl Config {
             "outside supported range",
         );
         check(
-            (1..=16_777_216).contains(&self.sync.max_body_bytes),
+            (1..=0x100_0000).contains(&self.sync.max_body_bytes),
             "sync.maxBodyBytes",
             "outside supported range",
         );
@@ -359,14 +472,14 @@ impl Config {
             "priority",
             "model directory and revision must be supplied together",
         );
-        if let Some(path) = &self.priority.model_directory {
+        if let Some(path) = self.priority.model_directory.as_ref() {
             check(
                 valid_path(path),
                 "priority.modelDirectory",
                 "absolute path required",
             );
         }
-        if let Some(revision) = &self.priority.model_revision {
+        if let Some(revision) = self.priority.model_revision.as_ref() {
             check(
                 valid_text(revision),
                 "priority.modelRevision",
@@ -374,18 +487,21 @@ impl Config {
             );
         }
         check(
-            self.priority.languages.iter().all(|s| valid_text(s)),
+            self.priority
+                .languages
+                .iter()
+                .all(|value| valid_text(value)),
             "priority.languages",
             "invalid language",
         );
-        if let Some(zone) = &self.time_zone {
+        if let Some(zone) = self.time_zone.as_ref() {
             check(
                 zone.parse::<chrono_tz::Tz>().is_ok(),
                 "timeZone",
                 "unknown time zone",
             );
         }
-        if let Some(locale) = &self.locale {
+        if let Some(locale) = self.locale.as_ref() {
             check(valid_text(locale), "locale", "invalid locale");
         }
         check(
@@ -398,188 +514,257 @@ impl Config {
             "reminders.evening",
             "expected HH:MM",
         );
-        for account in &self.accounts {
-            check(
-                valid_id(&account.id) && ids.insert(&account.id),
-                "accounts.id",
-                "invalid or duplicate account ID",
-            );
-            check(
-                valid_text(&account.address),
-                "accounts.address",
-                "address required",
-            );
-            check(
-                valid_text(&account.display_name),
-                "accounts.displayName",
-                "display name required",
-            );
-            check(
-                valid_text(&account.user_name),
-                "accounts.userName",
-                "username required",
-            );
-            check(
-                account
-                    .smtp_user_name
-                    .as_ref()
-                    .is_none_or(|s| valid_text(s)),
-                "accounts.smtpUserName",
-                "invalid username",
-            );
-            check(
-                account.aliases.iter().all(|s| valid_text(s)),
-                "accounts.aliases",
-                "invalid alias",
-            );
-            if matches!(account.provider, Provider::Manual) {
-                check(
-                    account.imap.is_some() && account.smtp.is_some(),
-                    "accounts",
-                    "manual accounts require endpoints",
-                );
-            }
-            for endpoint in [&account.imap, &account.smtp].into_iter().flatten() {
-                check(
-                    valid_host(&endpoint.host) && endpoint.port != 0,
-                    "accounts.endpoint",
-                    "invalid host or port",
-                );
-            }
-            for auth in std::iter::once(&account.auth).chain(account.smtp_auth.iter()) {
-                match auth {
-                    Auth::Password { secret_ref } => check(
-                        valid_id(secret_ref),
-                        "accounts.auth.secretRef",
-                        "invalid credential reference",
-                    ),
-                    Auth::Oauth2 {
-                        provider,
-                        client_id,
-                        secret_ref,
-                        authorization_url,
-                        token_url,
-                        scopes,
-                        sasl,
-                    } => {
-                        check(
-                            valid_text(client_id),
-                            "accounts.auth.clientId",
-                            "invalid client ID",
-                        );
-                        check(
-                            valid_id(secret_ref),
-                            "accounts.auth.secretRef",
-                            "invalid credential reference",
-                        );
-                        check(
-                            scopes.iter().all(|scope| {
-                                valid_text(scope) && !scope.chars().any(char::is_whitespace)
-                            }),
-                            "accounts.auth.scopes",
-                            "invalid scopes",
-                        );
-                        if matches!(provider, OAuthProvider::Custom) {
-                            check(
-                                authorization_url.as_deref().is_some_and(valid_https),
-                                "accounts.auth.authorizationUrl",
-                                "invalid HTTPS endpoint",
-                            );
-                            check(
-                                token_url.as_deref().is_some_and(valid_https),
-                                "accounts.auth.tokenUrl",
-                                "invalid HTTPS endpoint",
-                            );
-                            check(
-                                !scopes.is_empty(),
-                                "accounts.auth.scopes",
-                                "scopes required",
-                            );
-                            check(
-                                sasl.is_some(),
-                                "accounts.auth.sasl",
-                                "SASL mechanism required",
-                            );
-                        } else {
-                            check(
-                                authorization_url.is_none() && token_url.is_none(),
-                                "accounts.auth",
-                                "preset endpoints cannot be overridden",
-                            );
-                        }
-                    }
-                }
-            }
-            check(
-                !matches!(account.provider, Provider::Google)
-                    || matches!(
-                        account.auth,
-                        Auth::Oauth2 {
-                            provider: OAuthProvider::Google,
-                            ..
-                        }
-                    ),
-                "accounts.auth",
-                "Google requires Google OAuth",
-            );
-            check(
-                !matches!(account.provider, Provider::Icloud)
-                    || matches!(account.auth, Auth::Password { .. }),
-                "accounts.auth",
-                "iCloud requires app password authentication",
-            );
-            check(
-                account.tls.ca_files.iter().all(|p| valid_path(p)),
-                "accounts.tls.caFiles",
-                "absolute paths required",
-            );
-            for folder in [
-                &account.folders.inbox,
-                &account.folders.sent,
-                &account.folders.drafts,
-                &account.folders.trash,
-                &account.folders.archive,
-            ]
-            .into_iter()
-            .flatten()
-            {
-                check(
-                    valid_text(folder),
-                    "accounts.folders",
-                    "invalid mailbox name",
-                );
-            }
-        }
+        validate_accounts(&self.accounts, &mut check);
         errors
     }
 }
 
-fn valid_text(s: &str) -> bool {
-    !s.trim().is_empty() && !s.chars().any(char::is_control)
+/// Validate account-level settings and authentication metadata.
+#[expect(
+    clippy::implicit_return,
+    clippy::unneeded_field_pattern,
+    clippy::single_call_fn,
+    reason = "Separate account checks keep validation readable; wildcard patterns conflict with other restriction lints."
+)]
+fn validate_accounts(
+    accounts: &[Account],
+    check: &mut impl FnMut(bool, &'static str, &'static str),
+) {
+    let mut ids = HashSet::new();
+    for account in accounts {
+        check(
+            valid_id(&account.id) && ids.insert(&account.id),
+            "accounts.id",
+            "invalid or duplicate account ID",
+        );
+        check(
+            valid_text(&account.address),
+            "accounts.address",
+            "address required",
+        );
+        check(
+            valid_text(&account.display_name),
+            "accounts.displayName",
+            "display name required",
+        );
+        check(
+            valid_text(&account.user_name),
+            "accounts.userName",
+            "username required",
+        );
+        check(
+            account
+                .smtp_user_name
+                .as_ref()
+                .is_none_or(|value| valid_text(value)),
+            "accounts.smtpUserName",
+            "invalid username",
+        );
+        check(
+            account.aliases.iter().all(|value| valid_text(value)),
+            "accounts.aliases",
+            "invalid alias",
+        );
+        if matches!(account.provider, Provider::Manual) {
+            check(
+                account.imap.is_some() && account.smtp.is_some(),
+                "accounts",
+                "manual accounts require endpoints",
+            );
+        }
+        for endpoint in [&account.imap, &account.smtp].into_iter().flatten() {
+            check(
+                valid_host(&endpoint.host) && endpoint.port != 0,
+                "accounts.endpoint",
+                "invalid host or port",
+            );
+        }
+        validate_auth(account, check);
+        check(
+            !matches!(account.provider, Provider::Google)
+                || matches!(
+                    account.auth,
+                    Auth::Oauth2 {
+                        provider: OAuthProvider::Google,
+                        client_id: _,
+                        secret_ref: _,
+                        authorization_url: _,
+                        token_url: _,
+                        scopes: _,
+                        sasl: _
+                    }
+                ),
+            "accounts.auth",
+            "Google requires Google OAuth",
+        );
+        check(
+            !matches!(account.provider, Provider::Icloud)
+                || matches!(account.auth, Auth::Password { secret_ref: _ }),
+            "accounts.auth",
+            "iCloud requires app password authentication",
+        );
+        check(
+            account.tls.ca_files.iter().all(|value| valid_path(value)),
+            "accounts.tls.caFiles",
+            "absolute paths required",
+        );
+        for folder in [
+            &account.folders.inbox,
+            &account.folders.sent,
+            &account.folders.drafts,
+            &account.folders.trash,
+            &account.folders.archive,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            check(
+                valid_text(folder),
+                "accounts.folders",
+                "invalid mailbox name",
+            );
+        }
+    }
 }
-fn valid_id(s: &str) -> bool {
-    !s.is_empty()
-        && s.bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+
+/// Validate both incoming and optional outgoing authentication.
+#[expect(
+    clippy::implicit_return,
+    clippy::pattern_type_mismatch,
+    reason = "Predicate closures and borrowed variants conflict with other restriction lints."
+)]
+#[expect(
+    clippy::single_call_fn,
+    reason = "Keeping authentication checks separate makes account validation readable."
+)]
+fn validate_auth(account: &Account, check: &mut impl FnMut(bool, &'static str, &'static str)) {
+    for auth in once(&account.auth).chain(account.smtp_auth.iter()) {
+        match auth {
+            Auth::Password { secret_ref } => check(
+                valid_id(secret_ref),
+                "accounts.auth.secretRef",
+                "invalid credential reference",
+            ),
+            Auth::Oauth2 {
+                provider,
+                client_id,
+                secret_ref,
+                authorization_url,
+                token_url,
+                scopes,
+                sasl,
+            } => {
+                check(
+                    valid_text(client_id),
+                    "accounts.auth.clientId",
+                    "invalid client ID",
+                );
+                check(
+                    valid_id(secret_ref),
+                    "accounts.auth.secretRef",
+                    "invalid credential reference",
+                );
+                check(
+                    scopes
+                        .iter()
+                        .all(|scope| valid_text(scope) && !scope.chars().any(char::is_whitespace)),
+                    "accounts.auth.scopes",
+                    "invalid scopes",
+                );
+                if matches!(provider, OAuthProvider::Custom) {
+                    check(
+                        authorization_url.as_deref().is_some_and(valid_https),
+                        "accounts.auth.authorizationUrl",
+                        "invalid HTTPS endpoint",
+                    );
+                    check(
+                        token_url.as_deref().is_some_and(valid_https),
+                        "accounts.auth.tokenUrl",
+                        "invalid HTTPS endpoint",
+                    );
+                    check(
+                        !scopes.is_empty(),
+                        "accounts.auth.scopes",
+                        "scopes required",
+                    );
+                    check(
+                        sasl.is_some(),
+                        "accounts.auth.sasl",
+                        "SASL mechanism required",
+                    );
+                } else {
+                    check(
+                        authorization_url.is_none() && token_url.is_none(),
+                        "accounts.auth",
+                        "preset endpoints cannot be overridden",
+                    );
+                }
+            }
+        }
+    }
 }
-fn valid_path(s: &str) -> bool {
-    std::path::Path::new(s).is_absolute() && valid_text(s)
+
+/// Check text for empty or control characters.
+#[expect(
+    clippy::implicit_return,
+    reason = "Predicate is expressed as a single boolean expression."
+)]
+fn valid_text(value: &str) -> bool {
+    !value.trim().is_empty() && !value.chars().any(char::is_control)
 }
-fn valid_time(s: &str) -> bool {
-    let bytes = s.as_bytes();
-    bytes.len() == 5
-        && bytes[2] == b':'
-        && bytes
-            .iter()
-            .enumerate()
-            .all(|(i, b)| i == 2 || b.is_ascii_digit())
-        && &s[..2] < "24"
-        && &s[3..] < "60"
+/// Check a stable identifier.
+#[expect(
+    clippy::implicit_return,
+    reason = "Predicate is expressed as a single boolean expression."
+)]
+fn valid_id(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
-fn valid_https(s: &str) -> bool {
-    !s.chars()
-        .any(|c| c.is_whitespace() || c.is_control() || c == '\\')
-        && url::Url::parse(s).is_ok_and(|url| {
+/// Check an absolute path.
+#[expect(
+    clippy::implicit_return,
+    reason = "Predicate is expressed as a single boolean expression."
+)]
+fn valid_path(value: &str) -> bool {
+    Path::new(value).is_absolute() && valid_text(value)
+}
+/// Check a local time.
+#[expect(
+    clippy::implicit_return,
+    reason = "Predicate is expressed as a single boolean expression."
+)]
+#[expect(
+    clippy::pattern_type_mismatch,
+    clippy::arithmetic_side_effects,
+    clippy::missing_const_for_fn,
+    reason = "Digits are checked before bounded arithmetic on the byte pattern."
+)]
+fn valid_time(value: &str) -> bool {
+    match value.as_bytes() {
+        [hour_tens, hour_ones, b':', minute_tens, minute_ones] => {
+            hour_tens.is_ascii_digit()
+                && hour_ones.is_ascii_digit()
+                && minute_tens.is_ascii_digit()
+                && minute_ones.is_ascii_digit()
+                && (*hour_tens - b'0') * 10 + (*hour_ones - b'0') < 24
+                && (*minute_tens - b'0') * 10 + (*minute_ones - b'0') < 60
+        }
+        _ => false,
+    }
+}
+/// Check an HTTPS endpoint.
+#[expect(
+    clippy::implicit_return,
+    reason = "Predicate is expressed as a single boolean expression."
+)]
+fn valid_https(value: &str) -> bool {
+    !value
+        .chars()
+        .any(|character| character.is_whitespace() || character.is_control() || character == '\\')
+        && url::Url::parse(value).is_ok_and(|url| {
             url.scheme() == "https"
                 && url.host().is_some()
                 && url.username().is_empty()
@@ -587,8 +772,17 @@ fn valid_https(s: &str) -> bool {
                 && url.fragment().is_none()
         })
 }
-fn valid_host(s: &str) -> bool {
-    !s.is_empty() && !s.chars().any(char::is_whitespace) && url::Host::parse(s).is_ok()
+/// Check a server host.
+#[expect(
+    clippy::implicit_return,
+    reason = "Predicate is expressed as a single boolean expression."
+)]
+#[expect(
+    clippy::single_call_fn,
+    reason = "Named predicate makes endpoint validation readable."
+)]
+fn valid_host(value: &str) -> bool {
+    !value.is_empty() && !value.chars().any(char::is_whitespace) && url::Host::parse(value).is_ok()
 }
 
 /// Maximum configuration source size in bytes.
@@ -606,6 +800,12 @@ pub const MAX_SOURCE_BYTES: usize = 256 * 1024;
 /// or does not pass validation. Evaluator diagnostics may contain user input and
 /// are deliberately not returned.
 #[cfg(test)]
+#[expect(
+    clippy::implicit_return,
+    clippy::question_mark_used,
+    clippy::map_err_ignore,
+    reason = "Test-only evaluation redacts source diagnostics and propagates failure."
+)]
 fn evaluate_unisolated(source: &str) -> Result<Config, &'static str> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("configuration exceeds the source size limit");
@@ -619,6 +819,14 @@ fn evaluate_unisolated(source: &str) -> Result<Config, &'static str> {
 }
 
 #[cfg(test)]
+#[expect(
+    clippy::panic,
+    clippy::assertions_on_result_states,
+    clippy::unwrap_used,
+    clippy::shadow_unrelated,
+    clippy::needless_raw_strings,
+    reason = "Synthetic tests use direct assertions and fixture extraction."
+)]
 mod tests {
     use super::*;
 
@@ -648,13 +856,29 @@ mod tests {
     }
 
     #[test]
-    fn tagged_auth_spike_exposes_bridge_failure() {
-        let auth: Result<Auth, _> =
-            snix_serde::from_str(r#"{ kind = "password"; secretRef = "test"; }"#);
-        assert!(
-            auth.is_err(),
-            "the upstream bridge behavior changed; revisit this regression"
-        );
+    fn native_accounts_and_auth_fields() {
+        let example = include_str!("../../../examples/config.nix");
+        assert!(evaluate_unisolated(example).is_ok());
+        let documented = include_str!("../../../docs/CONFIGURATION.md");
+        let example = documented
+            .split("```nix\n")
+            .nth(1)
+            .unwrap()
+            .split("```")
+            .next()
+            .unwrap();
+        assert!(evaluate_unisolated(example).is_ok());
+        let custom = r#"{ kind = "oauth2"; provider = "custom"; clientId = "client";
+            secretRef = "oauth"; authorizationUrl = "https://identity.example.edu/authorize";
+            tokenUrl = "https://identity.example.edu/token"; scopes = [ "imap" ]; sasl = "xoauth2"; }"#;
+        assert!(snix_serde::from_str::<Auth>(custom).is_ok());
+        for source in [
+            r#"{ kind = "password"; secretRef = "test"; clientId = "hybrid"; }"#,
+            r#"{ kind = "oauth2"; secretRef = "test"; provider = "google"; }"#,
+            r#"{ kind = "password"; secretRef = "test"; unknown = true; }"#,
+        ] {
+            assert!(snix_serde::from_str::<Auth>(source).is_err());
+        }
     }
 
     #[test]
