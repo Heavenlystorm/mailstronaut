@@ -11,6 +11,9 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
 
 - Develop and run checks through `nix develop`; do not use ambient Cargo/Rust as
   evidence for the pinned build. `nix flake check` is the package/check gate.
+- The development shell selects pinned nightly Rust with Cranelift for debug/test
+  builds and Wild for linking. Release uses LLVM, thin LTO and one codegen unit.
+  Coordinate full Nix release builds instead of duplicating them across agents.
 - Root Cargo.toml owns workspace metadata, dependencies and all lint groups.
   Members use `workspace = true` for dependencies/metadata/lints. Keep
   `members = ["crates/*"]`. Create planned crates only when implemented.

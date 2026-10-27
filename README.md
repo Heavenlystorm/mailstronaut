@@ -37,6 +37,10 @@ nix run
 nix run -- --version # display-independent package smoke check
 ```
 
+`nix develop` supplies a pinned nightly compiler with Cranelift and Wild for
+debug/test builds. Release builds use LLVM with thin LTO and one codegen unit;
+the Nix release package keeps the pinned stable compiler.
+
 `nix run` launches the synthetic native preview. Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P02](docs/evidence/P02.md), and [P03](docs/evidence/P03.md). The flake exports

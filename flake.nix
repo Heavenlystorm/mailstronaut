@@ -2,16 +2,41 @@
   description = "Mailstronaut: Rust workspace, development environment, and checks";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.rust-overlay = {
+    url = "github:oxalica/rust-overlay";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      rust-overlay,
+    }:
     let
       systems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
-      pkgsFor = system: import nixpkgs { inherit system; };
+      pkgsFor =
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = [ rust-overlay.overlays.default ];
+        };
+      debugToolchainFor =
+        pkgs:
+        pkgs.rust-bin.selectLatestNightlyWith (
+          toolchain:
+          toolchain.default.override {
+            extensions = [
+              "rustc-codegen-cranelift-preview"
+              "rust-src"
+              "rust-analyzer"
+            ];
+          }
+        );
       runtimeLibraries =
         pkgs: with pkgs; [
           wayland
@@ -155,21 +180,27 @@
         {
           default = pkgs.mkShell {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
+            CARGO_UNSTABLE_CODEGEN_BACKEND = "true";
+            CARGO_UNSTABLE_PROFILE_RUSTFLAGS = "true";
+            CARGO_PROFILE_DEV_CODEGEN_BACKEND = "cranelift";
+            CARGO_PROFILE_TEST_CODEGEN_BACKEND = "cranelift";
+            CARGO_PROFILE_RELEASE_CODEGEN_BACKEND = "llvm";
+            CARGO_PROFILE_DEV_RUSTFLAGS = "-Clinker=${pkgs.clang}/bin/clang -Clink-arg=--ld-path=${pkgs.wild}/bin/wild";
+            CARGO_PROFILE_TEST_RUSTFLAGS = "-Clinker=${pkgs.clang}/bin/clang -Clink-arg=--ld-path=${pkgs.wild}/bin/wild";
             packages = with pkgs; [
+              (debugToolchainFor pkgs)
+              clang
+              wild
               pkg-config
               libxkbcommon
               wayland
               fontconfig
               freetype
-              cargo
-              rustc
-              rustfmt
-              clippy
-              rust-analyzer
               nixfmt
               git
               actionlint
               shellcheck
+              time
             ];
           };
         }
