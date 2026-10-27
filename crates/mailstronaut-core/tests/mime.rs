@@ -8,6 +8,8 @@
     reason = "Synthetic fixtures fail the test on unexpected parsing or missing data; return lints conflict."
 )]
 mod tests {
+    use core::ops::Range;
+
     use mailstronaut_core::mime::{self, Error};
 
     #[test]
@@ -77,15 +79,16 @@ mod tests {
         let result = mime::project(raw).expect("forwarded message");
         assert_eq!(result.text.as_deref(), Some("Outer"));
         assert_eq!(result.attachments.len(), 1);
+        assert_eq!(
+            &result.original[result.attachments[0].raw_body.clone()],
+            b"Subject: forwarded\r\n\r\nInner"
+        );
     }
     #[test]
-    #[expect(
-        clippy::unseparated_literal_suffix,
-        reason = "The restriction lints also forbid separated suffixes."
-    )]
     fn part_and_attachment_limits_are_reported() {
         let mut raw = String::from("Content-Type: multipart/mixed; boundary=x\r\n\r\n");
-        for _ in 0usize..300usize {
+        let parts: Range<usize> = 0..300;
+        for _ in parts {
             raw.push_str("--x\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment\r\n\r\na\r\n");
         }
         raw.push_str("--x--\r\n");
@@ -121,5 +124,30 @@ mod tests {
         );
         let other = mime::project(b"\r\nother").expect("other message");
         assert!(other.attachment_for_cid("one").is_none());
+    }
+    #[test]
+    fn inline_encrypted_text_suppresses_all_alternatives() {
+        let raw = b"Content-Type: multipart/alternative; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain\r\nContent-Transfer-Encoding: base64\r\n\r\nLS0tLS1CRUdJTiBQR1AgTUVTU0FHRS0tLS0t\r\n--x\r\nContent-Type: text/html\r\n\r\n<p>ciphertext</p>\r\n--x--\r\n";
+        let result = mime::project(raw).expect("inline encrypted message");
+        assert!(result.status.encrypted_unsupported);
+        assert!(result.text.is_none());
+        assert!(result.html.is_none());
+        assert!(result.preview.is_none());
+    }
+
+    #[test]
+    fn preview_records_extracted_source_and_original_revision() {
+        let result = mime::project(b"\r\nhello").expect("message");
+        let preview = result.preview.expect("preview");
+        assert_eq!(preview.source, mime::PreviewSource::Extracted);
+        assert_eq!(preview.body_revision, result.revision);
+    }
+
+    #[test]
+    fn malformed_cid_is_not_resolved() {
+        let raw = b"Content-Type: multipart/related; boundary=x\r\n\r\n--x\r\nContent-Type: text/html\r\n\r\n<img src=cid:bad>\r\n--x\r\nContent-Type: image/png\r\nContent-ID: <bad id>\r\n\r\nabc\r\n--x--\r\n";
+        let result = mime::project(raw).expect("message");
+        assert!(result.attachment_for_cid("bad id").is_none());
+        assert!(result.attachment_for_cid("").is_none());
     }
 }

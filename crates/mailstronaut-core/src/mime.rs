@@ -66,12 +66,27 @@ pub struct Attachment {
     pub raw_body: Range<usize>,
 }
 
+/// Origin of preview text, retained separately from the body revision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PreviewSource {
+    /// Deterministically extracted from the original message.
+    Extracted,
+    /// Reserved provenance for a future generated preview.
+    Generated {
+        /// Identifier of the model used to generate the text.
+        model_revision: String,
+    },
+}
+
 /// Deterministic source extraction, distinct from any future generated summary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Preview {
     /// Hash of the complete source message.
     pub body_revision: [u8; 32],
+    /// Provenance of the preview text.
+    pub source: PreviewSource,
     /// Whitespace-normalized, at most 320 Unicode characters.
     pub text: String,
 }
@@ -125,9 +140,12 @@ pub struct Projection {
 )]
 impl Projection {
     /// Resolve a CID only when exactly one root-message attachment has that ID.
-    #[must_use]
+    #[must_use = "CID lookup has no effect unless its result is used."]
     #[inline]
     pub fn attachment_for_cid(&self, cid: &str) -> Option<&Attachment> {
+        if !valid_cid(cid) {
+            return None;
+        }
         let mut matches = self
             .attachments
             .iter()
@@ -168,7 +186,23 @@ fn addresses(list: Option<AddressList<'_>>) -> Vec<Mailbox> {
         .collect()
 }
 
+/// Accept only a conservative, unambiguous Content-ID lookup key.
+#[expect(
+    clippy::implicit_return,
+    reason = "Expression closures and return lints conflict."
+)]
+fn valid_cid(cid: &str) -> bool {
+    !cid.is_empty()
+        && cid
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() && !matches!(byte, b'<' | b'>'))
+}
+
 /// Record parser flags and encrypted containers recursively.
+#[expect(
+    clippy::implicit_return,
+    reason = "Expression closures and return lints conflict."
+)]
 fn inspect(part: MessagePart<'_>, status: &mut Status) {
     status.degraded |= part.has_problems();
     status.parts_truncated |= part.flags().contains(PartFlags::LIMIT_REACHED);
@@ -176,6 +210,15 @@ fn inspect(part: MessagePart<'_>, status: &mut Status) {
         || part.is_content_type("application", "pkcs7-mime")
         || part.is_content_type("application", "x-pkcs7-mime")
         || part.is_content_type("application", "pgp-encrypted");
+    // Decode only a bounded prefix, including transfer encodings, before exposing
+    // any alternative. Inline OpenPGP is unsupported, even in mixed messages.
+    if part.is_content_type("text", "plain")
+        && part
+            .text_prefix(4096)
+            .is_some_and(|text| text.contains("-----BEGIN PGP MESSAGE-----"))
+    {
+        status.encrypted_unsupported = true;
+    }
     for child in part.children() {
         inspect(child, status);
     }
@@ -258,7 +301,10 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
             media_type: part
                 .content_type()
                 .map(|kind| format!("{}/{}", kind.ctype(), kind.subtype().unwrap_or(""))),
-            content_id: part.content_id().map(str::to_owned),
+            content_id: part
+                .content_id()
+                .filter(|cid| valid_cid(cid))
+                .map(str::to_owned),
             raw_body: usize::try_from(part.offset_body()).unwrap_or_default()
                 ..usize::try_from(part.offset_end()).unwrap_or_default(),
             decoded_size: part.decoded_len(),
@@ -284,6 +330,7 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
             .clone()
             .or_else(|| html.as_deref().map(mail_parser::html_to_text));
         let preview = source.map(|content| Preview {
+            source: PreviewSource::Extracted,
             text: content
                 .split_whitespace()
                 .collect::<Vec<_>>()
