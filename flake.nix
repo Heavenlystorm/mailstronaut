@@ -178,6 +178,18 @@
           pkgs = pkgsFor system;
         in
         {
+          servo-probe = pkgs.mkShell {
+            inputsFrom = [ self.devShells.${system}.default ];
+            packages = with pkgs; [
+              clang
+              cmake
+              ninja
+              python3
+              perl
+              libclang
+            ];
+            LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+          };
           default = pkgs.mkShell {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
             CARGO_UNSTABLE_CODEGEN_BACKEND = "true";
