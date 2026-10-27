@@ -85,10 +85,6 @@ impl ErrorTrait for EvaluationError {}
     clippy::map_err_ignore,
     reason = "Propagate failures with deliberately redacted diagnostics."
 )]
-#[expect(
-    clippy::integer_division_remainder_used,
-    reason = "The Tokio select macro uses remainder internally to select a branch."
-)]
 pub async fn evaluate(
     executable: &Path,
     source: &str,
@@ -111,13 +107,15 @@ pub async fn evaluate(
         .kill_on_drop(true)
         .spawn()
         .map_err(|_| EvaluationError::Spawn)?;
-    let result = tokio::select! {
-        biased;
-        () = cancellation.cancelled() => Err(EvaluationError::Cancelled),
-        result = time::timeout(EVALUATION_TIMEOUT, exchange(&mut child, source)) => {
-            result.unwrap_or(Err(EvaluationError::TimedOut))
-        }
-    };
+    let result = cancellation
+        .run_until_cancelled(time::timeout(
+            EVALUATION_TIMEOUT,
+            exchange(&mut child, source),
+        ))
+        .await
+        .map_or(Err(EvaluationError::Cancelled), |response| {
+            response.unwrap_or(Err(EvaluationError::TimedOut))
+        });
     if result.is_err() {
         // kill() also waits on Unix. An already reaped child is harmless here.
         let _cleanup = child.kill().await;

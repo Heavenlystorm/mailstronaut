@@ -143,7 +143,8 @@ mod tests {
         ]);
         assert!(!output.status.success());
         assert!(!String::from_utf8_lossy(&output.stderr).contains("synthetic-secret"));
-        assert_eq!(output.stdout, [] as [u8; 0]);
+        let no_output: [u8; 0] = [];
+        assert_eq!(output.stdout, no_output);
         assert!(command(&["--version".as_ref()]).status.success());
         assert!(
             !command(&["config".as_ref(), "unexpected".as_ref()])
@@ -159,7 +160,6 @@ mod tests {
 
     #[expect(
         clippy::unwrap_used,
-        clippy::assertions_on_result_states,
         clippy::single_call_fn,
         reason = "Fixture failures stop the test; rejected inputs may produce different error variants."
     )]
@@ -195,8 +195,10 @@ mod tests {
         );
         for rejected_source in [
             "{ schemaVersion = 2; }",
-            "{ schemaVersion = builtins.readFile /etc/passwd; }",
-            "{ schemaVersion = builtins.getEnv \"HOME\"; }",
+            "{ schemaVersion = \"one\"; }",
+            "{ schemaVersion = 1; accounts = true; }",
+            "{ schemaVersion = builtins.seq (builtins.readFile /etc/passwd) 1; }",
+            "{ schemaVersion = builtins.seq (builtins.getEnv \"HOME\") 1; }",
             "import /etc/passwd",
             "builtins.fetchurl { url = \"https://example.invalid\"; }",
         ] {
@@ -273,12 +275,30 @@ mod tests {
             process::evaluate(Path::new(EXECUTABLE), NONTERMINATING, &worker_cancellation).await
         });
         let mut live_child = None;
-        for _attempt in 0_u32..100 {
+        let maximum_attempts: u32 = 100;
+        for _attempt in 0..maximum_attempts {
             if let Some(path) = helper_child() {
                 live_child = Some(path);
                 break;
             }
             sleep(Duration::from_millis(10)).await;
+        }
+        let child_path = live_child.as_ref().expect("a real helper must be observed");
+        let limits = fs::read_to_string(child_path.join("limits")).unwrap();
+        for (resource, fields, expected) in [
+            ("Max address space", 3, ["1073741824", "1073741824"]),
+            ("Max cpu time", 3, ["2", "3"]),
+            ("Max core file size", 4, ["0", "0"]),
+        ] {
+            let values = limits
+                .lines()
+                .find(|line| line.starts_with(resource))
+                .expect("the kernel must report this resource limit")
+                .split_whitespace()
+                .skip(fields)
+                .take(2)
+                .collect::<Vec<_>>();
+            assert_eq!(values, expected, "the live child must enforce its limits");
         }
         cancellation.cancel();
         let cancelled_result = task.await.unwrap();

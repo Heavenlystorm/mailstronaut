@@ -91,7 +91,7 @@ Read CONFIGURATION.md. Create `mailstronaut-config`; no HM module or TOML parser
 - [ ] Implement schemaVersion=1 structs/tagged enums, camelCase, unknown-field
   rejection, defaults and full cross-field validation. Account IDs are stable and
   unique; endpoint/port/TLS/auth/CA fields and optional distinct SMTP auth work.
-- [ ] Implement bounded same-binary evaluation helper, limits, cancellation/reap,
+- [x] Implement bounded same-binary evaluation helper, limits, cancellation/reap,
   typed result/error IPC; no I/O builtins, imported Nixpkgs, shell or host Nix.
 - [ ] Test native Nix let/references/lists/conditionals, invalid types/unknown keys,
   unsupported schema, attempted IO and nontermination; verify limits empirically.

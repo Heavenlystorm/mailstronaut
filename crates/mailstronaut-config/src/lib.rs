@@ -433,7 +433,7 @@ pub struct ValidationError {
 )]
 impl Config {
     /// Validate all configuration values without accessing the network or filesystem.
-    #[must_use]
+    #[must_use = "Reject invalid configuration before applying it."]
     #[inline]
     pub fn validate(&self) -> Vec<ValidationError> {
         let mut errors = Vec::new();

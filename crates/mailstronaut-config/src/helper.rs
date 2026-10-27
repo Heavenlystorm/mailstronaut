@@ -32,7 +32,7 @@ pub enum Response {
 ///
 /// Failure to impose limits, read input, serialize, or write the response exits
 /// unsuccessfully. Source and evaluator diagnostics are never emitted.
-#[must_use]
+#[must_use = "Return this status from the evaluator child."]
 #[inline]
 #[expect(
     clippy::implicit_return,
