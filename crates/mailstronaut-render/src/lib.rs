@@ -146,10 +146,12 @@ pub struct Viewport {
 )]
 impl Viewport {
     /// Create a viewport; dimensions must be between 1 and 2048 pixels.
+    ///
+    /// # Errors
+    /// Returns an error for invalid dimensions or rendering-context setup failure.
+    #[inline]
     #[expect(
         clippy::implicit_return,
-        clippy::missing_errors_doc,
-        clippy::missing_inline_in_public_items,
         reason = "This fallible constructor delegates to the bounded internal constructor"
     )]
     pub fn synthetic(width: u32, height: u32) -> Result<Self, String> {
@@ -214,20 +216,20 @@ impl Viewport {
     }
     /// Clone the coalescing wake receiver for one async GUI subscription consumer.
     /// Servo and this viewport must still be driven on their creator thread.
+    #[inline]
+    #[must_use = "Poll the receiver to drive Servo without blocking the GUI."]
     #[expect(
         clippy::implicit_return,
-        clippy::must_use_candidate,
-        clippy::missing_inline_in_public_items,
         reason = "The receiver is an async subscription handle"
     )]
     pub fn wake_receiver(&self) -> async_channel::Receiver<()> {
         self.wakes.clone()
     }
     /// Process pending work and return an owned viewport-sized RGBA frame when ready.
+    #[inline]
+    #[must_use = "Use the returned pixels to update the reader viewport."]
     #[expect(
         clippy::implicit_return,
-        clippy::must_use_candidate,
-        clippy::missing_inline_in_public_items,
         clippy::question_mark_used,
         clippy::default_numeric_fallback,
         clippy::cast_possible_wrap,
@@ -248,10 +250,12 @@ impl Viewport {
         Some(image.into_raw())
     }
     /// Resize the bounded viewport.
+    ///
+    /// # Errors
+    /// Returns an error if either dimension is outside 1..=2048 pixels.
+    #[inline]
     #[expect(
         clippy::implicit_return,
-        clippy::missing_errors_doc,
-        clippy::missing_inline_in_public_items,
         clippy::question_mark_used,
         reason = "Resize propagates the bounded dimension validation"
     )]
@@ -262,10 +266,7 @@ impl Viewport {
         Ok(())
     }
     /// Forward the host's effective theme to Servo.
-    #[expect(
-        clippy::missing_inline_in_public_items,
-        reason = "This forwards the host theme to Servo"
-    )]
+    #[inline]
     pub fn set_dark(&self, dark: bool) {
         self.view
             .notify_theme_change(if dark { Theme::Dark } else { Theme::Light });
