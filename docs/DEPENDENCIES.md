@@ -1,8 +1,10 @@
 # Dependency decisions
 
-Research snapshot: 2026-10-27. Only the dependency-free executable scaffold is
-currently in Cargo.lock. The table is an implementation prescription, **not** a
-claim that a combined dependency graph has compiled. Add each dependency to the
+Research snapshot: 2026-10-27. Cargo.lock now includes the initial libcosmic,
+Snix/Serde configuration and SQLite storage components. Their milestone evidence
+records what has been built and tested. The table remains an implementation
+prescription for the full application, **not** proof that all selected components
+compose or that Servo is integrated. Add each dependency to the
 root `[workspace.dependencies]` in its milestone; crates use `workspace = true`.
 Commit Cargo.lock and exact Nix fetch hashes. Do not fetch every planned dependency
 merely to populate a manifest. Disable unused default features where indicated.

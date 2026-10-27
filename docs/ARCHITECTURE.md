@@ -1,6 +1,8 @@
 # Mailstronaut architecture and product contract
 
-Status: proposed architecture and implementation contract; **implementation pending**.
+Status: architecture and implementation contract; **implementation in progress**.
+The initial native window, configuration schema and storage primitives do not yet
+form a usable email client. See the per-milestone evidence for current limits.
 Research date: 2026-10-27. Follow [PLAN.md](PLAN.md) in dependency order.
 Upstream evidence and version caveats are in [DEPENDENCIES.md](DEPENDENCIES.md)
 and [RESEARCH.md](RESEARCH.md). Requirements here are design decisions, not claims

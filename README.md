@@ -3,8 +3,9 @@
 # Mailstronaut
 
 A planned local-first email client for the COSMIC desktop, written in Rust with
-libcosmic and Servo. This repository currently contains the architecture and a
-buildable scaffold. **It is not yet a usable email client.**
+libcosmic and Servo. This repository contains the architecture, a native COSMIC
+preview window, and initial configuration and storage components.
+**It is not yet a usable email client.** Servo integration is still pending.
 
 Start with the [implementation checklist](docs/PLAN.md). It defines dependency-
 ordered milestones, precise acceptance checks and the evidence required to mark
@@ -33,9 +34,12 @@ bash ci/check.sh
 nix flake check --no-update-lock-file --print-build-logs
 nix build
 nix run
+nix run -- --version # display-independent package smoke check
 ```
 
-`nix run` currently reports that this is a planning scaffold. The flake exports
+`nix run` launches the synthetic native preview. Current implementation evidence
+and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
+[P02](docs/evidence/P02.md), and [P03](docs/evidence/P03.md). The flake exports
 x86_64-linux and aarch64-linux outputs; runtime verification and release support
 for each architecture are separate checklist gates. Flatpak production packaging
 is planned in P10 after Servo's build dependencies are established.

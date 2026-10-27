@@ -1,7 +1,8 @@
 # Implementation checklist
 
 This is the authoritative handoff. `[x]` means completed **and verified**, `[ ]`
-means future work. The only completed product work is the planning/scaffold phase.
+means work whose acceptance checks remain open. P00 is complete; P01–P03 have
+partial implementations recorded in their milestone evidence files.
 Do not mark planned features complete because an interface, mock or upstream API
 exists. Update only the acceptance rows actually proven, citing a small evidence
 file with revision, commands, results and limitations. Every implementation change
