@@ -180,6 +180,16 @@
         {
           servo-probe = pkgs.mkShell {
             inputsFrom = [ self.devShells.${system}.default ];
+            # inputsFrom merges build inputs, not arbitrary environment settings.
+            inherit (self.devShells.${system}.default)
+              CARGO_UNSTABLE_CODEGEN_BACKEND
+              CARGO_UNSTABLE_PROFILE_RUSTFLAGS
+              CARGO_PROFILE_DEV_CODEGEN_BACKEND
+              CARGO_PROFILE_TEST_CODEGEN_BACKEND
+              CARGO_PROFILE_RELEASE_CODEGEN_BACKEND
+              CARGO_PROFILE_DEV_RUSTFLAGS
+              CARGO_PROFILE_TEST_RUSTFLAGS
+              ;
             packages = with pkgs; [
               clang
               cmake
