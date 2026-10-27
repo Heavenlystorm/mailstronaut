@@ -6,7 +6,7 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.98"
 license = "GPL-3.0-only"
 repository = "https://github.com/eduardz1/mailstronaut"
 homepage = "https://github.com/eduardz1/mailstronaut"
@@ -19,6 +19,7 @@ readme = "../../README.md"
 # The researched dependency list is in docs/DEPENDENCIES.md.
 [workspace.dependencies]
 cosmic = { package = "libcosmic", git = "https://github.com/pop-os/libcosmic", rev = "8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec", features = ["wgpu"] }
+mail-parser = { version = "=1.0.0", features = ["full_encoding"] }
 rusqlite = { version = "=0.40.0", features = ["bundled"] }
 rusqlite_migration = "=2.6.0"
 sha2 = "=0.10.9"
