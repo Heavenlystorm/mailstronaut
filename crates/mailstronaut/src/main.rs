@@ -5,11 +5,13 @@
     reason = "The pinned libcosmic graph requires multiple incompatible versions of shared dependencies."
 )]
 
-use std::{env, ffi::OsStr};
+mod config_cli;
+
+use std::{env, process::ExitCode};
 
 use cosmic::app::{self, Core, Settings, Task};
 use cosmic::iced::widget::{column, row};
-use cosmic::{Element, executor, iced, widget};
+use cosmic::{Element, executor, widget};
 
 /// Toolkit-owned application state.
 struct App {
@@ -105,13 +107,19 @@ impl cosmic::Application for App {
     reason = "The restriction conflicts with needless_return."
 )]
 #[expect(
-    clippy::print_stdout,
-    reason = "The version command is an explicit CLI output."
+    clippy::print_stderr,
+    reason = "Graphical startup failures need a terminal diagnostic."
 )]
-fn main() -> iced::Result {
-    if env::args_os().nth(1).as_deref() == Some(OsStr::new("--version")) {
-        println!("mailstronaut {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
+fn main() -> ExitCode {
+    let arguments = env::args_os().skip(1).collect::<Vec<_>>();
+    if let Some(status) = config_cli::dispatch(&arguments) {
+        return status;
     }
-    app::run::<App>(Settings::default(), ())
+    match app::run::<App>(Settings::default(), ()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Unable to start Mailstronaut: {error}");
+            ExitCode::FAILURE
+        }
+    }
 }

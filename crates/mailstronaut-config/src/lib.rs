@@ -10,6 +10,9 @@
 /// Internal evaluator child protocol.
 pub mod helper;
 
+/// Parent lifecycle for the short-lived configuration evaluator.
+pub mod process;
+
 use core::iter::once;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::Path};

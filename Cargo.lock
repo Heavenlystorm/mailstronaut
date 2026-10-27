@@ -1293,6 +1293,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "directories"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
 name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3146,7 +3155,14 @@ dependencies = [
 name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
+ "directories",
  "libcosmic",
+ "mailstronaut-config",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "wait-timeout",
 ]
 
 [[package]]
@@ -3158,6 +3174,8 @@ dependencies = [
  "serde",
  "serde_json",
  "snix-serde",
+ "tokio",
+ "tokio-util",
  "url",
 ]
 
@@ -5350,6 +5368,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3d06f0b082ba57c26b79407372e57cf2a1e28124f78e9479fe80322cf53420b"
 dependencies = [
  "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e464cf451ba96ebfc6f9b6542f17ee8b8956e33f1e40d9690624e59d7a7f8a4b"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

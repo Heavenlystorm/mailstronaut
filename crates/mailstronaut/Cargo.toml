@@ -14,6 +14,15 @@ publish = false
 
 [dependencies]
 cosmic.workspace = true
+directories.workspace = true
+mailstronaut-config.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+wait-timeout.workspace = true
 
 [lints]
 workspace = true
