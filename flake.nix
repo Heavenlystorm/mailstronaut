@@ -12,13 +12,50 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
       pkgsFor = system: import nixpkgs { inherit system; };
+      runtimeLibraries =
+        pkgs: with pkgs; [
+          wayland
+          libxkbcommon
+          fontconfig
+          freetype
+          libGL
+          vulkan-loader
+          libx11
+          libxcursor
+          libxi
+          libxrandr
+        ];
       packageFor =
         pkgs:
         pkgs.rustPlatform.buildRustPackage {
           pname = "mailstronaut";
           version = "0.1.0";
-          src = pkgs.lib.cleanSource self;
-          cargoLock.lockFile = ./Cargo.lock;
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = pkgs.lib.fileset.unions [
+              ./Cargo.toml
+              ./Cargo.lock
+              ./README.md
+              ./crates
+              ./assets
+            ];
+          };
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            outputHashes = {
+              "accesskit-0.22.0" = "sha256-6TWK4HXc2a4XSf13/nksZoihMqZurQ7tBGY8+2DaPuY=";
+              "atomicwrites-0.4.2" = "sha256-QZSuGPrJXh+svMeFWqAXoqZQxLq/WfIiamqvjJNVhxA=";
+              "build_helpers-0.14.0" = "sha256-gIrq3k4+TjlIW8CVjGGzh0GOS/xu+UX/8n95gvTYpzw=";
+              "clipboard_macos-0.1.0" = "sha256-WO3JFbE+6ESRAfkxrnEFeZyGuhUHLOKOVHcGQyHwoK0=";
+              "cosmic-client-toolkit-0.2.0" = "sha256-FL2YkCVrJ6JWUGMDg+jJJa51oar/PWDfgPgCyjcv6gk=";
+              "cosmic-freedesktop-icons-0.4.0" = "sha256-tPriTi5L0mFMHjo5xpF5cmKGHqlX3WUO7EZAgVdBpS4=";
+              "cosmic-settings-daemon-0.1.0" = "sha256-LYIR+qK+hCBVV+bfVWz2jvH5fGvfNTcryKqfe5n8Gog=";
+              "cryoglyph-0.1.0" = "sha256-10JUHl1ktbqLaReuiU3HPa4r2KvsoryyJoF3BFoge3U=";
+              "dpi-0.1.2" = "sha256-/H+D2Szeaufte6gbGQelOcvU4JhncJ9k9XTFr0q7PTw=";
+              "smithay-clipboard-0.8.0" = "sha256-GojAFRbhJcP0Rpr+v9WOivgW9x38PZdeBWTbMhkDB3A=";
+              "softbuffer-0.4.1" = "sha256-9Ret/nfieBFl4yJ9TddyWsSuS7sI4QAza/TZrxYMb+I=";
+            };
+          };
           cargoBuildFlags = [
             "--workspace"
             "--all-features"
@@ -28,13 +65,28 @@
             "--all-features"
           ];
           strictDeps = true;
-          nativeBuildInputs = [ pkgs.pkg-config ];
+          nativeBuildInputs = [
+            pkgs.pkg-config
+            pkgs.makeWrapper
+          ];
           buildInputs = with pkgs; [
             libxkbcommon
             wayland
             fontconfig
             freetype
           ];
+          postInstall = ''
+            install -Dm444 ${
+              pkgs.makeDesktopItem {
+                name = builtins.readFile ./assets/app-id;
+                desktopName = "Mailstronaut";
+                exec = "mailstronaut";
+              }
+            }/share/applications/*.desktop -t "$out/share/applications"
+          '';
+          postFixup = ''
+            wrapProgram "$out/bin/mailstronaut" --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}
+          '';
           nativeCheckInputs = [
             pkgs.clippy
             pkgs.rustfmt
@@ -98,6 +150,7 @@
         in
         {
           default = pkgs.mkShell {
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
             packages = with pkgs; [
               pkg-config
               libxkbcommon
