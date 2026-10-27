@@ -7,6 +7,9 @@
     clippy::multiple_crate_versions,
     reason = "Pinned Snix and its dependencies require multiple transitive versions."
 )]
+/// Internal evaluator child protocol.
+pub mod helper;
+
 use core::iter::once;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::Path};
