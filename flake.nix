@@ -36,8 +36,11 @@
               ./Cargo.toml
               ./Cargo.lock
               ./README.md
+              ./LICENSE
               ./crates
               ./assets
+              ./examples
+              ./docs/CONFIGURATION.md
             ];
           };
           cargoLock = {
@@ -53,6 +56,7 @@
               "cryoglyph-0.1.0" = "sha256-10JUHl1ktbqLaReuiU3HPa4r2KvsoryyJoF3BFoge3U=";
               "dpi-0.1.2" = "sha256-/H+D2Szeaufte6gbGQelOcvU4JhncJ9k9XTFr0q7PTw=";
               "smithay-clipboard-0.8.0" = "sha256-GojAFRbhJcP0Rpr+v9WOivgW9x38PZdeBWTbMhkDB3A=";
+              "snix-eval-0.1.0" = "sha256-5vjUm3KUaciznlUYSKFhgjyzG1ZNTArKREA0OyPdu4Q=";
               "softbuffer-0.4.1" = "sha256-9Ret/nfieBFl4yJ9TddyWsSuS7sI4QAza/TZrxYMb+I=";
             };
           };
