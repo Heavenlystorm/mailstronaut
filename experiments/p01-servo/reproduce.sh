@@ -4,9 +4,11 @@
 set -euo pipefail
 probe_dir=${PROBE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/mailstronaut-servo-probe.XXXXXXXX")}
 mkdir -p "$probe_dir"
+mkdir -p "$probe_dir/.cargo"
 printf 'Probe workspace: %s\n' "$probe_dir"
 cp Cargo.toml README.md "$probe_dir/"
 cp experiments/p01-servo/Cargo.lock "$probe_dir/Cargo.lock"
+cp .cargo/config.toml "$probe_dir/.cargo/config.toml"
 cp -R crates "$probe_dir/"
 mkdir -p "$probe_dir/crates/probe/src"
 sed -i '/\[workspace.dependencies\]/a servo = { version = "=0.7.0", default-features = false, features = ["baked-in-resources"] }' "$probe_dir/Cargo.toml"
@@ -33,7 +35,7 @@ for tool in "$CC" "$CXX" "$AS" clang python3 cmake make cargo rustc; do
 done
 # Building checks both the library and binary; a separate check can rebuild the
 # expensive native dependencies under another Cargo fingerprint.
-cargo build --manifest-path "$probe_dir/Cargo.toml" -p servo-probe --jobs 2 --locked
+(cd "$probe_dir" && cargo build -p servo-probe --jobs 2 --locked)
 
 # Fixed synthetic data URL only. This is not a resource-policy test.
 (cd "$probe_dir" && timeout 45s target/debug/servo-probe)

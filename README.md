@@ -40,6 +40,9 @@ nix run -- --version # display-independent package smoke check
 `nix develop` supplies a pinned nightly compiler with Cranelift and Wild for
 debug/test builds. Release builds use LLVM with thin LTO and one codegen unit;
 the Nix release package keeps the pinned stable compiler.
+Four SpiderMonkey FFI crates use LLVM in debug/test because the pinned Cranelift
+cannot handle their symbol-name marker. Wild still links those builds; see the
+narrow overrides and removal condition in [.cargo/config.toml](.cargo/config.toml).
 
 `nix run` launches the synthetic native preview. Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),

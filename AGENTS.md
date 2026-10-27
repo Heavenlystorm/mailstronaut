@@ -14,6 +14,9 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
 - The development shell selects pinned nightly Rust with Cranelift for debug/test
   builds and Wild for linking. Release uses LLVM, thin LTO and one codegen unit.
   Coordinate full Nix release builds instead of duplicating them across agents.
+- Preserve the four scoped LLVM development overrides in `.cargo/config.toml`
+  until Cranelift supports SpiderMonkey's symbol-name marker. Other debug/test
+  crates use Cranelift and Wild; the stable Nix package excludes that config.
 - Root Cargo.toml owns workspace metadata, dependencies and all lint groups.
   Members use `workspace = true` for dependencies/metadata/lints. Keep
   `members = ["crates/*"]`. Create planned crates only when implemented.

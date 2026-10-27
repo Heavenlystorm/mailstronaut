@@ -1,0 +1,30 @@
+# Development only: nix develop enables Cargo's unstable codegen-backend option.
+# The stable Nix release package deliberately excludes this configuration.
+# These four crates emit SpiderMonkey references with LLVM's \01 link-name
+# marker, unsupported by the pinned Cranelift backend. Keep the exception narrow
+# until https://github.com/rust-lang/rustc_codegen_cranelift/issues/1689 is fixed.
+# All other debug/test crates keep the shell's Cranelift default; Wild still links.
+
+[profile.dev.package."servo-script"]
+codegen-backend = "llvm"
+
+[profile.dev.package."servo-script-bindings"]
+codegen-backend = "llvm"
+
+[profile.dev.package.mozjs]
+codegen-backend = "llvm"
+
+[profile.dev.package.mozjs_sys]
+codegen-backend = "llvm"
+
+[profile.test.package."servo-script"]
+codegen-backend = "llvm"
+
+[profile.test.package."servo-script-bindings"]
+codegen-backend = "llvm"
+
+[profile.test.package.mozjs]
+codegen-backend = "llvm"
+
+[profile.test.package.mozjs_sys]
+codegen-backend = "llvm"

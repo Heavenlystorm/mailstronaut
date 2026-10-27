@@ -57,6 +57,8 @@
           version = "0.1.0";
           src = pkgs.lib.fileset.toSource {
             root = ./.;
+            # Exclude the nightly-only .cargo development backend overrides;
+            # this package uses the pinned stable LLVM toolchain.
             fileset = pkgs.lib.fileset.unions [
               ./Cargo.toml
               ./Cargo.lock
