@@ -31,7 +31,8 @@ export NIX_HARDENING_ENABLE AS="$CC" CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEV
 for tool in "$CC" "$CXX" "$AS" clang python3 cmake make cargo rustc; do
     printf '%s: %s\n' "$tool" "$(command -v "$tool")"
 done
-cargo check --manifest-path "$probe_dir/Cargo.toml" -p servo-probe --jobs 2 --locked
+# Building checks both the library and binary; a separate check can rebuild the
+# expensive native dependencies under another Cargo fingerprint.
 cargo build --manifest-path "$probe_dir/Cargo.toml" -p servo-probe --jobs 2 --locked
 
 # Fixed synthetic data URL only. This is not a resource-policy test.
