@@ -19,8 +19,10 @@ version.workspace = true
 edition.workspace = true
 [dependencies]
 servo.workspace = true
+url.workspace = true
 MANIFEST
 cp experiments/p01-servo/probe.rs "$probe_dir/crates/probe/src/lib.rs"
+cp experiments/p01-servo/pixels.rs "$probe_dir/crates/probe/src/main.rs"
 # SpiderMonkey's xsum deliberately uses -Wno-format, which conflicts with
 # the Nix compiler wrapper's format-security error flags. Keep other hardening.
 NIX_HARDENING_ENABLE=" ${NIX_HARDENING_ENABLE:-} "
@@ -31,3 +33,6 @@ for tool in "$CC" "$CXX" "$AS" clang python3 cmake make cargo rustc; do
 done
 cargo check --manifest-path "$probe_dir/Cargo.toml" -p servo-probe --jobs 2 --locked
 cargo build --manifest-path "$probe_dir/Cargo.toml" -p servo-probe --jobs 2 --locked
+
+# Fixed synthetic data URL only. This is not a resource-policy test.
+(cd "$probe_dir" && timeout 45s target/debug/servo-probe)

@@ -189,6 +189,9 @@
               libclang
             ];
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+            shellHook = ''
+              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:$LD_LIBRARY_PATH"
+            '';
           };
           default = pkgs.mkShell {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);

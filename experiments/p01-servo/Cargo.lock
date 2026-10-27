@@ -2123,6 +2123,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "directories"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
 name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5029,7 +5038,14 @@ checksum = "b0d28e293f2b8c9d2b2d1c0193bd3c1cbdc0d2cf396888dc01162f7cf9d6c3f3"
 name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
+ "directories",
  "libcosmic",
+ "mailstronaut-config",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "wait-timeout",
 ]
 
 [[package]]
@@ -5037,8 +5053,12 @@ name = "mailstronaut-config"
 version = "0.1.0"
 dependencies = [
  "chrono-tz",
+ "rustix 1.1.6",
  "serde",
+ "serde_json",
  "snix-serde",
+ "tokio",
+ "tokio-util",
  "url",
 ]
 
@@ -8787,6 +8807,7 @@ name = "servo-probe"
 version = "0.1.0"
 dependencies = [
  "servo",
+ "url",
 ]
 
 [[package]]
@@ -10265,6 +10286,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "libc",
  "pin-project-lite",
  "tokio",
