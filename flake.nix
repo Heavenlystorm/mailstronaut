@@ -28,6 +28,13 @@
             "--all-features"
           ];
           strictDeps = true;
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = with pkgs; [
+            libxkbcommon
+            wayland
+            fontconfig
+            freetype
+          ];
           nativeCheckInputs = [
             pkgs.clippy
             pkgs.rustfmt
@@ -92,6 +99,11 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              pkg-config
+              libxkbcommon
+              wayland
+              fontconfig
+              freetype
               cargo
               rustc
               rustfmt

@@ -12,5 +12,8 @@ categories.workspace = true
 readme.workspace = true
 publish = false
 
+[dependencies]
+cosmic.workspace = true
+
 [lints]
 workspace = true
