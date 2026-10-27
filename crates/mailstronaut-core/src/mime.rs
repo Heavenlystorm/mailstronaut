@@ -14,6 +14,9 @@ pub const MAX_ATTACHMENTS: usize = 64;
 /// Maximum decoded bytes retained for each body alternative.
 pub const MAX_BODY_BYTES: usize = 256 * 1024;
 
+/// Unsupported inline encryption marker, never a request to decrypt content.
+const INLINE_PGP_HEADER: &str = "-----BEGIN PGP MESSAGE-----";
+
 /// A decoded mailbox; group names are not retained.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -210,12 +213,12 @@ fn inspect(part: MessagePart<'_>, status: &mut Status) {
         || part.is_content_type("application", "pkcs7-mime")
         || part.is_content_type("application", "x-pkcs7-mime")
         || part.is_content_type("application", "pgp-encrypted");
-    // Decode only a bounded prefix, including transfer encodings, before exposing
-    // any alternative. Inline OpenPGP is unsupported, even in mixed messages.
-    if part.is_content_type("text", "plain")
+    // Inspect all text that could be retained, plus marker-length overlap at its
+    // boundary. PartKind includes text/plain implied by a missing Content-Type.
+    if matches!(part.kind(), PartKind::Text)
         && part
-            .text_prefix(4096)
-            .is_some_and(|text| text.contains("-----BEGIN PGP MESSAGE-----"))
+            .text_prefix_bytes(MAX_BODY_BYTES.saturating_add(INLINE_PGP_HEADER.len()))
+            .is_some_and(|text| text.contains(INLINE_PGP_HEADER))
     {
         status.encrypted_unsupported = true;
     }

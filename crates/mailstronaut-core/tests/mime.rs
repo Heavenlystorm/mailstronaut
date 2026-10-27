@@ -136,6 +136,22 @@ mod tests {
     }
 
     #[test]
+    fn inline_encryption_is_detected_without_headers_or_after_a_long_preamble() {
+        let headerless = "\r\n-----BEGIN PGP MESSAGE-----\r\nsynthetic encrypted payload";
+        let delayed = format!(
+            "Content-Type: text/plain\r\n\r\n{}\r\n-----BEGIN PGP MESSAGE-----\r\nsynthetic encrypted payload",
+            "preamble ".repeat(600)
+        );
+        for source in [headerless, delayed.as_str()] {
+            let result = mime::project(source.as_bytes()).expect("inline encrypted message");
+            assert!(result.status.encrypted_unsupported);
+            assert!(result.text.is_none());
+            assert!(result.html.is_none());
+            assert!(result.preview.is_none());
+        }
+    }
+
+    #[test]
     fn preview_records_extracted_source_and_original_revision() {
         let result = mime::project(b"\r\nhello").expect("message");
         let preview = result.preview.expect("preview");
