@@ -1,0 +1,21 @@
+[package]
+name = "mailstronaut-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Local persistence and domain projections for Mailstronaut"
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+
+[dependencies]
+rusqlite.workspace = true
+rusqlite_migration.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

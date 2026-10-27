@@ -19,6 +19,10 @@ readme = "../../README.md"
 # The researched dependency list is in docs/DEPENDENCIES.md.
 [workspace.dependencies]
 cosmic = { package = "libcosmic", git = "https://github.com/pop-os/libcosmic", rev = "8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec", features = ["wgpu"] }
+rusqlite = { version = "=0.40.0", features = ["bundled"] }
+rusqlite_migration = "=2.6.0"
+sha2 = "=0.10.9"
+tempfile = "=3.23.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
