@@ -99,7 +99,7 @@ impl cosmic::Application for App {
                 frame: None,
                 size: (640, 400),
                 logical: (640.0, 400.0),
-                window_size: (880.0, 580.0),
+                window_size: (1024.0, 768.0),
                 scale: 1.0,
                 pointer: Point::ORIGIN,
             },
@@ -213,6 +213,11 @@ impl cosmic::Application for App {
                 }
             }
             Message::Window(id, event) => {
+                if Some(id) == self.core.main_window_id()
+                    && let window::Event::Opened { size, position: _ } = event
+                {
+                    self.on_window_resize(id, size.width, size.height);
+                }
                 if Some(id) == self.core.main_window_id()
                     && matches!(
                         event,

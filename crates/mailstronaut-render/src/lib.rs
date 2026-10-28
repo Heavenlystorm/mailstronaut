@@ -272,15 +272,15 @@ impl Viewport {
     /// Set the physical pixels per logical CSS pixel.
     ///
     /// # Errors
-    /// Rejects non-finite or non-positive scales.
+    /// Rejects scales outside the bounded application policy.
     #[inline]
     #[expect(
         clippy::implicit_return,
         reason = "This fallible operation returns the validated result."
     )]
     pub fn set_scale(&self, scale: f32) -> Result<(), String> {
-        if !scale.is_finite() || scale <= 0.0 {
-            return Err("scale must be finite and positive".into());
+        if !scale.is_finite() || !(0.000_488_281_25..=2048.0).contains(&scale) {
+            return Err("scale outside supported range".into());
         }
         let mut factor = self.view.hidpi_scale_factor();
         factor.0 = scale;
@@ -290,7 +290,7 @@ impl Viewport {
     /// Send a wheel event at a physical point within the viewport.
     ///
     /// # Errors
-    /// Rejects non-finite values or points outside the physical viewport.
+    /// Rejects non-finite or excessive deltas and points outside the physical viewport.
     #[expect(
         clippy::float_arithmetic,
         clippy::implicit_return,
@@ -308,18 +308,28 @@ impl Viewport {
         {
             return Err("invalid wheel position or delta".into());
         }
-        let multiplier = if lines { 76.0 } else { 1.0 };
+        // Match iced scrollable: one line is 60 logical pixels. Servo scrolls
+        // in device pixels regardless of WheelMode. Pixel input is already forwarded
+        // as supplied by the platform, so only line input is scaled here.
+        let multiplier = if lines {
+            60.0 * self.view.hidpi_scale_factor().0
+        } else {
+            1.0
+        };
+        let physical = [dx * multiplier, dy * multiplier];
+        if physical
+            .iter()
+            .any(|value| !value.is_finite() || value.abs() > 2048.0)
+        {
+            return Err("wheel delta outside supported range".into());
+        }
         self.view
             .notify_input_event(InputEvent::Wheel(WheelEvent::new(
                 WheelDelta {
-                    x: f64::from(dx * multiplier),
-                    y: f64::from(dy * multiplier),
+                    x: f64::from(physical[0]),
+                    y: f64::from(physical[1]),
                     z: 0.0,
-                    mode: if lines {
-                        WheelMode::DeltaLine
-                    } else {
-                        WheelMode::DeltaPixel
-                    },
+                    mode: WheelMode::DeltaPixel,
                 },
                 DevicePoint::new(x, y).into(),
             )));
@@ -506,6 +516,12 @@ mod tests {
     #[expect(
         clippy::arithmetic_side_effects,
         clippy::single_call_fn,
+        clippy::too_many_lines,
+        clippy::as_conversions,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss,
+        clippy::float_arithmetic,
         reason = "Bounded test pixels and deadlines are checked on one retained engine."
     )]
     fn check_scroll_and_scale(viewport: &mut Viewport) {
@@ -531,6 +547,53 @@ mod tests {
             let pixel = &frame[(y * width + x) * 4..][..3];
             pixel[0] < 30 && pixel[1] > 220 && pixel[2] < 30
         }
+        // Measure marker displacement on one engine in CSS and physical pixels.
+        for (scale, width, height, x) in [
+            (1.0, 320, 200, 40),
+            (1.5, 480, 300, 60),
+            (2.0, 640, 400, 80),
+        ] {
+            viewport.set_scale(scale).expect("scale");
+            viewport.resize(width, height).expect("resize");
+            let edge = |frame: &[u8]| {
+                (0..height as usize)
+                    .rev()
+                    .find(|&y| green(frame, width as usize, x, y))
+                    .unwrap_or(0)
+            };
+            let before = wait_for(viewport, |frame| {
+                frame.len() == width as usize * height as usize * 4
+                    && edge(frame) > (100.0 * scale) as usize
+            });
+            let baseline = edge(&before);
+            viewport
+                .wheel(x as f32, 40.0, 0.0, -0.5, true)
+                .expect("line wheel");
+            let after = wait_for(viewport, |frame| edge(frame) < baseline);
+            let displacement = (baseline - edge(&after)) as f32 / scale;
+            assert!(
+                (displacement - 30.0).abs() <= 2.0,
+                "line displacement: {displacement} at {scale}"
+            );
+            viewport
+                .wheel(x as f32, 40.0, 0.0, 60.0 * scale, false)
+                .expect("reset");
+            drop(wait_for(viewport, |frame| edge(frame) >= baseline));
+            viewport
+                .wheel(x as f32, 40.0, 0.0, -30.0, false)
+                .expect("pixel wheel");
+            let after_pixel = wait_for(viewport, |frame| edge(frame) < baseline);
+            assert!((baseline - edge(&after_pixel)).abs_diff(30) <= 2);
+            viewport
+                .wheel(x as f32, 40.0, 0.0, 60.0, false)
+                .expect("reset");
+            drop(wait_for(viewport, |frame| edge(frame) >= baseline));
+        }
+        viewport.set_scale(1.0).expect("restore scale");
+        viewport.resize(320, 200).expect("restore size");
+        assert!(viewport.wheel(1.0, 1.0, f32::MAX, 0.0, true).is_err());
+        assert!(viewport.wheel(1.0, 1.0, f32::MAX, 0.0, false).is_err());
+        assert!(viewport.set_scale(2049.0).is_err());
         let initial = wait_for(viewport, |frame| green(frame, 320, 40, 40));
         assert!(!green(&initial, 320, 120, 40));
         viewport
