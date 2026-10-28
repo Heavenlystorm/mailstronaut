@@ -152,7 +152,11 @@
             export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri"
             export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
             cargo fmt --all -- --check
-            cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings
+            # Match the package profile/target so native build scripts can reuse
+            # the release artifacts, and honor Nix's requested parallelism.
+            cargo clippy --jobs "$NIX_BUILD_CORES" --release \
+              --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+              --workspace --all-targets --all-features --locked --offline -- -D warnings
           '';
           meta = {
             description = "Mailstronaut planning scaffold; not yet a usable mail client";
