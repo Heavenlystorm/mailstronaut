@@ -69,6 +69,9 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
   event-driven wakes on the UI thread. Save light/dark captures on isolated X11
   and Weston/Wayland, and exercise native page navigation and bounded resize.
   See P01 evidence; this does not complete mail input, privacy or lifecycle.
+- [x] Exercise bounded synthetic wheel scrolling and initial X11 scale at
+  100/150/200%, with pixel-displacement tests and uncropped before/after captures.
+  See P01 evidence; dynamic Wayland scale changes and other input remain open.
 - [ ] Wire waker/spin/frame-ready/redraw, input, scroll, selection/copy, HiDPI,
   resizing, focus, links and webview teardown; one message viewport at a time.
 - [ ] Forward effective COSMIC dark/light theme through Servo's native method.
