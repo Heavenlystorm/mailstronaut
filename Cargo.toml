@@ -23,6 +23,8 @@ servo = { version = "=0.7.0", default-features = false, features = ["baked-in-re
 ammonia = "=4.2.4"
 async-channel = "=2.5.0"
 http = "1"
+content-security-policy = "=0.9.0"
+uuid = { version = "=1.29.0", features = ["v4"] }
 mail-parser = { version = "=1.0.0", features = ["full_encoding"] }
 rusqlite = { version = "=0.38.0", features = ["bundled"] }
 rusqlite_migration = "=2.4.1"

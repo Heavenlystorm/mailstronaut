@@ -82,6 +82,11 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
 - [x] Exercise the synthetic resource interceptor with isolated allow controls:
   loopback images, backgrounds, stylesheets/imports and font fetches, plus file
   and data rasters. See P01 evidence for the seven cancellations and proof limits.
+- [x] Bind a bounded synthetic document/known PNG table to a fresh generation and
+  concrete WebView; exercise initial request association, visible local raster,
+  A-to-B retirement and unknown resource denial under the production CSP.
+  Wrong-view/destination checks are registry tests; generic CID/origin privacy
+  and concurrent in-flight retirement remain open. See P01 evidence.
 - [ ] Enforce sanitizer + CSP + scheme/navigation/resource/permission policy;
   prove **zero remote requests** on load, including CSS/font/SVG/import/redirect
   and non-HTTP attempts. Test CID isolation and no local-file access.

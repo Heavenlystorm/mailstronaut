@@ -5127,10 +5127,12 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "async-channel",
+ "content-security-policy",
  "http",
  "servo",
  "tempfile",
  "url",
+ "uuid 1.29.0",
 ]
 
 [[package]]

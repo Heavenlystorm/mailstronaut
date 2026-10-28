@@ -183,6 +183,17 @@ The revision is recorded by `servo-net`'s vendored `.cargo_vcs_info.json`.
 No runtime, origin/CID, DNS, script or complete privacy row is checked by this
 source audit.
 
+The subsequent synthetic implementation registers an immutable bounded document
+and one fixed known PNG per UUID generation, bound to the concrete WebView ID.
+Both resource callbacks and the protocol handler enforce that binding; the
+engine-wide fallback denies unassociated requests. The builder queues the exact
+document URL, and the binding is installed before driving the UI event loop.
+The local-raster subprocess exercises the initial document and image routing,
+then a distinct second view with retired and unknown raster URLs. See P01
+evidence for the result and its limits. The public constructor still accepts
+only the fixed synthetic fixture. Generic CID resolution and browser-origin
+semantics remain unimplemented/unproven; the namespace is not an origin claim.
+
 Sources: [resource delegate](https://doc.servo.org/servo/trait.ServoDelegate.html),
 [WebResourceLoad](https://doc.servo.org/servo/struct.WebResourceLoad.html),
 [WebView](https://doc.servo.org/servo/webview/struct.WebView.html),

@@ -1,0 +1,103 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+   Compiling mailstronaut-render v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-render)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.54s
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-render/f57a95dfe3acc2fc/out/mailstronaut_render-f57a95dfe3acc2fc)
+
+running 6 tests
+test tests::bounded_and_coalesced ... ok
+test tests::generated_document_is_bounded ... ok
+test tests::lifecycle_subprocess ... 
+running 1 test
+lifecycle cycle=10 pss_kib=189132 threads=70
+lifecycle cycle=20 pss_kib=221500 threads=70
+lifecycle cycle=30 pss_kib=221904 threads=70
+lifecycle cycle=40 pss_kib=222236 threads=70
+lifecycle cycle=50 pss_kib=224672 threads=70
+lifecycle cycle=60 pss_kib=232200 threads=70
+lifecycle cycle=70 pss_kib=234104 threads=71
+lifecycle cycle=80 pss_kib=237075 threads=71
+lifecycle cycle=90 pss_kib=236640 threads=70
+lifecycle cycle=100 pss_kib=236664 threads=70
+lifecycle sampled peak pss_kib=237075 threads=71
+test tests::lifecycle_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 2.76s
+
+ok
+test tests::resource_interception_subprocess ... 
+running 1 test
+P01 allow=false connections=0 red=[false, false, false, false] callbacks=[("mailstronaut://d355c117-63d5-43e6-9d3b-842ee61f5659/document", "Document", false), ("http://127.0.0.1:42145/import", "Style", true), ("http://127.0.0.1:42145/sheet", "Style", true), ("http://127.0.0.1:42145/image", "Image", true), ("file:///tmp/nix-shell.9ZzMfR/.tmpQmepgE", "Image", true), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", true), ("http://127.0.0.1:42145/font", "Font", true), ("http://127.0.0.1:42145/background", "Image", true)]
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 5.05s
+
+
+running 1 test
+P01 allow=true connections=5 red=[true, true, true, true] callbacks=[("mailstronaut://eaf27073-384b-48f7-a012-c9f872a360fb/document", "Document", false), ("http://127.0.0.1:35567/import", "Style", false), ("http://127.0.0.1:35567/sheet", "Style", false), ("http://127.0.0.1:35567/image", "Image", false), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", false), ("file:///tmp/nix-shell.9ZzMfR/.tmph0CZEp", "Image", false), ("http://127.0.0.1:35567/font", "Font", false), ("http://127.0.0.1:35567/background", "Image", false)]
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 5.05s
+
+
+running 1 test
+P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 2.86s
+
+ok
+test tests::sanitizer_removes_active_content_and_css ... ok
+test tests::synthetic_pixels_and_native_theme ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.45s
+
+   Doc-tests mailstronaut_render
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

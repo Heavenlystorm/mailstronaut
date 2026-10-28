@@ -6,11 +6,13 @@
     reason = "Servo requires incompatible dependency versions; related policy items stay grouped"
 )]
 
+use content_security_policy::Destination;
 use core::{
     cell::{Cell, RefCell},
-    future::Future,
+    future::{Future, ready},
     pin::Pin,
 };
+use http::header::{CACHE_CONTROL, CONTENT_SECURITY_POLICY, CONTENT_TYPE};
 use servo::protocol_handler::{
     DoneChannel, FetchContext, HttpStatus, NetworkError, ProtocolHandler, ProtocolRegistry,
     Request, ResourceFetchTiming, Response, ResponseBody,
@@ -19,17 +21,26 @@ use servo::{
     DeviceIntPoint, DeviceIntRect, DevicePoint, EventLoopWaker, InputEvent, NavigationRequest,
     PermissionRequest, RenderingContext as _, Servo, ServoBuilder, ServoDelegate,
     SoftwareRenderingContext, Theme, WebResourceLoad, WebResourceResponse, WebView, WebViewBuilder,
-    WebViewDelegate, WheelDelta, WheelEvent, WheelMode,
+    WebViewDelegate, WebViewId, WheelDelta, WheelEvent, WheelMode,
 };
+use std::sync::Mutex;
 extern crate alloc;
-use alloc::rc::Rc;
+use alloc::{rc::Rc, sync::Arc};
 
 /// Maximum width or height of the software viewport.
 const MAX_SIDE: u32 = 2048;
-/// Sole accepted memory document URL.
-const DOCUMENT: &str = "mailstronaut:document";
+/// Maximum generated synthetic HTML size.
+const MAX_DOCUMENT_BYTES: usize = 256 * 1024;
+/// Private fixture substitution, never a user-supplied URL resolver.
+const LOCAL_IMAGE: &str = "@local-raster@";
+/// One fixed, known 2×2 red PNG; arbitrary image input is not exposed.
+const PNG: &[u8] = &[
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 2, 0,
+    0, 0, 253, 212, 154, 115, 0, 0, 0, 16, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 0, 68, 12,
+    16, 10, 0, 31, 238, 3, 253, 139, 95, 20, 212, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+];
 /// Defense-in-depth policy on the document response.
-const CSP: &str = "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline'";
+const CSP: &str = "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline'; img-src mailstronaut:";
 
 /// Capacity-one event loop wake sender.
 #[derive(Clone)]
@@ -54,11 +65,14 @@ struct Policy {
     frame: Cell<bool>,
     /// Signal the GUI subscription after a frame arrives.
     wake: Wake,
+    /// Active message-local resources shared with the protocol handler.
+    resources: Arc<Resources>,
     #[cfg(test)]
     probe: Option<Rc<Probe>>,
 }
 #[cfg(test)]
 struct Probe {
+    relaxed: bool,
     allowed: Vec<String>,
     callbacks: RefCell<Vec<(String, String, bool)>>,
 }
@@ -66,31 +80,41 @@ struct Probe {
 std::thread_local! {
     static PROBE: RefCell<Option<Rc<Probe>>> = const { RefCell::new(None) };
 }
-/// Cancel every resource except the selected memory document.
+/// Cancel any load not explicitly associated with the active table and view.
 #[cfg_attr(
     test,
     expect(
         clippy::implicit_return,
-        reason = "The test-only recorder uses a predicate"
+        clippy::shadow_reuse,
+        reason = "Only the private test control extends the production decision"
     )
 )]
-fn deny(load: WebResourceLoad, #[cfg(test)] probe_option: Option<&Probe>) {
+fn deny(
+    load: WebResourceLoad,
+    resources: &Resources,
+    view: Option<WebViewId>,
+    #[cfg(test)] probe_option: Option<&Probe>,
+) {
+    let request = load.request();
+    let allowed = !request.is_redirect
+        && request.method == http::Method::GET
+        && resources
+            .lookup(view, request.url.as_str(), request.destination)
+            .is_some();
+    #[cfg(test)]
+    let allowed = allowed
+        || (!request.is_redirect
+            && view.is_some()
+            && probe_option.is_some_and(|probe| probe.allowed.contains(&request.url.to_string())));
     #[cfg(test)]
     if let Some(probe) = probe_option {
-        let url = load.request().url.as_str();
-        let allowed = probe.allowed.iter().any(|item| item == url);
         probe.callbacks.borrow_mut().push((
-            url.to_owned(),
-            format!("{:?}", load.request().destination),
-            !allowed && url != DOCUMENT,
+            request.url.to_string(),
+            format!("{:?}", request.destination),
+            !allowed,
         ));
-        if allowed {
-            return;
-        }
     }
-    // The sole registered memory document is the only request allowed through
-    // to the protocol registry. All other requests are explicitly cancelled.
-    if load.request().url.as_str() != DOCUMENT {
+    if !allowed {
         let response = WebResourceResponse::new(load.request().url.clone());
         load.intercept(response).cancel();
     }
@@ -103,6 +127,8 @@ impl ServoDelegate for Policy {
     fn load_web_resource(&self, load: WebResourceLoad) {
         deny(
             load,
+            &self.resources,
+            None,
             #[cfg(test)]
             self.probe.as_deref(),
         );
@@ -114,9 +140,11 @@ impl ServoDelegate for Policy {
     reason = "Servo provides unrelated defaults; related policy callbacks stay together"
 )]
 impl WebViewDelegate for Policy {
-    fn load_web_resource(&self, _: WebView, load: WebResourceLoad) {
+    fn load_web_resource(&self, view: WebView, load: WebResourceLoad) {
         deny(
             load,
+            &self.resources,
+            Some(view.id()),
             #[cfg(test)]
             self.probe.as_deref(),
         );
@@ -132,23 +160,130 @@ impl WebViewDelegate for Policy {
         self.wake.wake();
     }
 }
-/// Immutable synthetic document served by the custom protocol.
-struct Document(Vec<u8>, #[cfg(test)] bool);
+/// Immutable resources for one unguessable application namespace, not a proven browser origin.
+struct Document {
+    /// Exact top-level URL.
+    url: url::Url,
+    /// Exact local PNG URL.
+    image: String,
+    /// Bounded generated HTML bytes.
+    body: Arc<[u8]>,
+    #[cfg(test)]
+    relaxed: bool,
+}
+impl Document {
+    /// Prepare a bounded private fixture with a fresh namespace.
+    #[cfg_attr(
+        not(test),
+        expect(
+            clippy::single_call_fn,
+            reason = "Tests exercise construction separately from the viewport"
+        )
+    )]
+    #[expect(
+        clippy::implicit_return,
+        clippy::question_mark_used,
+        reason = "Construction returns a typed result and propagates URL validation"
+    )]
+    fn new(template: &str, #[cfg(test)] relaxed: bool) -> Result<Self, String> {
+        if template.len() > MAX_DOCUMENT_BYTES {
+            return Err("synthetic document exceeds limit".into());
+        }
+        let namespace = uuid::Uuid::new_v4();
+        let image = format!("mailstronaut://{namespace}/raster.png");
+        let body = template.replace(LOCAL_IMAGE, &image);
+        if body.len() > MAX_DOCUMENT_BYTES {
+            return Err("generated document exceeds limit".into());
+        }
+        Ok(Self {
+            url: url::Url::parse(&format!("mailstronaut://{namespace}/document"))
+                .map_err(|error| error.to_string())?,
+            image,
+            body: body.into_bytes().into(),
+            #[cfg(test)]
+            relaxed,
+        })
+    }
+}
+/// One live binding; retirement removes all registered access to the old generation.
+struct Binding {
+    /// Concrete Servo view identity, never inferred from the current UI selection.
+    view: WebViewId,
+    /// Immutable document and known raster.
+    document: Arc<Document>,
+}
+/// Thread-safe protocol state; poison or absent/mismatched bindings fail closed.
+#[derive(Default)]
+struct Resources(Mutex<Option<Binding>>);
+impl Resources {
+    /// Publish one immutable table bound to its concrete view.
+    #[expect(clippy::implicit_return, reason = "Binding returns a typed result")]
+    fn bind(&self, view: WebViewId, document: Arc<Document>) -> Result<(), String> {
+        let Ok(mut slot) = self.0.lock() else {
+            return Err("resource registry unavailable".into());
+        };
+        if slot.is_some() {
+            return Err("resource generation already active".into());
+        }
+        *slot = Some(Binding { view, document });
+        drop(slot);
+        Ok(())
+    }
+    /// Revoke only the matching generation, leaving any other binding untouched.
+    #[expect(
+        clippy::implicit_return,
+        reason = "The binding predicate is an expression"
+    )]
+    fn retire(&self, view: WebViewId) {
+        if let Ok(mut slot) = self.0.lock()
+            && slot.as_ref().is_some_and(|binding| binding.view == view)
+        {
+            *slot = None;
+        }
+    }
+    /// Return immutable bytes only for an exact URL, destination and active view.
+    #[expect(
+        clippy::implicit_return,
+        clippy::question_mark_used,
+        reason = "Failed locks and absent bindings fail closed through Option"
+    )]
+    fn lookup(
+        &self,
+        view: Option<WebViewId>,
+        url: &str,
+        destination: Destination,
+    ) -> Option<Arc<Document>> {
+        let slot = self.0.lock().ok()?;
+        let binding = slot.as_ref()?;
+        if Some(binding.view) != view {
+            return None;
+        }
+        let document = &binding.document;
+        let result = ((url == document.url.as_str() && destination == Destination::Document)
+            || (url == document.image && destination == Destination::Image))
+            .then(|| Arc::clone(document));
+        drop(slot);
+        result
+    }
+}
+/// Protocol handler registered once for the retained engine.
+struct MemoryProtocol(Arc<Resources>);
 #[expect(
     clippy::missing_trait_methods,
-    clippy::implicit_return,
-    clippy::absolute_paths,
-    clippy::std_instead_of_core,
-    reason = "Servo supplies protocol defaults and the response is an immediately ready future"
+    reason = "Protocol defaults deliberately leave privileged paths empty and secure/fetchable false"
 )]
-#[cfg_attr(
-    test,
-    expect(
-        clippy::shadow_reuse,
-        reason = "Only tests can select a resource policy"
-    )
-)]
-impl ProtocolHandler for Document {
+impl ProtocolHandler for MemoryProtocol {
+    #[expect(
+        clippy::implicit_return,
+        reason = "The protocol returns an immediately ready response"
+    )]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::shadow_reuse,
+            reason = "Only tests can select a relaxed resource CSP"
+        )
+    )]
     fn load<'request>(
         &'request self,
         request: &'request mut Request,
@@ -156,30 +291,52 @@ impl ProtocolHandler for Document {
         _: &FetchContext,
     ) -> Pin<Box<dyn Future<Output = Response> + Send + 'request>> {
         let url = request.current_url();
-        let response = if url.as_str() == DOCUMENT {
+        let candidate = if request.method == http::Method::GET && request.redirect_count == 0 {
+            self.0
+                .lookup(request.target_webview_id, url.as_str(), request.destination)
+        } else {
+            None
+        };
+        let Some(document) = candidate else {
+            return Box::pin(ready(Response::network_error(
+                NetworkError::ResourceLoadError("unavailable local resource".into()),
+            )));
+        };
+        let response = {
+            let is_document = url.as_str() == document.url.as_str();
             let mut response = Response::new(url, ResourceFetchTiming::new(request.timing_type()));
-            *response.body.lock() = ResponseBody::Done(self.0.clone());
-            response.headers.insert(
-                http::header::CONTENT_TYPE,
-                http::HeaderValue::from_static("text/html; charset=utf-8"),
-            );
-            let csp = CSP;
-            #[cfg(test)]
-            let csp = if self.1 {
-                "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline' http:; img-src http: file: data:; font-src http:"
+            *response.body.lock() = ResponseBody::Done(if is_document {
+                document.body.to_vec()
             } else {
-                csp
-            };
+                PNG.to_vec()
+            });
             response.headers.insert(
-                http::header::CONTENT_SECURITY_POLICY,
-                http::HeaderValue::from_static(csp),
+                CONTENT_TYPE,
+                http::HeaderValue::from_static(if is_document {
+                    "text/html; charset=utf-8"
+                } else {
+                    "image/png"
+                }),
             );
+            if is_document {
+                let csp = CSP;
+                #[cfg(test)]
+                let csp = if document.relaxed {
+                    "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline' http:; img-src mailstronaut: http: file: data:; font-src http:"
+                } else {
+                    csp
+                };
+                response
+                    .headers
+                    .insert(CONTENT_SECURITY_POLICY, http::HeaderValue::from_static(csp));
+            }
+            response
+                .headers
+                .insert(CACHE_CONTROL, http::HeaderValue::from_static("no-store"));
             response.status = HttpStatus::default();
             response
-        } else {
-            Response::network_error(NetworkError::ResourceLoadError("unknown document".into()))
         };
-        Box::pin(std::future::ready(response))
+        Box::pin(ready(response))
     }
 }
 
@@ -201,6 +358,8 @@ struct Engine {
     context: RefCell<Option<Rc<SoftwareRenderingContext>>>,
     /// Whether a viewport is alive.
     active: Cell<bool>,
+    /// Fixed private synthetic template reused with a fresh namespace per view.
+    document: String,
 }
 
 /// A bounded software viewport owned by its creating thread.
@@ -224,6 +383,7 @@ impl Drop for Viewport {
         reason = "Numeric suffix lint groups conflict."
     )]
     fn drop(&mut self) {
+        self.engine.policy.resources.retire(self.view.id());
         self.context.resize((1_u32, 1_u32).into());
         self.engine.active.set(false);
     }
@@ -274,6 +434,7 @@ impl Renderer {
         let policy = Rc::new(Policy {
             frame: Cell::new(false),
             wake: wake.clone(),
+            resources: Arc::new(Resources::default()),
             #[cfg(test)]
             probe: PROBE.with(|probe| probe.borrow().clone()),
         });
@@ -281,11 +442,7 @@ impl Renderer {
         registry
             .register(
                 "mailstronaut",
-                Document(
-                    document.into_bytes(),
-                    #[cfg(test)]
-                    policy.probe.is_some(),
-                ),
+                MemoryProtocol(Arc::clone(&policy.resources)),
             )
             .map_err(|e| format!("protocol: {e:?}"))?;
         let servo = ServoBuilder::default()
@@ -299,6 +456,7 @@ impl Renderer {
             wakes,
             context: RefCell::new(None),
             active: Cell::new(false),
+            document,
         })))
     }
     /// Create the only active viewport on this engine.
@@ -308,16 +466,38 @@ impl Renderer {
     #[inline]
     #[expect(
         clippy::implicit_return,
+        reason = "Forward to the fixed private fixture"
+    )]
+    pub fn viewport(&self, width: u32, height: u32) -> Result<Viewport, String> {
+        self.viewport_document(width, height, &self.0.document)
+    }
+    /// Bind a fresh private fixture before driving any queued network callbacks.
+    #[expect(
+        clippy::implicit_return,
         clippy::question_mark_used,
         clippy::clone_on_ref_ptr,
         clippy::min_ident_chars,
         reason = "The context and engine have shared thread-affine ownership."
     )]
-    pub fn viewport(&self, width: u32, height: u32) -> Result<Viewport, String> {
+    fn viewport_document(
+        &self,
+        width: u32,
+        height: u32,
+        template: &str,
+    ) -> Result<Viewport, String> {
         check_size(width, height)?;
         if self.0.active.get() {
             return Err("viewport already active".into());
         }
+        let document = Arc::new(Document::new(
+            template,
+            #[cfg(test)]
+            self.0
+                .policy
+                .probe
+                .as_ref()
+                .is_some_and(|probe| probe.relaxed),
+        )?);
         let cached_context = self.0.context.borrow().clone();
         let context = if let Some(context) = cached_context {
             context
@@ -336,13 +516,15 @@ impl Renderer {
         let policy = Rc::new(Policy {
             frame: Cell::new(false),
             wake: self.0.policy.wake.clone(),
+            resources: Arc::clone(&self.0.policy.resources),
             #[cfg(test)]
             probe: self.0.policy.probe.clone(),
         });
         let view = WebViewBuilder::new(&self.0.servo, context.clone())
             .delegate(policy.clone())
-            .url(url::Url::parse(DOCUMENT).map_err(|e| e.to_string())?)
+            .url(document.url.clone())
             .build();
+        policy.resources.bind(view.id(), document)?;
         view.show();
         self.0.active.set(true);
         Ok(Viewport {
@@ -597,10 +779,14 @@ mod tests {
     fn resource_interception_subprocess() {
         use std::process::{Command, Stdio};
         if let Ok(mode) = std::env::var("MAILSTRONAUT_P01_CHILD") {
-            resource_probe(mode == "allow");
+            if mode == "local" {
+                local_resource_probe();
+            } else {
+                resource_probe(mode == "allow");
+            }
             return;
         }
-        for mode in ["deny", "allow"] {
+        for mode in ["deny", "allow", "local"] {
             let mut child = Command::new(std::env::current_exe().expect("test executable"))
                 .args([
                     "--exact",
@@ -667,6 +853,7 @@ mod tests {
             allowed.push(DATA.into());
         }
         let probe = Rc::new(Probe {
+            relaxed: true,
             allowed,
             callbacks: RefCell::new(Vec::new()),
         });
@@ -733,6 +920,237 @@ mod tests {
             assert_eq!(connections, 0);
             assert!(!red.iter().any(|value| *value));
         }
+    }
+
+    #[expect(
+        clippy::single_call_fn,
+        clippy::print_stdout,
+        reason = "The isolated synthetic probe reports actual routing and frame observations"
+    )]
+    fn local_resource_probe() {
+        let probe = Rc::new(Probe {
+            relaxed: false,
+            allowed: Vec::new(),
+            callbacks: RefCell::new(Vec::new()),
+        });
+        PROBE.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&probe)));
+        let template = "<!doctype html><style>body { margin:0; background:white } img { position:absolute; top:0; width:40px; height:40px }</style><img src='@local-raster@'>";
+        let renderer = Renderer::from_document(template.into()).expect("engine");
+        let first = renderer.viewport(160, 100).expect("first viewport");
+        let first_document = bound_document(&first);
+        let first_id = first.view.id();
+        assert_eq!(
+            wait_for_local_raster(&first, [255, 255, 255]).len(),
+            160 * 100 * 4
+        );
+        check_local_scope(&first, &first_document, &probe);
+        drop(first);
+        assert!(
+            renderer
+                .0
+                .policy
+                .resources
+                .lookup(Some(first_id), &first_document.image, Destination::Image)
+                .is_none(),
+            "drop retires first namespace immediately"
+        );
+        renderer.spin();
+        let second_template = format!(
+            "{template}<img style='left:50px' src='{}'><img style='left:100px' src='@local-raster@/missing'>",
+            first_document.image
+        );
+        let second_fixture = second_template.replace("background:white", "background:blue");
+        let second = renderer
+            .viewport_document(160, 100, &second_fixture)
+            .expect("second viewport");
+        let second_document = bound_document(&second);
+        assert_ne!(first_document.url, second_document.url);
+        assert!(
+            second
+                .policy
+                .resources
+                .lookup(
+                    Some(second.view.id()),
+                    &first_document.image,
+                    Destination::Image
+                )
+                .is_none(),
+            "B cannot read A"
+        );
+        assert!(
+            second
+                .policy
+                .resources
+                .lookup(Some(first_id), &second_document.image, Destination::Image)
+                .is_none(),
+            "delayed A cannot read B"
+        );
+        let pixels = wait_for_local_raster(&second, [0, 0, 255]);
+        assert!(!red_at(&pixels, 60), "retired A raster rendered in B");
+        assert!(!red_at(&pixels, 110), "unknown raster rendered in B");
+        let until = Instant::now()
+            .checked_add(Duration::from_secs(2))
+            .expect("bounded deadline");
+        while Instant::now() < until {
+            if let Some(later_pixels) = second.paint() {
+                assert!(!red_at(&later_pixels, 60), "retired A raster rendered in B");
+                assert!(!red_at(&later_pixels, 110), "unknown raster rendered in B");
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        for denied in [
+            &first_document.image,
+            &format!("{}/missing", second_document.image),
+        ] {
+            assert!(
+                probe
+                    .callbacks
+                    .borrow()
+                    .iter()
+                    .any(|entry| entry.0 == *denied && entry.1 == "Image" && entry.2),
+                "missing denied request for {denied}"
+            );
+        }
+        let second_id = second.view.id();
+        drop(second);
+        assert!(
+            renderer
+                .0
+                .policy
+                .resources
+                .lookup(Some(second_id), &second_document.image, Destination::Image)
+                .is_none()
+        );
+        renderer.spin();
+        println!(
+            "P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP"
+        );
+    }
+
+    fn bound_document(viewport: &Viewport) -> Arc<Document> {
+        Arc::clone(
+            &viewport
+                .policy
+                .resources
+                .0
+                .lock()
+                .expect("registry")
+                .as_ref()
+                .expect("binding")
+                .document,
+        )
+    }
+
+    #[expect(
+        clippy::single_call_fn,
+        clippy::pattern_type_mismatch,
+        reason = "The synthetic probe groups initial routing and exact registry checks"
+    )]
+    fn check_local_scope(first: &Viewport, document: &Document, probe: &Probe) {
+        assert!(
+            probe
+                .callbacks
+                .borrow()
+                .iter()
+                .any(|(url, destination, cancelled)| url == document.url.as_str()
+                    && destination == "Document"
+                    && !cancelled),
+            "initial document has a routed, bound view"
+        );
+        assert!(
+            probe
+                .callbacks
+                .borrow()
+                .iter()
+                .any(|(url, destination, cancelled)| url == &document.image
+                    && destination == "Image"
+                    && !cancelled),
+            "local PNG routed through view policy"
+        );
+        assert!(
+            first
+                .policy
+                .resources
+                .lookup(None, &document.image, Destination::Image)
+                .is_none()
+        );
+        assert!(
+            first
+                .policy
+                .resources
+                .lookup(
+                    Some(first.view.id()),
+                    &document.image,
+                    Destination::Document
+                )
+                .is_none()
+        );
+        assert!(
+            first
+                .policy
+                .resources
+                .lookup(
+                    Some(first.view.id()),
+                    document.url.as_str(),
+                    Destination::Image
+                )
+                .is_none()
+        );
+        for suffix in [
+            "?query",
+            "#fragment",
+            "/../raster.png",
+            "%2fextra",
+            "/missing",
+        ] {
+            assert!(
+                first
+                    .policy
+                    .resources
+                    .lookup(
+                        Some(first.view.id()),
+                        &format!("{}{suffix}", document.image),
+                        Destination::Image
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    fn wait_for_local_raster(viewport: &Viewport, background: [u8; 3]) -> Vec<u8> {
+        let deadline = Instant::now()
+            .checked_add(Duration::from_secs(10))
+            .expect("bounded deadline");
+        loop {
+            if let Some(pixels) = viewport.paint()
+                && red_at(&pixels, 10)
+                && pixels[(80 * 160 + 150) * 4..][..3] == background
+            {
+                return pixels;
+            }
+            assert!(Instant::now() < deadline, "local PNG did not render");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "The fixed probe checks known pixels in a 160×100 frame"
+    )]
+    fn red_at(pixels: &[u8], x: usize) -> bool {
+        let pixel = &pixels[(10 * 160 + x) * 4..][..3];
+        pixel[0] > 200 && pixel[1] < 50 && pixel[2] < 50
+    }
+
+    #[test]
+    fn generated_document_is_bounded() {
+        assert!(Document::new(&"x".repeat(MAX_DOCUMENT_BYTES + 1), false).is_err());
+        let expansion = LOCAL_IMAGE.repeat(
+            MAX_DOCUMENT_BYTES
+                .checked_div(LOCAL_IMAGE.len())
+                .expect("nonempty marker"),
+        );
+        assert!(Document::new(&expansion, false).is_err());
     }
 
     #[test]

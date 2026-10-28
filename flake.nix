@@ -72,7 +72,7 @@
           };
           # importCargoLock flattens names and collides on registry/git dpi 0.1.2.
           # Standard fetchCargoVendor keeps separate directories for each source.
-          cargoHash = "sha256-G9w9Dz81MWt7ovizpifLtUY0Rk17WP4rMgVOucpjIok=";
+          cargoHash = "sha256-E1C3ZafnEyzoTYbBPMm66P35kb240lhZ6TcaRmOvqck=";
           cargoBuildFlags = [
             "--workspace"
             "--all-features"

@@ -17,6 +17,8 @@ ammonia.workspace = true
 async-channel.workspace = true
 http.workspace = true
 url.workspace = true
+content-security-policy.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
