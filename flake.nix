@@ -143,8 +143,15 @@
           nativeCheckInputs = [
             pkgs.clippy
             pkgs.rustfmt
+            pkgs.cacert
           ];
           preCheck = ''
+            export XDG_RUNTIME_DIR="$NIX_BUILD_TOP/renderer-runtime"
+            export XDG_CACHE_HOME="$NIX_BUILD_TOP/renderer-cache"
+            mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CACHE_HOME"
+            chmod 700 "$XDG_RUNTIME_DIR"
+            # Servo initializes its verifier even for memory-backed documents.
+            export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:''${LD_LIBRARY_PATH:-}"
             export LIBGL_ALWAYS_SOFTWARE=1
             export EGL_PLATFORM=surfaceless
