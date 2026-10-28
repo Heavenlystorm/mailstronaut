@@ -19,6 +19,8 @@ use servo::{
 };
 extern crate alloc;
 use alloc::rc::Rc;
+#[cfg(test)]
+use core::cell::RefCell;
 
 /// Maximum width or height of the software viewport.
 const MAX_SIDE: u32 = 2048;
@@ -50,9 +52,40 @@ struct Policy {
     frame: Cell<bool>,
     /// Signal the GUI subscription after a frame arrives.
     wake: Wake,
+    #[cfg(test)]
+    probe: Option<Rc<Probe>>,
+}
+#[cfg(test)]
+struct Probe {
+    allowed: Vec<String>,
+    callbacks: RefCell<Vec<(String, String, bool)>>,
+}
+#[cfg(test)]
+std::thread_local! {
+    static PROBE: RefCell<Option<Rc<Probe>>> = const { RefCell::new(None) };
 }
 /// Cancel every resource except the selected memory document.
-fn deny(load: WebResourceLoad) {
+#[cfg_attr(
+    test,
+    expect(
+        clippy::implicit_return,
+        reason = "The test-only recorder uses a predicate"
+    )
+)]
+fn deny(load: WebResourceLoad, #[cfg(test)] probe_option: Option<&Probe>) {
+    #[cfg(test)]
+    if let Some(probe) = probe_option {
+        let url = load.request().url.as_str();
+        let allowed = probe.allowed.iter().any(|item| item == url);
+        probe.callbacks.borrow_mut().push((
+            url.to_owned(),
+            format!("{:?}", load.request().destination),
+            !allowed && url != DOCUMENT,
+        ));
+        if allowed {
+            return;
+        }
+    }
     // The sole registered memory document is the only request allowed through
     // to the protocol registry. All other requests are explicitly cancelled.
     if load.request().url.as_str() != DOCUMENT {
@@ -66,7 +99,11 @@ fn deny(load: WebResourceLoad) {
 )]
 impl ServoDelegate for Policy {
     fn load_web_resource(&self, load: WebResourceLoad) {
-        deny(load);
+        deny(
+            load,
+            #[cfg(test)]
+            self.probe.as_deref(),
+        );
     }
 }
 #[expect(
@@ -76,7 +113,11 @@ impl ServoDelegate for Policy {
 )]
 impl WebViewDelegate for Policy {
     fn load_web_resource(&self, _: WebView, load: WebResourceLoad) {
-        deny(load);
+        deny(
+            load,
+            #[cfg(test)]
+            self.probe.as_deref(),
+        );
     }
     fn request_navigation(&self, _: WebView, request: NavigationRequest) {
         request.deny();
@@ -90,13 +131,20 @@ impl WebViewDelegate for Policy {
     }
 }
 /// Immutable synthetic document served by the custom protocol.
-struct Document(Vec<u8>);
+struct Document(Vec<u8>, #[cfg(test)] bool);
 #[expect(
     clippy::missing_trait_methods,
     clippy::implicit_return,
     clippy::absolute_paths,
     clippy::std_instead_of_core,
     reason = "Servo supplies protocol defaults and the response is an immediately ready future"
+)]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::shadow_reuse,
+        reason = "Only tests can select a resource policy"
+    )
 )]
 impl ProtocolHandler for Document {
     fn load<'request>(
@@ -113,9 +161,16 @@ impl ProtocolHandler for Document {
                 http::header::CONTENT_TYPE,
                 http::HeaderValue::from_static("text/html; charset=utf-8"),
             );
+            let csp = CSP;
+            #[cfg(test)]
+            let csp = if self.1 {
+                "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline' http:; img-src http: file: data:; font-src http:"
+            } else {
+                csp
+            };
             response.headers.insert(
                 http::header::CONTENT_SECURITY_POLICY,
-                http::HeaderValue::from_static(CSP),
+                http::HeaderValue::from_static(csp),
             );
             response.status = HttpStatus::default();
             response
@@ -187,6 +242,8 @@ impl Viewport {
         let policy = Rc::new(Policy {
             frame: Cell::new(false),
             wake: wake.clone(),
+            #[cfg(test)]
+            probe: PROBE.with(|probe| probe.borrow().clone()),
         });
         let context = Rc::new(
             SoftwareRenderingContext::new((width, height).into())
@@ -197,7 +254,14 @@ impl Viewport {
             .map_err(|e| format!("context: {e:?}"))?;
         let mut registry = ProtocolRegistry::default();
         registry
-            .register("mailstronaut", Document(document.into_bytes()))
+            .register(
+                "mailstronaut",
+                Document(
+                    document.into_bytes(),
+                    #[cfg(test)]
+                    policy.probe.is_some(),
+                ),
+            )
             .map_err(|e| format!("protocol: {e:?}"))?;
         let servo = ServoBuilder::default()
             .event_loop_waker(Box::new(wake))
@@ -433,6 +497,149 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
+    #[expect(
+        clippy::panic,
+        reason = "A timed-out child must be killed and reported"
+    )]
+    fn resource_interception_subprocess() {
+        use std::process::{Command, Stdio};
+        if let Ok(mode) = std::env::var("MAILSTRONAUT_P01_CHILD") {
+            resource_probe(mode == "allow");
+            return;
+        }
+        for mode in ["deny", "allow"] {
+            let mut child = Command::new(std::env::current_exe().expect("test executable"))
+                .args([
+                    "--exact",
+                    "tests::resource_interception_subprocess",
+                    "--nocapture",
+                ])
+                .env("MAILSTRONAUT_P01_CHILD", mode)
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .expect("spawn probe");
+            let deadline = Instant::now() + Duration::from_secs(45);
+            loop {
+                if let Some(status) = child.try_wait().expect("child status") {
+                    assert!(status.success(), "{mode} probe failed: {status}");
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    child.kill().expect("kill timed out child");
+                    child.wait().expect("reap timed out child");
+                    panic!("{mode} probe timed out");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    }
+
+    #[expect(
+        clippy::arithmetic_side_effects,
+        clippy::single_call_fn,
+        clippy::let_underscore_must_use,
+        clippy::let_underscore_untyped,
+        clippy::unseparated_literal_suffix,
+        clippy::print_stderr,
+        clippy::use_debug,
+        clippy::pattern_type_mismatch,
+        reason = "The isolated synthetic probe pumps a bounded loopback server and framebuffer"
+    )]
+    fn resource_probe(allow: bool) {
+        use std::io::{Read as _, Write as _};
+        const PNG: &[u8] = &[
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2,
+            8, 2, 0, 0, 0, 253, 212, 154, 115, 0, 0, 0, 16, 73, 68, 65, 84, 120, 156, 99, 248, 207,
+            192, 0, 68, 12, 16, 10, 0, 31, 238, 3, 253, 139, 95, 20, 212, 0, 0, 0, 0, 73, 69, 78,
+            68, 174, 66, 96, 130,
+        ];
+        const DATA: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==";
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+        listener.set_nonblocking(true).expect("nonblocking");
+        let address = listener.local_addr().expect("address");
+        let file = tempfile::NamedTempFile::new().expect("file");
+        std::fs::write(file.path(), PNG).expect("write raster");
+        let file_url = url::Url::from_file_path(file.path())
+            .expect("file URL")
+            .to_string();
+        let urls: Vec<String> = ["image", "background", "sheet", "import", "font"]
+            .iter()
+            .map(|path| format!("http://{address}/{path}"))
+            .collect();
+        let mut allowed = Vec::new();
+        if allow {
+            allowed.extend(urls.iter().cloned());
+            allowed.push(file_url.clone());
+            allowed.push(DATA.into());
+        }
+        let probe = Rc::new(Probe {
+            allowed,
+            callbacks: RefCell::new(Vec::new()),
+        });
+        PROBE.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&probe)));
+        let document = format!(
+            r#"<!doctype html><style>@import url('{}'); @font-face {{ font-family: probe; src: url('{}') }} body {{ margin:0; font-family:probe }} .bg {{position:absolute;left:0;top:0;width:40px;height:40px;background-image:url('{}');background-size:40px 40px}} img {{position:absolute;top:50px;width:40px;height:40px}} #http {{left:0}} #file {{left:50px}} #data {{left:100px}}</style><link rel=stylesheet href='{}'><div class=bg></div><img id=http src='{}'><img id=file src='{file_url}'><img id=data src='{DATA}'><p style="position:absolute;top:100px">Font probe</p>"#,
+            urls[3], urls[4], urls[1], urls[2], urls[0]
+        );
+        let viewport = Viewport::from_document(320, 200, document).expect("viewport");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut connections = 0usize;
+        let mut red = [false; 4];
+        while Instant::now() < deadline {
+            if let Some(frame) = viewport.paint() {
+                for (flag, (x, y)) in red
+                    .iter_mut()
+                    .zip([(10, 10), (10, 60), (60, 60), (110, 60)])
+                {
+                    let pixel = &frame[(y * 320 + x) * 4..][..3];
+                    *flag |= pixel[0] > 200 && pixel[1] < 50 && pixel[2] < 50;
+                }
+            }
+            while let Ok((mut stream, _)) = listener.accept() {
+                connections += 1;
+                stream
+                    .set_read_timeout(Some(Duration::from_millis(100)))
+                    .expect("timeout");
+                let mut request = [0u8; 1024];
+                let _ = stream.read(&mut request);
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    PNG.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(PNG);
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let callbacks = probe.callbacks.borrow();
+        eprintln!(
+            "P01 allow={allow} connections={connections} red={red:?} callbacks={callbacks:?}"
+        );
+        for (url, kind) in urls
+            .iter()
+            .zip(["Image", "Image", "Style", "Style", "Font"])
+            .chain([(&file_url, "Image"), (&DATA.to_owned(), "Image")])
+        {
+            assert!(
+                callbacks
+                    .iter()
+                    .any(|(seen, destination, cancelled)| seen == url
+                        && destination == kind
+                        && *cancelled != allow),
+                "missing {kind} callback for {url}"
+            );
+        }
+        if allow {
+            assert_eq!(connections, 5);
+            assert!(red.iter().all(|value| *value), "each raster must load");
+        } else {
+            assert_eq!(connections, 0);
+            assert!(!red.iter().any(|value| *value));
+        }
+    }
+
+    #[test]
     fn sanitizer_removes_active_content_and_css() {
         let clean = sanitize(
             r#"<table><tr><td style="background:url(http://example.invalid)">hello</td></tr></table><script>alert(1)</script><img src="file:///etc/passwd"><a href="https://example.invalid" onclick="evil()">link</a>"#,
@@ -467,8 +674,18 @@ mod tests {
         let local = tempfile::NamedTempFile::new().expect("synthetic file");
         std::fs::write(local.path(), r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>"#).expect("write fixture");
         let file_url = url::Url::from_file_path(local.path()).expect("file URL");
+        let hostile = sanitize(&format!(
+            r#"<p>Safe visible content</p><script>document.body.style.background='red';fetch('http://{address}/script')</script><p onclick="document.body.style.background='red'">safe</p><form action="http://{address}/form"><button>submit</button></form><iframe src="http://{address}/frame"></iframe>"#
+        ));
+        assert!(hostile.contains("Safe visible content"));
+        assert!(
+            !hostile.contains("script")
+                && !hostile.contains("onclick")
+                && !hostile.contains("form")
+                && !hostile.contains("iframe")
+        );
         let document = format!(
-            r#"<!doctype html><style>@import url(http://{address}/style); body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style><div class=marker></div><div class=gap></div><link rel="preconnect" href="http://{address}"><img src="http://{address}/pixel"><img src="{file_url}"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22red%22/%3E%3C/svg%3E"><script>document.body.style.background='red'; fetch('http://{address}/script')</script><h1>Synthetic viewport</h1>"#
+            r#"<!doctype html><style>@import url(http://{address}/style); body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style><div class=marker></div><div class=gap></div><link rel="preconnect" href="http://{address}"><img src="http://{address}/pixel"><img src="{file_url}"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22red%22/%3E%3C/svg%3E"><script>document.body.style.background='red'; fetch('http://{address}/script')</script><h1>Synthetic viewport</h1>{hostile}"#
         );
         let mut viewport = Viewport::from_document(320, 200, document).expect("viewport");
         fn frame(viewport: &Viewport, dark: bool) -> Vec<u8> {
