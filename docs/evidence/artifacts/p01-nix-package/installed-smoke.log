@@ -1,0 +1,23 @@
+package-output.txt
+/nix/store/913ji8mq3zzbl1z14s3gs7hpi4pz58nb-mailstronaut-0.1.0
+
+version.log
+mailstronaut 0.1.0
+
+example.log
+Configuration is valid.
+
+init.log
+Created native Nix configuration.
+
+generated.log
+Configuration is valid.
+
+repeat-init.log
+configuration already exists or could not be installed
+
+invalid.log
+invalid configuration expression or schema
+
+File mode: 0o600
+Directory mode: 0o700

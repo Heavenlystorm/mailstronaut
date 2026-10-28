@@ -94,7 +94,10 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
 - [x] Inventory a project-local x86_64 Flatpak SDK with pinned Rust/LLVM extensions;
   exercise frozen offline workspace fetch and all five nested mozjs metadata
   calls in the SDK and metadata-only builder. This does not establish compilation.
-- [ ] Run a Nix package build and a minimal Flatpak build-environment spike to catch
+- [x] Build the x86_64 Nix package with strict release Clippy and all workspace
+  tests; exercise the installed CLI/native Nix helper with an empty environment.
+  See P01 evidence; installed graphical and cross-architecture acceptance stay open.
+- [ ] Run a minimal Flatpak build-environment compile spike to catch
   SpiderMonkey/toolchain/native-source obstacles before continuing. This spike is
   not the complete Flatpak distribution acceptance.
 
