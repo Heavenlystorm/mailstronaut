@@ -136,6 +136,53 @@ browser portal. `mailto:` opens the native composer through a validated URI pars
 an arbitrary scheme/executable from email content. Attachments save through the
 document/file chooser portal with safe suggested names; never execute automatically.
 
+### Pinned API constraints for the next synthetic resource-table slice
+
+A 2026-10-28 source audit of the locked Servo 0.7 graph found a narrow safe API
+route, not a completed security boundary. Preserve the synthetic-only public
+renderer while implementing these steps:
+
+- Register one custom protocol on the retained engine. `ProtocolHandler` is
+  `Send + Sync`, so its active-generation registry must use thread-safe shared
+  ownership, with immutable bounded document/raster bytes. Its `load` receives the
+  full `Request`, including `target_webview_id`, destination, origin and
+  `current_url()`. Leave privileged paths empty, fetchability false and secure
+  status false. An unguessable application namespace does not by itself prove
+  browser opaque-origin or same-origin semantics.
+- Resolve CID identifiers into an exact URL/resource table before publication;
+  reject duplicates, ambiguous/malformed encoding, missing parts, unsupported MIME
+  and excess size. Bind each table to its WebView ID and fresh generation. Retire
+  the previous generation before activating another. Test the first document's
+  view association rather than allowing absent IDs to bypass that binding.
+- Both resource delegates must explicitly cancel non-table requests. The
+  engine-wide fallback must deny unassociated requests instead of inferring a
+  message from whichever view is currently selected. Test delayed requests after
+  A-to-B switches and teardown; old URLs must never resolve to the new table.
+- Cancel every redirect in this slice. The interceptor populates the callback's
+  URL from `Request::url()` (the first URL), whereas `current_url()` is the last
+  URL. The callback exposes `is_redirect` but not that current target. Do not
+  implement a redirect-target allowlist using the callback's original URL.
+- Do not try to replace built-in `file:`, `data:` or `blob:` handlers through the
+  embedder registry: Servo installs them first, and registry merge preserves
+  existing handlers. The inspected fetch path intercepts before scheme dispatch,
+  consistent with the existing file/data cancellation tests. This is not proof
+  that every non-fetch path is intercepted.
+
+Keep navigation and permissions denied. Navigation requests do not establish user
+activation; a portal link route needs separate input and activation tests. The
+audit did not establish a public global script-disable option or an active
+DNS-prefetch/preconnect bypass. Retain sanitizer/CSP layers and test script
+execution, DNS, sockets and local file opens with independent positive controls.
+Test actual CSP matching, custom-scheme image loading and cross-generation
+isolation; a texture, callback count or URL shape is insufficient proof.
+
+Primary pinned source: [protocol registry and handler](https://github.com/servo/servo/blob/aac43a3f31a259f04a574f5ec4e959c943ad7cc7/components/net/protocols/mod.rs),
+[request interceptor](https://github.com/servo/servo/blob/aac43a3f31a259f04a574f5ec4e959c943ad7cc7/components/net/request_interceptor.rs),
+[request URL accessors](https://github.com/servo/servo/blob/aac43a3f31a259f04a574f5ec4e959c943ad7cc7/components/net_traits/request.rs).
+The revision is recorded by `servo-net`'s vendored `.cargo_vcs_info.json`.
+No runtime, origin/CID, DNS, script or complete privacy row is checked by this
+source audit.
+
 Sources: [resource delegate](https://doc.servo.org/servo/trait.ServoDelegate.html),
 [WebResourceLoad](https://doc.servo.org/servo/struct.WebResourceLoad.html),
 [WebView](https://doc.servo.org/servo/webview/struct.WebView.html),
@@ -163,3 +210,37 @@ plain-text reader mode using decoded body text with accessible labels/actions,
 while leaving HTML available. Record that HTML accessibility limitation; do not
 call a raster texture a fully accessible document. Native mode still has keyboard
 navigation, copyable text and attachments and uses COSMIC's native dark theme.
+
+Pinned candidate, not an implemented fallback: use
+`cosmic::widget::selectable_text` inside an Iced scrollable. The selected libcosmic
+defaults retain `a11y`; its wrapper delegates to Iced's selectable text, which
+already handles Unicode layout, focus, selection, Ctrl+A/C and copy context menus.
+The inspected paragraph accessibility node exposes the whole fragment as its
+label and bounds, with `Live::Polite`; it does not expose text runs, selection or
+text-range actions. Test whether this meets the reader's screen-reader needs.
+Do not infer text navigation from the presence of a paragraph node. Keyboard
+scrolling and keeping selected text visible also need a runtime test; public
+`scrollable::scroll_to`/`scroll_by` operations are candidates if explicit commands
+are needed.
+
+Do not substitute `text_editor` solely because it supports selection and copy.
+Omitting `on_action` disables interaction; accepting only non-edit actions can
+keep a read-only buffer interactive, but the pinned Iced editor has no
+`a11y_nodes` override, and its COSMIC wrapper forwards that empty default tree.
+The editable upstream example does not establish accessible read-only behavior.
+
+Servo itself exposes `WebView::set_accessibility_active`, a subtree ID, tree-update
+delegate and action forwarding. Its preference must be enabled, and the subtree
+must be grafted before forwarding updates to avoid violating AccessKit invariants.
+The locked Servo uses registry AccessKit 0.24.1, while Iced uses Git AccessKit
+0.22.0: their Rust types are distinct. No safe public tree/action bridge has yet
+been established or tested. This source mismatch does not prove that a narrow
+bridge is impossible. Retain the planned real-session AT-SPI/screen-reader and
+keyboard acceptance for either route, including long Unicode text and theme
+changes.
+
+Source audit, 2026-10-28: [COSMIC selectable text](https://github.com/pop-os/libcosmic/blob/8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec/src/widget/selectable_text.rs),
+[pinned Iced text nodes](https://github.com/pop-os/iced/blob/229186b5180b6217d93866c912e6373ac378b231/core/src/widget/text.rs),
+[Iced editor](https://github.com/pop-os/iced/blob/229186b5180b6217d93866c912e6373ac378b231/widget/src/text_editor.rs),
+and the vendored Servo WebView/delegate APIs. No accessibility acceptance row is
+checked by this source audit.
