@@ -1,0 +1,4 @@
+error: failed to run custom build command for `mozjs_sys v153.3.0-1`
+  bash: line 3: /run/build/mailstronaut/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs/js/src/configure: Permission denied
+  make: *** [/run/build/mailstronaut/vendor/source-registry-0/mozjs_sys-153.3.0-1/makefile.cargo:207: maybe-configure] Error 1
+  assertion failed: result.status.success()

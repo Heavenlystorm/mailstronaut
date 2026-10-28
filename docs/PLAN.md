@@ -97,9 +97,9 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
 - [x] Build the x86_64 Nix package with strict release Clippy and all workspace
   tests; exercise the installed CLI/native Nix helper with an empty environment.
   See P01 evidence; installed graphical and cross-architecture acceptance stay open.
-- [ ] Run a minimal Flatpak build-environment compile spike to catch
-  SpiderMonkey/toolchain/native-source obstacles before continuing. This spike is
-  not the complete Flatpak distribution acceptance.
+- [x] Compile the workspace offline in the pinned x86_64 Flatpak SDK and exercise
+  its installed probe binary/native config helper in the Platform runtime. See P01
+  evidence; production Flatpak delivery and graphical acceptance stay open.
 
 Stop condition: if composition, theme/resource hooks, build closure or required
 lifecycle cannot be implemented narrowly, keep P01 open and record the upstream

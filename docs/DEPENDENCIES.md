@@ -38,7 +38,9 @@ merely to populate a manifest. Disable unused default features where indicated.
 Semver bands in this table are deliberate where a combined lock is not yet proven.
 P01/P02 record exact working Cargo revisions/features and native hashes. A failed
 gate is not permission to keep upgrading unrelated libraries. Rust 1.98 is the
-declared lower bound required by mail-parser 1.0.0. The development compiler is
+declared lower bound required by mail-parser 1.0.0. The full x86_64 SDK release
+graph now compiles with Rust 1.98.0; its tests/Clippy and other architectures have
+not been checked at that minimum. The development compiler is
 pinned through rust-overlay in flake.lock; Nix release builds use Nixpkgs' stable
 compiler. Revisit the lower bound when the complete graph is known.
 

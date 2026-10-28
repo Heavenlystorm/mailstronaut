@@ -33,8 +33,10 @@ overrides until Cranelift supports their symbol-name marker. The stable Nix
 package excludes the nightly-only `.cargo/config.toml` and builds with LLVM,
 thin LTO and one codegen unit. Keep that exclusion in future Flatpak builds too.
 No rustup installation, separate shell.nix, FHS environment or unpinned tool
-download is needed. `rust-version = 1.98` follows mail-parser's requirement; an
-MSRV build has not been run. Exact compilers and limitations are in P01 evidence.
+download is needed. `rust-version = 1.98` follows mail-parser's requirement; the
+x86_64 SDK release compile now passes with Rust 1.98.0. Minimum-version tests,
+Clippy and other architectures remain unverified. Exact compilers and limitations
+are in P01 evidence.
 
 Debug/test builds use line-only debug information to reduce artifact size while
 retaining source locations in backtraces. Incremental compilation stays enabled.
@@ -149,8 +151,9 @@ for libcosmic). P10 must select and pin a supported branch (evaluate 26.08 first
 then 25.08 if dependency compatibility requires it), SDK commit and Rust extension
 matching at least the selected MSRV. The P01 experiment now verifies a
 project-local x86_64 SDK 26.08 installation with Rust 1.98.0 and the LLVM 22
-extension, including offline dependency metadata in the actual SDK sandbox.
-Application compilation and installed Flatpak execution remain **unverified**.
+extension. Offline workspace release compilation and the probe binary's CLI/native
+Nix helper pass in the Platform runtime. Production Flatpak installation, graphics
+and portals remain **unverified**.
 See [the experiment](../experiments/p01-flatpak/README.md) and its SDK commit lock;
 it is not the production release manifest. Pin upstream git sources including
 submodules and source checksums. Generate Cargo source manifests from Cargo.lock

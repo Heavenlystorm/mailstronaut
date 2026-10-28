@@ -84,8 +84,9 @@ same metadata checks, then builds the whole workspace with one job per available
 CPU, the stable
 SDK compiler, LLVM, thin LTO and one codegen unit. It sets `AS` to the compiler
 driver and uses the inventoried LLVM 22 libclang path. It does not copy Nix-linked
-binaries into `/app`. Native configure, linking, installed execution, graphics
-drivers, GUI, portals and the final release manifest still require actual proof.
+binaries into `/app`. Native configure/linking and the probe's Platform-runtime
+CLI checks now pass on x86_64. Graphics drivers, GUI, portals, production app
+installation and the final release manifest still require actual proof.
 
 For that long compile, use a transient user service from the project root after
 the Nix gate has exited:
@@ -104,6 +105,16 @@ status; zero means compilation/installation into the probe app directory passed,
 not that the application was run. A coding-UI restart leaves this service running;
 a host reboot interrupts it. The staged SDK Cargo target remains in the project
 and can be reused after interruption.
+
+After a successful compile, check the installed probe binary in the Platform
+runtime, with no SDK library path or executable search path:
+
+```sh
+bash experiments/p01-flatpak/isolated.sh bash experiments/p01-flatpak/runtime-smoke.sh
+```
+
+This exercises version and native Nix configuration evaluation without registering
+a production application or starting the GUI.
 
 References: [Flatpak builder options and sandbox](https://docs.flatpak.org/en/latest/flatpak-builder-command-reference.html),
 [installation environment variables](https://docs.flatpak.org/en/latest/flatpak-command-reference.html#environment),
