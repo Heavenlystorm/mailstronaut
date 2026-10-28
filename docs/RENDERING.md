@@ -68,6 +68,19 @@ incompatible duplicate Iced versions, or turning off security is not success.
 If any is blocked, document the precise missing upstream hook, a bounded fix, and
 keep dependent HTML-release tasks unchecked. Do not silently change engines.
 
+Pinned lifecycle constraint: Servo 0.7 calls `servo_config::opts::initialize_options`
+on every engine construction, but that function sets a process-global `OnceLock`
+and panics on a second call. Its SpiderMonkey dependency also rejects initialization
+after engine shutdown. Dropping and reconstructing the entire engine in the same
+application process is therefore not a supported lifecycle in this pin. The next
+bounded spike should retain one engine, drop/recreate its webviews and rendering
+contexts, and measure what remains while headless. Upstream already tests painter
+removal on the last webview's drop (`servo` 0.7.0 `tests/webview.rs`); reuse that
+behavior rather than inventing a renderer teardown mechanism. This does not meet
+the architecture's complete browser-release requirement by itself. Resolve that
+gate explicitly before P08; do not silently retain a hidden browser indefinitely
+or introduce a helper-process architecture without recording its design and cost.
+
 ## 3. Sanitization and resource model
 
 Use `ammonia::Builder` to parse/serialize untrusted HTML with an explicit email
