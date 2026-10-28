@@ -19,9 +19,7 @@
           "CARGO_CACHE_AUTO_CLEAN_FREQUENCY": "never",
           "LIBCLANG_PATH": "/usr/lib/sdk/llvm22/lib",
           "CC": "clang",
-          "CXX": "clang++",
-          "CMAKE_BUILD_PARALLEL_LEVEL": "2",
-          "MAKEFLAGS": "-j2"
+          "CXX": "clang++"
         }
       },
       "build-commands": ["bash flatpak-probe-build.sh metadata"],

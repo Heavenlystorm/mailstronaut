@@ -13,9 +13,11 @@ fi
 export XDG_CACHE_HOME="$root/target/nix-cache"
 export CARGO_CACHE_AUTO_CLEAN_FREQUENCY=never
 printf 'running\n' > target/p01-package-gate.status
+build_jobs=$(nproc)
+printf 'Build parallelism: %s CPUs\n' "$build_jobs" > target/p01-package-gate-service.log
 result=0
-nix flake check --no-update-lock-file --print-build-logs --cores 2 --max-jobs 1 \
-  > target/p01-package-gate-service.log 2>&1 || result=$?
+nix flake check --no-update-lock-file --print-build-logs --cores "$build_jobs" --max-jobs 1 \
+  >> target/p01-package-gate-service.log 2>&1 || result=$?
 printf '%s\n' "$result" > target/p01-package-gate.status.tmp
 mv target/p01-package-gate.status.tmp target/p01-package-gate.status
 printf 'Package gate exited %s; log: %s/target/p01-package-gate-service.log\n' "$result" "$root"

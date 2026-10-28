@@ -237,6 +237,9 @@
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
             shellHook = ''
+              export CARGO_BUILD_JOBS="''${CARGO_BUILD_JOBS:-$(nproc)}"
+              export CMAKE_BUILD_PARALLEL_LEVEL="$CARGO_BUILD_JOBS"
+              export MAKEFLAGS="-j$CARGO_BUILD_JOBS"
               export AS="$CC"
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:$LD_LIBRARY_PATH"
               NIX_HARDENING_ENABLE=" ''${NIX_HARDENING_ENABLE:-} "

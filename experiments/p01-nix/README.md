@@ -22,7 +22,8 @@ systemd-run --user --unit=mailstronaut-p01-nix-gate --collect --service-type=exe
 ```
 
 The runner takes an exclusive project-local lock and runs the unchanged pinned
-gate with `--cores 2 --max-jobs 1`. It writes:
+gate with `--cores "$(nproc)" --max-jobs 1`: one package build uses every available
+CPU. It writes:
 
 - `target/p01-package-gate-service.log`: complete Nix/build/check output.
 - `target/p01-package-gate.status`: `running`, then the numeric exit status.

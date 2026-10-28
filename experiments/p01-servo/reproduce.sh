@@ -29,13 +29,15 @@ cp experiments/p01-servo/pixels.rs "$probe_dir/crates/probe/src/main.rs"
 # the Nix compiler wrapper's format-security error flags. Keep other hardening.
 NIX_HARDENING_ENABLE=" ${NIX_HARDENING_ENABLE:-} "
 NIX_HARDENING_ENABLE=${NIX_HARDENING_ENABLE// format / }
-export NIX_HARDENING_ENABLE AS="$CC" CARGO_BUILD_JOBS=2 CMAKE_BUILD_PARALLEL_LEVEL=2 MAKEFLAGS=-j2
+build_jobs=${CARGO_BUILD_JOBS:-$(nproc)}
+export NIX_HARDENING_ENABLE AS="$CC" CARGO_BUILD_JOBS="$build_jobs"
+export CMAKE_BUILD_PARALLEL_LEVEL="$build_jobs" MAKEFLAGS="-j$build_jobs"
 for tool in "$CC" "$CXX" "$AS" clang python3 cmake make cargo rustc; do
     printf '%s: %s\n' "$tool" "$(command -v "$tool")"
 done
 # Building checks both the library and binary; a separate check can rebuild the
 # expensive native dependencies under another Cargo fingerprint.
-(cd "$probe_dir" && cargo build -p servo-probe --jobs 2 --locked)
+(cd "$probe_dir" && cargo build -p servo-probe --jobs "$build_jobs" --locked)
 
 # Fixed synthetic data URL only. This is not a resource-policy test.
 (cd "$probe_dir" && timeout 45s target/debug/servo-probe)

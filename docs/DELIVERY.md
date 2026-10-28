@@ -45,6 +45,10 @@ thin LTO and one codegen unit.
 
 Coordinate one `CARGO_TARGET_DIR` across agents working on this project, using
 the main checkout's `target` directory rather than a new cache per worktree.
+Use every available CPU for that build. The development shell defaults Cargo,
+CMake and Make to `nproc`; an explicit `CARGO_BUILD_JOBS` overrides that default.
+The long-build runners and CI pass the detected CPU count to Nix/SDK builds.
+Keep one full package build at a time to avoid competing copies of the graph.
 Delete only inactive, untracked build outputs inside the current project when
 cleaning up. Do not remove other projects' caches, external shared targets or Nix
 store/build directories. A deleted target requires rebuilding its dependencies.

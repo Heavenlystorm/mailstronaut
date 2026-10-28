@@ -15,7 +15,7 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 180
     container:
       # Official minimal Nix image; manifest-list digest verified 2026-10-27.
       image: nixos/nix:2.34.9@sha256:53b5ec518b696373829ea305c3c07a8c870113e44648c88ec484ef078550fd4f
@@ -45,6 +45,6 @@ jobs:
           tar --extract --gzip --file /tmp/mailstronaut-source.tar.gz --strip-components=1
           rm /tmp/mailstronaut-source.tar.gz
       - name: Build, format, lint and test through Nix
-        run: nix flake check --no-update-lock-file --print-build-logs
+        run: nix flake check --no-update-lock-file --print-build-logs --cores "$(nproc)" --max-jobs 1
       - name: Installed package smoke check
         run: nix run --no-update-lock-file -- --version

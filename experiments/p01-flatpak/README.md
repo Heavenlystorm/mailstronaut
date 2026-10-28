@@ -78,7 +78,8 @@ avoid that additional copy for later direct SDK work.
 
 After the coordinated Nix release gate has finished, the next acceptance command
 is the explicit `run.sh compile` phase through the isolated wrapper. It runs the
-same metadata checks, then builds the whole workspace with two jobs, the stable
+same metadata checks, then builds the whole workspace with one job per available
+CPU, the stable
 SDK compiler, LLVM, thin LTO and one codegen unit. It sets `AS` to the compiler
 driver and uses the inventoried LLVM 22 libclang path. It does not copy Nix-linked
 binaries into `/app`. Native configure, linking, installed execution, graphics
