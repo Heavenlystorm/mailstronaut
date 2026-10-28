@@ -84,6 +84,24 @@ driver and uses the inventoried LLVM 22 libclang path. It does not copy Nix-link
 binaries into `/app`. Native configure, linking, installed execution, graphics
 drivers, GUI, portals and the final release manifest still require actual proof.
 
+For that long compile, use a transient user service from the project root after
+the Nix gate has exited:
+
+```sh
+systemd-run --user --unit=mailstronaut-p01-flatpak-compile --collect --service-type=exec \
+  --property="WorkingDirectory=$PWD" \
+  --setenv=PATH=/run/current-system/sw/bin:/usr/bin:/bin \
+  /run/current-system/sw/bin/bash "$PWD/experiments/p01-flatpak/run-compile.sh"
+```
+
+Inspect any existing unit before starting another run. The driver shares the
+native gate's exclusive build lock and records `target/p01-flatpak-compile.log`
+and `target/p01-flatpak-compile.status`. Wait for an inactive unit and a numeric
+status; zero means compilation/installation into the probe app directory passed,
+not that the application was run. A coding-UI restart leaves this service running;
+a host reboot interrupts it. The staged SDK Cargo target remains in the project
+and can be reused after interruption.
+
 References: [Flatpak builder options and sandbox](https://docs.flatpak.org/en/latest/flatpak-builder-command-reference.html),
 [installation environment variables](https://docs.flatpak.org/en/latest/flatpak-command-reference.html#environment),
 [LLVM extension usage](https://github.com/flathub/org.freedesktop.Sdk.Extension.llvm22#usage),
