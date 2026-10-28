@@ -97,6 +97,7 @@
             pkgs.python3
             pkgs.perl
             pkgs.libclang
+            pkgs.llvm
           ];
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
           # Include nested Cargo calls from native binding generators.
@@ -149,6 +150,7 @@
             export EGL_PLATFORM=surfaceless
             export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
             export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri"
+            export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
             cargo fmt --all -- --check
             cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings
           '';
@@ -245,6 +247,7 @@
               python3
               perl
               libclang
+              llvm
               pkg-config
               libxkbcommon
               wayland
