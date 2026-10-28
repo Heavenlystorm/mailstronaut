@@ -90,6 +90,10 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
 - [ ] Enforce sanitizer + CSP + scheme/navigation/resource/permission policy;
   prove **zero remote requests** on load, including CSS/font/SVG/import/redirect
   and non-HTTP attempts. Test CID isolation and no local-file access.
+- [x] Exercise synthetic inline-script and image-load-handler denial with separate
+  script-permissive positive and sanitizer-only controls. Observe the permitted
+  local image trigger, distinct script pixels and loopback execution markers.
+  This does not close external-script, forms/frames or comprehensive privacy tests.
 - [ ] Verify external browser links and blocked scripts/forms/frames; ensure email
   content cannot reach credentials or invoke native commands.
 - [ ] Measure idle CPU, viewport memory, long-email scrolling and 100 message swaps;

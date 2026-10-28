@@ -194,6 +194,14 @@ evidence for the result and its limits. The public constructor still accepts
 only the fixed synthetic fixture. Generic CID resolution and browser-origin
 semantics remain unimplemented/unproven; the namespace is not an origin claim.
 
+A separate synthetic subprocess probe now distinguishes production CSP from
+sanitization using an inline script and an image `onload` handler. Production
+loads the permitted local raster without either script effect. A private
+test-only script-permissive policy observes both effects and loopback execution
+markers; sanitized input under that same permissive policy has neither effect.
+See P01 evidence. This covers those two fixtures, not a global script-disable
+setting or the full active-content matrix. Production CSP is unchanged.
+
 Sources: [resource delegate](https://doc.servo.org/servo/trait.ServoDelegate.html),
 [WebResourceLoad](https://doc.servo.org/servo/struct.WebResourceLoad.html),
 [WebView](https://doc.servo.org/servo/webview/struct.WebView.html),

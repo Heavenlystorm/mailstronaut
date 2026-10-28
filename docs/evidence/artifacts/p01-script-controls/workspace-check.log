@@ -1,0 +1,243 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+    Checking mailstronaut-render v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-render)
+    Checking mailstronaut v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.89s
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+   Compiling mailstronaut-render v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-render)
+   Compiling mailstronaut v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.93s
+     Running unittests src/main.rs (target/debug/build/mailstronaut/bbb449e54ad75046/out/mailstronaut-bbb449e54ad75046)
+
+running 1 test
+test tests::preview_respects_renderer_bounds ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/configuration.rs (target/debug/build/mailstronaut/1d4be72e4f127cc4/out/configuration-1d4be72e4f127cc4)
+
+running 3 tests
+test tests::cli_errors_are_redacted_and_never_initialize_graphics ... ok
+test tests::native_cli_initialization_and_managed_symlinks_are_non_destructive ... ok
+test tests::recursive_helper_is_timed_out_and_cancellation_reaps_a_live_child ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.31s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-config/0e234435b6d0d1fd/out/mailstronaut_config-0e234435b6d0d1fd)
+
+running 7 tests
+test tests::url_and_time_validation_rejects_malformed_values ... ok
+test tests::pure_expression_and_defaults ... ok
+test tests::rejects_unsupported_version_and_oversize_source ... ok
+test tests::rejects_unknown_and_impure_inputs_without_echoing_them ... ok
+test helper::tests::typed_responses_and_rejection ... ok
+test tests::native_accounts_and_auth_fields ... ok
+test helper::tests::oversized_expansion_is_rejected ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-core/7d3f91679772cf1a/out/mailstronaut_core-7d3f91679772cf1a)
+
+running 6 tests
+test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+test store::tests::failed_insert_leaves_collectible_orphan ... ok
+test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/mime.rs (target/debug/build/mailstronaut-core/efb25ea16ca282a0/out/mime-efb25ea16ca282a0)
+
+running 11 tests
+test tests::missing_headers_still_produce_a_preview ... ok
+test tests::preview_records_extracted_source_and_original_revision ... ok
+test tests::unique_cid_is_scoped_to_its_message ... ok
+test tests::forwarded_message_is_not_outer_body ... ok
+test tests::alternatives_headers_and_encodings ... ok
+test tests::html_preview_attachments_and_duplicate_cid ... ok
+test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+test tests::malformed_cid_is_not_resolved ... ok
+test tests::inline_encryption_is_detected_without_headers_or_after_a_long_preamble ... ok
+test tests::part_and_attachment_limits_are_reported ... ok
+test tests::bounds_encryption_and_malformed ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-render/bba1a31aa7420867/out/mailstronaut_render-bba1a31aa7420867)
+
+running 7 tests
+test tests::bounded_and_coalesced ... ok
+test tests::sanitizer_removes_active_content_and_css ... ok
+test tests::generated_document_is_bounded ... ok
+
+running 1 test
+
+running 1 test
+
+running 1 test
+lifecycle cycle=10 pss_kib=124629 threads=70
+test tests::synthetic_pixels_and_native_theme ... ok
+lifecycle cycle=20 pss_kib=126653 threads=70
+lifecycle cycle=30 pss_kib=127549 threads=71
+lifecycle cycle=40 pss_kib=129800 threads=71
+lifecycle cycle=50 pss_kib=132073 threads=70
+lifecycle cycle=60 pss_kib=133121 threads=70
+lifecycle cycle=70 pss_kib=133237 threads=70
+lifecycle cycle=80 pss_kib=134186 threads=71
+lifecycle cycle=90 pss_kib=136186 threads=71
+lifecycle cycle=100 pss_kib=139165 threads=70
+lifecycle sampled peak pss_kib=139165 threads=71
+test tests::lifecycle_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.04s
+
+test tests::lifecycle_subprocess ... ok
+script mode=production ready=true trigger=true inline=false event=false requests=[]
+P01 allow=false connections=0 red=[false, false, false, false] callbacks=[("mailstronaut://c33b5486-c1fd-45ee-ab1b-f9f9d95403d7/document", "Document", false), ("http://127.0.0.1:42437/import", "Style", true), ("http://127.0.0.1:42437/sheet", "Style", true), ("http://127.0.0.1:42437/image", "Image", true), ("file:///tmp/nix-shell.n4mxrF/.tmpx457op", "Image", true), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", true), ("http://127.0.0.1:42437/font", "Font", true), ("http://127.0.0.1:42437/background", "Image", true)]
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.08s
+
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.10s
+
+
+running 1 test
+
+running 1 test
+script mode=positive ready=true trigger=true inline=true event=true requests=["/inline", "/event"]
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.07s
+
+P01 allow=true connections=5 red=[true, true, true, true] callbacks=[("mailstronaut://686344ee-8fcf-487e-a913-0bea9791c76e/document", "Document", false), ("http://127.0.0.1:44161/import", "Style", false), ("http://127.0.0.1:44161/sheet", "Style", false), ("http://127.0.0.1:44161/image", "Image", false), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", false), ("file:///tmp/nix-shell.n4mxrF/.tmp80g7ND", "Image", false), ("http://127.0.0.1:44161/font", "Font", false), ("http://127.0.0.1:44161/background", "Image", false)]
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.07s
+
+
+running 1 test
+
+running 1 test
+P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.26s
+
+test tests::resource_interception_subprocess ... ok
+script mode=sanitized ready=true trigger=false inline=false event=false requests=[]
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.08s
+
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.34s
+
+   Doc-tests mailstronaut_config
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mailstronaut_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mailstronaut_render
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

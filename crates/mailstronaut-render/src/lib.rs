@@ -71,8 +71,16 @@ struct Policy {
     probe: Option<Rc<Probe>>,
 }
 #[cfg(test)]
+#[derive(Clone, Copy, Default)]
+enum TestCsp {
+    #[default]
+    Production,
+    Resources,
+    Scripts,
+}
+#[cfg(test)]
 struct Probe {
-    relaxed: bool,
+    csp: TestCsp,
     allowed: Vec<String>,
     callbacks: RefCell<Vec<(String, String, bool)>>,
 }
@@ -104,6 +112,7 @@ fn deny(
     #[cfg(test)]
     let allowed = allowed
         || (!request.is_redirect
+            && request.method == http::Method::GET
             && view.is_some()
             && probe_option.is_some_and(|probe| probe.allowed.contains(&request.url.to_string())));
     #[cfg(test)]
@@ -169,7 +178,7 @@ struct Document {
     /// Bounded generated HTML bytes.
     body: Arc<[u8]>,
     #[cfg(test)]
-    relaxed: bool,
+    csp: TestCsp,
 }
 impl Document {
     /// Prepare a bounded private fixture with a fresh namespace.
@@ -185,7 +194,7 @@ impl Document {
         clippy::question_mark_used,
         reason = "Construction returns a typed result and propagates URL validation"
     )]
-    fn new(template: &str, #[cfg(test)] relaxed: bool) -> Result<Self, String> {
+    fn new(template: &str, #[cfg(test)] csp: TestCsp) -> Result<Self, String> {
         if template.len() > MAX_DOCUMENT_BYTES {
             return Err("synthetic document exceeds limit".into());
         }
@@ -201,7 +210,7 @@ impl Document {
             image,
             body: body.into_bytes().into(),
             #[cfg(test)]
-            relaxed,
+            csp,
         })
     }
 }
@@ -321,10 +330,14 @@ impl ProtocolHandler for MemoryProtocol {
             if is_document {
                 let csp = CSP;
                 #[cfg(test)]
-                let csp = if document.relaxed {
-                    "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline' http:; img-src mailstronaut: http: file: data:; font-src http:"
-                } else {
-                    csp
+                let csp = match document.csp {
+                    TestCsp::Production => csp,
+                    TestCsp::Resources => {
+                        "sandbox; default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline' http:; img-src mailstronaut: http: file: data:; font-src http:"
+                    }
+                    TestCsp::Scripts => {
+                        "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; style-src 'unsafe-inline'; img-src mailstronaut: http:"
+                    }
                 };
                 response
                     .headers
@@ -496,7 +509,7 @@ impl Renderer {
                 .policy
                 .probe
                 .as_ref()
-                .is_some_and(|probe| probe.relaxed),
+                .map_or(TestCsp::Production, |probe| probe.csp),
         )?);
         let cached_context = self.0.context.borrow().clone();
         let context = if let Some(context) = cached_context {
@@ -814,6 +827,166 @@ mod tests {
         }
     }
 
+    #[test]
+    #[expect(
+        clippy::panic,
+        reason = "A timed-out Servo child must be killed and reaped"
+    )]
+    fn script_layers_subprocess() {
+        use std::process::{Command, Stdio};
+        if let Ok(mode) = std::env::var("MAILSTRONAUT_SCRIPT_CHILD") {
+            script_probe(&mode);
+            return;
+        }
+        for mode in ["production", "positive", "sanitized"] {
+            let mut child = Command::new(std::env::current_exe().expect("test executable"))
+                .args(["--exact", "tests::script_layers_subprocess", "--nocapture"])
+                .env("MAILSTRONAUT_SCRIPT_CHILD", mode)
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .expect("spawn script probe");
+            let deadline = Instant::now() + Duration::from_secs(45);
+            loop {
+                if let Some(status) = child.try_wait().expect("child status") {
+                    assert!(status.success(), "{mode} probe failed: {status}");
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    child.kill().expect("kill child");
+                    child.wait().expect("reap child");
+                    panic!("{mode} probe timed out");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    }
+
+    #[expect(
+        clippy::arithmetic_side_effects,
+        clippy::single_call_fn,
+        clippy::print_stdout,
+        clippy::use_debug,
+        reason = "The bounded child observes independent pixel and loopback execution markers"
+    )]
+    fn script_probe(mode: &str) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+        listener.set_nonblocking(true).expect("nonblocking");
+        let address = listener.local_addr().expect("address");
+        let urls: Vec<String> = ["inline", "event"]
+            .iter()
+            .map(|path| format!("http://{address}/{path}"))
+            .collect();
+        let probe = Rc::new(Probe {
+            csp: if mode == "production" {
+                TestCsp::Production
+            } else {
+                TestCsp::Scripts
+            },
+            allowed: if mode == "production" {
+                Vec::new()
+            } else {
+                urls.clone()
+            },
+            callbacks: RefCell::new(Vec::new()),
+        });
+        PROBE.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&probe)));
+        let fixture = format!(
+            r#"<p>Unique safe baseline</p><script>document.getElementById('inline').style.background='red'; (new Image()).src='{}';</script><img id=trigger src='@local-raster@' onload="document.getElementById('event').style.background='blue'; (new Image()).src='{}'">"#,
+            urls[0], urls[1]
+        );
+        let body = if mode == "sanitized" {
+            sanitize(&fixture)
+        } else {
+            fixture
+        };
+        let document = format!(
+            "<!doctype html><style>body {{margin:0;background:white}} p {{background:#00ff00;position:absolute;left:0;top:0;width:40px;height:40px}} #inline,#event {{position:absolute;top:60px;width:40px;height:40px;background:white}} #inline {{left:0}} #event {{left:50px}} #trigger {{position:absolute;left:110px;top:60px;width:20px;height:20px}}</style><div id=inline></div><div id=event></div>{body}"
+        );
+        let viewport = Renderer::from_document(document)
+            .expect("engine")
+            .viewport(160, 120)
+            .expect("viewport");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut ready = false;
+        let mut text_visible = false;
+        let mut inline = false;
+        let mut event = false;
+        let mut trigger = false;
+        let mut requests = Vec::new();
+        while Instant::now() < deadline {
+            if let Some(frame) = viewport.paint() {
+                let pixel = |x: usize, y: usize| &frame[(y * 160 + x) * 4..][..3];
+                ready |= pixel(35, 35) == [0, 255, 0];
+                text_visible |= (0..40).any(|y| {
+                    (0..40).any(|x| {
+                        let color = pixel(x, y);
+                        color[0] < 80 && color[1] < 80 && color[2] < 80
+                    })
+                });
+                inline |= pixel(10, 70) == [255, 0, 0];
+                event |= pixel(60, 70) == [0, 0, 255];
+                trigger |= pixel(120, 70) == [255, 0, 0];
+            }
+            serve_script_markers(&listener, &mut requests);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        println!(
+            "script mode={mode} ready={ready} trigger={trigger} inline={inline} event={event} requests={requests:?}"
+        );
+        assert!(
+            ready && text_visible,
+            "unique safe baseline and text did not render"
+        );
+        assert_eq!(trigger, mode != "sanitized", "local load-event trigger");
+        if mode == "positive" {
+            assert!(inline && event, "both script effects must render");
+            for path in ["/inline", "/event"] {
+                assert!(
+                    requests.iter().any(|request| request == path),
+                    "missing {path}"
+                );
+            }
+        } else {
+            assert!(!inline && !event, "active content rendered");
+            assert!(
+                requests.is_empty(),
+                "unexpected loopback request: {requests:?}"
+            );
+        }
+    }
+
+    #[expect(
+        clippy::single_call_fn,
+        clippy::let_underscore_must_use,
+        clippy::let_underscore_untyped,
+        reason = "The private synthetic listener serves two bounded script marker requests"
+    )]
+    fn serve_script_markers(listener: &std::net::TcpListener, requests: &mut Vec<String>) {
+        use std::io::{BufRead as _, Read as _, Write as _};
+        while let Ok((mut stream, _)) = listener.accept() {
+            stream
+                .set_read_timeout(Some(Duration::from_millis(100)))
+                .expect("timeout");
+            stream
+                .set_write_timeout(Some(Duration::from_millis(100)))
+                .expect("timeout");
+            let mut line = String::new();
+            let mut reader = std::io::BufReader::new((&stream).take(1024));
+            reader.read_line(&mut line).expect("request line");
+            drop(reader);
+            assert!(line.ends_with('\n'), "incomplete or excessive request line");
+            let path = line.split_whitespace().nth(1).expect("request path");
+            requests.push(path.to_owned());
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                PNG.len()
+            );
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(PNG);
+        }
+    }
+
     #[expect(
         clippy::arithmetic_side_effects,
         clippy::single_call_fn,
@@ -853,7 +1026,7 @@ mod tests {
             allowed.push(DATA.into());
         }
         let probe = Rc::new(Probe {
-            relaxed: true,
+            csp: TestCsp::Resources,
             allowed,
             callbacks: RefCell::new(Vec::new()),
         });
@@ -929,7 +1102,7 @@ mod tests {
     )]
     fn local_resource_probe() {
         let probe = Rc::new(Probe {
-            relaxed: false,
+            csp: TestCsp::Production,
             allowed: Vec::new(),
             callbacks: RefCell::new(Vec::new()),
         });
@@ -1144,13 +1317,13 @@ mod tests {
 
     #[test]
     fn generated_document_is_bounded() {
-        assert!(Document::new(&"x".repeat(MAX_DOCUMENT_BYTES + 1), false).is_err());
+        assert!(Document::new(&"x".repeat(MAX_DOCUMENT_BYTES + 1), TestCsp::Production).is_err());
         let expansion = LOCAL_IMAGE.repeat(
             MAX_DOCUMENT_BYTES
                 .checked_div(LOCAL_IMAGE.len())
                 .expect("nonempty marker"),
         );
-        assert!(Document::new(&expansion, false).is_err());
+        assert!(Document::new(&expansion, TestCsp::Production).is_err());
     }
 
     #[test]
