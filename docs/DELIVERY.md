@@ -1,8 +1,9 @@
 # Development, CI and distribution
 
-The current scaffold is intentionally small. It proves workspace/lint/Nix plumbing;
-it does not bundle libcosmic, Servo, a model or live email functionality yet. Keep
-those implementation and packaging tasks unchecked until their gates pass.
+The workspace contains a libcosmic window, a synthetic-only Servo viewport, and
+initial configuration/storage components. It is not a usable mail client. Consult
+the milestone evidence for the current package/runtime checks; model delivery,
+live email and Flatpak acceptance remain planned.
 
 ## Nix is the development environment
 
@@ -25,11 +26,20 @@ uses git-tracked files for a local git flake; stage new source files before test
 `nix build .` or use an explicit `path:` flake during uncommitted bootstrap work.
 
 The scaffold exports `packages.{x86_64-linux,aarch64-linux}.{default,mailstronaut}`,
-`devShells.*.default`, `formatter.*` and flake checks. The toolchain comes from the
-locked Nixpkgs Rust packages, with cargo/rustc/rustfmt/clippy aligned. No separate
-rustup/nightly, shell.nix, Devenv framework, FHS development shell, unpinned tool
-download or `curl | sh` is needed. `rust-version = 1.97` is a tentative lower bound;
-Nix currently supplies 1.99.0. Do not claim an MSRV build was run unless it was.
+`devShells.*.default`, `formatter.*` and flake checks. The development shell uses
+rust-overlay's pinned nightly with the Cranelift component, aligned Rust tools
+and Wild linking for debug/test. Four SpiderMonkey FFI crates use scoped LLVM
+overrides until Cranelift supports their symbol-name marker. The stable Nix
+package excludes the nightly-only `.cargo/config.toml` and builds with LLVM,
+thin LTO and one codegen unit. Keep that exclusion in future Flatpak builds too.
+No rustup installation, separate shell.nix, FHS environment or unpinned tool
+download is needed. `rust-version = 1.98` follows mail-parser's requirement; an
+MSRV build has not been run. Exact compilers and limitations are in P01 evidence.
+
+The `servo-probe` shell is an alias of the default environment. The optional
+`gui-test` shell preserves that environment and adds private-display tools plus
+the pinned stock COSMIC theme assets. GUI probes must redirect XDG configuration
+and use a private display; never modify the user's theme to test a fixture.
 
 P01 extends the shell/package with the **actual** Servo/libcosmic requirements.
 Inspect the chosen Servo release's build configuration and `mach print-env` rather

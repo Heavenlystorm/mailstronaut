@@ -63,8 +63,12 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
   engine. Record every carried upstream patch and a path to remove it.
 - [x] Implement and exercise the bounded synthetic-only software viewport,
   coalesced async wakes, owned RGBA frames, native theme notification and resize.
-  P01 evidence records three renderer tests; COSMIC composition and complete mail
-  privacy acceptance remain in the separate unchecked rows.
+  P01 evidence records three renderer tests; complete mail privacy acceptance
+  remains in the separate unchecked rows.
+- [x] Compose the fixed synthetic viewport in the native COSMIC window using
+  event-driven wakes on the UI thread. Save light/dark captures on isolated X11
+  and Weston/Wayland, and exercise native page navigation and bounded resize.
+  See P01 evidence; this does not complete mail input, privacy or lifecycle.
 - [ ] Wire waker/spin/frame-ready/redraw, input, scroll, selection/copy, HiDPI,
   resizing, focus, links and webview teardown; one message viewport at a time.
 - [ ] Forward effective COSMIC dark/light theme through Servo's native method.
