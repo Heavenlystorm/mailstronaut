@@ -1,0 +1,5 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+this derivation will be built:
+  /nix/store/ypwx6x6q2df4b9jj3nx4j0f0kw8365lv-mailstronaut-0.1.0-vendor.drv
+building '/nix/store/ypwx6x6q2df4b9jj3nx4j0f0kw8365lv-mailstronaut-0.1.0-vendor.drv'...
+/nix/store/p0kzg8p6zlcl6fbr7vxd6xd4azq2l8fk-mailstronaut-0.1.0-vendor
