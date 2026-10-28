@@ -47,16 +47,16 @@ wait-timeout = "0.2"
 unsafe_code = "forbid"
 missing_docs = "warn"
 
-# Enable every active Clippy group, including opt-in groups. Restriction lints
-# can contradict each other; exceptions must be narrow and explain their reason.
+# Strict correctness, maintainability and performance checks without blanket
+# restriction rules that prescribe contradictory styles or duplicate versions.
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
-cargo = { level = "warn", priority = -1 }
-restriction = { level = "warn", priority = -1 }
-# The user explicitly requested all lints, including the restriction group.
-blanket_clippy_restriction_lints = "allow"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
 
 # Retain source locations in backtraces without full variable/type debug data.
 # The test profile inherits these settings; incremental builds stay enabled.

@@ -20,8 +20,10 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
 - Root Cargo.toml owns workspace metadata, dependencies and all lint groups.
   Members use `workspace = true` for dependencies/metadata/lints. Keep
   `members = ["crates/*"]`. Create planned crates only when implemented.
-- Keep every active Clippy group, including restriction. Use narrow reasoned
-  `#[expect]` for demonstrated contradictions; no blanket group suppression.
+- Keep the root Clippy policy strict and practical: `all`, `pedantic`, `nursery`
+  plus selected checks for debug macros, unfinished code and unguarded unwraps.
+  Do not enable the entire restriction or cargo group. Use narrow reasoned
+  `#[expect]` only for demonstrated exceptions.
   Unsafe code in our workspace is forbidden. Avoid forks of large dependencies.
 - Prefer the specified existing libraries. Do not reimplement MIME, TLS, OAuth,
   Nix evaluation, an HTML engine, a scheduler daemon or transformer architecture.

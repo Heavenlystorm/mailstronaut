@@ -24,9 +24,7 @@ mod tests {
 
     /// Give CLI tests an outer watchdog independent of the configuration timeout.
     #[expect(
-        clippy::implicit_return,
         clippy::unwrap_used,
-        clippy::panic,
         reason = "Fixture setup and watchdog failures must fail the test immediately."
     )]
     fn command(arguments: &[&OsStr]) -> Output {
@@ -160,7 +158,6 @@ mod tests {
 
     #[expect(
         clippy::unwrap_used,
-        clippy::single_call_fn,
         reason = "Fixture failures stop the test; rejected inputs may produce different error variants."
     )]
     async fn real_helper_evaluates_native_accounts_and_bounds_expansion() {
@@ -230,11 +227,6 @@ mod tests {
     }
 
     /// Inspect only this test process's children, without changing process state.
-    #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        reason = "Concise optional traversal handles transient proc entries."
-    )]
     fn helper_child() -> Option<PathBuf> {
         for thread in fs::read_dir("/proc/self/task").ok()?.flatten() {
             let Ok(children) = fs::read_to_string(thread.path().join("children")) else {
@@ -256,9 +248,7 @@ mod tests {
 
     #[tokio::test]
     #[expect(
-        clippy::implicit_return,
         clippy::unwrap_used,
-        clippy::expect_used,
         reason = "The spawned task and observed live child are required test fixtures."
     )]
     async fn recursive_helper_is_timed_out_and_cancellation_reaps_a_live_child() {
@@ -305,11 +295,6 @@ mod tests {
 
     /// The executable is visible in proc before its Rust startup code runs.
     /// Observe readiness through all kernel limits, without adding a fixed delay.
-    #[expect(
-        clippy::implicit_return,
-        clippy::single_call_fn,
-        reason = "Keep kernel-limit readiness parsing separate from the async cancellation scenario."
-    )]
     fn helper_limits_applied(limits: &str) -> bool {
         [
             ("Max address space", 3, ["1073741824", "1073741824"]),

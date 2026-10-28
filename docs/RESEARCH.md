@@ -9,7 +9,8 @@ model inference or Flatpak build was performed in the planning phase.
 
 `/home/eduard/Projects/cluster-flock-inator/main/Cargo.toml` uses `crates/*`, root
 package/dependency tables and inherited lints; this project follows that structure.
-It extends the lint policy to every active opt-in Clippy group as requested. The
+The initial policy enabled every active opt-in Clippy group; the user's subsequent
+request selects the strict, practical defaults documented in DELIVERY.md. The
 Mailstronaut checkout initially contained README.md and assets/icon.svg at commit
 `b7b9322`, with no existing implementation or AGENTS.md. Initial worktree was clean.
 No CFI source or Hylki application code was copied.

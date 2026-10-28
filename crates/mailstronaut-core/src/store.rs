@@ -79,10 +79,6 @@ impl From<rusqlite_migration::Error> for Error {
     }
 }
 
-#[expect(
-    clippy::arbitrary_source_item_ordering,
-    reason = "The constructor precedes the operations it enables."
-)]
 impl Store {
     /// Open or migrate a database under a private data directory.
     ///
@@ -92,10 +88,6 @@ impl Store {
     #[expect(
         clippy::needless_return,
         reason = "Restriction group also requires explicit return."
-    )]
-    #[expect(
-        clippy::question_mark_used,
-        reason = "Propagate concrete I/O and database failures without repetitive matches."
     )]
     pub fn open(root: &Path) -> Result<Self, Error> {
         fs::create_dir_all(root)?;
@@ -123,7 +115,6 @@ impl Store {
     /// Returns an error if SQLite cannot save the account.
     #[expect(
         clippy::needless_return,
-        clippy::question_mark_used,
         reason = "Explicit returns and concise error propagation are both required here."
     )]
     #[inline]
@@ -147,7 +138,6 @@ impl Store {
     /// Returns an error on an invalid existing blob, filesystem, or SQLite failure.
     #[expect(
         clippy::needless_return,
-        clippy::question_mark_used,
         reason = "Explicit returns and concise error propagation are both required here."
     )]
     #[inline]
@@ -174,10 +164,6 @@ impl Store {
         clippy::needless_return,
         reason = "Restriction group also requires explicit return."
     )]
-    #[expect(
-        clippy::question_mark_used,
-        reason = "Propagate concrete I/O and database failures without repetitive matches."
-    )]
     pub fn clear_rebuildable_indexes(&mut self) -> Result<(), Error> {
         let transaction = self.connection.transaction()?;
         transaction.execute_batch("DELETE FROM message_search;")?;
@@ -193,14 +179,6 @@ impl Store {
     #[expect(
         clippy::needless_return,
         reason = "Restriction group also requires explicit return."
-    )]
-    #[expect(
-        clippy::question_mark_used,
-        reason = "Propagate concrete I/O and database failures without repetitive matches."
-    )]
-    #[expect(
-        clippy::filetype_is_file,
-        reason = "Only regular blob files may be deleted; leave other filesystem entries untouched."
     )]
     pub fn collect_orphan_blobs(&mut self) -> Result<(), Error> {
         let transaction = self
@@ -236,17 +214,7 @@ impl Store {
 /// Persist and validate a content-addressed original while holding the SQLite writer lock.
 #[expect(
     clippy::needless_return,
-    clippy::question_mark_used,
-    clippy::filetype_is_file,
-    clippy::indexing_slicing,
     reason = "Chunk lengths are bounded by the buffer; this helper isolates blob persistence and validation."
-)]
-#[cfg_attr(
-    not(test),
-    expect(
-        clippy::single_call_fn,
-        reason = "The helper isolates blob persistence and validation."
-    )
 )]
 fn write_blob(blobs: &Path, bytes: &[u8]) -> Result<String, Error> {
     use std::io::{Read as _, Write as _};
@@ -288,7 +256,6 @@ fn write_blob(blobs: &Path, bytes: &[u8]) -> Result<String, Error> {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
-    clippy::implicit_return,
     reason = "Test setup uses concise assertions and propagates fixture errors."
 )]
 mod tests {
@@ -298,10 +265,6 @@ mod tests {
     use std::fs;
 
     #[test]
-    #[expect(
-        clippy::question_mark_used,
-        reason = "Propagate SQLite row decoding errors in this regression test."
-    )]
     fn index_clear_preserves_durable_state_and_referenced_blob() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = Store::open(dir.path()).unwrap();
@@ -392,10 +355,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::question_mark_used,
-        reason = "Concise SQLite row decoding in this test."
-    )]
     fn ingestion_reopens_and_shares_blobs_without_collapsing_messages() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = Store::open(dir.path()).unwrap();

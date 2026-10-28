@@ -34,10 +34,6 @@ pub enum Response {
 /// unsuccessfully. Source and evaluator diagnostics are never emitted.
 #[must_use = "Return this status from the evaluator child."]
 #[inline]
-#[expect(
-    clippy::implicit_return,
-    reason = "Exit status is selected as an expression."
-)]
 pub fn run() -> ExitCode {
     set_hook(Box::new(|_| {}));
     if run_inner().is_ok() {
@@ -48,12 +44,6 @@ pub fn run() -> ExitCode {
 }
 
 /// Impose limits and process one request.
-#[expect(
-    clippy::question_mark_used,
-    clippy::implicit_return,
-    clippy::single_call_fn,
-    reason = "Keep the I/O sequence and failure propagation clear."
-)]
 fn run_inner() -> Result<(), Box<dyn Error>> {
     // Snix builtins.trace writes untrusted values to stderr. Discard them.
     let sink = OpenOptions::new().write(true).open("/dev/null")?;
@@ -91,17 +81,6 @@ fn run_inner() -> Result<(), Box<dyn Error>> {
 }
 
 /// Evaluate only bounded UTF-8 input and redact errors.
-#[expect(
-    clippy::implicit_return,
-    reason = "Separate evaluation makes the child behavior testable."
-)]
-#[cfg_attr(
-    not(test),
-    expect(
-        clippy::single_call_fn,
-        reason = "Evaluation is separated for testing."
-    )
-)]
 fn evaluate(source: &[u8]) -> Response {
     if source.len() > MAX_SOURCE_BYTES {
         return Response::Rejected;
@@ -126,11 +105,6 @@ struct BoundedWriter {
     exceeded: bool,
 }
 
-#[expect(
-    clippy::missing_trait_methods,
-    clippy::implicit_return,
-    reason = "Default Write methods delegate to the bounded write implementation."
-)]
 impl Write for BoundedWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if buf.len() > MAX_RESPONSE_BYTES.saturating_sub(self.bytes.len()) {
@@ -146,15 +120,6 @@ impl Write for BoundedWriter {
 }
 
 /// Encode within the cap or substitute a rejection.
-#[expect(
-    clippy::question_mark_used,
-    clippy::implicit_return,
-    reason = "Separate encoding makes the bounded behavior testable."
-)]
-#[cfg_attr(
-    not(test),
-    expect(clippy::single_call_fn, reason = "Encoding is separated for testing.")
-)]
 fn encode(response: &Response) -> Result<Vec<u8>, serde_json::Error> {
     let mut writer = BoundedWriter {
         bytes: Vec::new(),
@@ -171,7 +136,6 @@ fn encode(response: &Response) -> Result<Vec<u8>, serde_json::Error> {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
-    clippy::shadow_unrelated,
     reason = "Synthetic tests assert directly on encoded fixtures."
 )]
 mod tests {

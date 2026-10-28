@@ -2,8 +2,6 @@
 
 #[cfg(test)]
 #[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
     clippy::needless_return,
     reason = "Synthetic fixtures fail the test on unexpected parsing or missing data; return lints conflict."
 )]

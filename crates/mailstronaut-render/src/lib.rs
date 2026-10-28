@@ -1,10 +1,5 @@
 //! A provisional, synthetic-only software Servo viewport.
 #![forbid(unsafe_code)]
-#![expect(
-    clippy::multiple_crate_versions,
-    clippy::arbitrary_source_item_ordering,
-    reason = "Servo requires incompatible dependency versions; related policy items stay grouped"
-)]
 
 use content_security_policy::Destination;
 use core::{
@@ -45,12 +40,6 @@ const CSP: &str = "sandbox; default-src 'none'; script-src 'none'; connect-src '
 /// Capacity-one event loop wake sender.
 #[derive(Clone)]
 struct Wake(async_channel::Sender<()>);
-#[expect(
-    clippy::implicit_return,
-    clippy::let_underscore_must_use,
-    clippy::let_underscore_untyped,
-    reason = "The Servo waker returns a boxed clone and deliberately coalesces a full channel"
-)]
 impl EventLoopWaker for Wake {
     fn clone_box(&self) -> Box<dyn EventLoopWaker> {
         Box::new(self.clone())
@@ -89,14 +78,6 @@ std::thread_local! {
     static PROBE: RefCell<Option<Rc<Probe>>> = const { RefCell::new(None) };
 }
 /// Cancel any load not explicitly associated with the active table and view.
-#[cfg_attr(
-    test,
-    expect(
-        clippy::implicit_return,
-        clippy::shadow_reuse,
-        reason = "Only the private test control extends the production decision"
-    )
-)]
 fn deny(
     load: WebResourceLoad,
     resources: &Resources,
@@ -128,10 +109,6 @@ fn deny(
         load.intercept(response).cancel();
     }
 }
-#[expect(
-    clippy::missing_trait_methods,
-    reason = "Servo provides defaults for unrelated callbacks"
-)]
 impl ServoDelegate for Policy {
     fn load_web_resource(&self, load: WebResourceLoad) {
         deny(
@@ -143,11 +120,6 @@ impl ServoDelegate for Policy {
         );
     }
 }
-#[expect(
-    clippy::missing_trait_methods,
-    clippy::arbitrary_source_item_ordering,
-    reason = "Servo provides unrelated defaults; related policy callbacks stay together"
-)]
 impl WebViewDelegate for Policy {
     fn load_web_resource(&self, view: WebView, load: WebResourceLoad) {
         deny(
@@ -182,18 +154,6 @@ struct Document {
 }
 impl Document {
     /// Prepare a bounded private fixture with a fresh namespace.
-    #[cfg_attr(
-        not(test),
-        expect(
-            clippy::single_call_fn,
-            reason = "Tests exercise construction separately from the viewport"
-        )
-    )]
-    #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        reason = "Construction returns a typed result and propagates URL validation"
-    )]
     fn new(template: &str, #[cfg(test)] csp: TestCsp) -> Result<Self, String> {
         if template.len() > MAX_DOCUMENT_BYTES {
             return Err("synthetic document exceeds limit".into());
@@ -226,7 +186,6 @@ struct Binding {
 struct Resources(Mutex<Option<Binding>>);
 impl Resources {
     /// Publish one immutable table bound to its concrete view.
-    #[expect(clippy::implicit_return, reason = "Binding returns a typed result")]
     fn bind(&self, view: WebViewId, document: Arc<Document>) -> Result<(), String> {
         let Ok(mut slot) = self.0.lock() else {
             return Err("resource registry unavailable".into());
@@ -239,10 +198,6 @@ impl Resources {
         Ok(())
     }
     /// Revoke only the matching generation, leaving any other binding untouched.
-    #[expect(
-        clippy::implicit_return,
-        reason = "The binding predicate is an expression"
-    )]
     fn retire(&self, view: WebViewId) {
         if let Ok(mut slot) = self.0.lock()
             && slot.as_ref().is_some_and(|binding| binding.view == view)
@@ -251,11 +206,6 @@ impl Resources {
         }
     }
     /// Return immutable bytes only for an exact URL, destination and active view.
-    #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        reason = "Failed locks and absent bindings fail closed through Option"
-    )]
     fn lookup(
         &self,
         view: Option<WebViewId>,
@@ -277,22 +227,7 @@ impl Resources {
 }
 /// Protocol handler registered once for the retained engine.
 struct MemoryProtocol(Arc<Resources>);
-#[expect(
-    clippy::missing_trait_methods,
-    reason = "Protocol defaults deliberately leave privileged paths empty and secure/fetchable false"
-)]
 impl ProtocolHandler for MemoryProtocol {
-    #[expect(
-        clippy::implicit_return,
-        reason = "The protocol returns an immediately ready response"
-    )]
-    #[cfg_attr(
-        test,
-        expect(
-            clippy::shadow_reuse,
-            reason = "Only tests can select a relaxed resource CSP"
-        )
-    )]
     fn load<'request>(
         &'request self,
         request: &'request mut Request,
@@ -391,10 +326,6 @@ pub struct Viewport {
 
 impl Drop for Viewport {
     #[inline]
-    #[expect(
-        clippy::separated_literal_suffix,
-        reason = "Numeric suffix lint groups conflict."
-    )]
     fn drop(&mut self) {
         self.engine.policy.resources.retire(self.view.id());
         self.context.resize((1_u32, 1_u32).into());
@@ -402,20 +333,12 @@ impl Drop for Viewport {
     }
 }
 
-#[expect(
-    clippy::arbitrary_source_item_ordering,
-    reason = "Lifecycle operations are grouped by use."
-)]
 impl Renderer {
     /// Initialize the engine with its fixed synthetic fixture.
     ///
     /// # Errors
     /// Returns an error if protocol registration fails.
     #[inline]
-    #[expect(
-        clippy::implicit_return,
-        reason = "The fixed fixture uses the shared fallible constructor"
-    )]
     pub fn synthetic() -> Result<Self, String> {
         let body = sanitize(&format!(
             "<h1>Synthetic Servo viewport</h1><p>No mail</p>{}",
@@ -427,20 +350,6 @@ impl Renderer {
         Self::from_document(document)
     }
     /// Construct the engine with an internal fixture document.
-    #[cfg_attr(
-        not(test),
-        expect(
-            clippy::single_call_fn,
-            reason = "Tests also construct private fixtures"
-        )
-    )]
-    #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        clippy::clone_on_ref_ptr,
-        clippy::min_ident_chars,
-        reason = "Construction shares the immutable policy and propagates protocol errors."
-    )]
     fn from_document(document: String) -> Result<Self, String> {
         let (sender, wakes) = async_channel::bounded(1);
         let wake = Wake(sender);
@@ -477,21 +386,10 @@ impl Renderer {
     /// # Errors
     /// Returns an error for invalid dimensions, an active viewport, or context setup failure.
     #[inline]
-    #[expect(
-        clippy::implicit_return,
-        reason = "Forward to the fixed private fixture"
-    )]
     pub fn viewport(&self, width: u32, height: u32) -> Result<Viewport, String> {
         self.viewport_document(width, height, &self.0.document)
     }
     /// Bind a fresh private fixture before driving any queued network callbacks.
-    #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        clippy::clone_on_ref_ptr,
-        clippy::min_ident_chars,
-        reason = "The context and engine have shared thread-affine ownership."
-    )]
     fn viewport_document(
         &self,
         width: u32,
@@ -556,28 +454,16 @@ impl Renderer {
     /// Clone the coalesced wake receiver for the UI subscription.
     #[inline]
     #[must_use = "Poll the receiver to drive Servo."]
-    #[expect(
-        clippy::implicit_return,
-        reason = "The receiver is an async subscription handle."
-    )]
     pub fn wake_receiver(&self) -> async_channel::Receiver<()> {
         self.0.wakes.clone()
     }
 }
 
-#[expect(
-    clippy::arbitrary_source_item_ordering,
-    reason = "Lifecycle operations are grouped by use."
-)]
 impl Viewport {
     /// Clone the coalescing wake receiver for one async GUI subscription consumer.
     /// Servo and this viewport must still be driven on their creator thread.
     #[inline]
     #[must_use = "Poll the receiver to drive Servo without blocking the GUI."]
-    #[expect(
-        clippy::implicit_return,
-        reason = "The receiver is an async subscription handle"
-    )]
     pub fn wake_receiver(&self) -> async_channel::Receiver<()> {
         self.engine.wakes.clone()
     }
@@ -585,11 +471,7 @@ impl Viewport {
     #[inline]
     #[must_use = "Use the returned pixels to update the reader viewport."]
     #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        clippy::default_numeric_fallback,
         clippy::cast_possible_wrap,
-        clippy::as_conversions,
         reason = "Viewport dimensions are validated below 2049 before conversion and absent frames are normal"
     )]
     pub fn paint(&self) -> Option<Vec<u8>> {
@@ -610,11 +492,6 @@ impl Viewport {
     /// # Errors
     /// Returns an error if either dimension is outside 1..=2048 pixels.
     #[inline]
-    #[expect(
-        clippy::implicit_return,
-        clippy::question_mark_used,
-        reason = "Resize propagates the bounded dimension validation"
-    )]
     pub fn resize(&mut self, width: u32, height: u32) -> Result<(), String> {
         check_size(width, height)?;
         self.size = (width, height);
@@ -626,10 +503,6 @@ impl Viewport {
     /// # Errors
     /// Rejects scales outside the bounded application policy.
     #[inline]
-    #[expect(
-        clippy::implicit_return,
-        reason = "This fallible operation returns the validated result."
-    )]
     pub fn set_scale(&self, scale: f32) -> Result<(), String> {
         if !scale.is_finite() || !(0.000_488_281_25..=2048.0).contains(&scale) {
             return Err("scale outside supported range".into());
@@ -644,9 +517,6 @@ impl Viewport {
     /// # Errors
     /// Rejects non-finite or excessive deltas and points outside the physical viewport.
     #[expect(
-        clippy::float_arithmetic,
-        clippy::implicit_return,
-        clippy::as_conversions,
         clippy::cast_precision_loss,
         reason = "Viewport bounds are at most 2048 pixels and wheel values use floating point."
     )]
@@ -695,18 +565,6 @@ impl Viewport {
     }
 }
 /// Restrict the synthetic document body to passive email elements.
-#[cfg_attr(
-    not(test),
-    expect(
-        clippy::single_call_fn,
-        reason = "The sanitizer is also exercised by tests"
-    )
-)]
-#[expect(
-    clippy::implicit_return,
-    clippy::absolute_paths,
-    reason = "The explicit allowlist is kept separate from the synthetic constructor"
-)]
 fn sanitize(input: &str) -> String {
     ammonia::Builder::new()
         .tags(
@@ -755,10 +613,6 @@ fn sanitize(input: &str) -> String {
         .to_string()
 }
 /// Reject zero or oversized viewport dimensions.
-#[expect(
-    clippy::implicit_return,
-    reason = "The validation returns one of two results"
-)]
 fn check_size(width: u32, height: u32) -> Result<(), String> {
     if width == 0 || height == 0 || width > MAX_SIDE || height > MAX_SIDE {
         Err("viewport dimensions must be 1..=2048".into())
@@ -769,15 +623,8 @@ fn check_size(width: u32, height: u32) -> Result<(), String> {
 
 #[cfg(test)]
 #[expect(
-    clippy::std_instead_of_core,
-    clippy::assertions_on_result_states,
     clippy::items_after_statements,
-    clippy::expect_used,
-    clippy::absolute_paths,
-    clippy::indexing_slicing,
     clippy::chunks_exact_to_as_chunks,
-    clippy::implicit_return,
-    clippy::missing_asserts_for_indexing,
     reason = "Synthetic test fixtures fail immediately on setup errors and inspect bounded RGBA chunks"
 )]
 mod tests {
@@ -785,10 +632,6 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    #[expect(
-        clippy::panic,
-        reason = "A timed-out child must be killed and reported"
-    )]
     fn resource_interception_subprocess() {
         use std::process::{Command, Stdio};
         if let Ok(mode) = std::env::var("MAILSTRONAUT_P01_CHILD") {
@@ -828,10 +671,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::panic,
-        reason = "A timed-out Servo child must be killed and reaped"
-    )]
     fn script_layers_subprocess() {
         use std::process::{Command, Stdio};
         if let Ok(mode) = std::env::var("MAILSTRONAUT_SCRIPT_CHILD") {
@@ -862,13 +701,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::arithmetic_side_effects,
-        clippy::single_call_fn,
-        clippy::print_stdout,
-        clippy::use_debug,
-        reason = "The bounded child observes independent pixel and loopback execution markers"
-    )]
     fn script_probe(mode: &str) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
         listener.set_nonblocking(true).expect("nonblocking");
@@ -956,12 +788,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::single_call_fn,
-        clippy::let_underscore_must_use,
-        clippy::let_underscore_untyped,
-        reason = "The private synthetic listener serves two bounded script marker requests"
-    )]
     fn serve_script_markers(listener: &std::net::TcpListener, requests: &mut Vec<String>) {
         use std::io::{BufRead as _, Read as _, Write as _};
         while let Ok((mut stream, _)) = listener.accept() {
@@ -987,17 +813,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::arithmetic_side_effects,
-        clippy::single_call_fn,
-        clippy::let_underscore_must_use,
-        clippy::let_underscore_untyped,
-        clippy::unseparated_literal_suffix,
-        clippy::print_stderr,
-        clippy::use_debug,
-        clippy::pattern_type_mismatch,
-        reason = "The isolated synthetic probe pumps a bounded loopback server and framebuffer"
-    )]
     fn resource_probe(allow: bool) {
         use std::io::{Read as _, Write as _};
         const PNG: &[u8] = &[
@@ -1095,11 +910,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::single_call_fn,
-        clippy::print_stdout,
-        reason = "The isolated synthetic probe reports actual routing and frame observations"
-    )]
     fn local_resource_probe() {
         let probe = Rc::new(Probe {
             csp: TestCsp::Production,
@@ -1214,11 +1024,6 @@ mod tests {
         )
     }
 
-    #[expect(
-        clippy::single_call_fn,
-        clippy::pattern_type_mismatch,
-        reason = "The synthetic probe groups initial routing and exact registry checks"
-    )]
     fn check_local_scope(first: &Viewport, document: &Document, probe: &Probe) {
         assert!(
             probe
@@ -1306,10 +1111,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::arithmetic_side_effects,
-        reason = "The fixed probe checks known pixels in a 160×100 frame"
-    )]
     fn red_at(pixels: &[u8], x: usize) -> bool {
         let pixel = &pixels[(10 * 160 + x) * 4..][..3];
         pixel[0] > 200 && pixel[1] < 50 && pixel[2] < 50
@@ -1327,10 +1128,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::panic,
-        reason = "A timed-out lifecycle child must be killed and reported"
-    )]
     fn lifecycle_subprocess() {
         use std::process::Command;
         if std::env::var_os("MAILSTRONAUT_LIFECYCLE_CHILD").is_some() {
@@ -1357,13 +1154,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::arithmetic_side_effects,
-        clippy::single_call_fn,
-        clippy::print_stdout,
-        clippy::separated_literal_suffix,
-        reason = "Numeric suffix lint groups conflict; the bounded synthetic probe records batch resource samples for evidence"
-    )]
     fn lifecycle_probe() {
         let renderer = Renderer::synthetic().expect("engine");
         let mut peak_pss: u64 = 0;
@@ -1543,14 +1333,10 @@ mod tests {
         check_scroll_and_scale(&mut viewport);
     }
     #[expect(
-        clippy::arithmetic_side_effects,
-        clippy::single_call_fn,
         clippy::too_many_lines,
-        clippy::as_conversions,
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         clippy::cast_precision_loss,
-        clippy::float_arithmetic,
         reason = "Bounded test pixels and deadlines are checked on one retained engine."
     )]
     fn check_scroll_and_scale(viewport: &mut Viewport) {

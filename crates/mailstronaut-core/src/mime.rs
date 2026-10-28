@@ -136,11 +136,6 @@ pub struct Projection {
     pub text: Option<String>,
 }
 
-#[expect(
-    clippy::question_mark_used,
-    clippy::implicit_return,
-    reason = "Question mark expresses an absent CID lookup clearly."
-)]
 impl Projection {
     /// Resolve a CID only when exactly one root-message attachment has that ID.
     #[must_use = "CID lookup has no effect unless its result is used."]
@@ -175,10 +170,6 @@ pub enum Error {
 }
 
 /// Flatten parsed address groups.
-#[expect(
-    clippy::implicit_return,
-    reason = "Explicit closure returns conflict with idiomatic expression closures."
-)]
 fn addresses(list: Option<AddressList<'_>>) -> Vec<Mailbox> {
     list.into_iter()
         .flat_map(|items| items.mailboxes())
@@ -190,10 +181,6 @@ fn addresses(list: Option<AddressList<'_>>) -> Vec<Mailbox> {
 }
 
 /// Accept only a conservative, unambiguous Content-ID lookup key.
-#[expect(
-    clippy::implicit_return,
-    reason = "Expression closures and return lints conflict."
-)]
 fn valid_cid(cid: &str) -> bool {
     !cid.is_empty()
         && cid
@@ -202,10 +189,6 @@ fn valid_cid(cid: &str) -> bool {
 }
 
 /// Record parser flags and encrypted containers recursively.
-#[expect(
-    clippy::implicit_return,
-    reason = "Expression closures and return lints conflict."
-)]
 fn inspect(part: MessagePart<'_>, status: &mut Status) {
     status.degraded |= part.has_problems();
     status.parts_truncated |= part.flags().contains(PartFlags::LIMIT_REACHED);
@@ -231,13 +214,6 @@ fn inspect(part: MessagePart<'_>, status: &mut Status) {
 }
 
 /// Decode one bounded text alternative.
-#[expect(
-    clippy::question_mark_used,
-    clippy::implicit_return,
-    clippy::arithmetic_side_effects,
-    clippy::string_slice,
-    reason = "Checked character boundaries and early absence are explicit here; return lints conflict."
-)]
 fn body(candidate: Option<MessagePart<'_>>, status: &mut Status) -> Option<String> {
     let part = candidate?;
     // Limit work before decoding. Charset conversion can expand the result.
@@ -260,11 +236,6 @@ fn body(candidate: Option<MessagePart<'_>>, status: &mut Status) -> Option<Strin
 /// # Errors
 /// Returns an error if the input exceeds the hard limit or cannot be parsed.
 #[inline]
-#[expect(
-    clippy::question_mark_used,
-    clippy::implicit_return,
-    reason = "Early parse errors and expression closures are clearer; return lints conflict."
-)]
 pub fn project(raw: &[u8]) -> Result<Projection, Error> {
     if raw.len() > MAX_INPUT_BYTES {
         return Err(Error::InputTooLarge);

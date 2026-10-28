@@ -38,7 +38,8 @@ large UI around a renderer assumption. No deadline estimate replaces acceptance.
 - [x] Specify architecture, ownership, native Nix configuration, data identity,
   rendering policy, priority/deadline/read behavior and reminder lifecycle.
 - [x] Create root `members = ["crates/*"]`, centralized dependency location,
-  inherited metadata/lints, every active Clippy group and locked Rust scaffold.
+  inherited metadata/lints and locked Rust scaffold. The current strict, practical
+  Clippy policy is defined in DELIVERY.md.
 - [x] Create a flake with pinned Nixpkgs, `nix develop`, Nix package and checks.
 - [x] Verify scaffold format/Clippy/Cargo checks inside `nix develop`, package build,
   Nix format check and installed binary smoke; record `docs/evidence/P00.md`.

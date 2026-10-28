@@ -107,22 +107,25 @@ duplication once packaging gains generated metadata. Run `nix build` and `nix ru
 on actual COSMIC/Wayland as well as isolated DBus/headless checks. Evaluation alone
 does not prove runtime graphics, activation, portals or accounts.
 
-## All Clippy groups
+## Strict, practical Clippy defaults
 
-The root manifest enables all active groups: `all`, `pedantic`, `nursery`, `cargo`
-and `restriction`. `all` includes correctness/style/performance/suspicious/complexity;
-it does not include the four opt-in groups. Every member inherits `[lints]
-`workspace = true`. Rust `unsafe_code = forbid` is also inherited.
+The root manifest enables `all`, `pedantic` and `nursery`, plus `dbg_macro`, `todo`,
+`unimplemented` and `unwrap_used`. `all` covers correctness, style, performance,
+suspicious code and complexity. Every member inherits `[lints] workspace = true`;
+Rust `unsafe_code = forbid` and `missing_docs = warn` remain enabled. CI and local
+gates use `-D warnings` for the workspace.
 
-Clippy's restriction group contains contradictions (for example return/semicolon
-styles), and Clippy itself warns against blanket enabling it. The user explicitly
-requested all lints, so retain that group. The only workspace-level exception at
-bootstrap is the diagnostic complaining about enabling the group itself. A targeted
-`#[expect(clippy::..., reason = "...")]` is allowed when a concrete code path needs
-it; never disable an entire group to make a milestone pass. Prefer `expect` so stale
-exceptions are detected. Dependency code is outside our lint policy; do not fork
-upstreams to fix their style. Document necessary Cargo duplicate-version exceptions
-when libcosmic/Servo legitimately differ. CI uses `-D warnings` for our workspace.
+The user revised the initial all-lints request to favor strict checks without
+unnecessary annotation churn. Blanket `restriction` is disabled: its conflicting
+return/semicolon conventions, alphabetical item ordering and one-call-function
+rules do not improve this application's behavior. Blanket `cargo` is also disabled;
+the pinned Servo/libcosmic graph legitimately contains multiple dependency versions.
+No dependency versions or security checks are relaxed by this choice.
+
+Use a targeted `#[expect(clippy::..., reason = "...")]` for a concrete exception
+to an enabled check, and remove obsolete expectations. Dependency code is outside
+our lint policy; do not fork upstreams to fix their style. Tests remain subject to
+Clippy; an intentional test unwrap can have a scoped, reasoned expectation.
 See [Clippy's own guidance](https://doc.rust-lang.org/clippy/usage.html).
 
 ## Minimal Nix container CI

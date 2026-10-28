@@ -37,10 +37,6 @@ pub enum EvaluationError {
     Transport,
 }
 
-#[expect(
-    clippy::implicit_return,
-    reason = "Tail expressions conflict with needless_return."
-)]
 impl fmt::Display for EvaluationError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -57,10 +53,6 @@ impl fmt::Display for EvaluationError {
     }
 }
 
-#[expect(
-    clippy::missing_trait_methods,
-    reason = "No underlying error is retained; default and deprecated error methods suffice."
-)]
 impl ErrorTrait for EvaluationError {}
 
 /// Evaluate native Nix in the limited helper without blocking the async runtime.
@@ -76,15 +68,6 @@ impl ErrorTrait for EvaluationError {}
 /// Returns a redacted error for oversized input, cancellation, timeout, process
 /// failure, invalid IPC or rejected configuration. No host Nix is invoked.
 #[inline]
-#[expect(
-    clippy::implicit_return,
-    reason = "Tail expressions conflict with needless_return, including async macro arms."
-)]
-#[expect(
-    clippy::question_mark_used,
-    clippy::map_err_ignore,
-    reason = "Propagate failures with deliberately redacted diagnostics."
-)]
 pub async fn evaluate(
     executable: &Path,
     source: &str,
@@ -125,19 +108,6 @@ pub async fn evaluate(
 }
 
 /// Exchange bounded data concurrently so neither pipe can deadlock the parent.
-#[expect(
-    clippy::single_call_fn,
-    reason = "Keep concurrent pipe exchange separate from lifecycle cleanup."
-)]
-#[expect(
-    clippy::implicit_return,
-    reason = "Tail expressions conflict with needless_return in the async blocks."
-)]
-#[expect(
-    clippy::question_mark_used,
-    clippy::map_err_ignore,
-    reason = "Propagate failures with deliberately redacted diagnostics."
-)]
 async fn exchange(child: &mut Child, source: &str) -> Result<Config, EvaluationError> {
     let mut input = child.stdin.take().ok_or(EvaluationError::Transport)?;
     let output = child.stdout.take().ok_or(EvaluationError::Transport)?;

@@ -1,12 +1,4 @@
 //! Typed, secret-free configuration contract for Mailstronaut.
-#![expect(
-    clippy::arbitrary_source_item_ordering,
-    reason = "Schema types are grouped by their configuration sections."
-)]
-#![expect(
-    clippy::multiple_crate_versions,
-    reason = "Pinned Snix and its dependencies require multiple transitive versions."
-)]
 /// Internal evaluator child protocol.
 pub mod helper;
 
@@ -91,7 +83,6 @@ pub struct Notifications {
     pub show_preview: bool,
 }
 impl Default for Notifications {
-    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
     #[inline]
     fn default() -> Self {
         Self {
@@ -132,7 +123,6 @@ pub struct Sync {
     pub max_body_bytes: u32,
 }
 impl Default for Sync {
-    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
     #[inline]
     fn default() -> Self {
         Self {
@@ -161,7 +151,6 @@ pub struct Priority {
     pub max_ttl_hours: u32,
 }
 impl Default for Priority {
-    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
     #[inline]
     fn default() -> Self {
         Self {
@@ -185,7 +174,6 @@ pub struct Reminders {
     pub evening: String,
 }
 impl Default for Reminders {
-    #[expect(clippy::implicit_return, reason = "Default constructs a single value.")]
     #[inline]
     fn default() -> Self {
         Self {
@@ -330,18 +318,10 @@ enum AuthKind {
     Oauth2,
 }
 
-#[expect(
-    clippy::implicit_return,
-    reason = "Serde conversion returns the selected variant as a match expression."
-)]
 impl TryFrom<RawAuth> for Auth {
     type Error = &'static str;
 
     #[inline]
-    #[expect(
-        clippy::question_mark_used,
-        reason = "Propagate missing required fields concisely."
-    )]
     fn try_from(raw: RawAuth) -> Result<Self, Self::Error> {
         match raw.kind {
             AuthKind::Password => {
@@ -427,10 +407,6 @@ pub struct ValidationError {
     pub message: &'static str,
 }
 
-#[expect(
-    clippy::implicit_return,
-    reason = "Validation accumulates independent field diagnostics in one pass."
-)]
 impl Config {
     /// Validate all configuration values without accessing the network or filesystem.
     #[must_use = "Reject invalid configuration before applying it."]
@@ -526,12 +502,6 @@ impl Config {
 }
 
 /// Validate account-level settings and authentication metadata.
-#[expect(
-    clippy::implicit_return,
-    clippy::unneeded_field_pattern,
-    clippy::single_call_fn,
-    reason = "Separate account checks keep validation readable; wildcard patterns conflict with other restriction lints."
-)]
 fn validate_accounts(
     accounts: &[Account],
     check: &mut impl FnMut(bool, &'static str, &'static str),
@@ -634,15 +604,6 @@ fn validate_accounts(
 }
 
 /// Validate both incoming and optional outgoing authentication.
-#[expect(
-    clippy::implicit_return,
-    clippy::pattern_type_mismatch,
-    reason = "Predicate closures and borrowed variants conflict with other restriction lints."
-)]
-#[expect(
-    clippy::single_call_fn,
-    reason = "Keeping authentication checks separate makes account validation readable."
-)]
 fn validate_auth(account: &Account, check: &mut impl FnMut(bool, &'static str, &'static str)) {
     for auth in once(&account.auth).chain(account.smtp_auth.iter()) {
         match auth {
@@ -711,18 +672,10 @@ fn validate_auth(account: &Account, check: &mut impl FnMut(bool, &'static str, &
 }
 
 /// Check text for empty or control characters.
-#[expect(
-    clippy::implicit_return,
-    reason = "Predicate is expressed as a single boolean expression."
-)]
 fn valid_text(value: &str) -> bool {
     !value.trim().is_empty() && !value.chars().any(char::is_control)
 }
 /// Check a stable identifier.
-#[expect(
-    clippy::implicit_return,
-    reason = "Predicate is expressed as a single boolean expression."
-)]
 fn valid_id(value: &str) -> bool {
     !value.is_empty()
         && value
@@ -730,21 +683,11 @@ fn valid_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 /// Check an absolute path.
-#[expect(
-    clippy::implicit_return,
-    reason = "Predicate is expressed as a single boolean expression."
-)]
 fn valid_path(value: &str) -> bool {
     Path::new(value).is_absolute() && valid_text(value)
 }
 /// Check a local time.
 #[expect(
-    clippy::implicit_return,
-    reason = "Predicate is expressed as a single boolean expression."
-)]
-#[expect(
-    clippy::pattern_type_mismatch,
-    clippy::arithmetic_side_effects,
     clippy::missing_const_for_fn,
     reason = "Digits are checked before bounded arithmetic on the byte pattern."
 )]
@@ -762,10 +705,6 @@ fn valid_time(value: &str) -> bool {
     }
 }
 /// Check an HTTPS endpoint.
-#[expect(
-    clippy::implicit_return,
-    reason = "Predicate is expressed as a single boolean expression."
-)]
 fn valid_https(value: &str) -> bool {
     !value
         .chars()
@@ -779,14 +718,6 @@ fn valid_https(value: &str) -> bool {
         })
 }
 /// Check a server host.
-#[expect(
-    clippy::implicit_return,
-    reason = "Predicate is expressed as a single boolean expression."
-)]
-#[expect(
-    clippy::single_call_fn,
-    reason = "Named predicate makes endpoint validation readable."
-)]
 fn valid_host(value: &str) -> bool {
     !value.is_empty() && !value.chars().any(char::is_whitespace) && url::Host::parse(value).is_ok()
 }
@@ -806,12 +737,6 @@ pub const MAX_SOURCE_BYTES: usize = 256 * 1024;
 /// or does not pass validation. Evaluator diagnostics may contain user input and
 /// are deliberately not returned.
 #[cfg(test)]
-#[expect(
-    clippy::implicit_return,
-    clippy::question_mark_used,
-    clippy::map_err_ignore,
-    reason = "Test-only evaluation redacts source diagnostics and propagates failure."
-)]
 fn evaluate_unisolated(source: &str) -> Result<Config, &'static str> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("configuration exceeds the source size limit");
@@ -826,11 +751,7 @@ fn evaluate_unisolated(source: &str) -> Result<Config, &'static str> {
 
 #[cfg(test)]
 #[expect(
-    clippy::panic,
-    clippy::assertions_on_result_states,
     clippy::unwrap_used,
-    clippy::shadow_unrelated,
-    clippy::needless_raw_strings,
     reason = "Synthetic tests use direct assertions and fixture extraction."
 )]
 mod tests {
@@ -839,7 +760,7 @@ mod tests {
     #[test]
     fn pure_expression_and_defaults() {
         let result = evaluate_unisolated(
-            r#"let n = 1; in { schemaVersion = if n == 1 then n else 2; accounts = []; }"#,
+            "let n = 1; in { schemaVersion = if n == 1 then n else 2; accounts = []; }",
         );
         let Ok(config) = result else {
             panic!("valid expression rejected")

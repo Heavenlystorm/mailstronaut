@@ -1,10 +1,5 @@
 //! Minimal native window for the rendering feasibility gate.
 
-#![expect(
-    clippy::multiple_crate_versions,
-    reason = "The pinned libcosmic graph requires multiple incompatible versions of shared dependencies."
-)]
-
 mod config_cli;
 
 use core::hash::{Hash, Hasher};
@@ -68,15 +63,6 @@ enum Message {
     Window(window::Id, window::Event),
 }
 
-#[expect(
-    clippy::implicit_return,
-    reason = "Idiomatic tail expressions conflict with the restriction lint."
-)]
-#[expect(
-    clippy::missing_trait_methods,
-    clippy::pattern_type_mismatch,
-    reason = "Nested borrowed results are matched while COSMIC defaults provide handlers the normal window and theme lifecycle."
-)]
 impl cosmic::Application for App {
     const APP_ID: &'static str = include_str!("../../../assets/app-id");
     type Executor = executor::Default;
@@ -114,11 +100,6 @@ impl cosmic::Application for App {
         self.resize_viewport();
     }
 
-    #[expect(
-        clippy::wildcard_enum_match_arm,
-        clippy::unneeded_field_pattern,
-        reason = "Only window geometry events matter to this subscription."
-    )]
     fn subscription(&self) -> Subscription<Message> {
         let windows = event::listen_with(|incoming, _, id| match incoming {
             Event::Window(
@@ -175,13 +156,8 @@ impl cosmic::Application for App {
     }
 
     #[expect(
-        clippy::as_conversions,
         clippy::cast_precision_loss,
-        clippy::float_arithmetic,
         clippy::float_cmp,
-        clippy::unneeded_field_pattern,
-        clippy::else_if_without_else,
-        clippy::question_mark_used,
         reason = "Viewport dimensions are bounded and scale changes require exact event values."
     )]
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -343,10 +319,6 @@ impl cosmic::Application for App {
 
 impl App {
     /// Resize the current viewport to the rounded physical extent.
-    #[expect(
-        clippy::pattern_type_mismatch,
-        reason = "The optional borrowed viewport is matched without moving it"
-    )]
     fn resize_viewport(&mut self) {
         let size = physical_size(self.logical, self.scale);
         if size != self.size {
@@ -363,10 +335,6 @@ impl App {
 
 /// Subscription identity is stable for the retained engine.
 struct Wakes(async_channel::Receiver<()>);
-#[expect(
-    clippy::missing_trait_methods,
-    reason = "Hash's default slice implementation preserves this subscription identity."
-)]
 impl Hash for Wakes {
     fn hash<H>(&self, state: &mut H)
     where
@@ -377,11 +345,8 @@ impl Hash for Wakes {
 }
 /// Round the bounded logical viewport to physical framebuffer pixels.
 #[expect(
-    clippy::as_conversions,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    clippy::float_arithmetic,
-    clippy::implicit_return,
     reason = "Validated finite dimensions are clamped before conversion."
 )]
 fn physical_size(logical: (f32, f32), scale: f32) -> (u32, u32) {
@@ -391,11 +356,6 @@ fn physical_size(logical: (f32, f32), scale: f32) -> (u32, u32) {
     )
 }
 
-#[expect(
-    clippy::float_arithmetic,
-    clippy::implicit_return,
-    reason = "Window layout uses fractional units and finite clamped dimensions."
-)]
 /// Bound the software image to the available window area.
 fn logical_preview_size(width: f32, height: f32, scale: f32) -> (f32, f32) {
     if !width.is_finite()
@@ -411,14 +371,6 @@ fn logical_preview_size(width: f32, height: f32, scale: f32) -> (f32, f32) {
     )
 }
 
-#[expect(
-    clippy::implicit_return,
-    reason = "The restriction conflicts with needless_return."
-)]
-#[expect(
-    clippy::print_stderr,
-    reason = "Graphical startup failures need a terminal diagnostic."
-)]
 fn main() -> ExitCode {
     let arguments = env::args_os().skip(1).collect::<Vec<_>>();
     if let Some(status) = config_cli::dispatch(&arguments) {

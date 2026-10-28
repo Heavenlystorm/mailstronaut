@@ -19,14 +19,6 @@ use tokio_util::sync::CancellationToken;
 const INITIAL_CONFIG: &str = "{\n  schemaVersion = 1;\n  accounts = [ ];\n}\n";
 
 /// Handle the finite CLI surface before toolkit or session initialization.
-#[expect(
-    clippy::implicit_return,
-    clippy::pattern_type_mismatch,
-    clippy::print_stdout,
-    clippy::print_stderr,
-    clippy::single_call_fn,
-    reason = "CLI dispatch uses slice patterns, tail expressions and terminal output at its boundary."
-)]
 pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
     match arguments {
         [] => None,
@@ -59,13 +51,6 @@ pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
 }
 
 /// Select a command and optional explicit file without interpreting user text.
-#[expect(
-    clippy::implicit_return,
-    clippy::pattern_type_mismatch,
-    clippy::question_mark_used,
-    clippy::single_call_fn,
-    reason = "Slice patterns and concise propagation keep redacted CLI errors readable."
-)]
 fn configuration_command(arguments: &[OsString]) -> Result<&'static str, String> {
     let (command, explicit_path) = match arguments {
         [command] => (command, None),
@@ -98,12 +83,6 @@ fn configuration_command(arguments: &[OsString]) -> Result<&'static str, String>
 }
 
 /// Read at most the documented source bound, following managed-file symlinks.
-#[expect(
-    clippy::implicit_return,
-    clippy::question_mark_used,
-    clippy::single_call_fn,
-    reason = "Concise propagation preserves redacted file errors at this boundary."
-)]
 fn read_source(path: &Path) -> Result<String, String> {
     if !fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
         return Err("configuration must be an existing regular file".into());
@@ -123,12 +102,6 @@ fn read_source(path: &Path) -> Result<String, String> {
 }
 
 /// Install a private native template atomically, without overwriting any path.
-#[expect(
-    clippy::implicit_return,
-    clippy::question_mark_used,
-    clippy::single_call_fn,
-    reason = "Concise propagation preserves redacted installation errors at this boundary."
-)]
 fn initialize(path: &Path) -> Result<(), String> {
     let parent = path
         .parent()
