@@ -42,7 +42,11 @@ trap cleanup EXIT
 check_pixel() {
   local value
   value=$(magick "$1" -format '%[fx:p{300,350}.r+p{300,350}.g+p{300,350}.b]' info:)
-  python3 -c 'import sys; v=float(sys.argv[1]); assert (v < .1 if sys.argv[2] == "dark" else v > 2.9), (v, sys.argv[2])' "$value" "$2"
+  python3 - "$value" "$2" <<'PY'
+import sys
+value = float(sys.argv[1])
+assert {'dark': value < .1, 'light': value > 2.9, 'native': .1 < value < 2.9}[sys.argv[2]], (value, sys.argv[2])
+PY
 }
 
 export XDG_SESSION_TYPE=x11
@@ -73,6 +77,7 @@ check_pixel "$artifact/x11-light.png" light
 xdotool mousemove --window "$window" 55 167 click 1
 sleep .5
 magick import -window "$window" "$artifact/x11-about.png"
+check_pixel "$artifact/x11-about.png" native
 xdotool mousemove --window "$window" 55 119 click 1
 xdotool mousemove --window "$window" 5 5
 sleep .5

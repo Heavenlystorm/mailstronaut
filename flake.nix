@@ -70,23 +70,9 @@
               ./docs/CONFIGURATION.md
             ];
           };
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            outputHashes = {
-              "accesskit-0.22.0" = "sha256-6TWK4HXc2a4XSf13/nksZoihMqZurQ7tBGY8+2DaPuY=";
-              "atomicwrites-0.4.2" = "sha256-QZSuGPrJXh+svMeFWqAXoqZQxLq/WfIiamqvjJNVhxA=";
-              "build_helpers-0.14.0" = "sha256-gIrq3k4+TjlIW8CVjGGzh0GOS/xu+UX/8n95gvTYpzw=";
-              "clipboard_macos-0.1.0" = "sha256-WO3JFbE+6ESRAfkxrnEFeZyGuhUHLOKOVHcGQyHwoK0=";
-              "cosmic-client-toolkit-0.2.0" = "sha256-FL2YkCVrJ6JWUGMDg+jJJa51oar/PWDfgPgCyjcv6gk=";
-              "cosmic-freedesktop-icons-0.4.0" = "sha256-tPriTi5L0mFMHjo5xpF5cmKGHqlX3WUO7EZAgVdBpS4=";
-              "cosmic-settings-daemon-0.1.0" = "sha256-LYIR+qK+hCBVV+bfVWz2jvH5fGvfNTcryKqfe5n8Gog=";
-              "cryoglyph-0.1.0" = "sha256-10JUHl1ktbqLaReuiU3HPa4r2KvsoryyJoF3BFoge3U=";
-              "dpi-0.1.2" = "sha256-/H+D2Szeaufte6gbGQelOcvU4JhncJ9k9XTFr0q7PTw=";
-              "smithay-clipboard-0.8.0" = "sha256-GojAFRbhJcP0Rpr+v9WOivgW9x38PZdeBWTbMhkDB3A=";
-              "snix-eval-0.1.0" = "sha256-5vjUm3KUaciznlUYSKFhgjyzG1ZNTArKREA0OyPdu4Q=";
-              "softbuffer-0.4.1" = "sha256-9Ret/nfieBFl4yJ9TddyWsSuS7sI4QAza/TZrxYMb+I=";
-            };
-          };
+          # importCargoLock flattens names and collides on registry/git dpi 0.1.2.
+          # Standard fetchCargoVendor keeps separate directories for each source.
+          cargoHash = "sha256-G9w9Dz81MWt7ovizpifLtUY0Rk17WP4rMgVOucpjIok=";
           cargoBuildFlags = [
             "--workspace"
             "--all-features"
@@ -96,6 +82,12 @@
             "--all-features"
           ];
           strictDeps = true;
+          # Native dependencies invoke these tools from build.rs; Cargo owns
+          # the outer derivation's configure/build/check/install phases.
+          dontUseCmakeConfigure = true;
+          dontUseNinjaBuild = true;
+          dontUseNinjaCheck = true;
+          dontUseNinjaInstall = true;
           nativeBuildInputs = [
             pkgs.pkg-config
             pkgs.makeWrapper
