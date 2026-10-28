@@ -52,3 +52,19 @@ not start the GUI or establish graphical closure, portals or live account use.
 `nested-metadata.nix` and `configure.nix` retain the earlier bounded native-source
 experiments described in [P01 evidence](../../docs/evidence/P01.md). Their success
 is separate from the completed application gate and installed smoke probe.
+
+The normal release package now uses Crane dependency artifacts. To exercise
+source-only reuse after a successful normal gate, run:
+
+```sh
+nix develop --command bash experiments/p01-nix/cache-reuse.sh
+```
+
+It acquires the same build lock and leaves a disposable source fixture and logs
+in a fresh `target/p01-cache-reuse.*` directory. The fixture changes a Rust source
+comment while preserving Cargo manifests/lockfile. Dependency derivations must
+match exactly; the actual variant build must compile only workspace crates and
+pass its release checks. Both outputs run the installed CLI/config smoke and
+are checked for accidental runtime references to the dependency artifact.
+This is local cache acceptance, not a GUI or release-performance benchmark.
+Recorded results are in [P01 cache evidence](../../docs/evidence/P01-cache.md).

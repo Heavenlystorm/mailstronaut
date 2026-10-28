@@ -1,0 +1,253 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+this derivation will be built:
+  /nix/store/ck2j60q003a0a3w65hfbly04bnn1x1za-mailstronaut-mozjs-configure-probe.drv
+building '/nix/store/ck2j60q003a0a3w65hfbly04bnn1x1za-mailstronaut-mozjs-configure-probe.drv'...
+mailstronaut-mozjs-configure-probe> cargoArtifacts not set, will not reuse any cargo artifacts
+mailstronaut-mozjs-configure-probe> Running phase: unpackPhase
+mailstronaut-mozjs-configure-probe> unpacking source archive /nix/store/8jfv292hyg5mybjpawas5d4403fp7z1p-source
+mailstronaut-mozjs-configure-probe> source root is source
+mailstronaut-mozjs-configure-probe> Running phase: patchPhase
+mailstronaut-mozjs-configure-probe> Executing configureCargoCommonVars
+mailstronaut-mozjs-configure-probe> Running phase: updateAutotoolsGnuConfigScriptsPhase
+mailstronaut-mozjs-configure-probe> Running phase: configurePhase
+mailstronaut-mozjs-configure-probe> will append /build/source/.cargo-home/config.toml with contents of /build/vendor/config.toml
+mailstronaut-mozjs-configure-probe> default configurePhase, nothing to do
+mailstronaut-mozjs-configure-probe> Running phase: buildPhase
+mailstronaut-mozjs-configure-probe> cat: reconfigure.inputs: No such file or directory
+mailstronaut-mozjs-configure-probe> [[ '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure -ot '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure.in ]] && touch '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure || true
+mailstronaut-mozjs-configure-probe> [[ "" != "gcccc -Eg++gccar--disable-jemalloc --disable-js-shell --disable-tests --disable-export-js --disable-shared-js --build-backends=RecursiveMake --disable-jit" ]] && touch '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure || true
+mailstronaut-mozjs-configure-probe> ! [[ '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure.in -ot '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure ]] && touch '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure || true
+mailstronaut-mozjs-configure-probe> if [[ '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure -nt config.status ]] ; then \
+mailstronaut-mozjs-configure-probe>   ( echo ""gcccc -Eg++gccar--disable-jemalloc --disable-js-shell --disable-tests --disable-export-js --disable-shared-js --build-backends=RecursiveMake --disable-jit"" > reconfigure.inputs ); \
+mailstronaut-mozjs-configure-probe>   CC="gcc" CFLAGS="" \
+mailstronaut-mozjs-configure-probe>   CPP="cc -E" CPPFLAGS="" \
+mailstronaut-mozjs-configure-probe>   CXX="g++" CXXFLAGS="" \
+mailstronaut-mozjs-configure-probe>   HOST_CC="" \
+mailstronaut-mozjs-configure-probe>   HOST_CXX="" \
+mailstronaut-mozjs-configure-probe>   WASI_SYSROOT="" \
+mailstronaut-mozjs-configure-probe>   AS="gcc" AR="ar" \
+mailstronaut-mozjs-configure-probe>   '/build/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs'/js/src/configure --disable-jemalloc --disable-js-shell --disable-tests --disable-export-js --disable-shared-js --build-backends=RecursiveMake --disable-jit || (cat config.log && exit 1) ; \
+mailstronaut-mozjs-configure-probe> fi
+mailstronaut-mozjs-configure-probe> Using Python 3.14.8 from /nix/store/xahxrjs30p3mw0a42bqg9ikgkikskw8m-python3-3.14.8/bin/python3
+mailstronaut-mozjs-configure-probe> Creating local state directory: /build/mozjs-configure/mozbuild-state/srcdirs/mozjs-f15b5cc6294c
+mailstronaut-mozjs-configure-probe> Creating the 'mach' site at /build/mozjs-configure/mozbuild-state/srcdirs/mozjs-f15b5cc6294c/_virtualenvs/mach
+mailstronaut-mozjs-configure-probe> Could not install glean-sdk, so telemetry will not be collected. Continuing.
+mailstronaut-mozjs-configure-probe> Could not install orjson, so json operations will be slower in various tools. Continuing.
+mailstronaut-mozjs-configure-probe> Could not install psutil, so telemetry will be missing some data. Continuing.
+mailstronaut-mozjs-configure-probe> Could not install rtoml, so toml operations will be slower in various tools. Continuing.
+mailstronaut-mozjs-configure-probe> Could not install zstandard, so zstd archives will not be possible to extract. Continuing.
+mailstronaut-mozjs-configure-probe> Could not install pyyaml, so faster native loading is disabled. Continuing.
+mailstronaut-mozjs-configure-probe> Creating the 'build' site at /build/mozjs-configure/mozbuild-state/srcdirs/mozjs-f15b5cc6294c/_virtualenvs/build
+mailstronaut-mozjs-configure-probe> Could not install taskcluster-taskgraph, so toolchain artifacts will not be bootstrapped. Continuing.
+mailstronaut-mozjs-configure-probe> Created Python 3 virtualenv
+mailstronaut-mozjs-configure-probe> checking for vcs source checkout... no
+mailstronaut-mozjs-configure-probe> checking for a shell... /nix/store/nnm9gdr70ihc6zc9298mzz8jpcgaciql-bash-5.3p20/bin/bash
+mailstronaut-mozjs-configure-probe> checking for host system type... x86_64-pc-linux-gnu
+mailstronaut-mozjs-configure-probe> checking for target system type... x86_64-pc-linux-gnu
+mailstronaut-mozjs-configure-probe> checking if configuration file confvars.sh exists... no
+mailstronaut-mozjs-configure-probe> checking whether cross compiling... no
+mailstronaut-mozjs-configure-probe> checking for Python 3... /build/mozjs-configure/mozbuild-state/srcdirs/mozjs-f15b5cc6294c/_virtualenvs/build/bin/python (3.14.8)
+mailstronaut-mozjs-configure-probe> checking for ccache... not found
+mailstronaut-mozjs-configure-probe> checking for the target C compiler... /nix/store/r5ri78axx1qggkjq3vawywlzglg70b5w-gcc-wrapper-16.2.0/bin/gcc
+mailstronaut-mozjs-configure-probe> checking whether the target C compiler can be used... yes
+mailstronaut-mozjs-configure-probe> checking the target C compiler version... 16.2.0
+mailstronaut-mozjs-configure-probe> checking the target C compiler works... yes
+mailstronaut-mozjs-configure-probe> WARNING: The value of LD is not used by this build system.
+mailstronaut-mozjs-configure-probe> checking for the target C++ compiler... /nix/store/r5ri78axx1qggkjq3vawywlzglg70b5w-gcc-wrapper-16.2.0/bin/g++
+mailstronaut-mozjs-configure-probe> checking whether the target C++ compiler can be used... yes
+mailstronaut-mozjs-configure-probe> checking the target C++ compiler version... 16.2.0
+mailstronaut-mozjs-configure-probe> checking the target C++ compiler works... yes
+mailstronaut-mozjs-configure-probe> checking for the host C compiler... /nix/store/r5ri78axx1qggkjq3vawywlzglg70b5w-gcc-wrapper-16.2.0/bin/gcc
+mailstronaut-mozjs-configure-probe> checking whether the host C compiler can be used... yes
+mailstronaut-mozjs-configure-probe> checking the host C compiler version... 16.2.0
+mailstronaut-mozjs-configure-probe> checking the host C compiler works... yes
+mailstronaut-mozjs-configure-probe> checking for the host C++ compiler... /nix/store/r5ri78axx1qggkjq3vawywlzglg70b5w-gcc-wrapper-16.2.0/bin/g++
+mailstronaut-mozjs-configure-probe> checking whether the host C++ compiler can be used... yes
+mailstronaut-mozjs-configure-probe> checking the host C++ compiler version... 16.2.0
+mailstronaut-mozjs-configure-probe> checking the host C++ compiler works... yes
+mailstronaut-mozjs-configure-probe> checking for target linker... bfd
+mailstronaut-mozjs-configure-probe> checking for host linker... bfd
+mailstronaut-mozjs-configure-probe> checking for 64-bit OS... yes
+mailstronaut-mozjs-configure-probe> checking for new enough STL headers from libstdc++... yes
+mailstronaut-mozjs-configure-probe> checking for __thread keyword for TLS variables... yes
+mailstronaut-mozjs-configure-probe> checking for unwind.h... yes
+mailstronaut-mozjs-configure-probe> checking for _Unwind_Backtrace... yes
+mailstronaut-mozjs-configure-probe> checking for the assembler... /nix/store/r5ri78axx1qggkjq3vawywlzglg70b5w-gcc-wrapper-16.2.0/bin/gcc
+mailstronaut-mozjs-configure-probe> checking for llvm-objdump... /nix/store/19bnwrkj363vlbi4l02i6bs33xyvimql-llvm-21.1.8/bin/llvm-objdump
+mailstronaut-mozjs-configure-probe> checking for ar... /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/ar
+mailstronaut-mozjs-configure-probe> checking whether ar supports response files... yes
+mailstronaut-mozjs-configure-probe> checking for host_ar... /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/ar
+mailstronaut-mozjs-configure-probe> checking for nm... /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/nm
+mailstronaut-mozjs-configure-probe> checking for -mavxvnni support... yes
+mailstronaut-mozjs-configure-probe> checking for -mavx512bw support... yes
+mailstronaut-mozjs-configure-probe> checking for -mavx512vnni support... yes
+mailstronaut-mozjs-configure-probe> checking for pkg_config... /nix/store/s70gz6bvz74c36xigh5m2ab2cqli08cv-pkg-config-wrapper-0.29.2/bin/pkg-config
+mailstronaut-mozjs-configure-probe> checking for pkg-config version... 0.29.2
+mailstronaut-mozjs-configure-probe> checking whether pkg-config is pkgconf... no
+mailstronaut-mozjs-configure-probe> WARNING: When not building jemalloc, you need to build with --with-redist or set WIN32_REDIST_DIR.
+mailstronaut-mozjs-configure-probe> checking for strndup... yes
+mailstronaut-mozjs-configure-probe> checking for posix_memalign... yes
+mailstronaut-mozjs-configure-probe> checking for memalign... yes
+mailstronaut-mozjs-configure-probe> checking for malloc_usable_size... yes
+mailstronaut-mozjs-configure-probe> checking for malloc.h... yes
+mailstronaut-mozjs-configure-probe> checking whether malloc_usable_size definition can use const argument... no
+mailstronaut-mozjs-configure-probe> checking for stdint.h... yes
+mailstronaut-mozjs-configure-probe> checking for inttypes.h... yes
+mailstronaut-mozjs-configure-probe> checking for alloca.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/byteorder.h... no
+mailstronaut-mozjs-configure-probe> checking for getopt.h... yes
+mailstronaut-mozjs-configure-probe> checking for unistd.h... yes
+mailstronaut-mozjs-configure-probe> checking for nl_types.h... yes
+mailstronaut-mozjs-configure-probe> checking for cpuid.h... yes
+mailstronaut-mozjs-configure-probe> checking for fts.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/statvfs.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/statfs.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/vfs.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/mount.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/quota.h... yes
+mailstronaut-mozjs-configure-probe> checking for linux/quota.h... yes
+mailstronaut-mozjs-configure-probe> checking for linux/if_addr.h... yes
+mailstronaut-mozjs-configure-probe> checking for linux/rtnetlink.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/queue.h... yes
+mailstronaut-mozjs-configure-probe> checking for sys/types.h... yes
+mailstronaut-mozjs-configure-probe> checking for netinet/in.h... yes
+mailstronaut-mozjs-configure-probe> checking for byteswap.h... yes
+mailstronaut-mozjs-configure-probe> checking for memfd_create in sys/mman.h... yes
+mailstronaut-mozjs-configure-probe> checking for clock_gettime(CLOCK_MONOTONIC)... yes
+mailstronaut-mozjs-configure-probe> checking for res_ninit()... yes
+mailstronaut-mozjs-configure-probe> checking for dladdr... yes
+mailstronaut-mozjs-configure-probe> checking for dlfcn.h... yes
+mailstronaut-mozjs-configure-probe> checking for dlopen in -ldl... yes
+mailstronaut-mozjs-configure-probe> checking for gethostbyname_r in -lc_r... no
+mailstronaut-mozjs-configure-probe> checking for socket in -lsocket... no
+mailstronaut-mozjs-configure-probe> checking for pthread_create... yes
+mailstronaut-mozjs-configure-probe> checking for pthread.h... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -pthread... yes
+mailstronaut-mozjs-configure-probe> checking whether 64-bits std::atomic requires -latomic... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wbitfield-enum-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wbitfield-enum-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wformat-type-confusion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wformat-type-confusion... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wshadow-field-in-constructor-modified... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wshadow-field-in-constructor-modified... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wtautological-constant-in-range-compare... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wtautological-constant-in-range-compare... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=tautological-type-limit-compare... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=tautological-type-limit-compare... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wunreachable-code-return... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wunreachable-code-return... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wclass-varargs... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wclass-varargs... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wempty-init-stmt... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wfloat-overflow-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wfloat-overflow-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wfloat-zero-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wfloat-zero-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wloop-analysis... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wloop-analysis... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-range-loop-analysis... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-range-loop-analysis... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-deprecated-anon-enum-enum-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-deprecated-enum-enum-conversion... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wdeprecated-literal-operator... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Winvalid-utf8... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Winvalid-utf8... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wcomma... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wduplicated-cond... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wduplicated-cond... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wimplicit-fallthrough... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wlogical-op... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wlogical-op... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wstring-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wstring-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-inline-new-delete... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=maybe-uninitialized... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=maybe-uninitialized... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=deprecated-declarations... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=deprecated-declarations... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=array-bounds... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=array-bounds... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=free-nonheap-object... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=free-nonheap-object... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-multistatement-macros... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-multistatement-macros... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=class-memaccess... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=class-memaccess... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=atomic-alignment... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=atomic-alignment... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=deprecated-builtins... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=deprecated-builtins... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wformat... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wformat... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wformat-security... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wformat-security... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wformat-overflow=2... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wformat-overflow=2... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Werror=implicit-function-declaration... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-psabi... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-psabi... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-error=builtin-macro-redefined... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-error=builtin-macro-redefined... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-vla-cxx-extension... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-unknown-warning-option... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-unknown-warning-option... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -Wno-character-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -Wno-character-conversion... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -fno-sized-deallocation... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -fno-aligned-new... yes
+mailstronaut-mozjs-configure-probe> checking whether we're trying to statically link with libstdc++... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -fdiagnostics-absolute-paths... no
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -fdiagnostics-absolute-paths... no
+mailstronaut-mozjs-configure-probe> checking whether the linker supports Identical Code Folding... no
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -pipe... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -pipe... yes
+mailstronaut-mozjs-configure-probe> checking whether the C linker supports -Wl,--build-id=sha1... yes
+mailstronaut-mozjs-configure-probe> checking whether the C assembler supports -Wa,--noexecstack... yes
+mailstronaut-mozjs-configure-probe> checking whether the C linker supports -Wl,-z,noexecstack... yes
+mailstronaut-mozjs-configure-probe> checking whether the C linker supports -Wl,-z,text... yes
+mailstronaut-mozjs-configure-probe> checking whether the C linker supports -Wl,-z,relro... yes
+mailstronaut-mozjs-configure-probe> checking whether the C linker supports -Wl,-z,now... yes
+mailstronaut-mozjs-configure-probe> checking whether the C linker supports -Wl,-z,nocopyreloc... yes
+mailstronaut-mozjs-configure-probe> checking whether the C assembler supports -fPIC... yes
+mailstronaut-mozjs-configure-probe> checking whether the C compiler supports -fPIC... yes
+mailstronaut-mozjs-configure-probe> checking whether the C++ compiler supports -fPIC... yes
+mailstronaut-mozjs-configure-probe> checking what kind of list files are supported by the linker... linkerlist
+mailstronaut-mozjs-configure-probe> checking for llvm_profdata... /nix/store/19bnwrkj363vlbi4l02i6bs33xyvimql-llvm-21.1.8/bin/llvm-profdata
+mailstronaut-mozjs-configure-probe> checking for readelf... /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/readelf
+mailstronaut-mozjs-configure-probe> checking for objcopy... /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/objcopy
+mailstronaut-mozjs-configure-probe> checking for tm_zone and tm_gmtoff in struct tm... yes
+mailstronaut-mozjs-configure-probe> checking for getpagesize... yes
+mailstronaut-mozjs-configure-probe> checking for gmtime_r... yes
+mailstronaut-mozjs-configure-probe> checking for localtime_r... yes
+mailstronaut-mozjs-configure-probe> checking for gettid... yes
+mailstronaut-mozjs-configure-probe> checking for setpriority... yes
+mailstronaut-mozjs-configure-probe> checking for syscall... yes
+mailstronaut-mozjs-configure-probe> checking for getc_unlocked... yes
+mailstronaut-mozjs-configure-probe> checking for pthread_getname_np... yes
+mailstronaut-mozjs-configure-probe> checking for pthread_get_name_np... no
+mailstronaut-mozjs-configure-probe> checking for nl_langinfo and CODESET... yes
+mailstronaut-mozjs-configure-probe> checking for __cxa_demangle... yes
+mailstronaut-mozjs-configure-probe> checking for _getc_nolock... no
+mailstronaut-mozjs-configure-probe> checking for localeconv... yes
+mailstronaut-mozjs-configure-probe> checking for valid C compiler optimization flags... yes
+mailstronaut-mozjs-configure-probe> checking for gmake... /nix/store/8xz4d9wp4jy49mhl306wyg55096wis3p-gnumake-4.4.1/bin/make
+mailstronaut-mozjs-configure-probe> checking for gmake version... 4.4.1
+mailstronaut-mozjs-configure-probe> checking for watchman... not found
+mailstronaut-mozjs-configure-probe> checking for xargs... /nix/store/99v13ig4382mngi6ggf0csqi7rfa04j5-findutils-4.11.0/bin/xargs
+mailstronaut-mozjs-configure-probe> checking for strip... /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/strip
+mailstronaut-mozjs-configure-probe> checking for zlib >= 1.2.3... yes
+mailstronaut-mozjs-configure-probe> checking MOZ_ZLIB_CFLAGS... -I/nix/store/a76rmqrp6l3w6h9pppfwzb3s6dzi0y4g-zlib-1.3.2-dev/include
+mailstronaut-mozjs-configure-probe> checking MOZ_ZLIB_LIBS... -L/nix/store/hka7hr5qp0n92dmfv6gdigcabx9dai9r-zlib-1.3.2-static/lib -L/nix/store/ji36842higmp6b06hbbpmzbd59g1c07c-zlib-1.3.2/lib -lz
+mailstronaut-mozjs-configure-probe> Creating config.status
+mailstronaut-mozjs-configure-probe> Reticulating splines...
+mailstronaut-mozjs-configure-probe> Finished reading 110 moz.build files in 0.06s
+mailstronaut-mozjs-configure-probe> Read 0 gyp files in parallel contributing 0.00s to total wall time
+mailstronaut-mozjs-configure-probe> Processed into 331 build config descriptors in 0.03s
+mailstronaut-mozjs-configure-probe> RecursiveMake backend executed in 0.06s
+mailstronaut-mozjs-configure-probe>   210 total backend files; 210 created; 0 updated; 0 unchanged; 0 deleted; 4 -> 49 Makefile
+mailstronaut-mozjs-configure-probe> Total wall time: 0.17s; CPU time: 0.17s; Efficiency: 99%; Untracked: 0.03s
+mailstronaut-mozjs-configure-probe> Running phase: installPhase
+mailstronaut-mozjs-configure-probe> Running phase: fixupPhase
+mailstronaut-mozjs-configure-probe> shrinking RPATHs of ELF executables and libraries in /nix/store/q4a65cm99dwmxym5z4fpln7dsn5p8v0v-mailstronaut-mozjs-configure-probe
+mailstronaut-mozjs-configure-probe> checking for references to /build/ in /nix/store/q4a65cm99dwmxym5z4fpln7dsn5p8v0v-mailstronaut-mozjs-configure-probe...
+mailstronaut-mozjs-configure-probe> patching script interpreter paths in /nix/store/q4a65cm99dwmxym5z4fpln7dsn5p8v0v-mailstronaut-mozjs-configure-probe

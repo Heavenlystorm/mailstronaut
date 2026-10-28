@@ -1,0 +1,1898 @@
+Build parallelism: 16 CPUs
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+evaluating flake...
+checking flake output 'packages'...
+checking derivation packages.x86_64-linux.default...
+derivation evaluated to /nix/store/xfjrafasr8jwgb6xaw49qcsgxcq0fm3s-mailstronaut-0.1.0.drv
+checking derivation packages.x86_64-linux.mailstronaut...
+derivation evaluated to /nix/store/xfjrafasr8jwgb6xaw49qcsgxcq0fm3s-mailstronaut-0.1.0.drv
+checking flake output 'checks'...
+checking derivation checks.x86_64-linux.workspace...
+derivation evaluated to /nix/store/xfjrafasr8jwgb6xaw49qcsgxcq0fm3s-mailstronaut-0.1.0.drv
+checking derivation checks.x86_64-linux.nix-format...
+derivation evaluated to /nix/store/qmvm7846610481j3xngnfgdp07fn8r60-mailstronaut-nix-format.drv
+checking derivation checks.x86_64-linux.ci-lint...
+derivation evaluated to /nix/store/4kz2c0p4r661rai52c9dkacv7ayha459-mailstronaut-ci-lint.drv
+checking flake output 'devShells'...
+checking derivation devShells.x86_64-linux.default...
+derivation evaluated to /nix/store/3fhqbg43pi96mgq5al4d5kgfa7rmsasm-nix-shell.drv
+checking derivation devShells.x86_64-linux.servo-probe...
+derivation evaluated to /nix/store/3fhqbg43pi96mgq5al4d5kgfa7rmsasm-nix-shell.drv
+checking derivation devShells.x86_64-linux.gui-test...
+derivation evaluated to /nix/store/m644ibd1x2wilbjdvxl3n57nhi7vimj2-nix-shell.drv
+checking flake output 'formatter'...
+checking derivation formatter.x86_64-linux...
+derivation evaluated to /nix/store/zdil0gc0ivf3k71id8fcfmn2rfkqwzj6-nixfmt-1.5.0.drv
+running 4 flake checks...
+building '/nix/store/4kz2c0p4r661rai52c9dkacv7ayha459-mailstronaut-ci-lint.drv'...
+building '/nix/store/scd7wm1pxf687i4jh8bzi7h4sdkl45kx-mailstronaut-deps-0.1.0.drv'...
+mailstronaut-deps> cargoArtifacts not set, will not reuse any cargo artifacts
+mailstronaut-deps> Running phase: unpackPhase
+mailstronaut-deps> unpacking source archive /nix/store/0fv28wvd2935p5mw85hawcv7sr0fvkyh-source
+mailstronaut-deps> source root is source
+mailstronaut-deps> Running phase: patchPhase
+mailstronaut-deps> Executing configureCargoCommonVars
+mailstronaut-deps> Running phase: updateAutotoolsGnuConfigScriptsPhase
+mailstronaut-deps> Running phase: configurePhase
+mailstronaut-deps> will append /build/source/.cargo-home/config.toml with contents of /build/vendor/config.toml
+mailstronaut-deps> default configurePhase, nothing to do
+mailstronaut-deps> Running phase: buildPhase
+mailstronaut-deps> +++ command cargo --version
+mailstronaut-deps> cargo 1.99.0 (5f94df478 2026-08-27)
+mailstronaut-deps> +++ command cargo check --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu --all-targets
+mailstronaut-deps>    Compiling proc-macro2 v1.0.107
+mailstronaut-deps>    Compiling quote v1.0.47
+mailstronaut-deps>    Compiling unicode-ident v1.0.27
+mailstronaut-deps>    Compiling serde_core v1.0.228
+mailstronaut-deps>    Compiling libc v0.2.191
+mailstronaut-deps>    Compiling serde v1.0.228
+mailstronaut-deps>     Checking cfg-if v1.0.5
+mailstronaut-deps>     Checking log v0.4.34
+mailstronaut-deps>     Checking once_cell v1.21.4
+mailstronaut-deps>    Compiling pkg-config v0.3.34
+mailstronaut-deps>    Compiling autocfg v1.5.1
+mailstronaut-deps>    Compiling libm v0.2.16
+mailstronaut-deps>    Compiling find-msvc-tools v0.1.15
+mailstronaut-deps>    Compiling shlex v2.0.1
+mailstronaut-deps>    Compiling version_check v0.9.5
+mailstronaut-deps>     Checking pin-project-lite v0.2.17
+mailstronaut-deps>    Compiling rustix v1.1.6
+mailstronaut-deps>     Checking linux-raw-sys v0.12.1
+mailstronaut-deps>     Checking memchr v2.8.3
+mailstronaut-deps>    Compiling winnow v1.0.4
+mailstronaut-deps>    Compiling fastrand v2.5.0
+mailstronaut-deps>    Compiling thiserror v2.0.21
+mailstronaut-deps>    Compiling getrandom v0.3.4
+mailstronaut-deps>     Checking arrayvec v0.7.8
+mailstronaut-deps>    Compiling num-traits v0.2.19
+mailstronaut-deps>     Checking foldhash v0.2.0
+mailstronaut-deps>     Checking equivalent v1.0.3
+mailstronaut-deps>     Checking stable_deref_trait v1.2.1
+mailstronaut-deps>    Compiling hashbrown v0.17.1
+mailstronaut-deps>    Compiling crossbeam-utils v0.8.23
+mailstronaut-deps>    Compiling siphasher v1.0.4
+mailstronaut-deps>     Checking rand_core v0.10.1
+mailstronaut-deps>     Checking simd-adler32 v0.3.10
+mailstronaut-deps>    Compiling getrandom v0.4.3
+mailstronaut-deps>     Checking adler2 v2.0.1
+mailstronaut-deps>     Checking scopeguard v1.2.0
+mailstronaut-deps>     Checking writeable v0.6.4
+mailstronaut-deps>    Compiling crc32fast v1.5.3
+mailstronaut-deps>     Checking miniz_oxide v0.9.1
+mailstronaut-deps>     Checking static_assertions v1.1.0
+mailstronaut-deps>     Checking litemap v0.8.3
+mailstronaut-deps>     Checking typenum v1.20.1
+mailstronaut-deps>     Checking rustc-hash v2.1.3
+mailstronaut-deps>     Checking libloading v0.8.9
+mailstronaut-deps>    Compiling syn v2.0.119
+mailstronaut-deps>    Compiling syn v3.0.9
+mailstronaut-deps>     Checking percent-encoding v2.3.2
+mailstronaut-deps>    Compiling parking_lot_core v0.9.12
+mailstronaut-deps>     Checking futures-core v0.3.34
+mailstronaut-deps>    Compiling indexmap v2.14.2
+mailstronaut-deps>     Checking flate2 v1.1.10
+mailstronaut-deps>     Checking itoa v1.0.18
+mailstronaut-deps>     Checking miniz_oxide v0.8.9
+mailstronaut-deps>     Checking fdeflate v0.3.7
+mailstronaut-deps>    Compiling cfg_aliases v0.2.2
+mailstronaut-deps>    Compiling toml_parser v1.1.5+spec-1.1.0
+mailstronaut-deps>     Checking core_maths v0.1.1
+mailstronaut-deps>     Checking tracing-core v0.1.36
+mailstronaut-deps>    Compiling zmij v1.0.23
+mailstronaut-deps>     Checking float-cmp v0.9.0
+mailstronaut-deps>    Compiling rustversion v1.0.23
+mailstronaut-deps>    Compiling bitflags v2.13.2
+mailstronaut-deps>     Checking strict-num v0.1.1
+mailstronaut-deps>     Checking sha1_smol v1.0.1
+mailstronaut-deps>     Checking arrayref v0.3.9
+mailstronaut-deps>    Compiling jobserver v0.1.35
+mailstronaut-deps>     Checking errno v0.3.14
+mailstronaut-deps>     Checking mio v1.2.4
+mailstronaut-deps>     Checking memmap2 v0.9.12
+mailstronaut-deps>     Checking socket2 v0.6.5
+mailstronaut-deps>     Checking signal-hook-registry v1.4.8
+mailstronaut-deps>    Compiling icu_properties_data v2.1.2
+mailstronaut-deps>    Compiling phf_shared v0.14.0
+mailstronaut-deps>    Compiling cc v1.10.0
+mailstronaut-deps>     Checking futures-io v0.3.34
+mailstronaut-deps>     Checking unicode-segmentation v1.13.3
+mailstronaut-deps>     Checking either v1.19.0
+mailstronaut-deps>    Compiling heck v0.5.0
+mailstronaut-deps>     Checking slab v0.4.12
+mailstronaut-deps>    Compiling vcpkg v0.2.15
+mailstronaut-deps>    Compiling phf_generator v0.14.0
+mailstronaut-deps>    Compiling ident_case v1.0.1
+mailstronaut-deps>     Checking scoped-tls v1.0.1
+mailstronaut-deps>     Checking core_detect v1.0.0
+mailstronaut-deps>     Checking dlib v0.5.3
+mailstronaut-deps>    Compiling rayon-core v1.13.0
+mailstronaut-deps>    Compiling slotmap v1.1.1
+mailstronaut-deps>    Compiling generic-array v0.14.7
+mailstronaut-deps>    Compiling crossbeam-epoch v0.9.21
+mailstronaut-deps>    Compiling same-file v1.0.6
+mailstronaut-deps>    Compiling wayland-sys v0.31.11
+mailstronaut-deps>    Compiling fnv v1.0.7
+mailstronaut-deps>     Checking simdutf8 v0.1.5
+mailstronaut-deps>    Compiling walkdir v2.5.0
+mailstronaut-deps>    Compiling crossbeam-deque v0.8.8
+mailstronaut-deps>     Checking roxmltree v0.20.0
+mailstronaut-deps>     Checking uuid v1.29.0
+mailstronaut-deps>     Checking tinyvec v1.13.3
+mailstronaut-deps>    Compiling encoding_rs v0.8.42
+mailstronaut-deps>    Compiling multiversion_no_op v1.0.0
+mailstronaut-deps>     Checking png v0.18.1
+mailstronaut-deps>     Checking unicode-script v0.5.8
+mailstronaut-deps>     Checking utf8_iter v1.0.4
+mailstronaut-deps>     Checking linebender_resource_handle v0.1.1
+mailstronaut-deps>     Checking regex-syntax v0.8.11
+mailstronaut-deps>    Compiling icu_normalizer_data v2.1.1
+mailstronaut-deps>    Compiling icu_locale_data v2.1.2
+mailstronaut-deps>     Checking new_debug_unreachable v1.0.6
+mailstronaut-deps>     Checking aho-corasick v1.1.5
+mailstronaut-deps>     Checking weezl v0.1.12
+mailstronaut-deps>     Checking fontconfig-parser v0.5.8
+mailstronaut-deps>    Compiling toml_datetime v1.1.2+spec-1.1.0
+mailstronaut-deps>    Compiling serde_spanned v1.1.2
+mailstronaut-deps>     Checking precomputed-hash v0.1.1
+mailstronaut-deps>     Checking atomic-waker v1.1.2
+mailstronaut-deps>     Checking color_quant v1.1.0
+mailstronaut-deps>    Compiling toml_edit v0.25.17+spec-1.1.0
+mailstronaut-deps>     Checking crypto-common v0.1.7
+mailstronaut-deps>     Checking block-buffer v0.10.4
+mailstronaut-deps>    Compiling string_cache_codegen v0.11.2
+mailstronaut-deps>     Checking quick-error v2.0.1
+mailstronaut-deps>     Checking byteorder-lite v0.1.0
+mailstronaut-deps>     Checking base64 v0.22.1
+mailstronaut-deps>     Checking cpufeatures v0.2.17
+mailstronaut-deps>     Checking digest v0.10.7
+mailstronaut-deps>    Compiling phf_codegen v0.14.0
+mailstronaut-deps>     Checking form_urlencoded v1.2.2
+mailstronaut-deps>     Checking rayon v1.12.0
+mailstronaut-deps>     Checking zune-core v0.5.3
+mailstronaut-deps>     Checking gif v0.14.2
+mailstronaut-deps>     Checking simplecss v0.2.2
+mailstronaut-deps>    Compiling khronos_api v3.1.0
+mailstronaut-deps>     Checking image-webp v0.2.4
+mailstronaut-deps>     Checking pico-args v0.5.0
+mailstronaut-deps>     Checking zune-jpeg v0.5.15
+mailstronaut-deps>     Checking data-url v0.3.2
+mailstronaut-deps>     Checking unicode-vo v0.1.0
+mailstronaut-deps>     Checking futures-sink v0.3.34
+mailstronaut-deps>     Checking xmlwriter v0.1.0
+mailstronaut-deps>     Checking futures-task v0.3.34
+mailstronaut-deps>     Checking futures-channel v0.3.34
+mailstronaut-deps>     Checking raw-window-handle v0.6.2
+mailstronaut-deps>     Checking dtoa v1.0.11
+mailstronaut-deps>     Checking svg_fmt v0.4.5
+mailstronaut-deps>    Compiling web_atoms v0.3.0
+mailstronaut-deps>     Checking dtoa-short v0.3.5
+mailstronaut-deps>     Checking polycool v0.4.0
+mailstronaut-deps>    Compiling xml-rs v0.8.29
+mailstronaut-deps>    Compiling proc-macro-crate v3.5.0
+mailstronaut-deps>    Compiling icu_segmenter_data v2.1.1
+mailstronaut-deps>     Checking sha2 v0.10.9
+mailstronaut-deps>    Compiling thiserror v1.0.69
+mailstronaut-deps>    Compiling libz-sys v1.1.30
+mailstronaut-deps>    Compiling freetype-sys v0.23.0
+mailstronaut-deps>     Checking crossbeam-channel v0.5.17
+mailstronaut-deps>     Checking thin-vec v0.2.21
+mailstronaut-deps>     Checking base64 v0.23.1
+mailstronaut-deps>     Checking mime v0.3.17
+mailstronaut-deps>     Checking smallbitvec v2.6.1
+mailstronaut-deps>    Compiling toml_writer v1.1.3+spec-1.1.0
+mailstronaut-deps>    Compiling time-core v0.1.9
+mailstronaut-deps>    Compiling num-conv v0.2.2
+mailstronaut-deps>    Compiling glslopt v0.1.14
+mailstronaut-deps>    Compiling gl_generator v0.14.0
+mailstronaut-deps>    Compiling toml v1.1.8+spec-1.1.0
+mailstronaut-deps>    Compiling stylo v0.22.0
+mailstronaut-deps>     Checking deranged v0.5.9
+mailstronaut-deps>     Checking num-integer v0.1.47
+mailstronaut-deps>     Checking powerfmt v0.2.1
+mailstronaut-deps>    Compiling time-macros v0.2.32
+mailstronaut-deps>    Compiling strsim v0.11.1
+mailstronaut-deps>     Checking num_threads v0.1.8
+mailstronaut-deps>    Compiling stylo_atoms v0.22.0
+mailstronaut-deps>     Checking serde_bytes v0.11.19
+mailstronaut-deps>    Compiling num_cpus v1.17.0
+mailstronaut-deps>     Checking regex-automata v0.4.18
+mailstronaut-deps>     Checking void v1.0.2
+mailstronaut-deps>    Compiling lazy_static v1.5.1
+mailstronaut-deps>     Checking byteorder v1.5.0
+mailstronaut-deps>    Compiling webrender_build v0.70.0
+mailstronaut-deps>    Compiling gleam v0.15.1
+mailstronaut-deps>     Checking zeitstempel v0.2.2
+mailstronaut-deps>    Compiling build-parallel v0.1.2
+mailstronaut-deps>    Compiling cookie v0.18.2
+mailstronaut-deps>     Checking unic-char-range v0.9.0
+mailstronaut-deps>     Checking fearless_simd v0.4.1
+mailstronaut-deps>    Compiling serde_json v1.0.154
+mailstronaut-deps>     Checking unic-common v0.9.0
+mailstronaut-deps>     Checking unic-char-property v0.9.0
+mailstronaut-deps>    Compiling synstructure v0.14.0
+mailstronaut-deps>     Checking unic-ucd-version v0.9.0
+mailstronaut-deps>     Checking freetype v0.8.0
+mailstronaut-deps>     Checking fontdb v0.24.0
+mailstronaut-deps>     Checking itertools v0.14.0
+mailstronaut-deps>     Checking getrandom v0.2.17
+mailstronaut-deps>     Checking roxmltree v0.21.2
+mailstronaut-deps>     Checking tracy-rs v0.1.2
+mailstronaut-deps>     Checking imagesize v0.15.0
+mailstronaut-deps>    Compiling synstructure v0.13.2
+mailstronaut-deps>    Compiling darling_core v0.20.11
+mailstronaut-deps>     Checking uuid v0.8.2
+mailstronaut-deps>    Compiling stylo_static_prefs v0.22.0
+mailstronaut-deps>     Checking unic-ucd-ident v0.9.0
+mailstronaut-deps>     Checking ordered-channel v1.2.0
+mailstronaut-deps>     Checking uluru v3.1.0
+mailstronaut-deps>     Checking thread_local v1.1.10
+mailstronaut-deps>     Checking atomic_refcell v0.1.14
+mailstronaut-deps>     Checking topological-sort v0.1.0
+mailstronaut-deps>     Checking servo-allocator v0.7.0
+mailstronaut-deps>    Compiling x11-dl v2.21.0
+mailstronaut-deps>    Compiling wayland-backend v0.3.17
+mailstronaut-deps>     Checking downcast-rs v1.2.1
+mailstronaut-deps>    Compiling unicase v2.10.0
+mailstronaut-deps>    Compiling quick-xml v0.41.0
+mailstronaut-deps>     Checking pxfm v0.1.30
+mailstronaut-deps>    Compiling wayland-client v0.31.15
+mailstronaut-deps>    Compiling mime_guess v2.0.5
+mailstronaut-deps>     Checking time v0.3.55
+mailstronaut-deps>     Checking parking v2.2.1
+mailstronaut-deps>    Compiling httparse v1.10.1
+mailstronaut-deps>     Checking sha1 v0.10.7
+mailstronaut-deps>     Checking cpufeatures v0.3.1
+mailstronaut-deps>    Compiling cmake v0.1.58
+mailstronaut-deps>     Checking httpdate v1.0.3
+mailstronaut-deps>    Compiling dunce v1.0.5
+mailstronaut-deps>     Checking try-lock v0.2.5
+mailstronaut-deps>    Compiling fs_extra v1.3.0
+mailstronaut-deps>     Checking want v0.3.2
+mailstronaut-deps>     Checking event-listener v5.4.2
+mailstronaut-deps>    Compiling bytemuck_derive v1.12.1
+mailstronaut-deps>    Compiling thiserror-impl v2.0.21
+mailstronaut-deps>    Compiling displaydoc v0.2.7
+mailstronaut-deps>    Compiling zerofrom-derive v0.1.8
+mailstronaut-deps>    Compiling yoke-derive v0.8.4
+mailstronaut-deps>    Compiling zerovec-derive v0.11.7
+mailstronaut-deps>    Compiling serde_derive v1.0.228
+mailstronaut-deps>    Compiling tokio-macros v2.7.2
+mailstronaut-deps>    Compiling tracing-attributes v0.1.31
+mailstronaut-deps>    Compiling phf_macros v0.14.0
+mailstronaut-deps>     Checking tempfile v3.23.0
+mailstronaut-deps>     Checking regex v1.13.1
+mailstronaut-deps>     Checking bytemuck v1.25.2
+mailstronaut-deps>    Compiling futures-macro v0.3.34
+mailstronaut-deps>    Compiling cssparser-macros v0.7.1
+mailstronaut-deps>    Compiling darling_macro v0.20.11
+mailstronaut-deps>    Compiling derive_more-impl v2.1.1
+mailstronaut-deps>     Checking zerofrom v0.1.8
+mailstronaut-deps>    Compiling thiserror-impl v1.0.69
+mailstronaut-deps>     Checking tiny-skia-path v0.12.0
+mailstronaut-deps>     Checking yoke v0.8.4
+mailstronaut-deps>     Checking font-types v0.12.7
+mailstronaut-deps>     Checking rgb v0.8.53
+mailstronaut-deps>     Checking zerovec v0.11.9
+mailstronaut-deps>     Checking zerotrie v0.2.5
+mailstronaut-deps>     Checking phf v0.14.0
+mailstronaut-deps>    Compiling malloc_size_of_derive v0.1.3
+mailstronaut-deps>     Checking color v0.3.3
+mailstronaut-deps>    Compiling darling v0.20.11
+mailstronaut-deps>    Compiling peek-poke-derive v0.3.0
+mailstronaut-deps>     Checking read-fonts v0.41.0
+mailstronaut-deps>    Compiling to_shmem_derive v0.2.0
+mailstronaut-deps>    Compiling strum_macros v0.28.0
+mailstronaut-deps>     Checking tiny-skia v0.12.0
+mailstronaut-deps>     Checking tracing v0.1.44
+mailstronaut-deps>     Checking cobs v0.3.0
+mailstronaut-deps>     Checking futures-util v0.3.34
+mailstronaut-deps>    Compiling stylo_derive v0.22.0
+mailstronaut-deps>    Compiling num-derive v0.4.2
+mailstronaut-deps>     Checking polling v3.11.0
+mailstronaut-deps>    Compiling num_enum_derive v0.7.6
+mailstronaut-deps>    Compiling enumn v0.1.14
+mailstronaut-deps>    Compiling servo-config-macro v0.7.0
+mailstronaut-deps>    Compiling wayland-scanner v0.31.11
+mailstronaut-deps>     Checking tinystr v0.8.5
+mailstronaut-deps>     Checking icu_locale_core v2.4.0
+mailstronaut-deps>     Checking potential_utf v0.1.6
+mailstronaut-deps>     Checking icu_collections v2.1.1
+mailstronaut-deps>     Checking moxcms v0.8.1
+mailstronaut-deps>    Compiling enumflags2_derive v0.7.12
+mailstronaut-deps>     Checking xkeysym v0.2.1
+mailstronaut-deps>    Compiling aws-lc-sys v0.46.0
+mailstronaut-deps>     Checking num_enum v0.7.6
+mailstronaut-deps>     Checking concurrent-queue v2.5.0
+mailstronaut-deps>     Checking derive_more v2.1.1
+mailstronaut-deps>     Checking xcursor v0.3.11
+mailstronaut-deps>    Compiling zeroize_derive v1.5.0
+mailstronaut-deps>     Checking event-listener-strategy v0.5.4
+mailstronaut-deps>     Checking cursor-icon v1.2.0
+mailstronaut-deps>     Checking sys-locale v0.3.2
+mailstronaut-deps>     Checking tower-service v0.3.3
+mailstronaut-deps>     Checking icu_provider v2.4.0
+mailstronaut-deps>    Compiling async-recursion v1.2.0
+mailstronaut-deps>    Compiling aws-lc-rs v1.18.2
+mailstronaut-deps>     Checking icu_locale v2.1.1
+mailstronaut-deps>     Checking ipnet v2.12.2
+mailstronaut-deps>     Checking zeroize v1.9.1
+mailstronaut-deps>     Checking smallvec v1.16.4
+mailstronaut-deps>     Checking allocator-api2 v0.2.21
+mailstronaut-deps>     Checking bytes v1.12.1
+mailstronaut-deps>     Checking euclid v0.22.14
+mailstronaut-deps>     Checking lock_api v0.4.14
+mailstronaut-deps>     Checking keyboard-types v0.8.3
+mailstronaut-deps>     Checking unicode-bidi v0.3.18
+mailstronaut-deps>     Checking icu_normalizer v2.1.1
+mailstronaut-deps>     Checking parking_lot v0.12.5
+mailstronaut-deps>     Checking app_units v0.7.8
+mailstronaut-deps>     Checking cssparser v0.38.0
+mailstronaut-deps>     Checking servo_arc v0.5.0
+mailstronaut-deps>     Checking string_cache v0.11.0
+mailstronaut-deps>     Checking strum v0.28.0
+mailstronaut-deps>     Checking icu_properties v2.1.2
+mailstronaut-deps>     Checking postcard v1.1.3
+mailstronaut-deps>     Checking tokio v1.54.1
+mailstronaut-deps>     Checking http v1.5.0
+mailstronaut-deps>     Checking bincode v1.3.3
+mailstronaut-deps>     Checking taffy v0.14.0
+mailstronaut-deps>     Checking ipc-channel v0.23.1
+mailstronaut-deps>     Checking icu_segmenter v2.1.2
+mailstronaut-deps>     Checking to_shmem v0.6.0
+mailstronaut-deps>     Checking etagere v0.2.15
+mailstronaut-deps>     Checking kurbo v0.13.1
+mailstronaut-deps>     Checking selectors v0.41.0
+mailstronaut-deps>     Checking guillotiere v0.7.0
+mailstronaut-deps>     Checking peek-poke v0.3.0
+mailstronaut-deps>     Checking wr_malloc_size_of v0.2.2
+mailstronaut-deps>     Checking plane-split v0.18.0
+mailstronaut-deps>     Checking hashbrown v0.16.1
+mailstronaut-deps>     Checking webrender_api v0.70.0
+mailstronaut-deps>     Checking accesskit v0.24.1
+mailstronaut-deps>    Compiling zvariant_utils v4.2.0
+mailstronaut-deps>     Checking http-body v1.1.0
+mailstronaut-deps>     Checking idna_adapter v1.2.1
+mailstronaut-deps>     Checking idna v1.1.0
+mailstronaut-deps>     Checking tendril v0.5.1
+mailstronaut-deps>     Checking headers-core v0.3.0
+mailstronaut-deps>    Compiling enumflags2 v0.7.12
+mailstronaut-deps>    Compiling zcheapstr v1.1.0
+mailstronaut-deps>     Checking markup5ever v0.40.0
+mailstronaut-deps>    Compiling endi v1.1.1
+mailstronaut-deps>     Checking url v2.5.8
+mailstronaut-deps>     Checking stylo_malloc_size_of v0.22.0
+mailstronaut-deps>     Checking headers v0.4.2
+mailstronaut-deps>     Checking wayland-server v0.31.14
+mailstronaut-deps>     Checking stylo_dom v0.22.0
+mailstronaut-deps>     Checking servo-config v0.7.0
+mailstronaut-deps>     Checking peniko v0.6.1
+mailstronaut-deps>     Checking svgtypes v0.16.1
+mailstronaut-deps>     Checking stylo_traits v0.22.0
+mailstronaut-deps>     Checking urlpattern v0.3.0
+mailstronaut-deps>     Checking vello_common v0.2.0
+mailstronaut-deps>     Checking content-security-policy v0.9.0
+mailstronaut-deps>    Compiling zvariant_derive v5.15.1
+mailstronaut-deps>     Checking calloop v0.14.5
+mailstronaut-deps>    Compiling pin-project-internal v1.1.13
+mailstronaut-deps>     Checking image v0.25.10
+mailstronaut-deps>     Checking wayland-protocols v0.32.13
+mailstronaut-deps>    Compiling zvariant v5.15.1
+mailstronaut-deps>     Checking futures-lite v2.6.1
+mailstronaut-deps>    Compiling build_helpers v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling cookie v0.16.2
+mailstronaut-deps>    Compiling utf8parse v0.2.2
+mailstronaut-deps>    Compiling zerocopy v0.8.63
+mailstronaut-deps>     Checking ryu v1.0.23
+mailstronaut-deps>     Checking serde_urlencoded v0.7.1
+mailstronaut-deps>    Compiling anstyle-parse v1.0.0
+mailstronaut-deps>     Checking http-body-util v0.1.5
+mailstronaut-deps>     Checking rustls-pki-types v1.15.1
+mailstronaut-deps>     Checking async-channel v2.5.0
+mailstronaut-deps>    Compiling zerocopy-derive v0.8.63
+mailstronaut-deps>     Checking pin-project v1.1.13
+mailstronaut-deps>     Checking ttf-parser v0.25.1
+mailstronaut-deps>    Compiling smithay-client-toolkit v0.20.0
+mailstronaut-deps>    Compiling async-io v2.6.0
+mailstronaut-deps>    Compiling colorchoice v1.0.5
+mailstronaut-deps>    Compiling anstyle v1.0.14
+mailstronaut-deps>    Compiling anstyle-query v1.1.5
+mailstronaut-deps>    Compiling is_terminal_polyfill v1.70.2
+mailstronaut-deps>    Compiling anstream v1.0.0
+mailstronaut-deps>     Checking calloop-wayland-source v0.4.1
+mailstronaut-deps>     Checking wayland-cursor v0.31.14
+mailstronaut-deps>     Checking wayland-csd-frame v0.3.0
+mailstronaut-deps>     Checking xkbcommon v0.8.0
+mailstronaut-deps>     Checking chacha20 v0.10.2
+mailstronaut-deps>    Compiling servo-embedder-traits v0.7.0
+mailstronaut-deps>    Compiling clap_lex v1.1.1
+mailstronaut-deps>     Checking async-task v4.7.1
+mailstronaut-deps>     Checking foldhash v0.1.5
+mailstronaut-deps>     Checking hashbrown v0.15.5
+mailstronaut-deps>    Compiling clap_builder v4.6.7
+mailstronaut-deps>     Checking rand v0.10.3
+mailstronaut-deps>     Checking tokio-util v0.7.20
+mailstronaut-deps>     Checking skrifa v0.44.0
+mailstronaut-deps>     Checking harfrust v0.12.0
+mailstronaut-deps>    Compiling toml_datetime v0.7.5+spec-1.1.0
+mailstronaut-deps>    Compiling zbus_names v4.3.5
+mailstronaut-deps>    Compiling cbindgen v0.29.4
+mailstronaut-deps>     Checking untrusted v0.9.0
+mailstronaut-deps>    Compiling rustls v0.23.46
+mailstronaut-deps>     Checking inventory v0.3.25
+mailstronaut-deps>     Checking h2 v0.4.20
+mailstronaut-deps>    Compiling winnow v0.7.15
+mailstronaut-deps>     Checking async-signal v0.2.14
+mailstronaut-deps>     Checking async-lock v3.4.2
+mailstronaut-deps>     Checking piper v0.2.5
+mailstronaut-deps>     Checking subtle v2.6.1
+mailstronaut-deps>     Checking blocking v1.7.0
+mailstronaut-deps>     Checking wr_glyph_rasterizer v0.70.0
+mailstronaut-deps>    Compiling zbus_macros v5.19.0
+mailstronaut-deps>    Compiling zbus_xml v5.2.1
+mailstronaut-deps>     Checking async-process v2.5.0
+mailstronaut-deps>     Checking tokio-stream v0.1.19
+mailstronaut-deps>     Checking async-executor v1.14.0
+mailstronaut-deps>     Checking async-broadcast v0.7.2
+mailstronaut-deps>    Compiling serde_repr v0.1.21
+mailstronaut-deps>    Compiling async-trait v0.1.92
+mailstronaut-deps>     Checking ordered-stream v0.2.0
+mailstronaut-deps>    Compiling clap v4.6.7
+mailstronaut-deps>    Compiling glob v0.3.4
+mailstronaut-deps>     Checking hex v0.4.3
+mailstronaut-deps>     Checking as-raw-xcb-connection v1.0.1
+mailstronaut-deps>     Checking smol_str v0.3.7
+mailstronaut-deps>    Compiling zbus-lockstep v0.5.2
+mailstronaut-deps>    Compiling toml v0.9.12+spec-1.1.0
+mailstronaut-deps>     Checking gethostname v1.1.0
+mailstronaut-deps>    Compiling darling_core v0.24.1
+mailstronaut-deps>    Compiling surfman v0.14.0
+mailstronaut-deps>     Checking glifo v0.3.0
+mailstronaut-deps>    Compiling uncased v0.9.10
+mailstronaut-deps>     Checking glow v0.17.0
+mailstronaut-deps>     Checking vello_cpu v0.2.0
+mailstronaut-deps>     Checking x11rb-protocol v0.13.2
+mailstronaut-deps>    Compiling zbus-lockstep-macros v0.5.2
+mailstronaut-deps>     Checking usvg v0.48.1
+mailstronaut-deps>     Checking dpi v0.1.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>     Checking winit-core v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>     Checking owned_ttf_parser v0.25.1
+mailstronaut-deps>     Checking futures-executor v0.3.34
+mailstronaut-deps>     Checking xkbcommon-dl v0.4.2
+mailstronaut-deps>    Compiling servo-tracing v0.7.0
+mailstronaut-deps>    Compiling ahash v0.8.12
+mailstronaut-deps>     Checking dpi v0.1.2
+mailstronaut-deps>     Checking ab_glyph_rasterizer v0.1.10
+mailstronaut-deps>     Checking winit-common v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>     Checking zbus v5.19.0
+mailstronaut-deps>     Checking ab_glyph v0.2.32
+mailstronaut-deps>     Checking futures v0.3.34
+mailstronaut-deps>    Compiling phf_shared v0.13.1
+mailstronaut-deps>     Checking accesskit v0.22.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>     Checking unicode-properties v0.1.4
+mailstronaut-deps>     Checking read-fonts v0.43.3
+mailstronaut-deps>    Compiling phf_generator v0.13.1
+mailstronaut-deps>    Compiling winit v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling icu_casemap_data v2.1.1
+mailstronaut-deps>    Compiling phf_macros v0.13.1
+mailstronaut-deps>     Checking accesskit_consumer v0.32.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>     Checking resvg v0.48.1
+mailstronaut-deps>     Checking hybrid-array v0.4.15
+mailstronaut-deps>     Checking strength_reduce v0.2.4
+mailstronaut-deps>     Checking rustc-hash v1.1.0
+mailstronaut-deps>    Compiling by_address v1.2.1
+mailstronaut-deps>     Checking unicode-width v0.2.2
+mailstronaut-deps>     Checking transpose v0.2.3
+mailstronaut-deps>    Compiling palette_derive v0.7.7
+mailstronaut-deps>     Checking hyper v1.12.0
+mailstronaut-deps>     Checking icu_casemap v2.1.1
+mailstronaut-deps>    Compiling iced_core v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking phf v0.13.1
+mailstronaut-deps>     Checking primal-check v0.3.4
+mailstronaut-deps>     Checking num-complex v0.4.6
+mailstronaut-deps>     Checking approx v0.5.1
+mailstronaut-deps>     Checking palette_math v0.7.7
+mailstronaut-deps>    Compiling darling_macro v0.24.1
+mailstronaut-deps>     Checking web-time v1.1.0
+mailstronaut-deps>     Checking lilt v0.8.2
+mailstronaut-deps>     Checking half v2.7.1
+mailstronaut-deps>     Checking block-buffer v0.12.1
+mailstronaut-deps>     Checking mozjs_icu_collections v153.3.0
+mailstronaut-deps>     Checking crypto-common v0.2.2
+mailstronaut-deps>     Checking const-oid v0.10.2
+mailstronaut-deps>     Checking glam v0.25.0
+mailstronaut-deps>     Checking rustfft v6.4.1
+mailstronaut-deps>    Compiling heck v0.4.1
+mailstronaut-deps>    Compiling darling v0.24.1
+mailstronaut-deps>    Compiling rustix v0.38.44
+mailstronaut-deps>    Compiling serde_with_macros v3.24.0
+mailstronaut-deps>     Checking palette v0.7.7
+mailstronaut-deps>     Checking fixedbitset v0.5.7
+mailstronaut-deps>    Compiling wuff-capi v0.2.0
+mailstronaut-deps>     Checking alloc-no-stdlib v2.0.4
+mailstronaut-deps>     Checking digest v0.11.3
+mailstronaut-deps>     Checking brotli-decompressor v5.0.3
+mailstronaut-deps>     Checking hyper-util v0.1.21
+mailstronaut-deps>     Checking servo-hyper-serde v0.7.0
+mailstronaut-deps>     Checking petgraph v0.8.3
+mailstronaut-deps>    Compiling clang-sys v1.9.1
+mailstronaut-deps>     Checking font-types v0.11.3
+mailstronaut-deps>    Compiling servo-media-derive v0.7.0
+mailstronaut-deps>    Compiling libsqlite3-sys v0.36.0
+mailstronaut-deps>     Checking serde_with v3.24.0
+mailstronaut-deps>     Checking linux-raw-sys v0.4.15
+mailstronaut-deps>     Checking self_cell v1.3.0
+mailstronaut-deps>     Checking speexdsp-resampler v0.1.0
+mailstronaut-deps>     Checking byte-slice-cast v1.2.3
+mailstronaut-deps>    Compiling mozjs_icu_normalizer_data v153.3.0
+mailstronaut-deps>     Checking warp v0.4.3
+mailstronaut-deps>     Checking wuff v0.2.9
+mailstronaut-deps>     Checking read-fonts v0.37.0
+mailstronaut-deps>    Compiling fontsan v0.7.0
+mailstronaut-deps>     Checking fontdb v0.23.0
+mailstronaut-deps>     Checking lyon_geom v1.0.20
+mailstronaut-deps>    Compiling zstd-sys v2.1.2+zstd.1.5.7
+mailstronaut-deps>    Compiling harfbuzz-sys v0.8.0
+mailstronaut-deps>     Checking wayland-protocols-wlr v0.3.12
+mailstronaut-deps>     Checking wayland-protocols-misc v0.3.12
+mailstronaut-deps>     Checking wayland-protocols-experimental v20250721.0.1
+mailstronaut-deps>     Checking wayland-protocols-plasma v0.3.12
+mailstronaut-deps>    Compiling yeslogic-fontconfig-sys v6.0.1
+mailstronaut-deps>    Compiling icu_calendar_data v2.1.1
+mailstronaut-deps>    Compiling minimal-lexical v0.2.1
+mailstronaut-deps>     Checking webdriver v0.54.0
+mailstronaut-deps>    Compiling ash v0.38.0+1.3.281
+mailstronaut-deps>     Checking realfft v3.5.1
+mailstronaut-deps>    Compiling nom v7.1.3
+mailstronaut-deps>     Checking cosmic-protocols v0.2.0 (https://github.com/pop-os/cosmic-protocols?rev=c0cff4d#c0cff4db)
+mailstronaut-deps>     Checking lyon_path v1.0.19
+mailstronaut-deps>    Compiling unic-langid-impl v0.9.6
+mailstronaut-deps>     Checking atspi-common v0.13.0
+mailstronaut-deps>     Checking sctk-adwaita v0.11.1
+mailstronaut-deps>     Checking smithay-clipboard v0.8.0 (https://github.com/pop-os/smithay-clipboard?tag=sctk-0.20#859b02c8)
+mailstronaut-deps>     Checking mozjs_utf16_iter v153.3.0
+mailstronaut-deps>     Checking mozjs_utf8_iter v153.3.0
+mailstronaut-deps>     Checking hashlink v0.11.1
+mailstronaut-deps>     Checking mime v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>     Checking write16 v1.0.0
+mailstronaut-deps>     Checking dnd v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>     Checking winit-wayland v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling naga v28.0.0
+mailstronaut-deps>     Checking clipboard_wayland v0.2.2 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>     Checking iana-time-zone v0.1.65
+mailstronaut-deps>     Checking bit-vec v0.8.0
+mailstronaut-deps>     Checking data-encoding v2.11.1
+mailstronaut-deps>    Compiling mozjs_icu_collator_data v153.3.0
+mailstronaut-deps>    Compiling icu_time_data v2.1.1
+mailstronaut-deps>     Checking fallible-streaming-iterator v0.1.9
+mailstronaut-deps>     Checking cosmic-client-toolkit v0.2.0 (https://github.com/pop-os/cosmic-protocols?rev=c0cff4d#c0cff4db)
+mailstronaut-deps>     Checking zeno v0.3.3
+mailstronaut-deps>     Checking fallible-iterator v0.3.0
+mailstronaut-deps>    Compiling bindgen v0.72.1
+mailstronaut-deps>     Checking yazi v0.2.1
+mailstronaut-deps>    Compiling khronos-egl v6.0.0
+mailstronaut-deps>     Checking ohos-deviceinfo-sys v0.1.8
+mailstronaut-deps>     Checking ohos-deviceinfo v0.1.0
+mailstronaut-deps>    Compiling itertools v0.12.1
+mailstronaut-deps>     Checking swash v0.2.10
+mailstronaut-deps>     Checking bit-set v0.8.0
+mailstronaut-deps>     Checking chrono v0.4.45
+mailstronaut-deps>     Checking mozjs_icu_normalizer v153.3.0
+mailstronaut-deps>    Compiling cexpr v0.6.0
+mailstronaut-deps>     Checking skrifa v0.40.0
+mailstronaut-deps>     Checking harfrust v0.5.2
+mailstronaut-deps>    Compiling unic-langid v0.9.6
+mailstronaut-deps>     Checking skrifa v0.46.2
+mailstronaut-deps>    Compiling mozjs_unicode_bidi_ffi v153.3.0
+mailstronaut-deps>     Checking atspi-proxies v0.13.0
+mailstronaut-deps>     Checking x11rb v0.13.2
+mailstronaut-deps>     Checking accesskit_atspi_common v0.15.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>    Compiling mozjs_normalizer_glue v153.3.0
+mailstronaut-deps>    Compiling mozjs_locale_glue v153.3.0
+mailstronaut-deps>    Compiling mozjs_properties_glue v153.3.0
+mailstronaut-deps>    Compiling mozjs_collator_glue v153.3.0
+mailstronaut-deps>     Checking codespan-reporting v0.12.0
+mailstronaut-deps>    Compiling xattr v1.6.1
+mailstronaut-deps>     Checking winit-x11 v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>     Checking clipboard_x11 v0.4.2 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>     Checking calendrical_calculations v0.2.4
+mailstronaut-deps>     Checking window_clipboard v0.4.1 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>     Checking atspi v0.29.0
+mailstronaut-deps>    Compiling filetime v0.2.29
+mailstronaut-deps>     Checking accesskit_unix v0.18.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>     Checking spirv v0.3.0+sdk-1.3.268.0
+mailstronaut-deps>     Checking gpu-descriptor-types v0.2.0
+mailstronaut-deps>     Checking itertools v0.15.0
+mailstronaut-deps>    Compiling wgpu-hal v28.0.1
+mailstronaut-deps>    Compiling strck v1.0.0
+mailstronaut-deps>     Checking unicode-linebreak v0.1.5
+mailstronaut-deps>     Checking presser v0.3.1
+mailstronaut-deps>    Compiling zstd-safe v8.2.0
+mailstronaut-deps>     Checking ixdtf v0.6.7
+mailstronaut-deps>    Compiling encoding_c_mem v0.2.6
+mailstronaut-deps>     Checking alloc-no-stdlib v3.0.0
+mailstronaut-deps>    Compiling encoding_c v0.9.8
+mailstronaut-deps>     Checking hexf-parse v0.2.1
+mailstronaut-deps>    Compiling shlex v1.3.0
+mailstronaut-deps>     Checking rangemap v1.8.0
+mailstronaut-deps>     Checking icu_calendar v2.1.1
+mailstronaut-deps>     Checking alloc-stdlib v0.3.0
+mailstronaut-deps>    Compiling diplomat_core v0.14.0
+mailstronaut-deps>     Checking cosmic-text v0.19.0
+mailstronaut-deps>     Checking gpu-descriptor v0.3.2
+mailstronaut-deps>    Compiling tar v0.4.46
+mailstronaut-deps>     Checking accesskit_winit v0.30.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>     Checking iced_accessibility v0.1.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking html5ever v0.40.1
+mailstronaut-deps>     Checking wgpu-types v28.0.0
+mailstronaut-deps>     Checking ordered-float v5.5.1
+mailstronaut-deps>     Checking nom v8.0.0
+mailstronaut-deps>    Compiling syn v1.0.109
+mailstronaut-deps>     Checking mutate_once v0.1.2
+mailstronaut-deps>     Checking glow v0.16.0
+mailstronaut-deps>     Checking profiling v1.0.18
+mailstronaut-deps>     Checking renderdoc-sys v1.1.0
+mailstronaut-deps>    Compiling drm-sys v0.6.1
+mailstronaut-deps>     Checking kamadak-exif v0.6.1
+mailstronaut-deps>    Compiling diplomat v0.14.0
+mailstronaut-deps>     Checking mozjs_icu_collator v153.3.0
+mailstronaut-deps>    Compiling webrender v0.70.0
+mailstronaut-deps>     Checking icu_time v2.1.1
+mailstronaut-deps>     Checking iced_futures v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking brotli-decompressor v6.2.0
+mailstronaut-deps>    Compiling sea-query-derive v1.0.0
+mailstronaut-deps>     Checking icu_provider_adapters v2.1.1
+mailstronaut-deps>     Checking kurbo v0.11.3
+mailstronaut-deps>     Checking tiny-skia-path v0.11.4
+mailstronaut-deps>     Checking arraystring v0.3.0
+mailstronaut-deps>    Compiling wgpu-core v28.0.1
+mailstronaut-deps>     Checking lexical-util v0.8.5
+mailstronaut-deps>    Compiling tiny-xlib v0.2.5
+mailstronaut-deps>     Checking gimli v0.34.0
+mailstronaut-deps>     Checking linux-raw-sys v0.6.5
+mailstronaut-deps>     Checking bitflags v1.3.2
+mailstronaut-deps>    Compiling litrs v1.0.1
+mailstronaut-deps>    Compiling drm-fourcc v2.2.0
+mailstronaut-deps>    Compiling prettyplease v0.2.37
+mailstronaut-deps>     Checking unicode-ccc v0.4.0
+mailstronaut-deps>     Checking diplomat-runtime v0.14.0
+mailstronaut-deps>     Checking unicode-bidi-mirroring v0.4.0
+mailstronaut-deps>     Checking icu_capi v2.1.2
+mailstronaut-deps>    Compiling sha2 v0.11.1
+mailstronaut-deps>    Compiling document-features v0.2.12
+mailstronaut-deps>     Checking rustybuzz v0.20.1
+mailstronaut-deps>     Checking png v0.17.16
+mailstronaut-deps>     Checking svgtypes v0.15.3
+mailstronaut-deps>    Compiling mozjs_sys v153.3.0-1
+mailstronaut-deps>     Checking sea-query v1.0.2
+mailstronaut-deps>     Checking brotli v9.1.1
+mailstronaut-deps>     Checking iced_graphics v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking sha1 v0.11.0
+mailstronaut-deps>    Compiling servo-script-bindings v0.7.0
+mailstronaut-deps>     Checking webpki-roots v1.0.11
+mailstronaut-deps>     Checking addr2line v0.27.1
+mailstronaut-deps>    Compiling wgpu v28.0.0
+mailstronaut-deps>     Checking object v0.40.0
+mailstronaut-deps>    Compiling indexmap v1.9.3
+mailstronaut-deps>     Checking compression-core v0.4.34
+mailstronaut-deps>     Checking rustc-demangle v0.1.28
+mailstronaut-deps>     Checking ctor v0.10.1
+mailstronaut-deps>     Checking openssl-probe v0.2.2
+mailstronaut-deps>     Checking imagesize v0.13.0
+mailstronaut-deps>    Compiling fst v0.4.7
+mailstronaut-deps>     Checking zune-core v0.4.12
+mailstronaut-deps>     Checking gpu-allocator v0.28.0
+mailstronaut-deps>     Checking zune-jpeg v0.4.21
+mailstronaut-deps>     Checking usvg v0.45.1
+mailstronaut-deps>     Checking rustls-native-certs v0.8.5
+mailstronaut-deps>     Checking tiny-skia v0.11.4
+mailstronaut-deps>    Compiling rust-embed-utils v8.13.0
+mailstronaut-deps>     Checking drm-ffi v0.7.1
+mailstronaut-deps>     Checking iced_debug v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling iced_runtime v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking gif v0.13.3
+mailstronaut-deps>    Compiling softbuffer v0.4.1 (https://github.com/pop-os/softbuffer?tag=cosmic-4.0#c2b2c19d)
+mailstronaut-deps>    Compiling proc-macro2-diagnostics v0.10.1
+mailstronaut-deps>     Checking tower-layer v0.3.3
+mailstronaut-deps>     Checking cmov v0.5.4
+mailstronaut-deps>     Checking sync_wrapper v1.0.2
+mailstronaut-deps>     Checking hashbrown v0.12.3
+mailstronaut-deps>     Checking float_next_after v1.0.0
+mailstronaut-deps>    Compiling inotify-sys v0.1.8
+mailstronaut-deps>     Checking ctutils v0.4.6
+mailstronaut-deps>    Compiling servo-dom-struct v0.7.0
+mailstronaut-deps>     Checking lyon_tessellation v1.0.23
+mailstronaut-deps>     Checking tower v0.5.3
+mailstronaut-deps>     Checking resvg v0.45.1
+mailstronaut-deps>     Checking drm v0.11.1
+mailstronaut-deps>    Compiling rust-embed-impl v8.13.0
+mailstronaut-deps>     Checking wgpu-core-deps-windows-linux-android v28.0.0
+mailstronaut-deps>     Checking lexical-write-integer v0.8.5
+mailstronaut-deps>    Compiling structmeta-derive v0.1.6
+mailstronaut-deps>     Checking lexical-parse-integer v0.8.6
+mailstronaut-deps>     Checking nom-language v0.1.0
+mailstronaut-deps>     Checking lyon_algorithms v1.0.22
+mailstronaut-deps>    Compiling type-map v0.5.1
+mailstronaut-deps>    Compiling iced_wgpu v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking xml5ever v0.40.0
+mailstronaut-deps>     Checking quick_cache v0.7.0
+mailstronaut-deps>    Compiling basic-toml v0.1.10
+mailstronaut-deps>    Compiling toml v0.5.11
+mailstronaut-deps>     Checking serde_spanned v0.6.9
+mailstronaut-deps>     Checking toml_datetime v0.5.1
+mailstronaut-deps>     Checking bstr v1.13.1
+mailstronaut-deps>    Compiling servo-jstraceable-derive v0.7.0
+mailstronaut-deps>    Compiling servo-deny-public-fields v0.7.0
+mailstronaut-deps>     Checking wait-timeout v0.2.1
+mailstronaut-deps>     Checking nom8 v0.2.0
+mailstronaut-deps>     Checking imsz v0.4.1
+mailstronaut-deps>     Checking option-ext v0.2.0
+mailstronaut-deps>     Checking jiff-core v0.1.1
+mailstronaut-deps>    Compiling yansi v1.0.1
+mailstronaut-deps>     Checking backtrace v0.3.77
+mailstronaut-deps>     Checking lru v0.16.4
+mailstronaut-deps>    Compiling typeid v1.0.3
+mailstronaut-deps>     Checking countme v3.0.1
+mailstronaut-deps>     Checking text-size v1.1.1
+mailstronaut-deps>    Compiling servo-script v0.7.0
+mailstronaut-deps>     Checking quick-error v1.2.3
+mailstronaut-deps>     Checking cpubits v0.1.1
+mailstronaut-deps>     Checking hashbrown v0.14.5
+mailstronaut-deps>     Checking crypto-bigint v0.7.10
+mailstronaut-deps>     Checking rusty-fork v0.3.1
+mailstronaut-deps>    Compiling find-crate v0.6.3
+mailstronaut-deps>     Checking jiff v0.2.38
+mailstronaut-deps>     Checking dirs-sys v0.5.0
+mailstronaut-deps>    Compiling structmeta v0.1.6
+mailstronaut-deps>    Compiling i18n-config v0.4.8
+mailstronaut-deps>    Compiling servo-devtools v0.7.0
+mailstronaut-deps>     Checking lyon v1.0.19
+mailstronaut-deps>     Checking rowan v0.16.1
+mailstronaut-deps>    Compiling intl-memoizer v0.5.3
+mailstronaut-deps>     Checking nom-rfc8288 v0.4.0
+mailstronaut-deps>     Checking lexical-parse-float v0.8.5
+mailstronaut-deps>     Checking lexical-write-float v0.8.5
+mailstronaut-deps>     Checking toml_edit v0.18.1
+mailstronaut-deps>     Checking servo-webvtt v0.7.0
+mailstronaut-deps>    Compiling fluent-langneg v0.13.1
+mailstronaut-deps>    Compiling intl_pluralrules v7.0.2
+mailstronaut-deps>    Compiling fluent-syntax v0.12.0
+mailstronaut-deps>     Checking chardetng v1.0.0
+mailstronaut-deps>     Checking guillotiere v0.6.2
+mailstronaut-deps>     Checking kurbo v0.10.4
+mailstronaut-deps>     Checking rand_xorshift v0.5.0
+mailstronaut-deps>     Checking termcolor v1.4.1
+mailstronaut-deps>     Checking buf-read-ext v0.4.0
+mailstronaut-deps>     Checking unarray v0.1.4
+mailstronaut-deps>     Checking base64ct v1.8.3
+mailstronaut-deps>    Compiling snix-eval v0.1.0 (https://git.snix.dev/snix/snix.git?rev=f393b22aa9b8e0e74c9e8d67f15454409299e510#f393b22a)
+mailstronaut-deps>     Checking genawaiter-macro v0.99.1
+mailstronaut-deps>     Checking swapper v0.1.0
+mailstronaut-deps>     Checking codemap v0.1.3
+mailstronaut-deps>     Checking genawaiter v0.99.1
+mailstronaut-deps>    Compiling fluent-bundle v0.16.0
+mailstronaut-deps>     Checking codemap-diagnostic v0.1.2
+mailstronaut-deps>     Checking proptest v1.12.0
+mailstronaut-deps>     Checking iced_tiny_skia v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking inotify v0.11.5
+mailstronaut-deps>    Compiling i18n-embed-impl v0.8.4
+mailstronaut-deps>     Checking toml v0.6.0
+mailstronaut-deps>     Checking lexical-core v0.8.5
+mailstronaut-deps>     Checking rnix v0.14.0
+mailstronaut-deps>    Compiling test-strategy v0.2.1
+mailstronaut-deps>    Compiling ouroboros_macro v0.18.5
+mailstronaut-deps>    Compiling snix-eval-builtin-macros v0.0.1 (https://git.snix.dev/snix/snix.git?rev=f393b22aa9b8e0e74c9e8d67f15454409299e510#f393b22a)
+mailstronaut-deps>     Checking tabwriter v1.4.1
+mailstronaut-deps>    Compiling iced_widget v0.14.2 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling iced_winit v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking env_filter v2.0.0
+mailstronaut-deps>    Compiling darling_core v0.21.3
+mailstronaut-deps>     Checking md-5 v0.10.6
+mailstronaut-deps>     Checking notify-types v2.1.0
+mailstronaut-deps>     Checking gaol v0.2.1
+mailstronaut-deps>     Checking memmap2 v0.8.0
+mailstronaut-deps>     Checking phf_shared v0.12.1
+mailstronaut-deps>     Checking os_str_bytes v6.6.1
+mailstronaut-deps>     Checking xdg v3.0.0
+mailstronaut-deps>    Compiling chrono-tz v0.10.4
+mailstronaut-deps>     Checking smol_str v0.2.2
+mailstronaut-deps>     Checking vu128 v1.1.0
+mailstronaut-deps>     Checking path-clean v0.1.0
+mailstronaut-deps>     Checking unicode_categories v0.1.1
+mailstronaut-deps>     Checking aliasable v0.1.3
+mailstronaut-deps>     Checking xkbcommon v0.7.0
+mailstronaut-deps>     Checking phf v0.12.1
+mailstronaut-deps>     Checking notify v8.2.1
+mailstronaut-deps>     Checking env_logger v0.11.11
+mailstronaut-deps>     Checking ouroboros v0.18.5
+mailstronaut-deps>     Checking ron v0.12.2
+mailstronaut-deps>    Compiling fluent v0.17.0
+mailstronaut-deps>     Checking iced_program v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking dirs v6.0.0
+mailstronaut-deps>    Compiling rust-embed v8.13.0
+mailstronaut-deps>     Checking cosmic-settings-daemon v0.1.0 (https://github.com/pop-os/dbus-settings-bindings#eed01dd3)
+mailstronaut-deps>     Checking atomicwrites v0.4.2 (https://github.com/jackpot51/rust-atomicwrites#043ab485)
+mailstronaut-deps>    Compiling iced v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling cosmic-config-derive v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling arc-swap v1.9.3
+mailstronaut-deps>    Compiling proc-macro-error-attr3 v3.1.1
+mailstronaut-deps>    Compiling encodify v1.0.2
+mailstronaut-deps>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut-deps>     Checking maplit v1.0.2
+mailstronaut-deps>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut-deps>     Checking ammonia v4.2.4
+mailstronaut-deps>    Compiling proc-macro-error3 v3.1.1
+mailstronaut-deps>    Compiling i18n-embed v0.16.0
+mailstronaut-deps>     Checking csscolorparser v0.8.4
+mailstronaut-deps>     Checking cosmic-config v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling libcosmic v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking hex_color v3.0.0
+mailstronaut-deps>    Compiling derive_utils v0.16.0
+mailstronaut-deps>     Checking btoi v0.5.0
+mailstronaut-deps>     Checking grid v1.0.1
+mailstronaut-deps>    Compiling rusqlite_migration v2.4.1
+mailstronaut-deps>     Checking configparser v3.3.0
+mailstronaut-deps>     Checking almost v0.2.0
+mailstronaut-deps>     Checking taffy v0.9.2
+mailstronaut-deps>     Checking cosmic-theme v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking cryoglyph v0.1.0 (https://github.com/iced-rs/cryoglyph.git?rev=e429a025df36ab8145708acb309080ae3deec17a#e429a025)
+mailstronaut-deps>     Checking cosmic-freedesktop-icons v0.4.0 (https://github.com/pop-os/freedesktop-icons#ab4c57b8)
+mailstronaut-deps>    Compiling darling_macro v0.21.3
+mailstronaut-deps>    Compiling auto_enums v0.8.10
+mailstronaut-deps>    Compiling i18n-embed-fl v0.10.1
+mailstronaut-deps>    Compiling darling v0.21.3
+mailstronaut-deps>    Compiling derive_setters v0.1.9
+mailstronaut-deps>    Compiling hashify v0.3.1
+mailstronaut-deps>     Checking snix-serde v0.1.0 (https://git.snix.dev/snix/snix.git?rev=f393b22aa9b8e0e74c9e8d67f15454409299e510#f393b22a)
+mailstronaut-deps>     Checking float-cmp v0.10.0
+mailstronaut-deps>     Checking apply v0.3.0
+mailstronaut-deps>     Checking iced_renderer v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>     Checking css-color v0.2.8
+mailstronaut-deps>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut-deps>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut-deps>     Checking directories v6.0.0
+mailstronaut-deps>     Checking mail-parser v1.0.0
+mailstronaut-deps>     Checking zstd v0.14.3
+mailstronaut-deps>     Checking compression-codecs v0.4.46
+mailstronaut-deps>     Checking async-compression v0.4.51
+mailstronaut-deps>     Checking rustls-webpki v0.103.16
+mailstronaut-deps>     Checking tokio-rustls v0.26.6
+mailstronaut-deps>     Checking tungstenite v0.30.0
+mailstronaut-deps>     Checking rustls-platform-verifier v0.7.1
+mailstronaut-deps>     Checking hyper-rustls v0.27.10
+mailstronaut-deps>     Checking async-tungstenite v0.35.0
+mailstronaut-deps>     Checking servo-malloc-size-of v0.7.0
+mailstronaut-deps>     Checking servo-base v0.7.0
+mailstronaut-deps>     Checking servo-url v0.7.0
+mailstronaut-deps>     Checking servo-geometry v0.7.0
+mailstronaut-deps>     Checking servo-media-streams v0.7.0
+mailstronaut-deps>     Checking servo-media-traits v0.7.0
+mailstronaut-deps>     Checking servo-timers v0.7.0
+mailstronaut-deps>     Checking servo-xpath v0.7.0
+mailstronaut-deps>     Checking servo-media-webrtc v0.7.0
+mailstronaut-deps>     Checking servo-pixels v0.7.0
+mailstronaut-deps>     Checking servo-profile-traits v0.7.0
+mailstronaut-deps>     Checking servo-media-player v0.7.0
+mailstronaut-deps>     Checking servo-background-hang-monitor-api v0.7.0
+mailstronaut-deps>     Checking servo-background-hang-monitor v0.7.0
+mailstronaut-deps>     Checking servo-media-audio v0.7.0
+mailstronaut-deps>     Checking servo-fonts-traits v0.7.0
+mailstronaut-deps>     Checking servo-storage-traits v0.7.0
+mailstronaut-deps>     Checking servo-profile v0.7.0
+mailstronaut-deps>     Checking servo-media v0.7.0
+mailstronaut-deps>     Checking servo-media-dummy v0.7.0
+mailstronaut-deps>     Checking servo-paint-api v0.7.0
+mailstronaut-deps>     Checking servo-webxr-api v0.7.0
+mailstronaut-deps>     Checking servo-wakelock v0.7.0
+mailstronaut-deps>     Checking servo-default-resources v0.7.0
+mailstronaut-deps>     Checking servo-net-traits v0.7.0
+mailstronaut-deps>     Checking servo-media-thread v0.7.0
+mailstronaut-deps>     Checking servo-canvas-traits v0.7.0
+mailstronaut-deps>     Checking servo-devtools-traits v0.7.0
+mailstronaut-deps>     Checking servo-constellation-traits v0.7.0
+mailstronaut-deps>     Checking servo-script-traits v0.7.0
+mailstronaut-deps>     Checking servo-paint v0.7.0
+mailstronaut-deps>     Checking servo-metrics v0.7.0
+mailstronaut-deps>     Checking servo-fonts v0.7.0
+mailstronaut-deps>     Checking servo-layout-api v0.7.0
+mailstronaut-deps>     Checking servo-canvas v0.7.0
+mailstronaut-deps>     Checking rusqlite v0.38.0
+mailstronaut-deps>     Checking sea-query-rusqlite v0.8.0
+mailstronaut-deps>     Checking servo-net v0.7.0
+mailstronaut-deps>     Checking servo-storage v0.7.0
+mailstronaut-deps>     Checking servo-constellation v0.7.0
+mailstronaut-deps>     Checking mozjs v0.26.4
+mailstronaut-deps>     Checking servo-layout v0.7.0
+mailstronaut-deps>     Checking servo v0.7.0
+mailstronaut-deps>     Finished `release` profile [optimized] target(s) in 8m 48s
+mailstronaut-deps> +++ command cargo build --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut-deps>    Compiling cfg-if v1.0.5
+mailstronaut-deps>    Compiling log v0.4.34
+mailstronaut-deps>    Compiling once_cell v1.21.4
+mailstronaut-deps>    Compiling pin-project-lite v0.2.17
+mailstronaut-deps>    Compiling memchr v2.8.3
+mailstronaut-deps>    Compiling serde_core v1.0.228
+mailstronaut-deps>    Compiling libc v0.2.191
+mailstronaut-deps>    Compiling libm v0.2.16
+mailstronaut-deps>    Compiling linux-raw-sys v0.12.1
+mailstronaut-deps>    Compiling arrayvec v0.7.8
+mailstronaut-deps>    Compiling stable_deref_trait v1.2.1
+mailstronaut-deps>    Compiling bytemuck v1.25.2
+mailstronaut-deps>    Compiling equivalent v1.0.3
+mailstronaut-deps>    Compiling foldhash v0.2.0
+mailstronaut-deps>    Compiling thiserror v2.0.21
+mailstronaut-deps>    Compiling zerofrom v0.1.8
+mailstronaut-deps>    Compiling siphasher v1.0.4
+mailstronaut-deps>    Compiling crossbeam-utils v0.8.23
+mailstronaut-deps>    Compiling fastrand v2.5.0
+mailstronaut-deps>    Compiling rand_core v0.10.1
+mailstronaut-deps>    Compiling simd-adler32 v0.3.10
+mailstronaut-deps>    Compiling yoke v0.8.4
+mailstronaut-deps>    Compiling adler2 v2.0.1
+mailstronaut-deps>    Compiling scopeguard v1.2.0
+mailstronaut-deps>    Compiling writeable v0.6.4
+mailstronaut-deps>    Compiling crc32fast v1.5.3
+mailstronaut-deps>    Compiling static_assertions v1.1.0
+mailstronaut-deps>    Compiling miniz_oxide v0.9.1
+mailstronaut-deps>    Compiling litemap v0.8.3
+mailstronaut-deps>    Compiling libloading v0.8.9
+mailstronaut-deps>    Compiling rustc-hash v2.1.3
+mailstronaut-deps>    Compiling typenum v1.20.1
+mailstronaut-deps>    Compiling percent-encoding v2.3.2
+mailstronaut-deps>    Compiling zerovec v0.11.9
+mailstronaut-deps>    Compiling zerotrie v0.2.5
+mailstronaut-deps>    Compiling miniz_oxide v0.8.9
+mailstronaut-deps>    Compiling fdeflate v0.3.7
+mailstronaut-deps>    Compiling futures-core v0.3.34
+mailstronaut-deps>    Compiling itoa v1.0.18
+mailstronaut-deps>    Compiling tracing-core v0.1.36
+mailstronaut-deps>    Compiling float-cmp v0.9.0
+mailstronaut-deps>    Compiling sha1_smol v1.0.1
+mailstronaut-deps>    Compiling strict-num v0.1.1
+mailstronaut-deps>    Compiling arrayref v0.3.9
+mailstronaut-deps>    Compiling futures-io v0.3.34
+mailstronaut-deps>    Compiling unicode-segmentation v1.13.3
+mailstronaut-deps>    Compiling icu_properties_data v2.1.2
+mailstronaut-deps>    Compiling flate2 v1.1.10
+mailstronaut-deps>    Compiling tiny-skia-path v0.12.0
+mailstronaut-deps>    Compiling scoped-tls v1.0.1
+mailstronaut-deps>    Compiling either v1.19.0
+mailstronaut-deps>    Compiling tracing v0.1.44
+mailstronaut-deps>    Compiling slab v0.4.12
+mailstronaut-deps>    Compiling dlib v0.5.3
+mailstronaut-deps>    Compiling font-types v0.12.7
+mailstronaut-deps>    Compiling core_detect v1.0.0
+mailstronaut-deps>    Compiling slotmap v1.1.1
+mailstronaut-deps>    Compiling num-traits v0.2.19
+mailstronaut-deps>    Compiling core_maths v0.1.1
+mailstronaut-deps>    Compiling roxmltree v0.20.0
+mailstronaut-deps>    Compiling crossbeam-epoch v0.9.21
+mailstronaut-deps>    Compiling tinyvec v1.13.3
+mailstronaut-deps>    Compiling simdutf8 v0.1.5
+mailstronaut-deps>    Compiling errno v0.3.14
+mailstronaut-deps>    Compiling memmap2 v0.9.12
+mailstronaut-deps>    Compiling mio v1.2.4
+mailstronaut-deps>    Compiling socket2 v0.6.5
+mailstronaut-deps>    Compiling signal-hook-registry v1.4.8
+mailstronaut-deps>    Compiling getrandom v0.4.3
+mailstronaut-deps>    Compiling getrandom v0.3.4
+mailstronaut-deps>    Compiling read-fonts v0.41.0
+mailstronaut-deps>    Compiling crossbeam-deque v0.8.8
+mailstronaut-deps>    Compiling tinystr v0.8.5
+mailstronaut-deps>    Compiling potential_utf v0.1.6
+mailstronaut-deps>    Compiling wayland-sys v0.31.11
+mailstronaut-deps>    Compiling phf_shared v0.14.0
+mailstronaut-deps>    Compiling unicode-script v0.5.8
+mailstronaut-deps>    Compiling rayon-core v1.13.0
+mailstronaut-deps>    Compiling generic-array v0.14.7
+mailstronaut-deps>    Compiling new_debug_unreachable v1.0.6
+mailstronaut-deps>    Compiling icu_locale_core v2.4.0
+mailstronaut-deps>    Compiling icu_collections v2.1.1
+mailstronaut-deps>    Compiling linebender_resource_handle v0.1.1
+mailstronaut-deps>    Compiling utf8_iter v1.0.4
+mailstronaut-deps>    Compiling fontconfig-parser v0.5.8
+mailstronaut-deps>    Compiling precomputed-hash v0.1.1
+mailstronaut-deps>    Compiling atomic-waker v1.1.2
+mailstronaut-deps>    Compiling color_quant v1.1.0
+mailstronaut-deps>    Compiling regex-syntax v0.8.11
+mailstronaut-deps>    Compiling weezl v0.1.12
+mailstronaut-deps>    Compiling phf v0.14.0
+mailstronaut-deps>    Compiling icu_locale_data v2.1.2
+mailstronaut-deps>    Compiling aho-corasick v1.1.5
+mailstronaut-deps>    Compiling quick-error v2.0.1
+mailstronaut-deps>    Compiling base64 v0.22.1
+mailstronaut-deps>    Compiling byteorder-lite v0.1.0
+mailstronaut-deps>    Compiling icu_normalizer_data v2.1.1
+mailstronaut-deps>    Compiling zune-core v0.5.3
+mailstronaut-deps>    Compiling form_urlencoded v1.2.2
+mailstronaut-deps>    Compiling cpufeatures v0.2.17
+mailstronaut-deps>    Compiling rayon v1.12.0
+mailstronaut-deps>    Compiling gif v0.14.2
+mailstronaut-deps>    Compiling image-webp v0.2.4
+mailstronaut-deps>    Compiling zune-jpeg v0.5.15
+mailstronaut-deps>    Compiling block-buffer v0.10.4
+mailstronaut-deps>    Compiling crypto-common v0.1.7
+mailstronaut-deps>    Compiling simplecss v0.2.2
+mailstronaut-deps>    Compiling digest v0.10.7
+mailstronaut-deps>    Compiling xmlwriter v0.1.0
+mailstronaut-deps>    Compiling unicode-vo v0.1.0
+mailstronaut-deps>    Compiling data-url v0.3.2
+mailstronaut-deps>    Compiling pico-args v0.5.0
+mailstronaut-deps>    Compiling raw-window-handle v0.6.2
+mailstronaut-deps>    Compiling svg_fmt v0.4.5
+mailstronaut-deps>    Compiling serde v1.0.228
+mailstronaut-deps>    Compiling bitflags v2.13.2
+mailstronaut-deps>    Compiling uuid v1.29.0
+mailstronaut-deps>    Compiling dtoa v1.0.11
+mailstronaut-deps>    Compiling futures-sink v0.3.34
+mailstronaut-deps>    Compiling rustix v1.1.6
+mailstronaut-deps>    Compiling png v0.18.1
+mailstronaut-deps>    Compiling icu_provider v2.4.0
+mailstronaut-deps>    Compiling futures-channel v0.3.34
+mailstronaut-deps>    Compiling dtoa-short v0.3.5
+mailstronaut-deps>    Compiling libz-sys v1.1.30
+mailstronaut-deps>    Compiling rgb v0.8.53
+mailstronaut-deps>    Compiling polycool v0.4.0
+mailstronaut-deps>    Compiling futures-task v0.3.34
+mailstronaut-deps>    Compiling derive_more v2.1.1
+mailstronaut-deps>    Compiling smallvec v1.16.4
+mailstronaut-deps>    Compiling allocator-api2 v0.2.21
+mailstronaut-deps>    Compiling bytes v1.12.1
+mailstronaut-deps>    Compiling euclid v0.22.14
+mailstronaut-deps>    Compiling lock_api v0.4.14
+mailstronaut-deps>    Compiling keyboard-types v0.8.3
+mailstronaut-deps>    Compiling unicode-bidi v0.3.18
+mailstronaut-deps>    Compiling parking_lot_core v0.9.12
+mailstronaut-deps>    Compiling hashbrown v0.17.1
+mailstronaut-deps>    Compiling encoding_rs v0.8.42
+mailstronaut-deps>    Compiling parking_lot v0.12.5
+mailstronaut-deps>    Compiling tiny-skia v0.12.0
+mailstronaut-deps>    Compiling tokio v1.54.1
+mailstronaut-deps>    Compiling icu_properties v2.1.2
+mailstronaut-deps>    Compiling string_cache v0.11.0
+mailstronaut-deps>    Compiling indexmap v2.14.2
+mailstronaut-deps>    Compiling http v1.5.0
+mailstronaut-deps>    Compiling regex-automata v0.4.18
+mailstronaut-deps>    Compiling icu_locale v2.1.1
+mailstronaut-deps>    Compiling icu_normalizer v2.1.1
+mailstronaut-deps>    Compiling app_units v0.7.8
+mailstronaut-deps>    Compiling etagere v0.2.15
+mailstronaut-deps>    Compiling kurbo v0.13.1
+mailstronaut-deps>    Compiling cssparser v0.38.0
+mailstronaut-deps>    Compiling idna_adapter v1.2.1
+mailstronaut-deps>    Compiling futures-util v0.3.34
+mailstronaut-deps>    Compiling web_atoms v0.3.0
+mailstronaut-deps>    Compiling idna v1.1.0
+mailstronaut-deps>    Compiling servo_arc v0.5.0
+mailstronaut-deps>    Compiling icu_segmenter_data v2.1.1
+mailstronaut-deps>    Compiling crossbeam-channel v0.5.17
+mailstronaut-deps>    Compiling url v2.5.8
+mailstronaut-deps>    Compiling thin-vec v0.2.21
+mailstronaut-deps>    Compiling base64 v0.23.1
+mailstronaut-deps>    Compiling mime v0.3.17
+mailstronaut-deps>    Compiling smallbitvec v2.6.1
+mailstronaut-deps>    Compiling icu_segmenter v2.1.2
+mailstronaut-deps>    Compiling tendril v0.5.1
+mailstronaut-deps>    Compiling deranged v0.5.9
+mailstronaut-deps>    Compiling to_shmem v0.6.0
+mailstronaut-deps>    Compiling sha2 v0.10.9
+mailstronaut-deps>    Compiling num-integer v0.1.47
+mailstronaut-deps>    Compiling time-core v0.1.9
+mailstronaut-deps>    Compiling powerfmt v0.2.1
+mailstronaut-deps>    Compiling num_threads v0.1.8
+mailstronaut-deps>    Compiling num-conv v0.2.2
+mailstronaut-deps>    Compiling markup5ever v0.40.0
+mailstronaut-deps>    Compiling selectors v0.41.0
+mailstronaut-deps>    Compiling freetype-sys v0.23.0
+mailstronaut-deps>    Compiling serde_bytes v0.11.19
+mailstronaut-deps>    Compiling color v0.3.3
+mailstronaut-deps>    Compiling byteorder v1.5.0
+mailstronaut-deps>    Compiling void v1.0.2
+mailstronaut-deps>    Compiling peek-poke v0.3.0
+mailstronaut-deps>    Compiling wr_malloc_size_of v0.2.2
+mailstronaut-deps>    Compiling guillotiere v0.7.0
+mailstronaut-deps>    Compiling zeitstempel v0.2.2
+mailstronaut-deps>    Compiling unic-common v0.9.0
+mailstronaut-deps>    Compiling fearless_simd v0.4.1
+mailstronaut-deps>    Compiling lazy_static v1.5.1
+mailstronaut-deps>    Compiling unic-char-range v0.9.0
+mailstronaut-deps>    Compiling unic-ucd-version v0.9.0
+mailstronaut-deps>    Compiling webrender_api v0.70.0
+mailstronaut-deps>    Compiling strum v0.28.0
+mailstronaut-deps>    Compiling unic-char-property v0.9.0
+mailstronaut-deps>    Compiling peniko v0.6.1
+mailstronaut-deps>    Compiling stylo_static_prefs v0.22.0
+mailstronaut-deps>    Compiling stylo_atoms v0.22.0
+mailstronaut-deps>    Compiling time v0.3.55
+mailstronaut-deps>    Compiling freetype v0.8.0
+mailstronaut-deps>    Compiling svgtypes v0.16.1
+mailstronaut-deps>    Compiling regex v1.13.1
+mailstronaut-deps>    Compiling fontdb v0.24.0
+mailstronaut-deps>    Compiling getrandom v0.2.17
+mailstronaut-deps>    Compiling itertools v0.14.0
+mailstronaut-deps>    Compiling stylo_malloc_size_of v0.22.0
+mailstronaut-deps>    Compiling roxmltree v0.21.2
+mailstronaut-deps>    Compiling tempfile v3.23.0
+mailstronaut-deps>    Compiling cobs v0.3.0
+mailstronaut-deps>    Compiling tracy-rs v0.1.2
+mailstronaut-deps>    Compiling imagesize v0.15.0
+mailstronaut-deps>    Compiling postcard v1.1.3
+mailstronaut-deps>    Compiling zmij v1.0.23
+mailstronaut-deps>    Compiling stylo_dom v0.22.0
+mailstronaut-deps>    Compiling stylo_traits v0.22.0
+mailstronaut-deps>    Compiling uuid v0.8.2
+mailstronaut-deps>    Compiling gleam v0.15.1
+mailstronaut-deps>    Compiling unic-ucd-ident v0.9.0
+mailstronaut-deps>    Compiling webrender_build v0.70.0
+mailstronaut-deps>    Compiling ordered-channel v1.2.0
+mailstronaut-deps>    Compiling plane-split v0.18.0
+mailstronaut-deps>    Compiling bincode v1.3.3
+mailstronaut-deps>    Compiling num_cpus v1.17.0
+mailstronaut-deps>    Compiling uluru v3.1.0
+mailstronaut-deps>    Compiling thread_local v1.1.10
+mailstronaut-deps>    Compiling atomic_refcell v0.1.14
+mailstronaut-deps>    Compiling topological-sort v0.1.0
+mailstronaut-deps>    Compiling urlpattern v0.3.0
+mailstronaut-deps>    Compiling ipc-channel v0.23.1
+mailstronaut-deps>    Compiling serde_json v1.0.154
+mailstronaut-deps>    Compiling stylo v0.22.0
+mailstronaut-deps>    Compiling content-security-policy v0.9.0
+mailstronaut-deps>    Compiling taffy v0.14.0
+mailstronaut-deps>    Compiling servo-allocator v0.7.0
+mailstronaut-deps>    Compiling thiserror v1.0.69
+mailstronaut-deps>    Compiling x11-dl v2.21.0
+mailstronaut-deps>    Compiling polling v3.11.0
+mailstronaut-deps>    Compiling downcast-rs v1.2.1
+mailstronaut-deps>    Compiling wayland-backend v0.3.17
+mailstronaut-deps>    Compiling skrifa v0.44.0
+mailstronaut-deps>    Compiling harfrust v0.12.0
+mailstronaut-deps>    Compiling cookie v0.18.2
+mailstronaut-deps>    Compiling unicode-ident v1.0.27
+mailstronaut-deps>    Compiling num_enum v0.7.6
+mailstronaut-deps>    Compiling hashbrown v0.16.1
+mailstronaut-deps>    Compiling fnv v1.0.7
+mailstronaut-deps>    Compiling accesskit v0.24.1
+mailstronaut-deps>    Compiling servo-config v0.7.0
+mailstronaut-deps>    Compiling pxfm v0.1.30
+mailstronaut-deps>    Compiling wayland-client v0.31.15
+mailstronaut-deps>    Compiling vello_common v0.2.0
+mailstronaut-deps>    Compiling parking v2.2.1
+mailstronaut-deps>    Compiling httparse v1.10.1
+mailstronaut-deps>    Compiling wayland-server v0.31.14
+mailstronaut-deps>    Compiling tokio-util v0.7.20
+mailstronaut-deps>    Compiling http-body v1.1.0
+mailstronaut-deps>    Compiling sha1 v0.10.7
+mailstronaut-deps>    Compiling xkeysym v0.2.1
+mailstronaut-deps>    Compiling try-lock v0.2.5
+mailstronaut-deps>    Compiling xcursor v0.3.11
+mailstronaut-deps>    Compiling wr_glyph_rasterizer v0.70.0
+mailstronaut-deps>    Compiling glifo v0.3.0
+mailstronaut-deps>    Compiling webrender v0.70.0
+mailstronaut-deps>    Compiling wayland-protocols v0.32.13
+mailstronaut-deps>    Compiling usvg v0.48.1
+mailstronaut-deps>    Compiling vello_cpu v0.2.0
+mailstronaut-deps>    Compiling moxcms v0.8.1
+mailstronaut-deps>    Compiling cpufeatures v0.3.1
+mailstronaut-deps>    Compiling httpdate v1.0.3
+mailstronaut-deps>    Compiling h2 v0.4.20
+mailstronaut-deps>    Compiling want v0.3.2
+mailstronaut-deps>    Compiling proc-macro2 v1.0.107
+mailstronaut-deps>    Compiling event-listener v5.4.2
+mailstronaut-deps>    Compiling concurrent-queue v2.5.0
+mailstronaut-deps>    Compiling cursor-icon v1.2.0
+mailstronaut-deps>    Compiling event-listener-strategy v0.5.4
+mailstronaut-deps>    Compiling sys-locale v0.3.2
+mailstronaut-deps>    Compiling tower-service v0.3.3
+mailstronaut-deps>    Compiling quote v1.0.47
+mailstronaut-deps>    Compiling zeroize v1.9.1
+mailstronaut-deps>    Compiling syn v3.0.9
+mailstronaut-deps>    Compiling futures-lite v2.6.1
+mailstronaut-deps>    Compiling calloop v0.14.5
+mailstronaut-deps>    Compiling headers-core v0.3.0
+mailstronaut-deps>    Compiling resvg v0.48.1
+mailstronaut-deps>    Compiling ipnet v2.12.2
+mailstronaut-deps>    Compiling winnow v1.0.4
+mailstronaut-deps>    Compiling headers v0.4.2
+mailstronaut-deps>    Compiling enumflags2 v0.7.12
+mailstronaut-deps>    Compiling zcheapstr v1.1.0
+mailstronaut-deps>    Compiling ttf-parser v0.25.1
+mailstronaut-deps>    Compiling ryu v1.0.23
+mailstronaut-deps>    Compiling endi v1.1.1
+mailstronaut-deps>    Compiling unicase v2.10.0
+mailstronaut-deps>    Compiling mime_guess v2.0.5
+mailstronaut-deps>    Compiling serde_urlencoded v0.7.1
+mailstronaut-deps>    Compiling zerocopy v0.8.63
+mailstronaut-deps>    Compiling pin-project v1.1.13
+mailstronaut-deps>    Compiling calloop-wayland-source v0.4.1
+mailstronaut-deps>    Compiling rustls-pki-types v1.15.1
+mailstronaut-deps>    Compiling async-channel v2.5.0
+mailstronaut-deps>    Compiling wayland-csd-frame v0.3.0
+mailstronaut-deps>    Compiling wayland-cursor v0.31.14
+mailstronaut-deps>    Compiling xkbcommon v0.8.0
+mailstronaut-deps>    Compiling image v0.25.10
+mailstronaut-deps>    Compiling http-body-util v0.1.5
+mailstronaut-deps>    Compiling async-task v4.7.1
+mailstronaut-deps>    Compiling zvariant_utils v4.2.0
+mailstronaut-deps>    Compiling hyper v1.12.0
+mailstronaut-deps>    Compiling zvariant v5.15.1
+mailstronaut-deps>    Compiling async-io v2.6.0
+mailstronaut-deps>    Compiling cookie v0.16.2
+mailstronaut-deps>    Compiling aws-lc-sys v0.46.0
+mailstronaut-deps>    Compiling foldhash v0.1.5
+mailstronaut-deps>    Compiling hashbrown v0.15.5
+mailstronaut-deps>    Compiling aws-lc-rs v1.18.2
+mailstronaut-deps>    Compiling hyper-util v0.1.21
+mailstronaut-deps>    Compiling servo-hyper-serde v0.7.0
+mailstronaut-deps>    Compiling async-signal v0.2.14
+mailstronaut-deps>    Compiling async-lock v3.4.2
+mailstronaut-deps>    Compiling chacha20 v0.10.2
+mailstronaut-deps>    Compiling piper v0.2.5
+mailstronaut-deps>    Compiling inventory v0.3.25
+mailstronaut-deps>    Compiling untrusted v0.9.0
+mailstronaut-deps>    Compiling rand v0.10.3
+mailstronaut-deps>    Compiling blocking v1.7.0
+mailstronaut-deps>    Compiling async-executor v1.14.0
+mailstronaut-deps>    Compiling zbus_names v4.3.5
+mailstronaut-deps>    Compiling async-process v2.5.0
+mailstronaut-deps>    Compiling rustls-webpki v0.103.16
+mailstronaut-deps>    Compiling async-broadcast v0.7.2
+mailstronaut-deps>    Compiling ordered-stream v0.2.0
+mailstronaut-deps>    Compiling smol_str v0.3.7
+mailstronaut-deps>    Compiling hex v0.4.3
+mailstronaut-deps>    Compiling as-raw-xcb-connection v1.0.1
+mailstronaut-deps>    Compiling subtle v2.6.1
+mailstronaut-deps>    Compiling zbus_xml v5.2.1
+mailstronaut-deps>    Compiling tokio-stream v0.1.19
+mailstronaut-deps>    Compiling rustls v0.23.46
+mailstronaut-deps>    Compiling zbus v5.19.0
+mailstronaut-deps>    Compiling gethostname v1.1.0
+mailstronaut-deps>    Compiling x11rb-protocol v0.13.2
+mailstronaut-deps>    Compiling warp v0.4.3
+mailstronaut-deps>    Compiling glow v0.17.0
+mailstronaut-deps>    Compiling wayland-protocols-wlr v0.3.12
+mailstronaut-deps>    Compiling wayland-protocols-misc v0.3.12
+mailstronaut-deps>    Compiling wayland-protocols-experimental v20250721.0.1
+mailstronaut-deps>    Compiling webdriver v0.54.0
+mailstronaut-deps>    Compiling zbus-lockstep v0.5.2
+mailstronaut-deps>    Compiling dpi v0.1.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling owned_ttf_parser v0.25.1
+mailstronaut-deps>    Compiling xkbcommon-dl v0.4.2
+mailstronaut-deps>    Compiling winit-core v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling ab_glyph_rasterizer v0.1.10
+mailstronaut-deps>    Compiling smithay-client-toolkit v0.20.0
+mailstronaut-deps>    Compiling ab_glyph v0.2.32
+mailstronaut-deps>    Compiling surfman v0.14.0
+mailstronaut-deps>    Compiling winit-common v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling futures-executor v0.3.34
+mailstronaut-deps>    Compiling accesskit v0.22.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>    Compiling dpi v0.1.2
+mailstronaut-deps>    Compiling accesskit_consumer v0.32.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>    Compiling smithay-clipboard v0.8.0 (https://github.com/pop-os/smithay-clipboard?tag=sctk-0.20#859b02c8)
+mailstronaut-deps>    Compiling sctk-adwaita v0.11.1
+mailstronaut-deps>    Compiling futures v0.3.34
+mailstronaut-deps>    Compiling ahash v0.8.12
+mailstronaut-deps>    Compiling uncased v0.9.10
+mailstronaut-deps>    Compiling wayland-protocols-plasma v0.3.12
+mailstronaut-deps>    Compiling unicode-properties v0.1.4
+mailstronaut-deps>    Compiling mime v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>    Compiling phf_shared v0.13.1
+mailstronaut-deps>    Compiling serde_with v3.24.0
+mailstronaut-deps>    Compiling read-fonts v0.43.3
+mailstronaut-deps>    Compiling phf v0.13.1
+mailstronaut-deps>    Compiling dnd v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>    Compiling icu_casemap_data v2.1.1
+mailstronaut-deps>    Compiling cosmic-protocols v0.2.0 (https://github.com/pop-os/cosmic-protocols?rev=c0cff4d#c0cff4db)
+mailstronaut-deps>    Compiling clipboard_wayland v0.2.2 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>    Compiling approx v0.5.1
+mailstronaut-deps>    Compiling hybrid-array v0.4.15
+mailstronaut-deps>    Compiling rustc-hash v1.1.0
+mailstronaut-deps>    Compiling web-time v1.1.0
+mailstronaut-deps>    Compiling unicode-width v0.2.2
+mailstronaut-deps>    Compiling palette_math v0.7.7
+mailstronaut-deps>    Compiling strength_reduce v0.2.4
+mailstronaut-deps>    Compiling palette v0.7.7
+mailstronaut-deps>    Compiling transpose v0.2.3
+mailstronaut-deps>    Compiling lilt v0.8.2
+mailstronaut-deps>    Compiling icu_casemap v2.1.1
+mailstronaut-deps>    Compiling half v2.7.1
+mailstronaut-deps>    Compiling primal-check v0.3.4
+mailstronaut-deps>    Compiling num-complex v0.4.6
+mailstronaut-deps>    Compiling glam v0.25.0
+mailstronaut-deps>    Compiling mozjs_icu_collections v153.3.0
+mailstronaut-deps>    Compiling winit-wayland v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling cosmic-client-toolkit v0.2.0 (https://github.com/pop-os/cosmic-protocols?rev=c0cff4d#c0cff4db)
+mailstronaut-deps>    Compiling rustfft v6.4.1
+mailstronaut-deps>    Compiling atspi-common v0.13.0
+mailstronaut-deps>    Compiling crypto-common v0.2.2
+mailstronaut-deps>    Compiling block-buffer v0.12.1
+mailstronaut-deps>    Compiling font-types v0.11.3
+mailstronaut-deps>    Compiling linux-raw-sys v0.4.15
+mailstronaut-deps>    Compiling alloc-no-stdlib v2.0.4
+mailstronaut-deps>    Compiling fixedbitset v0.5.7
+mailstronaut-deps>    Compiling const-oid v0.10.2
+mailstronaut-deps>    Compiling self_cell v1.3.0
+mailstronaut-deps>    Compiling rustix v0.38.44
+mailstronaut-deps>    Compiling petgraph v0.8.3
+mailstronaut-deps>    Compiling digest v0.11.3
+mailstronaut-deps>    Compiling brotli-decompressor v5.0.3
+mailstronaut-deps>    Compiling read-fonts v0.37.0
+mailstronaut-deps>    Compiling fontdb v0.23.0
+mailstronaut-deps>    Compiling x11rb v0.13.2
+mailstronaut-deps>    Compiling realfft v3.5.1
+mailstronaut-deps>    Compiling lyon_geom v1.0.20
+mailstronaut-deps>    Compiling byte-slice-cast v1.2.3
+mailstronaut-deps>    Compiling speexdsp-resampler v0.1.0
+mailstronaut-deps>    Compiling wuff v0.2.9
+mailstronaut-deps>    Compiling lyon_path v1.0.19
+mailstronaut-deps>    Compiling atspi-proxies v0.13.0
+mailstronaut-deps>    Compiling accesskit_atspi_common v0.15.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>    Compiling yazi v0.2.1
+mailstronaut-deps>    Compiling bit-vec v0.8.0
+mailstronaut-deps>    Compiling zeno v0.3.3
+mailstronaut-deps>    Compiling winit-x11 v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling clipboard_x11 v0.4.2 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>    Compiling window_clipboard v0.4.1 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+mailstronaut-deps>    Compiling swash v0.2.10
+mailstronaut-deps>    Compiling bit-set v0.8.0
+mailstronaut-deps>    Compiling wuff-capi v0.2.0
+mailstronaut-deps>    Compiling mozjs_icu_normalizer_data v153.3.0
+mailstronaut-deps>    Compiling ash v0.38.0+1.3.281
+mailstronaut-deps>    Compiling mozjs_utf8_iter v153.3.0
+mailstronaut-deps>    Compiling mozjs_utf16_iter v153.3.0
+mailstronaut-deps>    Compiling codespan-reporting v0.12.0
+mailstronaut-deps>    Compiling write16 v1.0.0
+mailstronaut-deps>    Compiling gpu-descriptor-types v0.2.0
+mailstronaut-deps>    Compiling spirv v0.3.0+sdk-1.3.268.0
+mailstronaut-deps>    Compiling ohos-deviceinfo-sys v0.1.8
+mailstronaut-deps>    Compiling presser v0.3.1
+mailstronaut-deps>    Compiling rangemap v1.8.0
+mailstronaut-deps>    Compiling unicode-linebreak v0.1.5
+mailstronaut-deps>    Compiling atspi v0.29.0
+mailstronaut-deps>    Compiling accesskit_unix v0.18.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>    Compiling winit v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+mailstronaut-deps>    Compiling hexf-parse v0.2.1
+mailstronaut-deps>    Compiling ohos-deviceinfo v0.1.0
+mailstronaut-deps>    Compiling gpu-descriptor v0.3.2
+mailstronaut-deps>    Compiling naga v28.0.0
+mailstronaut-deps>    Compiling mozjs_icu_normalizer v153.3.0
+mailstronaut-deps>    Compiling fontsan v0.7.0
+mailstronaut-deps>    Compiling libsqlite3-sys v0.36.0
+mailstronaut-deps>    Compiling harfbuzz-sys v0.8.0
+mailstronaut-deps>    Compiling harfrust v0.5.2
+mailstronaut-deps>    Compiling skrifa v0.40.0
+mailstronaut-deps>    Compiling accesskit_winit v0.30.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+mailstronaut-deps>    Compiling iced_accessibility v0.1.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling yeslogic-fontconfig-sys v6.0.1
+mailstronaut-deps>    Compiling iced_core v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling icu_calendar_data v2.1.1
+mailstronaut-deps>    Compiling khronos-egl v6.0.0
+mailstronaut-deps>    Compiling skrifa v0.46.2
+mailstronaut-deps>    Compiling hashlink v0.11.1
+mailstronaut-deps>    Compiling cosmic-text v0.19.0
+mailstronaut-deps>    Compiling iced_futures v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling wgpu-types v28.0.0
+mailstronaut-deps>    Compiling servo-malloc-size-of v0.7.0
+mailstronaut-deps>    Compiling servo-base v0.7.0
+mailstronaut-deps>    Compiling servo-url v0.7.0
+mailstronaut-deps>    Compiling servo-geometry v0.7.0
+mailstronaut-deps>    Compiling servo-media-streams v0.7.0
+mailstronaut-deps>    Compiling servo-media-traits v0.7.0
+mailstronaut-deps>    Compiling servo-media-webrtc v0.7.0
+mailstronaut-deps>    Compiling gpu-allocator v0.28.0
+mailstronaut-deps>    Compiling ordered-float v5.5.1
+mailstronaut-deps>    Compiling calendrical_calculations v0.2.4
+mailstronaut-deps>    Compiling itertools v0.15.0
+mailstronaut-deps>    Compiling mutate_once v0.1.2
+mailstronaut-deps>    Compiling fallible-streaming-iterator v0.1.9
+mailstronaut-deps>    Compiling iana-time-zone v0.1.65
+mailstronaut-deps>    Compiling fallible-iterator v0.3.0
+mailstronaut-deps>    Compiling glow v0.16.0
+mailstronaut-deps>    Compiling ixdtf v0.6.7
+mailstronaut-deps>    Compiling data-encoding v2.11.1
+mailstronaut-deps>    Compiling servo-profile-traits v0.7.0
+mailstronaut-deps>    Compiling servo-pixels v0.7.0
+mailstronaut-deps>    Compiling servo-media-player v0.7.0
+mailstronaut-deps>    Compiling profiling v1.0.18
+mailstronaut-deps>    Compiling alloc-no-stdlib v3.0.0
+mailstronaut-deps>    Compiling renderdoc-sys v1.1.0
+mailstronaut-deps>    Compiling alloc-stdlib v0.3.0
+mailstronaut-deps>    Compiling rusqlite v0.38.0
+mailstronaut-deps>    Compiling icu_calendar v2.1.1
+mailstronaut-deps>    Compiling servo-embedder-traits v0.7.0
+mailstronaut-deps>    Compiling servo-fonts-traits v0.7.0
+mailstronaut-deps>    Compiling servo-storage-traits v0.7.0
+mailstronaut-deps>    Compiling servo-media-audio v0.7.0
+mailstronaut-deps>    Compiling wgpu-hal v28.0.1
+mailstronaut-deps>    Compiling chrono v0.4.45
+mailstronaut-deps>    Compiling kamadak-exif v0.6.1
+mailstronaut-deps>    Compiling icu_time_data v2.1.1
+mailstronaut-deps>    Compiling mozjs_icu_collator_data v153.3.0
+mailstronaut-deps>    Compiling zstd-sys v2.1.2+zstd.1.5.7
+mailstronaut-deps>    Compiling html5ever v0.40.1
+mailstronaut-deps>    Compiling servo-media v0.7.0
+mailstronaut-deps>    Compiling kurbo v0.11.3
+mailstronaut-deps>    Compiling tiny-skia-path v0.11.4
+mailstronaut-deps>    Compiling servo-paint-api v0.7.0
+mailstronaut-deps>    Compiling servo-webxr-api v0.7.0
+mailstronaut-deps>    Compiling nom v8.0.0
+mailstronaut-deps>    Compiling unicode-bidi-mirroring v0.4.0
+mailstronaut-deps>    Compiling bitflags v1.3.2
+mailstronaut-deps>    Compiling linux-raw-sys v0.6.5
+mailstronaut-deps>    Compiling unicode-ccc v0.4.0
+mailstronaut-deps>    Compiling rustybuzz v0.20.1
+mailstronaut-deps>    Compiling drm-sys v0.6.1
+mailstronaut-deps>    Compiling png v0.17.16
+mailstronaut-deps>    Compiling svgtypes v0.15.3
+mailstronaut-deps>    Compiling iced_graphics v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling servo-net-traits v0.7.0
+mailstronaut-deps>    Compiling servo-canvas-traits v0.7.0
+mailstronaut-deps>    Compiling servo-media-thread v0.7.0
+mailstronaut-deps>    Compiling wgpu-core-deps-windows-linux-android v28.0.0
+mailstronaut-deps>    Compiling zstd-safe v8.2.0
+mailstronaut-deps>    Compiling mozjs_icu_collator v153.3.0
+mailstronaut-deps>    Compiling icu_time v2.1.1
+mailstronaut-deps>    Compiling brotli-decompressor v6.2.0
+mailstronaut-deps>    Compiling icu_provider_adapters v2.1.1
+mailstronaut-deps>    Compiling unic-langid-impl v0.9.6
+mailstronaut-deps>    Compiling arraystring v0.3.0
+mailstronaut-deps>    Compiling servo-devtools-traits v0.7.0
+mailstronaut-deps>    Compiling servo-fonts v0.7.0
+mailstronaut-deps>    Compiling lexical-util v0.8.5
+mailstronaut-deps>    Compiling gimli v0.34.0
+mailstronaut-deps>    Compiling servo-constellation-traits v0.7.0
+mailstronaut-deps>    Compiling zune-core v0.4.12
+mailstronaut-deps>    Compiling diplomat-runtime v0.14.0
+mailstronaut-deps>    Compiling same-file v1.0.6
+mailstronaut-deps>    Compiling imagesize v0.13.0
+mailstronaut-deps>    Compiling ctor v0.10.1
+mailstronaut-deps>    Compiling tiny-xlib v0.2.5
+mailstronaut-deps>    Compiling walkdir v2.5.0
+mailstronaut-deps>    Compiling usvg v0.45.1
+mailstronaut-deps>    Compiling icu_capi v2.1.2
+mailstronaut-deps>    Compiling zune-jpeg v0.4.21
+mailstronaut-deps>    Compiling mozjs_collator_glue v153.3.0
+mailstronaut-deps>    Compiling brotli v9.1.1
+mailstronaut-deps>    Compiling unic-langid v0.9.6
+mailstronaut-deps>    Compiling sea-query v1.0.2
+mailstronaut-deps>    Compiling zstd v0.14.3
+mailstronaut-deps>    Compiling addr2line v0.27.1
+mailstronaut-deps>    Compiling wgpu-core v28.0.1
+mailstronaut-deps>    Compiling tiny-skia v0.11.4
+mailstronaut-deps>    Compiling drm-fourcc v2.2.0
+mailstronaut-deps>    Compiling drm-ffi v0.7.1
+mailstronaut-deps>    Compiling servo-script-traits v0.7.0
+mailstronaut-deps>    Compiling mozjs_normalizer_glue v153.3.0
+mailstronaut-deps>    Compiling mozjs_locale_glue v153.3.0
+mailstronaut-deps>    Compiling mozjs_properties_glue v153.3.0
+mailstronaut-deps>    Compiling mozjs_unicode_bidi_ffi v153.3.0
+mailstronaut-deps>    Compiling encoding_c_mem v0.2.6
+mailstronaut-deps>    Compiling encoding_c v0.9.8
+mailstronaut-deps>    Compiling servo-background-hang-monitor-api v0.7.0
+mailstronaut-deps>    Compiling iced_debug v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling sha1 v0.11.0
+mailstronaut-deps>    Compiling tokio-rustls v0.26.6
+mailstronaut-deps>    Compiling webpki-roots v1.0.11
+mailstronaut-deps>    Compiling gif v0.13.3
+mailstronaut-deps>    Compiling object v0.40.0
+mailstronaut-deps>    Compiling compression-core v0.4.34
+mailstronaut-deps>    Compiling rustc-demangle v0.1.28
+mailstronaut-deps>    Compiling openssl-probe v0.2.2
+mailstronaut-deps>    Compiling float_next_after v1.0.0
+mailstronaut-deps>    Compiling lyon_tessellation v1.0.23
+mailstronaut-deps>    Compiling rustls-native-certs v0.8.5
+mailstronaut-deps>    Compiling resvg v0.45.1
+mailstronaut-deps>    Compiling tungstenite v0.30.0
+mailstronaut-deps>    Compiling mozjs_sys v153.3.0-1
+mailstronaut-deps>    Compiling compression-codecs v0.4.46
+mailstronaut-deps>    Compiling sea-query-rusqlite v0.8.0
+mailstronaut-deps>    Compiling drm v0.11.1
+mailstronaut-deps>    Compiling lyon_algorithms v1.0.22
+mailstronaut-deps>    Compiling lru v0.16.4
+mailstronaut-deps>    Compiling option-ext v0.2.0
+mailstronaut-deps>    Compiling tower-layer v0.3.3
+mailstronaut-deps>    Compiling sync_wrapper v1.0.2
+mailstronaut-deps>    Compiling cmov v0.5.4
+mailstronaut-deps>    Compiling hashbrown v0.12.3
+mailstronaut-deps>    Compiling tower v0.5.3
+mailstronaut-deps>    Compiling ctutils v0.4.6
+mailstronaut-deps>    Compiling dirs-sys v0.5.0
+mailstronaut-deps>    Compiling softbuffer v0.4.1 (https://github.com/pop-os/softbuffer?tag=cosmic-4.0#c2b2c19d)
+mailstronaut-deps>    Compiling mozjs v0.26.4
+mailstronaut-deps>    Compiling indexmap v1.9.3
+mailstronaut-deps>    Compiling lyon v1.0.19
+mailstronaut-deps>    Compiling async-compression v0.4.51
+mailstronaut-deps>    Compiling async-tungstenite v0.35.0
+mailstronaut-deps>    Compiling iced_runtime v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling fst v0.4.7
+mailstronaut-deps>    Compiling rustls-platform-verifier v0.7.1
+mailstronaut-deps>    Compiling inotify-sys v0.1.8
+mailstronaut-deps>    Compiling hyper-rustls v0.27.10
+mailstronaut-deps>    Compiling servo-layout-api v0.7.0
+mailstronaut-deps>    Compiling lexical-parse-integer v0.8.6
+mailstronaut-deps>    Compiling lexical-write-integer v0.8.5
+mailstronaut-deps>    Compiling nom-language v0.1.0
+mailstronaut-deps>    Compiling servo-timers v0.7.0
+mailstronaut-deps>    Compiling bstr v1.13.1
+mailstronaut-deps>    Compiling xml5ever v0.40.0
+mailstronaut-deps>    Compiling guillotiere v0.6.2
+mailstronaut-deps>    Compiling quick_cache v0.7.0
+mailstronaut-deps>    Compiling kurbo v0.10.4
+mailstronaut-deps>    Compiling serde_spanned v0.6.9
+mailstronaut-deps>    Compiling toml_datetime v0.5.1
+mailstronaut-deps>    Compiling wgpu v28.0.0
+mailstronaut-deps>    Compiling wait-timeout v0.2.1
+mailstronaut-deps>    Compiling nom8 v0.2.0
+mailstronaut-deps>    Compiling type-map v0.5.1
+mailstronaut-deps>    Compiling quick-error v1.2.3
+mailstronaut-deps>    Compiling jiff-core v0.1.1
+mailstronaut-deps>    Compiling countme v3.0.1
+mailstronaut-deps>    Compiling utf8parse v0.2.2
+mailstronaut-deps>    Compiling text-size v1.1.1
+mailstronaut-deps>    Compiling imsz v0.4.1
+mailstronaut-deps>    Compiling hashbrown v0.14.5
+mailstronaut-deps>    Compiling cpubits v0.1.1
+mailstronaut-deps>    Compiling crypto-bigint v0.7.10
+mailstronaut-deps>    Compiling anstyle-parse v1.0.0
+mailstronaut-deps>    Compiling servo-net v0.7.0
+mailstronaut-deps>    Compiling backtrace v0.3.77
+mailstronaut-deps>    Compiling intl-memoizer v0.5.3
+mailstronaut-deps>    Compiling rusty-fork v0.3.1
+mailstronaut-deps>    Compiling rowan v0.16.1
+mailstronaut-deps>    Compiling jiff v0.2.38
+mailstronaut-deps>    Compiling iced_tiny_skia v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling servo-script-bindings v0.7.0
+mailstronaut-deps>    Compiling lexical-write-float v0.8.5
+mailstronaut-deps>    Compiling nom-rfc8288 v0.4.0
+mailstronaut-deps>    Compiling lexical-parse-float v0.8.5
+mailstronaut-deps>    Compiling inotify v0.11.5
+mailstronaut-deps>    Compiling toml_edit v0.18.1
+mailstronaut-deps>    Compiling typeid v1.0.3
+mailstronaut-deps>    Compiling servo-metrics v0.7.0
+mailstronaut-deps>    Compiling intl_pluralrules v7.0.2
+mailstronaut-deps>    Compiling fluent-langneg v0.13.1
+mailstronaut-deps>    Compiling servo-webvtt v0.7.0
+mailstronaut-deps>    Compiling servo-xpath v0.7.0
+mailstronaut-deps>    Compiling cryoglyph v0.1.0 (https://github.com/iced-rs/cryoglyph.git?rev=e429a025df36ab8145708acb309080ae3deec17a#e429a025)
+mailstronaut-deps>    Compiling sha2 v0.11.1
+mailstronaut-deps>    Compiling chardetng v1.0.0
+mailstronaut-deps>    Compiling iced_wgpu v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling notify-types v2.1.0
+mailstronaut-deps>    Compiling memmap2 v0.8.0
+mailstronaut-deps>    Compiling fluent-syntax v0.12.0
+mailstronaut-deps>    Compiling rand_xorshift v0.5.0
+mailstronaut-deps>    Compiling anstyle-query v1.1.5
+mailstronaut-deps>    Compiling base64ct v1.8.3
+mailstronaut-deps>    Compiling is_terminal_polyfill v1.70.2
+mailstronaut-deps>    Compiling swapper v0.1.0
+mailstronaut-deps>    Compiling aliasable v0.1.3
+mailstronaut-deps>    Compiling genawaiter-macro v0.99.1
+mailstronaut-deps>    Compiling termcolor v1.4.1
+mailstronaut-deps>    Compiling unarray v0.1.4
+mailstronaut-deps>    Compiling codemap v0.1.3
+mailstronaut-deps>    Compiling xdg v3.0.0
+mailstronaut-deps>    Compiling colorchoice v1.0.5
+mailstronaut-deps>    Compiling anstyle v1.0.14
+mailstronaut-deps>    Compiling buf-read-ext v0.4.0
+mailstronaut-deps>    Compiling anstream v1.0.0
+mailstronaut-deps>    Compiling codemap-diagnostic v0.1.2
+mailstronaut-deps>    Compiling proptest v1.12.0
+mailstronaut-deps>    Compiling toml v0.6.0
+mailstronaut-deps>    Compiling fluent-bundle v0.16.0
+mailstronaut-deps>    Compiling ouroboros v0.18.5
+mailstronaut-deps>    Compiling genawaiter v0.99.1
+mailstronaut-deps>    Compiling rust-embed-utils v8.13.0
+mailstronaut-deps>    Compiling notify v8.2.1
+mailstronaut-deps>    Compiling xkbcommon v0.7.0
+mailstronaut-deps>    Compiling iced_renderer v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling lexical-core v0.8.5
+mailstronaut-deps>    Compiling ron v0.12.2
+mailstronaut-deps>    Compiling rnix v0.14.0
+mailstronaut-deps>    Compiling servo-background-hang-monitor v0.7.0
+mailstronaut-deps>    Compiling iced_program v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling dirs v6.0.0
+mailstronaut-deps>    Compiling servo-canvas v0.7.0
+mailstronaut-deps>    Compiling atomicwrites v0.4.2 (https://github.com/jackpot51/rust-atomicwrites#043ab485)
+mailstronaut-deps>    Compiling cosmic-settings-daemon v0.1.0 (https://github.com/pop-os/dbus-settings-bindings#eed01dd3)
+mailstronaut-deps>    Compiling tabwriter v1.4.1
+mailstronaut-deps>    Compiling env_filter v2.0.0
+mailstronaut-deps>    Compiling md-5 v0.10.6
+mailstronaut-deps>    Compiling gaol v0.2.1
+mailstronaut-deps>    Compiling itertools v0.12.1
+mailstronaut-deps>    Compiling os_str_bytes v6.6.1
+mailstronaut-deps>    Compiling phf_shared v0.12.1
+mailstronaut-deps>    Compiling vu128 v1.1.0
+mailstronaut-deps>    Compiling path-clean v0.1.0
+mailstronaut-deps>    Compiling unicode_categories v0.1.1
+mailstronaut-deps>    Compiling smol_str v0.2.2
+mailstronaut-deps>    Compiling cosmic-config v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling phf v0.12.1
+mailstronaut-deps>    Compiling servo-constellation v0.7.0
+mailstronaut-deps>    Compiling env_logger v0.11.11
+mailstronaut-deps>    Compiling servo-devtools v0.7.0
+mailstronaut-deps>    Compiling iced_winit v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling iced_widget v0.14.2 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling snix-eval v0.1.0 (https://git.snix.dev/snix/snix.git?rev=f393b22aa9b8e0e74c9e8d67f15454409299e510#f393b22a)
+mailstronaut-deps>    Compiling fluent v0.17.0
+mailstronaut-deps>    Compiling rust-embed v8.13.0
+mailstronaut-deps>    Compiling servo-paint v0.7.0
+mailstronaut-deps>    Compiling servo-storage v0.7.0
+mailstronaut-deps>    Compiling servo-wakelock v0.7.0
+mailstronaut-deps>    Compiling servo-default-resources v0.7.0
+mailstronaut-deps>    Compiling servo-media-dummy v0.7.0
+mailstronaut-deps>    Compiling servo-profile v0.7.0
+mailstronaut-deps>    Compiling csscolorparser v0.8.4
+mailstronaut-deps>    Compiling hex_color v3.0.0
+mailstronaut-deps>    Compiling btoi v0.5.0
+mailstronaut-deps>    Compiling arc-swap v1.9.3
+mailstronaut-deps>    Compiling configparser v3.3.0
+mailstronaut-deps>    Compiling almost v0.2.0
+mailstronaut-deps>    Compiling maplit v1.0.2
+mailstronaut-deps>    Compiling grid v1.0.1
+mailstronaut-deps>    Compiling ammonia v4.2.4
+mailstronaut-deps>    Compiling taffy v0.9.2
+mailstronaut-deps>    Compiling snix-serde v0.1.0 (https://git.snix.dev/snix/snix.git?rev=f393b22aa9b8e0e74c9e8d67f15454409299e510#f393b22a)
+mailstronaut-deps>    Compiling cosmic-theme v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling iced v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling i18n-embed v0.16.0
+mailstronaut-deps>    Compiling cosmic-freedesktop-icons v0.4.0 (https://github.com/pop-os/freedesktop-icons#ab4c57b8)
+mailstronaut-deps>    Compiling chrono-tz v0.10.4
+mailstronaut-deps>    Compiling encodify v1.0.2
+mailstronaut-deps>    Compiling float-cmp v0.10.0
+mailstronaut-deps>    Compiling css-color v0.2.8
+mailstronaut-deps>    Compiling apply v0.3.0
+mailstronaut-deps>    Compiling libcosmic v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+mailstronaut-deps>    Compiling rusqlite_migration v2.4.1
+mailstronaut-deps>    Compiling directories v6.0.0
+mailstronaut-deps>    Compiling mail-parser v1.0.0
+mailstronaut-deps>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut-deps>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut-deps>    Compiling servo-script v0.7.0
+mailstronaut-deps>    Compiling servo-layout v0.7.0
+mailstronaut-deps>    Compiling servo v0.7.0
+mailstronaut-deps>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut-deps>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut-deps>     Finished `release` profile [optimized] target(s) in 9m 28s
+mailstronaut-deps> buildPhase completed in 18 minutes 17 seconds
+mailstronaut-deps> Running phase: checkPhase
+mailstronaut-deps> +++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu --no-run
+mailstronaut-deps>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut-deps>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut-deps>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut-deps>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut-deps>     Finished `release` profile [optimized] target(s) in 5.94s
+mailstronaut-deps>   Executable unittests src/main.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut-7b0d9d8b86314141)
+mailstronaut-deps>   Executable unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_config-5976c19d74db4c3b)
+mailstronaut-deps>   Executable unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_core-3232cf43306c8c62)
+mailstronaut-deps>   Executable unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_render-ed8d326c0e6ee8a0)
+mailstronaut-deps> Running phase: installPhase
+mailstronaut-deps> no previous artifacts found, compressing and installing full archive of target to /nix/store/qfbhx27m06xphb9x4ajrg3v776lr1mni-mailstronaut-deps-0.1.0/target.tar.zst
+mailstronaut-deps> /*stdin*\            : 30.00%   (  7.37 GiB =>   2.21 GiB, /nix/store/qfbhx27m06xphb9x4ajrg3v776lr1mni-mailstronaut-deps-0.1.0/target.tar.zst)
+mailstronaut-deps> Running phase: fixupPhase
+mailstronaut-deps> shrinking RPATHs of ELF executables and libraries in /nix/store/qfbhx27m06xphb9x4ajrg3v776lr1mni-mailstronaut-deps-0.1.0
+mailstronaut-deps> checking for references to /build/ in /nix/store/qfbhx27m06xphb9x4ajrg3v776lr1mni-mailstronaut-deps-0.1.0...
+mailstronaut-deps> patching script interpreter paths in /nix/store/qfbhx27m06xphb9x4ajrg3v776lr1mni-mailstronaut-deps-0.1.0
+building '/nix/store/qmvm7846610481j3xngnfgdp07fn8r60-mailstronaut-nix-format.drv'...
+building '/nix/store/xfjrafasr8jwgb6xaw49qcsgxcq0fm3s-mailstronaut-0.1.0.drv'...
+mailstronaut> Running phase: unpackPhase
+mailstronaut> unpacking source archive /nix/store/8jfv292hyg5mybjpawas5d4403fp7z1p-source
+mailstronaut> source root is source
+mailstronaut> Running phase: patchPhase
+mailstronaut> Executing configureCargoCommonVars
+mailstronaut> decompressing cargo artifacts from /nix/store/qfbhx27m06xphb9x4ajrg3v776lr1mni-mailstronaut-deps-0.1.0/target.tar.zst to target
+mailstronaut> Running phase: updateAutotoolsGnuConfigScriptsPhase
+mailstronaut> Running phase: configurePhase
+mailstronaut> will append /build/source/.cargo-home/config.toml with contents of /build/vendor/config.toml
+mailstronaut> default configurePhase, nothing to do
+mailstronaut> Running phase: buildPhase
+mailstronaut> +++ command cargo --version
+mailstronaut> cargo 1.99.0 (5f94df478 2026-08-27)
+mailstronaut> +++ command cargo build --release --message-format json-render-diagnostics --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 6m 20s
+mailstronaut> searching for bins/libs to install from cargo build log at cargoBuildLogKc2l.json
+mailstronaut> installing /build/source/target/x86_64-unknown-linux-gnu/release/mailstronaut in postBuildInstallFromCargoBuildLogOutTemppKJ/bin
+mailstronaut> searching for bins/libs complete
+mailstronaut> buildPhase completed in 6 minutes 20 seconds
+mailstronaut> Running phase: checkPhase
+mailstronaut> +++++ command cargo fmt --all -- --check
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut>     Checking mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>     Checking mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>     Checking mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>     Checking mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 52.31s
+mailstronaut> +++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 5m 27s
+mailstronaut>      Running unittests src/main.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut-803989f6ab84b1a7)
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> test tests::preview_respects_renderer_bounds ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>      Running tests/configuration.rs (target/x86_64-unknown-linux-gnu/release/deps/configuration-ad8e60f688294492)
+mailstronaut>
+mailstronaut> running 3 tests
+mailstronaut> test tests::cli_errors_are_redacted_and_never_initialize_graphics ... ok
+mailstronaut> test tests::native_cli_initialization_and_managed_symlinks_are_non_destructive ... ok
+mailstronaut> test tests::recursive_helper_is_timed_out_and_cancellation_reaps_a_live_child ... ok
+mailstronaut>
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.08s
+mailstronaut>
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_config-46e955ecfc74a524)
+mailstronaut>
+mailstronaut> running 7 tests
+mailstronaut> test helper::tests::typed_responses_and_rejection ... ok
+mailstronaut> test tests::rejects_unknown_and_impure_inputs_without_echoing_them ... ok
+mailstronaut> test tests::url_and_time_validation_rejects_malformed_values ... ok
+mailstronaut> test tests::native_accounts_and_auth_fields ... ok
+mailstronaut> test tests::pure_expression_and_defaults ... ok
+mailstronaut> test tests::rejects_unsupported_version_and_oversize_source ... ok
+mailstronaut> test helper::tests::oversized_expansion_is_rejected ... ok
+mailstronaut>
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+mailstronaut>
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_core-ff886427d28f30d5)
+mailstronaut>
+mailstronaut> running 6 tests
+mailstronaut> test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+mailstronaut> test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+mailstronaut> test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+mailstronaut> test store::tests::failed_insert_leaves_collectible_orphan ... ok
+mailstronaut> test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+mailstronaut> test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+mailstronaut>
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+mailstronaut>
+mailstronaut>      Running tests/mime.rs (target/x86_64-unknown-linux-gnu/release/deps/mime-944aa0792fc30838)
+mailstronaut>
+mailstronaut> running 11 tests
+mailstronaut> test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+mailstronaut> test tests::missing_headers_still_produce_a_preview ... ok
+mailstronaut> test tests::malformed_cid_is_not_resolved ... ok
+mailstronaut> test tests::preview_records_extracted_source_and_original_revision ... ok
+mailstronaut> test tests::unique_cid_is_scoped_to_its_message ... ok
+mailstronaut> test tests::part_and_attachment_limits_are_reported ... ok
+mailstronaut> test tests::alternatives_headers_and_encodings ... ok
+mailstronaut> test tests::inline_encryption_is_detected_without_headers_or_after_a_long_preamble ... ok
+mailstronaut> test tests::html_preview_attachments_and_duplicate_cid ... ok
+mailstronaut> test tests::forwarded_message_is_not_outer_body ... ok
+mailstronaut> test tests::bounds_encryption_and_malformed ... ok
+mailstronaut>
+mailstronaut> test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_render-58232a9766e9c222)
+mailstronaut>
+mailstronaut> running 7 tests
+mailstronaut> test tests::bounded_and_coalesced ... ok
+mailstronaut> test tests::sanitizer_removes_active_content_and_css ... ok
+mailstronaut> test tests::generated_document_is_bounded ... ok
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> lifecycle cycle=10 pss_kib=158110 threads=70
+mailstronaut> test tests::synthetic_pixels_and_native_theme ... ok
+mailstronaut> lifecycle cycle=20 pss_kib=153412 threads=70
+mailstronaut> lifecycle cycle=30 pss_kib=142480 threads=71
+mailstronaut> lifecycle cycle=40 pss_kib=178116 threads=70
+mailstronaut> lifecycle cycle=50 pss_kib=168864 threads=70
+mailstronaut> lifecycle cycle=60 pss_kib=177846 threads=70
+mailstronaut> lifecycle cycle=70 pss_kib=161902 threads=70
+mailstronaut> lifecycle cycle=80 pss_kib=194952 threads=70
+mailstronaut> lifecycle cycle=90 pss_kib=178614 threads=70
+mailstronaut> lifecycle cycle=100 pss_kib=195137 threads=70
+mailstronaut> lifecycle sampled peak pss_kib=195137 threads=71
+mailstronaut> test tests::lifecycle_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.69s
+mailstronaut>
+mailstronaut> test tests::lifecycle_subprocess ... ok
+mailstronaut> script mode=production ready=true trigger=true inline=false event=false requests=[]
+mailstronaut> P01 allow=false connections=0 red=[false, false, false, false] callbacks=[("mailstronaut://20e7cd0f-ff6e-47bf-afe1-ba2e273227df/document", "Document", false), ("http://127.0.0.1:37199/import", "Style", true), ("http://127.0.0.1:37199/sheet", "Style", true), ("http://127.0.0.1:37199/image", "Image", true), ("file:///build/.tmpOGCEfO", "Image", true), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", true), ("http://127.0.0.1:37199/font", "Font", true), ("http://127.0.0.1:37199/background", "Image", true)]
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.08s
+mailstronaut>
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.08s
+mailstronaut>
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> script mode=positive ready=true trigger=true inline=true event=true requests=["/inline", "/event"]
+mailstronaut> P01 allow=true connections=5 red=[true, true, true, true] callbacks=[("mailstronaut://a7313b6c-d292-4171-a7d6-b2398faa03a1/document", "Document", false), ("http://127.0.0.1:37739/import", "Style", false), ("http://127.0.0.1:37739/image", "Image", false), ("file:///build/.tmp1Zabie", "Image", false), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", false), ("http://127.0.0.1:37739/sheet", "Style", false), ("http://127.0.0.1:37739/font", "Font", false), ("http://127.0.0.1:37739/background", "Image", false)]
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+mailstronaut>
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut>
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.32s
+mailstronaut>
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut> script mode=sanitized ready=true trigger=false inline=false event=false requests=[]
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut>
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.27s
+mailstronaut>
+mailstronaut>    Doc-tests mailstronaut_config
+mailstronaut>
+mailstronaut> running 0 tests
+mailstronaut>
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>    Doc-tests mailstronaut_core
+mailstronaut>
+mailstronaut> running 0 tests
+mailstronaut>
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>    Doc-tests mailstronaut_render
+mailstronaut>
+mailstronaut> running 0 tests
+mailstronaut>
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut> checkPhase completed in 6 minutes 38 seconds
+mailstronaut> Running phase: installPhase
+mailstronaut> actually installing contents of postBuildInstallFromCargoBuildLogOutTemppKJ to /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0
+mailstronaut> stripping references to Rust toolchain
+mailstronaut> Rust toolchain at: /nix/store/1qg7z7i461qsv0lczc40nyi8ps6snlca-rustc-1.99.0
+mailstronaut> stripping Rust toolchain references done
+mailstronaut> stripping references to cargoVendorDir from:
+mailstronaut> /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0/share/applications/io.github.eduardz1.Mailstronaut.desktop
+mailstronaut> stripping references done
+mailstronaut> Running phase: fixupPhase
+mailstronaut> shrinking RPATHs of ELF executables and libraries in /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0
+mailstronaut> shrinking /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> checking for references to /build/ in /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0...
+mailstronaut> patching script interpreter paths in /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0
+mailstronaut> stripping (with command strip and flags -S -p) in /nix/store/rqnjx2fqp7ydh8a1jmssivi5clxfzd2b-mailstronaut-0.1.0/bin
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+Use '--all-systems' to check all.

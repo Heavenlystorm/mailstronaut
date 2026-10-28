@@ -1,0 +1,25 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+this derivation will be built:
+  /nix/store/sxhswgk7iysg2307ri9plqd7ml27jrb0-mailstronaut-nested-metadata-probe.drv
+building '/nix/store/sxhswgk7iysg2307ri9plqd7ml27jrb0-mailstronaut-nested-metadata-probe.drv'...
+mailstronaut-nested-metadata-probe> cargoArtifacts not set, will not reuse any cargo artifacts
+mailstronaut-nested-metadata-probe> Running phase: unpackPhase
+mailstronaut-nested-metadata-probe> unpacking source archive /nix/store/8jfv292hyg5mybjpawas5d4403fp7z1p-source
+mailstronaut-nested-metadata-probe> source root is source
+mailstronaut-nested-metadata-probe> Running phase: patchPhase
+mailstronaut-nested-metadata-probe> Executing configureCargoCommonVars
+mailstronaut-nested-metadata-probe> Running phase: updateAutotoolsGnuConfigScriptsPhase
+mailstronaut-nested-metadata-probe> Running phase: configurePhase
+mailstronaut-nested-metadata-probe> will append /build/source/.cargo-home/config.toml with contents of /build/vendor/config.toml
+mailstronaut-nested-metadata-probe> default configurePhase, nothing to do
+mailstronaut-nested-metadata-probe> Running phase: buildPhase
+mailstronaut-nested-metadata-probe> +++ command cargo metadata --offline --all-features --format-version 1 --manifest-path ./Cargo.toml
+mailstronaut-nested-metadata-probe> +++ command cargo metadata --offline --all-features --format-version 1 --manifest-path ./Cargo.toml
+mailstronaut-nested-metadata-probe> +++ command cargo metadata --offline --all-features --format-version 1 --manifest-path ./Cargo.toml
+mailstronaut-nested-metadata-probe> +++ command cargo metadata --offline --all-features --format-version 1 --manifest-path ./Cargo.toml
+mailstronaut-nested-metadata-probe> +++ command cargo metadata --offline --all-features --format-version 1 --manifest-path ./Cargo.toml
+mailstronaut-nested-metadata-probe> Running phase: installPhase
+mailstronaut-nested-metadata-probe> Running phase: fixupPhase
+mailstronaut-nested-metadata-probe> shrinking RPATHs of ELF executables and libraries in /nix/store/yf8al6b3gdmzfpr8z013h45daidvzrhh-mailstronaut-nested-metadata-probe
+mailstronaut-nested-metadata-probe> checking for references to /build/ in /nix/store/yf8al6b3gdmzfpr8z013h45daidvzrhh-mailstronaut-nested-metadata-probe...
+mailstronaut-nested-metadata-probe> patching script interpreter paths in /nix/store/yf8al6b3gdmzfpr8z013h45daidvzrhh-mailstronaut-nested-metadata-probe

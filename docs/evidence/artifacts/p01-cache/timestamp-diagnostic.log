@@ -1,0 +1,205 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+this derivation will be built:
+  /nix/store/rhb7s85gv7ymkcpi4sn7hxjslp870y90-mailstronaut-0.1.0.drv
+building '/nix/store/rhb7s85gv7ymkcpi4sn7hxjslp870y90-mailstronaut-0.1.0.drv'...
+mailstronaut> Running phase: unpackPhase
+mailstronaut> unpacking source archive /nix/store/8jfv292hyg5mybjpawas5d4403fp7z1p-source
+mailstronaut> source root is source
+mailstronaut> Running phase: patchPhase
+mailstronaut> Executing configureCargoCommonVars
+mailstronaut> decompressing cargo artifacts from /nix/store/b1i2z5s7blgvaf6cik32snp35dlvz97h-mailstronaut-deps-0.1.0/target.tar.zst to target
+mailstronaut> Running phase: updateAutotoolsGnuConfigScriptsPhase
+mailstronaut> Running phase: configurePhase
+mailstronaut> will append /build/source/.cargo-home/config.toml with contents of /build/vendor/config.toml
+mailstronaut> default configurePhase, nothing to do
+mailstronaut> Running phase: buildPhase
+mailstronaut> +++ command cargo --version
+mailstronaut> cargo 1.99.0 (5f94df478 2026-08-27)
+mailstronaut> +++ command cargo build --release --message-format json-render-diagnostics --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 6m 07s
+mailstronaut> searching for bins/libs to install from cargo build log at cargoBuildLog75zV.json
+mailstronaut> installing /build/source/target/x86_64-unknown-linux-gnu/release/mailstronaut in postBuildInstallFromCargoBuildLogOutTempCwC/bin
+mailstronaut> searching for bins/libs complete
+mailstronaut> buildPhase completed in 6 minutes 8 seconds
+mailstronaut> Running phase: checkPhase
+mailstronaut> +++++ command cargo fmt --all -- --check
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut>     Checking mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>     Checking mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>     Checking mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>     Checking mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 52.49s
+mailstronaut> +++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>    Compiling mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>    Compiling mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 5m 13s
+mailstronaut>      Running unittests src/main.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut-803989f6ab84b1a7)
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> test tests::preview_respects_renderer_bounds ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>      Running tests/configuration.rs (target/x86_64-unknown-linux-gnu/release/deps/configuration-ad8e60f688294492)
+mailstronaut>
+mailstronaut> running 3 tests
+mailstronaut> test tests::cli_errors_are_redacted_and_never_initialize_graphics ... ok
+mailstronaut> test tests::native_cli_initialization_and_managed_symlinks_are_non_destructive ... ok
+mailstronaut> test tests::recursive_helper_is_timed_out_and_cancellation_reaps_a_live_child ... ok
+mailstronaut>
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.07s
+mailstronaut>
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_config-46e955ecfc74a524)
+mailstronaut>
+mailstronaut> running 7 tests
+mailstronaut> test tests::pure_expression_and_defaults ... ok
+mailstronaut> test tests::url_and_time_validation_rejects_malformed_values ... ok
+mailstronaut> test helper::tests::typed_responses_and_rejection ... ok
+mailstronaut> test tests::rejects_unknown_and_impure_inputs_without_echoing_them ... ok
+mailstronaut> test tests::rejects_unsupported_version_and_oversize_source ... ok
+mailstronaut> test tests::native_accounts_and_auth_fields ... ok
+mailstronaut> test helper::tests::oversized_expansion_is_rejected ... ok
+mailstronaut>
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+mailstronaut>
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_core-ff886427d28f30d5)
+mailstronaut>
+mailstronaut> running 6 tests
+mailstronaut> test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+mailstronaut> test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+mailstronaut> test store::tests::failed_insert_leaves_collectible_orphan ... ok
+mailstronaut> test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+mailstronaut> test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+mailstronaut> test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+mailstronaut>
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+mailstronaut>
+mailstronaut>      Running tests/mime.rs (target/x86_64-unknown-linux-gnu/release/deps/mime-944aa0792fc30838)
+mailstronaut>
+mailstronaut> running 11 tests
+mailstronaut> test tests::alternatives_headers_and_encodings ... ok
+mailstronaut> test tests::forwarded_message_is_not_outer_body ... ok
+mailstronaut> test tests::html_preview_attachments_and_duplicate_cid ... ok
+mailstronaut> test tests::inline_encryption_is_detected_without_headers_or_after_a_long_preamble ... ok
+mailstronaut> test tests::malformed_cid_is_not_resolved ... ok
+mailstronaut> test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+mailstronaut> test tests::missing_headers_still_produce_a_preview ... ok
+mailstronaut> test tests::unique_cid_is_scoped_to_its_message ... ok
+mailstronaut> test tests::preview_records_extracted_source_and_original_revision ... ok
+mailstronaut> test tests::bounds_encryption_and_malformed ... ok
+mailstronaut> test tests::part_and_attachment_limits_are_reported ... ok
+mailstronaut>
+mailstronaut> test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_render-58232a9766e9c222)
+mailstronaut>
+mailstronaut> running 7 tests
+mailstronaut> test tests::bounded_and_coalesced ... ok
+mailstronaut> test tests::sanitizer_removes_active_content_and_css ... ok
+mailstronaut> test tests::generated_document_is_bounded ... ok
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> lifecycle cycle=10 pss_kib=164596 threads=70
+mailstronaut> test tests::synthetic_pixels_and_native_theme ... ok
+mailstronaut> lifecycle cycle=20 pss_kib=167198 threads=70
+mailstronaut> lifecycle cycle=30 pss_kib=151490 threads=70
+mailstronaut> lifecycle cycle=40 pss_kib=159054 threads=70
+mailstronaut> lifecycle cycle=50 pss_kib=167257 threads=70
+mailstronaut> lifecycle cycle=60 pss_kib=154986 threads=70
+mailstronaut> lifecycle cycle=70 pss_kib=190486 threads=70
+mailstronaut> lifecycle cycle=80 pss_kib=211833 threads=70
+mailstronaut> lifecycle cycle=90 pss_kib=161689 threads=69
+mailstronaut> lifecycle cycle=100 pss_kib=196433 threads=70
+mailstronaut> lifecycle sampled peak pss_kib=211833 threads=70
+mailstronaut> test tests::lifecycle_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.25s
+mailstronaut>
+mailstronaut> test tests::lifecycle_subprocess ... ok
+mailstronaut> script mode=production ready=true trigger=true inline=false event=false requests=[]
+mailstronaut> P01 allow=false connections=0 red=[false, false, false, false] callbacks=[("mailstronaut://8d66381c-4cbf-420c-9f8f-74a97c557e06/document", "Document", false), ("http://127.0.0.1:43073/import", "Style", true), ("http://127.0.0.1:43073/sheet", "Style", true), ("http://127.0.0.1:43073/image", "Image", true), ("file:///build/.tmpA8hu2C", "Image", true), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", true), ("http://127.0.0.1:43073/font", "Font", true), ("http://127.0.0.1:43073/background", "Image", true)]
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut>
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut>
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> script mode=positive ready=true trigger=true inline=true event=true requests=["/inline", "/event"]
+mailstronaut> P01 allow=true connections=5 red=[true, true, true, true] callbacks=[("mailstronaut://ff6da98a-b8a6-4c9c-b1d2-6831b5e3e813/document", "Document", false), ("http://127.0.0.1:43249/image", "Image", false), ("file:///build/.tmps1MP4x", "Image", false), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", false), ("http://127.0.0.1:43249/sheet", "Style", false), ("http://127.0.0.1:43249/import", "Style", false), ("http://127.0.0.1:43249/font", "Font", false), ("http://127.0.0.1:43249/background", "Image", false)]
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+mailstronaut>
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+mailstronaut>
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut>
+mailstronaut> running 1 test
+mailstronaut> P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.26s
+mailstronaut>
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut> script mode=sanitized ready=true trigger=false inline=false event=false requests=[]
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+mailstronaut>
+mailstronaut> test tests::script_layers_subprocess ... ok
+mailstronaut>
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.23s
+mailstronaut>
+mailstronaut>    Doc-tests mailstronaut_config
+mailstronaut>
+mailstronaut> running 0 tests
+mailstronaut>
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>    Doc-tests mailstronaut_core
+mailstronaut>
+mailstronaut> running 0 tests
+mailstronaut>
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut>    Doc-tests mailstronaut_render
+mailstronaut>
+mailstronaut> running 0 tests
+mailstronaut>
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>
+mailstronaut> checkPhase completed in 6 minutes 24 seconds
+mailstronaut> Running phase: installPhase
+mailstronaut> actually installing contents of postBuildInstallFromCargoBuildLogOutTempCwC to /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0
+mailstronaut> stripping references to Rust toolchain
+mailstronaut> Rust toolchain at: /nix/store/1qg7z7i461qsv0lczc40nyi8ps6snlca-rustc-1.99.0
+mailstronaut> stripping Rust toolchain references done
+mailstronaut> stripping references to cargoVendorDir from:
+mailstronaut> /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0/share/applications/io.github.eduardz1.Mailstronaut.desktop
+mailstronaut> stripping references done
+mailstronaut> Running phase: fixupPhase
+mailstronaut> shrinking RPATHs of ELF executables and libraries in /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0
+mailstronaut> shrinking /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> checking for references to /build/ in /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0...
+mailstronaut> patching script interpreter paths in /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0
+mailstronaut> stripping (with command strip and flags -S -p) in /nix/store/rjgl1rybwy7sy05rgi52hhigwnp3cnz8-mailstronaut-0.1.0/bin

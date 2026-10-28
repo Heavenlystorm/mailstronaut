@@ -55,6 +55,34 @@ Delete only inactive, untracked build outputs inside the current project when
 cleaning up. Do not remove other projects' caches, external shared targets or Nix
 store/build directories. A deleted target requires rebuilding its dependencies.
 
+The release package uses pinned Crane `buildDepsOnly`/`buildPackage` artifacts
+for third-party dependencies. This Crane pin requires Nix 2.31.2 or later; the
+minimal CI image uses 2.34.9. Cargo manifests, the lockfile, toolchain, native
+inputs, target and release flags determine the dependency build. The vendor
+fetch itself consumes a lock-only source, so an ordinary Rust source edit does
+not invalidate it. The final package still runs strict release Clippy and the
+actual workspace tests. No remote binary cache or signing credentials are needed.
+
+Keep the writable vendor copy's timestamps and executable modes intact. Crane
+normalizes archived artifacts to epoch 1; giving unchanged vendor sources fresh
+timestamps makes Cargo rebuild them. Both passes use the same vendor preparation,
+including source mappings and the five nested mozjs lockfiles. The nightly
+development configuration remains excluded from release sources.
+
+After the normal gate, exercise a real source-only rebuild with:
+
+```sh
+nix develop --command bash experiments/p01-nix/cache-reuse.sh
+```
+
+The helper holds the shared build slot, creates a project-local disposable
+fixture, compares exact dependency identities, builds it, rejects third-party
+recompilation in the log, and checks installed CLI/configuration behavior. Its
+logs and fixture remain under `target`. It also checks that build artifacts are
+absent from the installed runtime closure. Caching does not remove the cost of
+compiling/linking workspace crates with thin LTO and one codegen unit. Recorded
+acceptance and limitations are in [P01 cache evidence](evidence/P01-cache.md).
+
 The `servo-probe` shell is an alias of the default environment. The optional
 `gui-test` shell preserves that environment and adds private-display tools plus
 the pinned stock COSMIC theme assets. GUI probes must redirect XDG configuration

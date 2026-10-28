@@ -1,0 +1,7 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Cache acceptance artifacts: /home/eduard/.t3/projects/mailstronaut/target/p01-cache-reuse.rIpqrRPf
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Exact dependency/vendor identities are stable; package and source differ.
+Source-only build compiled workspace crates only; third-party artifacts were reused.
+Dependency artifact is absent from both installed runtime closures.
+Cache source-only acceptance passed. Artifacts: /home/eduard/.t3/projects/mailstronaut/target/p01-cache-reuse.rIpqrRPf

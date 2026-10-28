@@ -1,0 +1,16 @@
+Base HEAD: 2ceb35d6f7e591306ce28db5bfd473a414880192 (working-tree Crane package changes)
+Normal gate service: mailstronaut-p01-nix-gate.service
+Normal gate invocation: c24dcf7c09414e98b027f20da31ea51d
+Normal gate status: 0, service inactive/collected, all checks passed
+Normal gate command: nix flake check --no-update-lock-file --print-build-logs --cores 16 --max-jobs 1
+Normal build command: nix build --no-update-lock-file --cores 16 --max-jobs 1 (cached, exit 0)
+Source-only service: mailstronaut-cache-reuse.service
+Source-only invocation: 08786abbae0f40f19c7af04edc49d1e6
+Source-only command: nix develop --command bash experiments/p01-nix/cache-reuse.sh
+Source-only local artifacts: target/p01-cache-reuse.rIpqrRPf
+Dependency archive: 2373256274 bytes (2.2 GiB rounded)
+Source-only service status: 0, inactive/collected
+Source-only variant package build seconds: 798
+Source-only observed tests: 35 workspace, 7 isolated renderer children
+Native source-only probes invocation: 298214431b53467cbfb4385fa822bc83
+Native source-only probes receipt: 0

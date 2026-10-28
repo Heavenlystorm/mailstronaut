@@ -1,0 +1,14 @@
+{
+  "workspace_tests": 35,
+  "isolated_renderer_children": 7,
+  "compiled_or_checked_crates": [
+    "mailstronaut",
+    "mailstronaut-config",
+    "mailstronaut-core",
+    "mailstronaut-render"
+  ],
+  "baseline_build_seconds": 1,
+  "variant_build_seconds": 798,
+  "source_only_status": 0,
+  "dependency_archive_bytes": 2373256274
+}

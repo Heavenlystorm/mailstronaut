@@ -5,12 +5,14 @@ let
 in
 package.overrideAttrs (_old: {
   name = "mailstronaut-nested-metadata-probe";
-  cargoDeps = package.cargoDeps;
+  # These source-only probes do not need the compiled dependency archive.
+  cargoArtifacts = null;
+  doNotPostBuildInstallCargoBinaries = true;
   buildPhase = ''
     runHook preBuild
     mkdir -p "$NIX_BUILD_TOP/metadata-results"
-    for crate in "$NIX_BUILD_TOP/$(stripHash "$cargoDeps")"/source-registry-0/mozjs_{locale,properties,collator,normalizer}_glue-* \
-      "$NIX_BUILD_TOP/$(stripHash "$cargoDeps")"/source-registry-0/mozjs_unicode_bidi_ffi-*; do
+    for crate in "$cargoVendorDir"/source-registry-0/mozjs_{locale,properties,collator,normalizer}_glue-* \
+      "$cargoVendorDir"/source-registry-0/mozjs_unicode_bidi_ffi-*; do
       (
         cd "$crate"
         cargo metadata --offline --all-features --format-version 1 --manifest-path ./Cargo.toml \

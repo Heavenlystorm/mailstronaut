@@ -5,10 +5,12 @@ let
 in
 package.overrideAttrs (_old: {
   name = "mailstronaut-mozjs-configure-probe";
-  cargoDeps = package.cargoDeps;
+  # These source-only probes do not need the compiled dependency archive.
+  cargoArtifacts = null;
+  doNotPostBuildInstallCargoBinaries = true;
   buildPhase = ''
     runHook preBuild
-    crate="$NIX_BUILD_TOP/$(stripHash "$cargoDeps")/source-registry-0/mozjs_sys-153.3.0-1"
+    crate="$cargoVendorDir/source-registry-0/mozjs_sys-153.3.0-1"
     mkdir "$NIX_BUILD_TOP/mozjs-configure"
     cd "$NIX_BUILD_TOP/mozjs-configure"
     export MOZBUILD_STATE_PATH="$PWD/mozbuild-state"
