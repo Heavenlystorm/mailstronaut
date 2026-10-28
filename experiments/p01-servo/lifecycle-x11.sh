@@ -26,10 +26,17 @@ xdotool mousemove --window "$window" 55 167 click 1
 sleep 2
 xdotool mousemove --window "$window" 10 10
 magick import -window "$window" "$artifact/about.png"
+# A theme change while no WebView exists must reach the newly created view.
+printf true > "$mode/is_dark"
+sleep 1
 xdotool mousemove --window "$window" 55 119 click 1
 sleep 3
 xdotool mousemove --window "$window" 10 10
 magick import -window "$window" "$artifact/preview-after.png"
+dark=$(magick "$artifact/preview-after.png" -format '%[fx:p{700,350}.r+p{700,350}.g+p{700,350}.b]' info:)
+awk -v value="$dark" 'BEGIN { exit !(value < .1) }'
+printf false > "$mode/is_dark"
+sleep 1
 kill -0 "$app"
 
 # Exercise repeated disposal/reopening in the private server, retaining captures.
@@ -42,3 +49,5 @@ for ((cycle=1; cycle<=10; cycle++)); do
 done
 xdotool mousemove --window "$window" 10 10
 magick import -window "$window" "$artifact/preview-cycle-10.png"
+light=$(magick "$artifact/preview-cycle-10.png" -format '%[fx:p{700,350}.r+p{700,350}.g+p{700,350}.b]' info:)
+awk -v value="$light" 'BEGIN { exit !(value > 2.9) }'

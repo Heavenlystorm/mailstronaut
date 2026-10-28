@@ -1,0 +1,25 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+
+running 1 test
+
+running 1 test
+MESA-EGL: warning: pci id for fd 9: 10de:2db8, driver (null)
+lifecycle cycle=10 pss_kib=166175 threads=41
+lifecycle cycle=20 pss_kib=167148 threads=44
+lifecycle cycle=30 pss_kib=169575 threads=41
+lifecycle cycle=40 pss_kib=169972 threads=41
+lifecycle cycle=50 pss_kib=173192 threads=41
+lifecycle cycle=60 pss_kib=177136 threads=41
+lifecycle cycle=70 pss_kib=178841 threads=41
+lifecycle cycle=80 pss_kib=179116 threads=41
+lifecycle cycle=90 pss_kib=183960 threads=41
+lifecycle cycle=100 pss_kib=184796 threads=41
+lifecycle sampled peak pss_kib=184796 threads=44
+test tests::lifecycle_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 2.74s
+
+test tests::lifecycle_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 2.78s
+

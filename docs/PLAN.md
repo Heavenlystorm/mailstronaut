@@ -72,6 +72,9 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
 - [x] Exercise bounded synthetic wheel scrolling and initial X11 scale at
   100/150/200%, with pixel-displacement tests and uncropped before/after captures.
   See P01 evidence; dynamic Wayland scale changes and other input remain open.
+- [x] Recreate disposable synthetic WebViews on one retained engine/context;
+  verify 100 cycles, delegate release, native theme after reopening, and idle
+  measurements. The retained graphics context is explicit; full release remains open.
 - [ ] Wire waker/spin/frame-ready/redraw, input, scroll, selection/copy, HiDPI,
   resizing, focus, links and webview teardown; one message viewport at a time.
 - [ ] Forward effective COSMIC dark/light theme through Servo's native method.

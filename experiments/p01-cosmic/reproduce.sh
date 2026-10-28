@@ -3,7 +3,7 @@
 # Only private displays, config directories and stock pinned COSMIC theme assets.
 set -euo pipefail
 binary=$(realpath "${1:?pass a prebuilt Mailstronaut binary}")
-artifact=$(mktemp -d /tmp/mailstronaut-cosmic-ui.XXXXXX)
+artifact=${2:-$(mktemp -d /tmp/mailstronaut-cosmic-ui.XXXXXX)}
 printf 'Artifacts: %s\n' "$artifact"
 mkdir -p "$artifact"/{runtime,config,cache,data,state}
 chmod 700 "$artifact/runtime"
@@ -41,11 +41,39 @@ trap cleanup EXIT
 # than accepting a process that is alive or a screenshot of an empty window.
 check_pixel() {
   local value
-  value=$(magick "$1" -format '%[fx:p{300,350}.r+p{300,350}.g+p{300,350}.b]' info:)
+  value=$(magick "$1" -format '%[fx:p{700,350}.r+p{700,350}.g+p{700,350}.b]' info:)
   python3 - "$value" "$2" <<'PY'
 import sys
 value = float(sys.argv[1])
 assert {'dark': value < .1, 'light': value > 2.9, 'native': .1 < value < 2.9}[sys.argv[2]], (value, sys.argv[2])
+PY
+}
+
+# Sample this process, including all its threads, in five-second idle intervals.
+# Absolute PSS is not reader-incremental memory or an engine-free baseline.
+sample_idle() {
+  python3 - "$app_pid" "$1" "$2" <<'PY'
+import json, os, pathlib, statistics, sys, time
+proc = pathlib.Path('/proc') / sys.argv[1]
+ticks_per_second = os.sysconf('SC_CLK_TCK')
+def sample():
+    fields = (proc / 'stat').read_text().rsplit(')', 1)[1].split()
+    return time.monotonic(), int(fields[11]) + int(fields[12])
+def memory():
+    return int(next(line.split()[1] for line in (proc / 'smaps_rollup').read_text().splitlines() if line.startswith('Pss:')))
+start = previous = sample()
+percentages = []
+pss = [memory()]
+for _ in range(int(sys.argv[3])):
+    time.sleep(5)
+    current = sample()
+    percentages.append((current[1] - previous[1]) / ticks_per_second / (current[0] - previous[0]) * 100)
+    pss.append(memory())
+    previous = current
+pathlib.Path(sys.argv[2]).write_text(json.dumps({
+    'seconds': previous[0] - start[0], 'percent_of_one_cpu': percentages,
+    'median_cpu_percent': statistics.median(percentages), 'pss_kib': pss,
+}, indent=2) + '\n')
 PY
 }
 
@@ -78,6 +106,7 @@ xdotool mousemove --window "$window" 55 167 click 1
 sleep .5
 magick import -window "$window" "$artifact/x11-about.png"
 check_pixel "$artifact/x11-about.png" native
+sample_idle "$artifact/x11-about-idle.json" 3
 xdotool mousemove --window "$window" 55 119 click 1
 xdotool mousemove --window "$window" 5 5
 sleep .5
@@ -89,31 +118,7 @@ magick import -window "$window" "$artifact/x11-resize.png"
 [[ $(magick identify -format '%wx%h' "$artifact/x11-resize.png") == 800x620 ]]
 check_pixel "$artifact/x11-resize.png" light
 
-# Measure the entire single process (all threads) across twelve 5-second idle
-# intervals. Absolute PSS is not reader-incremental memory or a headless baseline.
-python3 - "$app_pid" "$artifact/x11-idle.json" <<'PY'
-import json, os, pathlib, statistics, sys, time
-proc = pathlib.Path('/proc') / sys.argv[1]
-ticks_per_second = os.sysconf('SC_CLK_TCK')
-def sample():
-    fields = (proc / 'stat').read_text().rsplit(')', 1)[1].split()
-    return time.monotonic(), int(fields[11]) + int(fields[12])
-def memory():
-    return int(next(line.split()[1] for line in (proc / 'smaps_rollup').read_text().splitlines() if line.startswith('Pss:')))
-start = previous = sample()
-percentages = []
-pss = [memory()]
-for _ in range(12):
-    time.sleep(5)
-    current = sample()
-    percentages.append((current[1] - previous[1]) / ticks_per_second / (current[0] - previous[0]) * 100)
-    pss.append(memory())
-    previous = current
-pathlib.Path(sys.argv[2]).write_text(json.dumps({
-    'seconds': previous[0] - start[0], 'percent_of_one_cpu': percentages,
-    'median_cpu_percent': statistics.median(percentages), 'pss_kib': pss,
-}, indent=2) + '\n')
-PY
+sample_idle "$artifact/x11-idle.json" 12
 kill "$app_pid"
 wait "$app_pid" || true
 app_pid=
