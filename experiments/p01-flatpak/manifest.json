@@ -1,0 +1,34 @@
+{
+  "id": "io.github.eduardz1.Mailstronaut",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "26.08",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable", "org.freedesktop.Sdk.Extension.llvm22"],
+  "command": "mailstronaut",
+  "modules": [
+    {
+      "name": "mailstronaut",
+      "buildsystem": "simple",
+      "subdir": "app",
+      "build-options": {
+        "append-path": "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm22/bin",
+        "prepend-ld-library-path": "/usr/lib/sdk/llvm22/lib",
+        "env": {
+          "CARGO_HOME": "/run/build/mailstronaut/cargo-home",
+          "CARGO_NET_OFFLINE": "true",
+          "CARGO_CACHE_AUTO_CLEAN_FREQUENCY": "never",
+          "LIBCLANG_PATH": "/usr/lib/sdk/llvm22/lib",
+          "CC": "clang",
+          "CXX": "clang++",
+          "CMAKE_BUILD_PARALLEL_LEVEL": "2",
+          "MAKEFLAGS": "-j2"
+        }
+      },
+      "build-commands": ["bash flatpak-probe-build.sh metadata"],
+      "sources": [
+        {"type": "dir", "path": "../../target/p01-flatpak/source"},
+        {"type": "file", "path": "build.sh", "dest": "app", "dest-filename": "flatpak-probe-build.sh"}
+      ]
+    }
+  ]
+}

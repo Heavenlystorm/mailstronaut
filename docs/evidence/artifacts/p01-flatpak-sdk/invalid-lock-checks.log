@@ -1,0 +1,17 @@
+empty_refs.json.log
+jq: error (at .cache/flatpak-review/invalid-locks/empty_refs.json:0): Invalid SDK lock: require x86_64/26.08 and exactly four commit pins
+
+invalid_digest.json.log
+jq: error (at .cache/flatpak-review/invalid-locks/invalid_digest.json:0): Invalid SDK lock: require x86_64/26.08 and exactly four commit pins
+
+missing_one.json.log
+jq: error (at .cache/flatpak-review/invalid-locks/missing_one.json:0): Invalid SDK lock: require x86_64/26.08 and exactly four commit pins
+
+missing_refs.json.log
+jq: error (at .cache/flatpak-review/invalid-locks/missing_refs.json:0): Invalid SDK lock: require x86_64/26.08 and exactly four commit pins
+
+wrong_arch.json.log
+jq: error (at .cache/flatpak-review/invalid-locks/wrong_arch.json:0): Invalid SDK lock: require x86_64/26.08 and exactly four commit pins
+
+wrong_type.json.log
+jq: error (at .cache/flatpak-review/invalid-locks/wrong_type.json:0): Invalid SDK lock: require x86_64/26.08 and exactly four commit pins

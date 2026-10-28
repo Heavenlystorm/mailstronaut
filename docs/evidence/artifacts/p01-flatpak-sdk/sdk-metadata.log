@@ -1,0 +1,123 @@
+Rejected .cache/flatpak-review/invalid-locks/empty_refs.json
+Rejected .cache/flatpak-review/invalid-locks/invalid_digest.json
+Rejected .cache/flatpak-review/invalid-locks/missing_one.json
+Rejected .cache/flatpak-review/invalid-locks/missing_refs.json
+Rejected .cache/flatpak-review/invalid-locks/wrong_arch.json
+Rejected .cache/flatpak-review/invalid-locks/wrong_type.json
+Flatpak 1.18.4
+flatpak-builder-1.4.10
+org.freedesktop.Platform/x86_64/26.08 df26daaf9d07610b4a72cc4585566194051275ac68396597b06474396f66427c
+org.freedesktop.Sdk/x86_64/26.08 a1b744b072d9f55d061e35382547ae80dad8d92abecc1da7dc1818de2daabfd3
+org.freedesktop.Sdk.Extension.rust-stable/x86_64/26.08 14774cebefeaa23a41f088a9f8ad61e98c1a32f605a3aee655744d59fe414ebc
+org.freedesktop.Sdk.Extension.llvm22/x86_64/26.08 dce3c1958ec49f0c8b5934ed671e938e1992febb1738c6bb8ebb28770c71d70d
+/usr/lib/sdk/rust-stable/bin/rustc
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: x86_64-unknown-linux-gnu
+release: 1.98.0
+LLVM version: 22.1.8
+/usr/lib/sdk/rust-stable/bin/cargo
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+/usr/bin/cc
+cc (GCC) 16.2.0
+Copyright (C) 2026 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+/usr/bin/c++
+/usr/lib/sdk/llvm22/bin/clang
+clang version 22.1.8
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /usr/lib/sdk/llvm22/bin
+/usr/lib/sdk/llvm22/bin/llvm-config
+/usr/lib/sdk/llvm22/bin/llvm-ar
+/usr/lib/sdk/llvm22/bin/llvm-objdump
+/usr/lib/sdk/llvm22/bin/llvm-profdata
+/usr/bin/cmake
+cmake version 4.4.4
+
+CMake suite maintained and supported by Kitware (kitware.com/cmake).
+/usr/bin/ninja
+1.13.2
+/usr/bin/make
+/usr/bin/python3
+/usr/bin/perl
+/usr/bin/pkg-config
+2.18.3
+FOUND LIBRARY: fontconfig
+26.7.20
+FOUND LIBRARY: freetype2
+1.26.0
+FOUND LIBRARY: wayland-client
+1.13.2
+FOUND LIBRARY: xkbcommon
+26.2.5
+FOUND LIBRARY: egl
+26.2.5
+FOUND LIBRARY: gl
+1.8.14
+FOUND LIBRARY: x11
+1.2.3
+FOUND LIBRARY: xcursor
+1.8.4
+FOUND LIBRARY: xi
+1.5.5
+FOUND LIBRARY: xrandr
+
+SDK libclang candidates:
+/usr/lib/sdk/llvm22/lib/libclang.so
+/usr/lib/sdk/llvm22/lib/libclang.so.22.1.8
+/usr/lib/sdk/llvm22/lib/libclang.so.22.1
+
+SDK certificate candidates:
+/etc/ssl/certs/ca-certificates.crt
+/etc/ssl/certs/ca-bundle.crt
+/etc/pki/tls/certs/ca-bundle.crt
+
+SDK font families:
+Caladea
+Carlito
+DejaVu Math TeX Gyre
+DejaVu Sans
+DejaVu Sans,DejaVu Sans Condensed
+DejaVu Sans,DejaVu Sans Light
+DejaVu Sans Mono
+DejaVu Serif
+DejaVu Serif,DejaVu Serif Condensed
+FreeMono
+FreeSans
+FreeSerif
+Liberation Mono
+Liberation Sans
+Liberation Serif
+Noto Color Emoji
+TeX Gyre Adventor
+TeX Gyre Bonum
+TeX Gyre Chorus
+TeX Gyre Cursor
+TeX Gyre Heros
+TeX Gyre Heros Cn
+TeX Gyre Pagella
+TeX Gyre Schola
+TeX Gyre Termes
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: x86_64-unknown-linux-gnu
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+clang version 22.1.8
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /usr/lib/sdk/llvm22/bin
+Offline nested metadata: mozjs_locale_glue
+Offline nested metadata: mozjs_properties_glue
+Offline nested metadata: mozjs_collator_glue
+Offline nested metadata: mozjs_normalizer_glue
+Offline nested metadata: mozjs_unicode_bidi_ffi
+Metadata phase passed; no compilation attempted.

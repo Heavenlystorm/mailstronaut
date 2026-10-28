@@ -1,0 +1,42 @@
+flathub	https://dl.flathub.org/repo/
+
+org.freedesktop.Platform
+            ID: org.freedesktop.Platform
+           Ref: runtime/org.freedesktop.Platform/x86_64/26.08
+          Arch: x86_64
+        Branch: 26.08
+    Collection: org.flathub.Stable
+ Download Size: 282.7 MB
+Installed Size: 724.2 MB
+
+        Commit: df26daaf9d07610b4a72cc4585566194051275ac68396597b06474396f66427c
+        Parent: e7f7b0fb20662fe92e4eac65d58a57019cefae45a39559c4b50440a88acc0491
+       Subject: 114ae909ec9881958bd507c8b4414aa33f758d2b
+          Date: 2026-10-26 18:13:16 +0000
+
+org.freedesktop.Sdk
+            ID: org.freedesktop.Sdk
+           Ref: runtime/org.freedesktop.Sdk/x86_64/26.08
+          Arch: x86_64
+        Branch: 26.08
+    Collection: org.flathub.Stable
+ Download Size: 659.2 MB
+Installed Size: 1.8 GB
+
+        Commit: a1b744b072d9f55d061e35382547ae80dad8d92abecc1da7dc1818de2daabfd3
+        Parent: 3311c13c67b602315c39cf5310de129dd3460d04b6c8cf5be1b2cbc42c51abd7
+       Subject: 114ae909ec9881958bd507c8b4414aa33f758d2b
+          Date: 2026-10-26 18:19:47 +0000
+
+org.freedesktop.Sdk.Extension.rust-stable
+            ID: org.freedesktop.Sdk.Extension.rust-stable
+           Ref: runtime/org.freedesktop.Sdk.Extension.rust-stable/x86_64/26.08
+          Arch: x86_64
+        Branch: 26.08
+    Collection: org.flathub.Stable
+ Download Size: 557.1 MB
+Installed Size: 2.0 GB
+
+        Commit: 14774cebefeaa23a41f088a9f8ad61e98c1a32f605a3aee655744d59fe414ebc
+       Subject: Merge pull request #547 from A6GibKm/26.08-first-commit (c9fd7fde3fa6)
+          Date: 2026-09-03 19:20:53 +0000

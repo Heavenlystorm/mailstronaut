@@ -1,0 +1,11 @@
+            ID: org.freedesktop.Sdk.Extension.llvm22
+           Ref: runtime/org.freedesktop.Sdk.Extension.llvm22/x86_64/26.08
+          Arch: x86_64
+        Branch: 26.08
+    Collection: org.flathub.Stable
+ Download Size: 131.9 MB
+Installed Size: 495.7 MB
+
+        Commit: dce3c1958ec49f0c8b5934ed671e938e1992febb1738c6bb8ebb28770c71d70d
+       Subject: Use 26.08 runtime (fdc562ff8787)
+          Date: 2026-09-02 00:29:54 +0000

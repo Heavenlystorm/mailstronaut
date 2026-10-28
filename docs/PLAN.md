@@ -91,6 +91,9 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
   stop redraw work when hidden and release browser/graphics resources headless.
 - [ ] Verify HTML accessibility bridge or document/test the native accessible text
   reader mode; a texture alone is not an accessibility tree.
+- [x] Inventory a project-local x86_64 Flatpak SDK with pinned Rust/LLVM extensions;
+  exercise frozen offline workspace fetch and all five nested mozjs metadata
+  calls in the SDK and metadata-only builder. This does not establish compilation.
 - [ ] Run a Nix package build and a minimal Flatpak build-environment spike to catch
   SpiderMonkey/toolchain/native-source obstacles before continuing. This spike is
   not the complete Flatpak distribution acceptance.

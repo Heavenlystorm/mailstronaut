@@ -1,0 +1,14 @@
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+cc (GCC) 16.2.0
+Copyright (C) 2026 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Offline nested metadata: mozjs_locale_glue
+error: current package believes it's in a workspace when it's not:
+current:   /run/build/mailstronaut/vendor/source-registry-0/mozjs_locale_glue-153.3.0/Cargo.toml
+workspace: /run/build/mailstronaut/Cargo.toml
+
+this may be fixable by adding `vendor/source-registry-0/mozjs_locale_glue-153.3.0` to the `workspace.members` array of the manifest located at: /run/build/mailstronaut/Cargo.toml
+Alternatively, to keep it out of the workspace, add the package to the `workspace.exclude` array, or add an empty `[workspace]` table to the package's manifest.

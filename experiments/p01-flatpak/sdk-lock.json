@@ -1,0 +1,10 @@
+{
+  "architecture": "x86_64",
+  "branch": "26.08",
+  "refs": {
+    "org.freedesktop.Platform": "df26daaf9d07610b4a72cc4585566194051275ac68396597b06474396f66427c",
+    "org.freedesktop.Sdk": "a1b744b072d9f55d061e35382547ae80dad8d92abecc1da7dc1818de2daabfd3",
+    "org.freedesktop.Sdk.Extension.rust-stable": "14774cebefeaa23a41f088a9f8ad61e98c1a32f605a3aee655744d59fe414ebc",
+    "org.freedesktop.Sdk.Extension.llvm22": "dce3c1958ec49f0c8b5934ed671e938e1992febb1738c6bb8ebb28770c71d70d"
+  }
+}

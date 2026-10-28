@@ -143,11 +143,17 @@ do not silently share destructive migrations across stable/beta installs.
 Use `flatpak-builder` with a Freedesktop runtime/SDK (no GTK/GNOME dependency just
 for libcosmic). P10 must select and pin a supported branch (evaluate 26.08 first,
 then 25.08 if dependency compatibility requires it), SDK commit and Rust extension
-matching at least the selected MSRV. The inspected upstream extension manifest
-specifies branch 26.08 and Rust 1.98.0; installation and compilation are **not yet
-verified**. Pin upstream git sources including
+matching at least the selected MSRV. The P01 experiment now verifies a
+project-local x86_64 SDK 26.08 installation with Rust 1.98.0 and the LLVM 22
+extension, including offline dependency metadata in the actual SDK sandbox.
+Application compilation and installed Flatpak execution remain **unverified**.
+See [the experiment](../experiments/p01-flatpak/README.md) and its SDK commit lock;
+it is not the production release manifest. Pin upstream git sources including
 submodules and source checksums. Generate Cargo source manifests from Cargo.lock
-using the standard flatpak-builder-tools Cargo generator, and lock generated output.
+using standard tools, and lock generated output. The early spike reuses Nix's
+hashed, source-separated vendor output because plain Cargo vendor rejects the
+two same-version `dpi` packages from different sources. Validate any replacement
+generator against this graph, including submodules and nested mozjs metadata.
 All builds use `cargo --frozen --offline`; no network access in build commands.
 Provide upstream-generated/prebuilt SpiderMonkey artifacts as explicit hashed
 sources if required; never let a build.rs download an untracked binary.
