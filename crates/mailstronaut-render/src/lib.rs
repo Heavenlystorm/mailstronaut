@@ -12,9 +12,10 @@ use servo::protocol_handler::{
     Request, ResourceFetchTiming, Response, ResponseBody,
 };
 use servo::{
-    DeviceIntPoint, DeviceIntRect, EventLoopWaker, NavigationRequest, PermissionRequest,
-    RenderingContext as _, Servo, ServoBuilder, ServoDelegate, SoftwareRenderingContext, Theme,
-    WebResourceLoad, WebResourceResponse, WebView, WebViewBuilder, WebViewDelegate,
+    DeviceIntPoint, DeviceIntRect, DevicePoint, EventLoopWaker, InputEvent, NavigationRequest,
+    PermissionRequest, RenderingContext as _, Servo, ServoBuilder, ServoDelegate,
+    SoftwareRenderingContext, Theme, WebResourceLoad, WebResourceResponse, WebView, WebViewBuilder,
+    WebViewDelegate, WheelDelta, WheelEvent, WheelMode,
 };
 extern crate alloc;
 use alloc::rc::Rc;
@@ -155,9 +156,12 @@ impl Viewport {
         reason = "This fallible constructor delegates to the bounded internal constructor"
     )]
     pub fn synthetic(width: u32, height: u32) -> Result<Self, String> {
-        let body = sanitize("<h1>Synthetic Servo viewport</h1><p>No mail</p>");
+        let body = sanitize(&format!(
+            "<h1>Synthetic Servo viewport</h1><p>No mail</p>{}",
+            "<p>Synthetic scrolling marker</p>".repeat(80)
+        ));
         let document = format!(
-            "<!doctype html><style>body {{ background: white; color: black }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style>{body}"
+            "<!doctype html><style>body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style>{body}"
         );
         Self::from_document(width, height, document)
     }
@@ -263,6 +267,62 @@ impl Viewport {
         check_size(width, height)?;
         self.size = (width, height);
         self.view.resize((width, height).into());
+        Ok(())
+    }
+    /// Set the physical pixels per logical CSS pixel.
+    ///
+    /// # Errors
+    /// Rejects non-finite or non-positive scales.
+    #[inline]
+    #[expect(
+        clippy::implicit_return,
+        reason = "This fallible operation returns the validated result."
+    )]
+    pub fn set_scale(&self, scale: f32) -> Result<(), String> {
+        if !scale.is_finite() || scale <= 0.0 {
+            return Err("scale must be finite and positive".into());
+        }
+        let mut factor = self.view.hidpi_scale_factor();
+        factor.0 = scale;
+        self.view.set_hidpi_scale_factor(factor);
+        Ok(())
+    }
+    /// Send a wheel event at a physical point within the viewport.
+    ///
+    /// # Errors
+    /// Rejects non-finite values or points outside the physical viewport.
+    #[expect(
+        clippy::float_arithmetic,
+        clippy::implicit_return,
+        clippy::as_conversions,
+        clippy::cast_precision_loss,
+        reason = "Viewport bounds are at most 2048 pixels and wheel values use floating point."
+    )]
+    #[inline]
+    pub fn wheel(&self, x: f32, y: f32, dx: f32, dy: f32, lines: bool) -> Result<(), String> {
+        if ![x, y, dx, dy].iter().all(|value| value.is_finite())
+            || x < 0.0
+            || y < 0.0
+            || x >= self.size.0 as f32
+            || y >= self.size.1 as f32
+        {
+            return Err("invalid wheel position or delta".into());
+        }
+        let multiplier = if lines { 76.0 } else { 1.0 };
+        self.view
+            .notify_input_event(InputEvent::Wheel(WheelEvent::new(
+                WheelDelta {
+                    x: f64::from(dx * multiplier),
+                    y: f64::from(dy * multiplier),
+                    z: 0.0,
+                    mode: if lines {
+                        WheelMode::DeltaLine
+                    } else {
+                        WheelMode::DeltaPixel
+                    },
+                },
+                DevicePoint::new(x, y).into(),
+            )));
         Ok(())
     }
     /// Forward the host's effective theme to Servo.
@@ -398,7 +458,7 @@ mod tests {
         std::fs::write(local.path(), r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>"#).expect("write fixture");
         let file_url = url::Url::from_file_path(local.path()).expect("file URL");
         let document = format!(
-            r#"<!doctype html><style>@import url(http://{address}/style); body {{ background: white; color: black }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style><link rel="preconnect" href="http://{address}"><img src="http://{address}/pixel"><img src="{file_url}"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22red%22/%3E%3C/svg%3E"><script>document.body.style.background='red'; fetch('http://{address}/script')</script><h1>Synthetic viewport</h1>"#
+            r#"<!doctype html><style>@import url(http://{address}/style); body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style><div class=marker></div><div class=gap></div><link rel="preconnect" href="http://{address}"><img src="http://{address}/pixel"><img src="{file_url}"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22red%22/%3E%3C/svg%3E"><script>document.body.style.background='red'; fetch('http://{address}/script')</script><h1>Synthetic viewport</h1>"#
         );
         let mut viewport = Viewport::from_document(320, 200, document).expect("viewport");
         fn frame(viewport: &Viewport, dark: bool) -> Vec<u8> {
@@ -433,11 +493,76 @@ mod tests {
             "script or resource changed pixels"
         );
         let dark = frame(&viewport, true);
-        assert!(dark.chunks_exact(4).any(|pixel| pixel[0] > 128));
+        assert!(dark.chunks_exact(4).any(|pixel| pixel[1] > 128));
         viewport.resize(160, 100).expect("resize");
         let resized = frame(&viewport, true);
         assert_eq!(resized.len(), 160 * 100 * 4);
         assert!(viewport.resize(2049, 1).is_err());
         assert!(listener.accept().is_err(), "unexpected loopback connection");
+        viewport.set_dark(false);
+        viewport.resize(320, 200).expect("restore size");
+        check_scroll_and_scale(&mut viewport);
+    }
+    #[expect(
+        clippy::arithmetic_side_effects,
+        clippy::single_call_fn,
+        reason = "Bounded test pixels and deadlines are checked on one retained engine."
+    )]
+    fn check_scroll_and_scale(viewport: &mut Viewport) {
+        fn wait_for(viewport: &Viewport, predicate: impl Fn(&[u8]) -> bool) -> Vec<u8> {
+            let deadline = Instant::now() + Duration::from_secs(30);
+            loop {
+                if let Some(frame) = viewport.paint()
+                    && predicate(&frame)
+                {
+                    return frame;
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                assert!(
+                    !remaining.is_zero(),
+                    "timed out waiting for expected pixels"
+                );
+                if viewport.wake_receiver().try_recv().is_err() {
+                    std::thread::sleep(Duration::from_millis(5).min(remaining));
+                }
+            }
+        }
+        fn green(frame: &[u8], width: usize, x: usize, y: usize) -> bool {
+            let pixel = &frame[(y * width + x) * 4..][..3];
+            pixel[0] < 30 && pixel[1] > 220 && pixel[2] < 30
+        }
+        let initial = wait_for(viewport, |frame| green(frame, 320, 40, 40));
+        assert!(!green(&initial, 320, 120, 40));
+        viewport
+            .wheel(50.0, 50.0, 0.0, -300.0, false)
+            .expect("wheel");
+        let scrolled = wait_for(viewport, |frame| !green(frame, 320, 40, 40));
+        assert_ne!(initial, scrolled);
+        assert!(viewport.wheel(f32::NAN, 0.0, 0.0, 1.0, false).is_err());
+        assert!(viewport.set_scale(0.0).is_err());
+        assert!(viewport.set_scale(f32::INFINITY).is_err());
+        viewport
+            .wheel(50.0, 50.0, 0.0, 1000.0, false)
+            .expect("wheel up");
+        drop(wait_for(viewport, |frame| green(frame, 320, 40, 40)));
+        viewport.set_scale(1.5).expect("scale");
+        viewport.resize(480, 300).expect("resize");
+        let scaled = wait_for(viewport, |frame| {
+            frame.len() == 480 * 300 * 4 && green(frame, 480, 100, 70)
+        });
+        assert!(!green(&scaled, 480, 170, 70));
+        viewport.set_scale(2.0).expect("scale 200 percent");
+        viewport.resize(640, 400).expect("resize 200 percent");
+        let doubled = wait_for(viewport, |frame| {
+            frame.len() == 640 * 400 * 4 && green(frame, 640, 150, 80)
+        });
+        assert!(!green(&doubled, 640, 230, 80));
+        viewport.set_scale(1.5).expect("restore scale");
+        viewport.resize(480, 300).expect("restore size");
+        viewport.set_dark(true);
+        let scaled_dark = wait_for(viewport, |frame| {
+            frame.len() == 480 * 300 * 4 && frame[(200 * 480 + 200) * 4] < 30
+        });
+        assert!(green(&scaled_dark, 480, 70, 70));
     }
 }
