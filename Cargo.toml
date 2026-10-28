@@ -35,6 +35,7 @@ serde_json = "=1.0.154"
 rustix = { version = "=1.1.6", features = ["process", "stdio"] }
 snix-serde = { git = "https://git.snix.dev/snix/snix.git", rev = "f393b22aa9b8e0e74c9e8d67f15454409299e510" }
 mailstronaut-config = { path = "crates/mailstronaut-config" }
+mailstronaut-render = { path = "crates/mailstronaut-render" }
 tokio = { version = "1", features = ["rt", "macros", "process", "io-util", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 directories = "6"

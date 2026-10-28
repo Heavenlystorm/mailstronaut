@@ -5,7 +5,9 @@
 A planned local-first email client for the COSMIC desktop, written in Rust with
 libcosmic and Servo. This repository contains the architecture, a native COSMIC
 preview window, and initial configuration and storage components.
-**It is not yet a usable email client.** Servo integration is still pending.
+**It is not yet a usable email client.** The preview displays a fixed synthetic
+Servo document with native theme forwarding. Untrusted mail rendering, input,
+accessibility and background lifecycle remain feasibility gates.
 
 Start with the [implementation checklist](docs/PLAN.md). It defines dependency-
 ordered milestones, precise acceptance checks and the evidence required to mark

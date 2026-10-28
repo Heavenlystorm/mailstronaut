@@ -7,18 +7,27 @@
 
 mod config_cli;
 
+use core::hash::{Hash, Hasher};
 use std::{env, process::ExitCode};
 
 use cosmic::app::{self, Core, Settings, Task};
-use cosmic::iced::widget::{column, row};
-use cosmic::{Element, executor, widget};
+use cosmic::iced::widget::{column, image, row};
+use cosmic::iced::{Subscription, futures::stream, window};
+use cosmic::{Action, Element, cosmic_theme, executor, theme, widget};
+use mailstronaut_render::Viewport;
 
 /// Toolkit-owned application state.
 struct App {
     /// COSMIC application state, including the system theme.
     core: Core,
+    /// Latest uploaded synthetic frame.
+    frame: Option<image::Handle>,
     /// The currently selected synthetic preview.
     page: Page,
+    /// Dimensions of the current frame and viewport.
+    size: (u32, u32),
+    /// Retained UI-thread Servo instance or its startup error.
+    viewport: Result<Viewport, String>,
 }
 
 /// Synthetic navigation targets.
@@ -35,6 +44,8 @@ enum Page {
 enum Message {
     /// Select a synthetic page.
     Select(Page),
+    /// Drive Servo after a coalesced wake.
+    Wake,
 }
 
 #[expect(
@@ -62,24 +73,131 @@ impl cosmic::Application for App {
             Self {
                 core,
                 page: Page::Preview,
+                viewport: {
+                    let viewport = Viewport::synthetic(640, 400);
+                    if let Ok(reader) = viewport.as_ref() {
+                        reader.set_dark(theme::is_dark());
+                    }
+                    viewport
+                },
+                frame: None,
+                size: (640, 400),
             },
-            Task::none(),
+            Task::done(Action::App(Message::Wake)),
         )
     }
 
-    fn update(&mut self, message: Message) -> Task<Message> {
-        let Message::Select(page) = message;
-        self.page = page;
+    fn on_window_resize(&mut self, _: window::Id, width: f32, height: f32) {
+        let size = preview_size(width, height);
+        if size != self.size
+            && let Ok(viewport) = self.viewport.as_mut()
+            && viewport.resize(size.0, size.1).is_ok()
+        {
+            self.size = size;
+            self.frame = None;
+        }
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        if matches!(self.page, Page::Preview)
+            && let Ok(viewport) = self.viewport.as_ref()
+        {
+            return Subscription::run_with(Wakes(viewport.wake_receiver()), |wakes| {
+                stream::unfold(wakes.0.clone(), |receiver| async move {
+                    receiver
+                        .recv()
+                        .await
+                        .ok()
+                        .map(|()| (Message::Wake, receiver))
+                })
+            });
+        }
+        Subscription::none()
+    }
+
+    fn system_theme_mode_update(
+        &mut self,
+        _: &[&'static str],
+        new_theme: &cosmic_theme::ThemeMode,
+    ) -> Task<Message> {
+        if let Ok(viewport) = self.viewport.as_ref() {
+            viewport.set_dark(new_theme.is_dark);
+        }
         Task::none()
     }
 
+    fn system_theme_update(
+        &mut self,
+        _: &[&'static str],
+        new_theme: &cosmic_theme::Theme,
+    ) -> Task<Message> {
+        // The pinned COSMIC callbacks run before its global theme is updated;
+        // its Wayland-enabled branch also drops returned callback tasks.
+        // Forward the supplied theme here, on the viewport's owning thread.
+        if let Ok(viewport) = self.viewport.as_ref() {
+            viewport.set_dark(new_theme.is_dark);
+        }
+        Task::none()
+    }
+
+    fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::Select(page) => {
+                self.page = page;
+                if matches!(page, Page::Preview) {
+                    return Task::done(Action::App(Message::Wake));
+                }
+            }
+            Message::Wake => {
+                if matches!(self.page, Page::Preview)
+                    && let Ok(viewport) = self.viewport.as_ref()
+                    && let Some(pixels) = viewport.paint()
+                {
+                    self.frame = Some(image::Handle::from_rgba(self.size.0, self.size.1, pixels));
+                }
+            }
+        }
+        Task::none()
+    }
+
+    #[expect(
+        clippy::as_conversions,
+        clippy::cast_precision_loss,
+        reason = "The image dimensions are bounded to 2048 and exactly representable as f32."
+    )]
     fn view(&self) -> Element<'_, Message> {
-        let (title, description) = match self.page {
-            Page::Preview => (
-                "Synthetic preview",
-                "This native text pane is a foundation for the future reader.",
-            ),
-            Page::About => ("About this preview", "Mailstronaut is under development."),
+        let content: Element<'_, Message> = match self.page {
+            Page::Preview => {
+                let image: Element<'_, Message> =
+                    match (self.viewport.as_ref(), self.frame.as_ref()) {
+                        (Err(error), _) => {
+                            widget::text(format!("Servo preview failed to start: {error}")).into()
+                        }
+                        (_, Some(frame)) => image(frame.clone())
+                            .width(self.size.0 as f32)
+                            .height(self.size.1 as f32)
+                            .into(),
+                        _ => widget::text("Waiting for the synthetic Servo frame...").into(),
+                    };
+                column![
+                    widget::text("Synthetic preview"),
+                    image,
+                    widget::text("Native text: Synthetic Servo viewport. No mail."),
+                    widget::text(
+                        "Image preview only; HTML accessibility and input are not implemented."
+                    )
+                ]
+                .spacing(theme::spacing().space_s)
+                .padding(20)
+                .into()
+            }
+            Page::About => column![
+                widget::text("About this preview"),
+                widget::text("Mailstronaut is under development.")
+            ]
+            .spacing(theme::spacing().space_s)
+            .padding(20)
+            .into(),
         };
         row![
             column![
@@ -87,19 +205,53 @@ impl cosmic::Application for App {
                 widget::button::text("Preview").on_press(Message::Select(Page::Preview)),
                 widget::button::text("About").on_press(Message::Select(Page::About))
             ]
-            .spacing(12)
+            .spacing(theme::spacing().space_s)
             .padding(20),
-            column![
-                widget::text(title),
-                widget::text(description),
-                widget::text("Email and HTML rendering are not available yet.")
-            ]
-            .spacing(12)
-            .padding(20)
+            content
         ]
         .spacing(20)
         .into()
     }
+}
+
+/// Subscription identity is stable for the single retained viewport.
+struct Wakes(async_channel::Receiver<()>);
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Hash's default slice implementation preserves this subscription identity."
+)]
+impl Hash for Wakes {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        u8::MIN.hash(state);
+    }
+}
+#[cfg_attr(
+    not(test),
+    expect(
+        clippy::single_call_fn,
+        reason = "The dimension policy is independently tested."
+    )
+)]
+#[expect(
+    clippy::as_conversions,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_arithmetic,
+    clippy::implicit_return,
+    reason = "Window layout uses fractional units; finite clamped dimensions fit the renderer bounds."
+)]
+/// Bound the software image to the available window area.
+fn preview_size(width: f32, height: f32) -> (u32, u32) {
+    if !width.is_finite() || !height.is_finite() {
+        return (1, 1);
+    }
+    (
+        (width - 240.0).clamp(1.0, 2048.0) as u32,
+        (height - 180.0).clamp(1.0, 2048.0) as u32,
+    )
 }
 
 #[expect(
@@ -121,5 +273,19 @@ fn main() -> ExitCode {
             eprintln!("Unable to start Mailstronaut: {error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::preview_size;
+
+    #[test]
+    fn preview_respects_renderer_bounds() {
+        assert_eq!(preview_size(100.0, 100.0), (1, 1));
+        assert_eq!(preview_size(880.0, 580.0), (640, 400));
+        assert_eq!(preview_size(10000.0, 10000.0), (2048, 2048));
+        assert_eq!(preview_size(f32::NAN, 580.0), (1, 1));
+        assert_eq!(preview_size(880.0, f32::INFINITY), (1, 1));
     }
 }

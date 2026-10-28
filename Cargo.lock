@@ -5084,9 +5084,11 @@ dependencies = [
 name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
+ "async-channel",
  "directories",
  "libcosmic",
  "mailstronaut-config",
+ "mailstronaut-render",
  "serde_json",
  "tempfile",
  "tokio",

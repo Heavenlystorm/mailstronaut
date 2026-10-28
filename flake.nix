@@ -200,6 +200,18 @@
         {
           # Retain the experiment's entry point without a second environment.
           servo-probe = self.devShells.${system}.default;
+          # Optional isolated-window acceptance tools; retain every development
+          # toolchain/environment setting without relying on inputsFrom.
+          gui-test = self.devShells.${system}.default.overrideAttrs (old: {
+            MAILSTRONAUT_TEST_THEME_DATA = "${pkgs.cosmic-settings}/share";
+            nativeBuildInputs = old.nativeBuildInputs ++ [
+              pkgs.weston
+              pkgs.xorg-server
+              pkgs.xdotool
+              pkgs.imagemagick
+              pkgs.dbus
+            ];
+          });
           default = pkgs.mkShell {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";

@@ -13,9 +13,11 @@ readme.workspace = true
 publish = false
 
 [dependencies]
+async-channel.workspace = true
 cosmic.workspace = true
 directories.workspace = true
 mailstronaut-config.workspace = true
+mailstronaut-render.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
