@@ -47,7 +47,9 @@ bash experiments/p01-flatpak/isolated.sh bash experiments/p01-flatpak/run.sh met
 The package's `src` and `cargoDeps` must already be realized. Staging aborts rather
 than overwrite a nonempty source directory. It checks all three lockfiles agree,
 omits the nightly-only development `.cargo` configuration, and copies dependencies
-without writable hardlinks into the Nix store. The app and vendor directories are
+without writable hardlinks into the Nix store. Preserve source executable modes:
+SpiderMonkey invokes its bundled `configure` directly. The stage checks that mode
+before continuing. The app and vendor directories are
 siblings: placing vendor inside the app causes nested Cargo calls to mistake its
 crates for workspace members. `cargo fetch --frozen --offline` checks the workspace;
 five nested `cargo metadata --offline --all-features` calls reproduce cbindgen's

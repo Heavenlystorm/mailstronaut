@@ -31,9 +31,14 @@ if [[ -e "$src/.cargo" ]]; then
   exit 1
 fi
 mkdir -p "$destination/app"
-cp -R --reflink=auto --no-preserve=mode,ownership "$src/." "$destination/app/"
-cp -R --reflink=auto --no-preserve=mode,ownership "$deps" "$destination/vendor"
+cp -R --reflink=auto --no-preserve=ownership "$src/." "$destination/app/"
+cp -R --reflink=auto --no-preserve=ownership "$deps" "$destination/vendor"
 chmod -R u+w "$destination"
+configure=("$destination/vendor/source-registry-0/mozjs_sys"-*/mozjs/js/src/configure)
+if (( ${#configure[@]} != 1 )) || [[ ! -x "${configure[0]}" ]]; then
+  printf '%s\n' 'Vendored SpiderMonkey configure must retain its executable mode.' >&2
+  exit 1
+fi
 config="$destination/vendor/.cargo/config.toml"
 if ! grep -q '@vendor@' "$config"; then
   printf 'Vendor source configuration lacks the expected placeholder\n' >&2
