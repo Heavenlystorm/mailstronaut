@@ -277,29 +277,19 @@ mod tests {
         let mut live_child = None;
         let maximum_attempts: u32 = 100;
         for _attempt in 0..maximum_attempts {
-            if let Some(path) = helper_child() {
+            if let Some(path) = helper_child()
+                && let Ok(limits) = fs::read_to_string(path.join("limits"))
+                && helper_limits_applied(&limits)
+            {
                 live_child = Some(path);
                 break;
             }
             sleep(Duration::from_millis(10)).await;
         }
-        let child_path = live_child.as_ref().expect("a real helper must be observed");
-        let limits = fs::read_to_string(child_path.join("limits")).unwrap();
-        for (resource, fields, expected) in [
-            ("Max address space", 3, ["1073741824", "1073741824"]),
-            ("Max cpu time", 3, ["2", "3"]),
-            ("Max core file size", 4, ["0", "0"]),
-        ] {
-            let values = limits
-                .lines()
-                .find(|line| line.starts_with(resource))
-                .expect("the kernel must report this resource limit")
-                .split_whitespace()
-                .skip(fields)
-                .take(2)
-                .collect::<Vec<_>>();
-            assert_eq!(values, expected, "the live child must enforce its limits");
-        }
+        assert!(
+            live_child.is_some(),
+            "a live helper must apply all limits within one second"
+        );
         cancellation.cancel();
         let cancelled_result = task.await.unwrap();
         assert!(matches!(
@@ -311,5 +301,27 @@ mod tests {
                 .expect("a real helper must have been observed")
                 .exists()
         );
+    }
+
+    /// The executable is visible in proc before its Rust startup code runs.
+    /// Observe readiness through all kernel limits, without adding a fixed delay.
+    #[expect(
+        clippy::implicit_return,
+        clippy::single_call_fn,
+        reason = "Keep kernel-limit readiness parsing separate from the async cancellation scenario."
+    )]
+    fn helper_limits_applied(limits: &str) -> bool {
+        [
+            ("Max address space", 3, ["1073741824", "1073741824"]),
+            ("Max cpu time", 3, ["2", "3"]),
+            ("Max core file size", 4, ["0", "0"]),
+        ]
+        .into_iter()
+        .all(|(resource, fields, expected)| {
+            limits
+                .lines()
+                .find(|line| line.starts_with(resource))
+                .is_some_and(|line| line.split_whitespace().skip(fields).take(2).eq(expected))
+        })
     }
 }
