@@ -1,0 +1,215 @@
+Build parallelism: 16 CPUs
+evaluating flake...
+checking flake output 'packages'...
+checking derivation packages.x86_64-linux.default...
+derivation evaluated to /nix/store/0w24zpfphnda9wcaj5dv8mv9pis02l05-mailstronaut-0.1.0.drv
+checking derivation packages.x86_64-linux.mailstronaut...
+derivation evaluated to /nix/store/0w24zpfphnda9wcaj5dv8mv9pis02l05-mailstronaut-0.1.0.drv
+checking flake output 'checks'...
+checking derivation checks.x86_64-linux.workspace...
+derivation evaluated to /nix/store/0w24zpfphnda9wcaj5dv8mv9pis02l05-mailstronaut-0.1.0.drv
+checking derivation checks.x86_64-linux.nix-format...
+derivation evaluated to /nix/store/r1i7jkma19yb2izgq4wzaxxi1gvvnp62-mailstronaut-nix-format.drv
+checking derivation checks.x86_64-linux.ci-lint...
+derivation evaluated to /nix/store/i7wz3rf4zfrcji5x1vlmq5gwmk4lcwar-mailstronaut-ci-lint.drv
+checking flake output 'devShells'...
+checking derivation devShells.x86_64-linux.default...
+derivation evaluated to /nix/store/3fhqbg43pi96mgq5al4d5kgfa7rmsasm-nix-shell.drv
+checking derivation devShells.x86_64-linux.servo-probe...
+derivation evaluated to /nix/store/3fhqbg43pi96mgq5al4d5kgfa7rmsasm-nix-shell.drv
+checking derivation devShells.x86_64-linux.gui-test...
+derivation evaluated to /nix/store/m644ibd1x2wilbjdvxl3n57nhi7vimj2-nix-shell.drv
+checking flake output 'formatter'...
+checking derivation formatter.x86_64-linux...
+derivation evaluated to /nix/store/zdil0gc0ivf3k71id8fcfmn2rfkqwzj6-nixfmt-1.5.0.drv
+running 3 flake checks...
+mailstronaut>    Compiling servo-paint v0.7.0
+mailstronaut>    Compiling servo-layout-api v0.7.0
+mailstronaut>    Compiling servo-metrics v0.7.0
+mailstronaut>    Compiling servo-constellation v0.7.0
+mailstronaut>    Compiling mozjs v0.26.4
+mailstronaut>    Compiling servo-layout v0.7.0
+mailstronaut>    Compiling servo v0.7.0
+mailstronaut>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 21m 16s
+mailstronaut> Executing cargoInstallPostBuildHook
+mailstronaut> Finished cargoInstallPostBuildHook
+mailstronaut> Finished cargoBuildHook
+mailstronaut> buildPhase completed in 21 minutes 24 seconds
+mailstronaut> Running phase: checkPhase
+mailstronaut> Executing cargoCheckHook
+mailstronaut>     Checking cfg-if v1.0.5
+mailstronaut>     Checking log v0.4.34
+mailstronaut>     Checking once_cell v1.21.4
+mailstronaut>     Checking pin-project-lite v0.2.17
+mailstronaut>     Checking rusqlite_migration v2.4.1
+mailstronaut>     Checking servo-net v0.7.0
+mailstronaut>     Checking servo-storage v0.7.0
+mailstronaut>     Checking mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>     Checking servo-devtools v0.7.0
+mailstronaut>     Checking servo-constellation v0.7.0
+mailstronaut>     Checking mozjs v0.26.4
+mailstronaut>     Checking servo-script-bindings v0.7.0
+mailstronaut>     Checking servo-layout v0.7.0
+mailstronaut>     Checking servo v0.7.0
+mailstronaut>     Checking mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>     Checking mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 8m 44s
+mailstronaut> cargoCheckHook flags: -j 16 --profile release --target x86_64-unknown-linux-gnu --offline --workspace --all-features --
+mailstronaut>    Compiling libz-sys v1.1.30
+mailstronaut>    Compiling servo-devtools v0.7.0
+mailstronaut>    Compiling servo-constellation v0.7.0
+mailstronaut>    Compiling mozjs v0.26.4
+mailstronaut>    Compiling servo-script-bindings v0.7.0
+mailstronaut>    Compiling servo-layout v0.7.0
+mailstronaut>    Compiling servo v0.7.0
+mailstronaut>    Compiling mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>    Compiling mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 20m 00s
+mailstronaut>      Running unittests src/main.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut-4e3555cdac922116)
+mailstronaut> 
+mailstronaut> running 1 test
+mailstronaut> test tests::preview_respects_renderer_bounds ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> 
+mailstronaut>      Running tests/configuration.rs (target/x86_64-unknown-linux-gnu/release/deps/configuration-25a7667faa3860b2)
+mailstronaut> 
+mailstronaut> running 3 tests
+mailstronaut> test tests::cli_errors_are_redacted_and_never_initialize_graphics ... ok
+mailstronaut> test tests::native_cli_initialization_and_managed_symlinks_are_non_destructive ... ok
+mailstronaut> test tests::recursive_helper_is_timed_out_and_cancellation_reaps_a_live_child ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s
+mailstronaut> 
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_config-c9e501a3199e77f4)
+mailstronaut> 
+mailstronaut> running 7 tests
+mailstronaut> test helper::tests::typed_responses_and_rejection ... ok
+mailstronaut> test tests::pure_expression_and_defaults ... ok
+mailstronaut> test tests::rejects_unsupported_version_and_oversize_source ... ok
+mailstronaut> test tests::url_and_time_validation_rejects_malformed_values ... ok
+mailstronaut> test tests::rejects_unknown_and_impure_inputs_without_echoing_them ... ok
+mailstronaut> test tests::native_accounts_and_auth_fields ... ok
+mailstronaut> test helper::tests::oversized_expansion_is_rejected ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+mailstronaut> 
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_core-86ab4b1b3b8605bd)
+mailstronaut> 
+mailstronaut> running 6 tests
+mailstronaut> test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+mailstronaut> test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+mailstronaut> test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+mailstronaut> test store::tests::failed_insert_leaves_collectible_orphan ... ok
+mailstronaut> test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+mailstronaut> test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+mailstronaut> 
+mailstronaut>      Running tests/mime.rs (target/x86_64-unknown-linux-gnu/release/deps/mime-e92c0e5118e3d5ae)
+mailstronaut> 
+mailstronaut> running 11 tests
+mailstronaut> test tests::forwarded_message_is_not_outer_body ... ok
+mailstronaut> test tests::alternatives_headers_and_encodings ... ok
+mailstronaut> test tests::html_preview_attachments_and_duplicate_cid ... ok
+mailstronaut> test tests::missing_headers_still_produce_a_preview ... ok
+mailstronaut> test tests::inline_encryption_is_detected_without_headers_or_after_a_long_preamble ... ok
+mailstronaut> test tests::unique_cid_is_scoped_to_its_message ... ok
+mailstronaut> test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+mailstronaut> test tests::part_and_attachment_limits_are_reported ... ok
+mailstronaut> test tests::bounds_encryption_and_malformed ... ok
+mailstronaut> test tests::malformed_cid_is_not_resolved ... ok
+mailstronaut> test tests::preview_records_extracted_source_and_original_revision ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> 
+mailstronaut>      Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/release/deps/mailstronaut_render-36c73335e2d23953)
+mailstronaut> 
+mailstronaut> running 6 tests
+mailstronaut> test tests::bounded_and_coalesced ... ok
+mailstronaut> test tests::sanitizer_removes_active_content_and_css ... ok
+mailstronaut> test tests::generated_document_is_bounded ... ok
+mailstronaut> 
+mailstronaut> running 1 test
+mailstronaut> 
+mailstronaut> running 1 test
+mailstronaut> 
+mailstronaut> Fontconfig error: No writable cache directories
+mailstronaut>   /build/renderer-cache/fontconfig
+mailstronaut>   /var/cache/fontconfig
+mailstronaut> lifecycle cycle=10 pss_kib=174271 threads=70
+mailstronaut> test tests::synthetic_pixels_and_native_theme ... ok
+mailstronaut> lifecycle cycle=20 pss_kib=179670 threads=70
+mailstronaut> lifecycle cycle=30 pss_kib=187518 threads=70
+mailstronaut> lifecycle cycle=40 pss_kib=190378 threads=70
+mailstronaut> lifecycle cycle=50 pss_kib=194183 threads=70
+mailstronaut> lifecycle cycle=60 pss_kib=193551 threads=69
+mailstronaut> lifecycle cycle=70 pss_kib=210910 threads=70
+mailstronaut> lifecycle cycle=80 pss_kib=211019 threads=70
+mailstronaut> lifecycle cycle=90 pss_kib=211043 threads=70
+mailstronaut> lifecycle cycle=100 pss_kib=211579 threads=70
+mailstronaut> lifecycle sampled peak pss_kib=211579 threads=70
+mailstronaut> test tests::lifecycle_subprocess ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 3.37s
+mailstronaut> 
+mailstronaut> test tests::lifecycle_subprocess ... ok
+mailstronaut> P01 allow=false connections=0 red=[false, false, false, false] callbacks=[("mailstronaut://aa397ebd-db71-4912-8355-e9ebfce7d09e/document", "Document", false), ("http://127.0.0.1:33129/sheet", "Style", true), ("http://127.0.0.1:33129/image", "Image", true), ("http://127.0.0.1:33129/import", "Style", true), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", true), ("file:///build/.tmp486ENB", "Image", true), ("http://127.0.0.1:33129/font", "Font", true), ("http://127.0.0.1:33129/background", "Image", true)]
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 5.10s
+mailstronaut> 
+mailstronaut> 
+mailstronaut> running 1 test
+mailstronaut> P01 allow=true connections=5 red=[true, true, true, true] callbacks=[("mailstronaut://18ca6ee5-cf78-4309-8c2f-d781aa91fa3e/document", "Document", false), ("http://127.0.0.1:33551/import", "Style", false), ("http://127.0.0.1:33551/sheet", "Style", false), ("http://127.0.0.1:33551/image", "Image", false), ("file:///build/.tmprPt0ys", "Image", false), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", false), ("http://127.0.0.1:33551/font", "Font", false), ("http://127.0.0.1:33551/background", "Image", false)]
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 5.05s
+mailstronaut> 
+mailstronaut> 
+mailstronaut> running 1 test
+mailstronaut> P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 2.31s
+mailstronaut> 
+mailstronaut> test tests::resource_interception_subprocess ... ok
+mailstronaut> 
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.54s
+mailstronaut> 
+mailstronaut>    Doc-tests mailstronaut_config
+mailstronaut> 
+mailstronaut> running 0 tests
+mailstronaut> 
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> 
+mailstronaut>    Doc-tests mailstronaut_core
+mailstronaut> 
+mailstronaut> running 0 tests
+mailstronaut> 
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> 
+mailstronaut>    Doc-tests mailstronaut_render
+mailstronaut> 
+mailstronaut> running 0 tests
+mailstronaut> 
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> 
+mailstronaut> Finished cargoCheckHook
+mailstronaut> checkPhase completed in 29 minutes 5 seconds
+mailstronaut> Running phase: installPhase
+mailstronaut> Executing cargoInstallHook
+mailstronaut> Finished cargoInstallHook
+mailstronaut> Running phase: fixupPhase
+mailstronaut> shrinking RPATHs of ELF executables and libraries in /nix/store/648fbyp4s54awcywzq9k2a344h52rr9g-mailstronaut-0.1.0
+mailstronaut> shrinking /nix/store/648fbyp4s54awcywzq9k2a344h52rr9g-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> checking for references to /build/ in /nix/store/648fbyp4s54awcywzq9k2a344h52rr9g-mailstronaut-0.1.0...
+mailstronaut> patching script interpreter paths in /nix/store/648fbyp4s54awcywzq9k2a344h52rr9g-mailstronaut-0.1.0
+mailstronaut> stripping (with command strip and flags -S -p) in /nix/store/648fbyp4s54awcywzq9k2a344h52rr9g-mailstronaut-0.1.0/bin
+building '/nix/store/i7wz3rf4zfrcji5x1vlmq5gwmk4lcwar-mailstronaut-ci-lint.drv'...
+building '/nix/store/r1i7jkma19yb2izgq4wzaxxi1gvvnp62-mailstronaut-nix-format.drv'...
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+Use '--all-systems' to check all.

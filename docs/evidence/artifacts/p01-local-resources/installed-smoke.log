@@ -1,0 +1,26 @@
+Installed CLI/configuration smoke passed. Artifacts: /home/eduard/.t3/projects/mailstronaut/target/p01-installed-smoke.VrAK3v
+
+--- example.log ---
+Configuration is valid.
+
+--- generated.log ---
+Configuration is valid.
+
+--- init.log ---
+Created native Nix configuration.
+
+--- invalid.log ---
+invalid configuration expression or schema
+
+--- repeat-init.log ---
+configuration already exists or could not be installed
+
+--- version.log ---
+mailstronaut 0.1.0
+
+--- package-output.txt ---
+/nix/store/648fbyp4s54awcywzq9k2a344h52rr9g-mailstronaut-0.1.0
+
+File mode: 600
+Directory mode: 700
+Repeated init preserved file: yes
