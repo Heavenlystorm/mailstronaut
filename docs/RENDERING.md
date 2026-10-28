@@ -73,8 +73,10 @@ on every engine construction, but that function sets a process-global `OnceLock`
 and panics on a second call. Its SpiderMonkey dependency also rejects initialization
 after engine shutdown. Dropping and reconstructing the entire engine in the same
 application process is therefore not a supported lifecycle in this pin. The next
-bounded spike should retain one engine, drop/recreate its webviews and rendering
-contexts, and measure what remains while headless. Upstream already tests painter
+synthetic slice retains one engine and one reusable software context, drops and
+recreates its WebView, and shrinks the idle context to 1×1. This deliberately
+retains graphics resources while the GUI engine lives; complete release while
+headless still needs a separate solution and measurement. Upstream already tests painter
 removal on the last webview's drop (`servo` 0.7.0 `tests/webview.rs`); reuse that
 behavior rather than inventing a renderer teardown mechanism. This does not meet
 the architecture's complete browser-release requirement by itself. Resolve that

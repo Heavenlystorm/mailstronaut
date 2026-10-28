@@ -14,12 +14,14 @@ use cosmic::app::{self, Core, Settings, Task};
 use cosmic::iced::widget::{column, image, mouse_area, row};
 use cosmic::iced::{Event, Point, Subscription, event, futures::stream, mouse, window};
 use cosmic::{Action, Element, cosmic_theme, executor, theme, widget};
-use mailstronaut_render::Viewport;
+use mailstronaut_render::{Renderer, Viewport};
 
 /// Toolkit-owned application state.
 struct App {
     /// COSMIC application state, including the system theme.
     core: Core,
+    /// Current system theme, including changes while hidden.
+    dark: bool,
     /// Latest uploaded synthetic frame.
     frame: Option<image::Handle>,
     /// Logical viewport size.
@@ -28,12 +30,14 @@ struct App {
     page: Page,
     /// Most recent pointer position within the image.
     pointer: Point,
+    /// Retained thread-affine engine.
+    renderer: Result<Renderer, String>,
     /// Effective physical pixels per logical unit.
     scale: f32,
     /// Dimensions of the current frame and viewport.
     size: (u32, u32),
-    /// Retained UI-thread Servo instance or its startup error.
-    viewport: Result<Viewport, String>,
+    /// Disposable UI-thread viewport or its startup error.
+    viewport: Option<Result<Viewport, String>>,
     /// Most recently reported logical window size.
     window_size: (f32, f32),
 }
@@ -70,7 +74,8 @@ enum Message {
 )]
 #[expect(
     clippy::missing_trait_methods,
-    reason = "Default COSMIC handlers provide the normal window and theme lifecycle."
+    clippy::pattern_type_mismatch,
+    reason = "Nested borrowed results are matched while COSMIC defaults provide handlers the normal window and theme lifecycle."
 )]
 impl cosmic::Application for App {
     const APP_ID: &'static str = include_str!("../../../assets/app-id");
@@ -89,13 +94,9 @@ impl cosmic::Application for App {
             Self {
                 core,
                 page: Page::Preview,
-                viewport: {
-                    let viewport = Viewport::synthetic(640, 400);
-                    if let Ok(reader) = viewport.as_ref() {
-                        reader.set_dark(theme::is_dark());
-                    }
-                    viewport
-                },
+                renderer: Renderer::synthetic(),
+                dark: theme::is_dark(),
+                viewport: None,
                 frame: None,
                 size: (640, 400),
                 logical: (640.0, 400.0),
@@ -103,7 +104,7 @@ impl cosmic::Application for App {
                 scale: 1.0,
                 pointer: Point::ORIGIN,
             },
-            Task::done(Action::App(Message::Wake)),
+            Task::done(Action::App(Message::Select(Page::Preview))),
         )
     }
 
@@ -131,10 +132,8 @@ impl cosmic::Application for App {
             ) => Some(Message::Window(id, event)),
             _ => None,
         });
-        if matches!(self.page, Page::Preview)
-            && let Ok(viewport) = self.viewport.as_ref()
-        {
-            let wakes = Subscription::run_with(Wakes(viewport.wake_receiver()), |wakes| {
+        if let Ok(renderer) = self.renderer.as_ref() {
+            let wakes = Subscription::run_with(Wakes(renderer.wake_receiver()), |wakes| {
                 stream::unfold(wakes.0.clone(), |receiver| async move {
                     receiver
                         .recv()
@@ -153,7 +152,8 @@ impl cosmic::Application for App {
         _: &[&'static str],
         new_theme: &cosmic_theme::ThemeMode,
     ) -> Task<Message> {
-        if let Ok(viewport) = self.viewport.as_ref() {
+        self.dark = new_theme.is_dark;
+        if let Some(Ok(viewport)) = self.viewport.as_ref() {
             viewport.set_dark(new_theme.is_dark);
         }
         Task::none()
@@ -167,7 +167,8 @@ impl cosmic::Application for App {
         // The pinned COSMIC callbacks run before its global theme is updated;
         // its Wayland-enabled branch also drops returned callback tasks.
         // Forward the supplied theme here, on the viewport's owning thread.
-        if let Ok(viewport) = self.viewport.as_ref() {
+        self.dark = new_theme.is_dark;
+        if let Some(Ok(viewport)) = self.viewport.as_ref() {
             viewport.set_dark(new_theme.is_dark);
         }
         Task::none()
@@ -179,19 +180,40 @@ impl cosmic::Application for App {
         clippy::float_arithmetic,
         clippy::float_cmp,
         clippy::unneeded_field_pattern,
+        clippy::else_if_without_else,
+        clippy::question_mark_used,
         reason = "Viewport dimensions are bounded and scale changes require exact event values."
     )]
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Select(page) => {
                 self.page = page;
-                if matches!(page, Page::Preview) {
+                if matches!(page, Page::About) {
+                    self.viewport = None;
+                    self.frame = None;
+                    if let Ok(renderer) = &self.renderer {
+                        renderer.spin();
+                    }
+                } else if self.viewport.is_none() {
+                    self.size = physical_size(self.logical, self.scale);
+                    self.viewport = Some(match &self.renderer {
+                        Ok(renderer) => {
+                            renderer
+                                .viewport(self.size.0, self.size.1)
+                                .and_then(|viewport| {
+                                    viewport.set_scale(self.scale)?;
+                                    viewport.set_dark(self.dark);
+                                    Ok(viewport)
+                                })
+                        }
+                        Err(error) => Err(error.clone()),
+                    });
                     return Task::done(Action::App(Message::Wake));
                 }
             }
             Message::Pointer(point) => self.pointer = point,
             Message::Wheel(delta) => {
-                if let Ok(viewport) = self.viewport.as_ref() {
+                if let Some(Ok(viewport)) = self.viewport.as_ref() {
                     let (dx, dy, lines) = match delta {
                         mouse::ScrollDelta::Lines { x, y } => (x, y, true),
                         mouse::ScrollDelta::Pixels { x, y } => (x, y, false),
@@ -241,7 +263,7 @@ impl cosmic::Application for App {
                     && effective != self.scale
                 {
                     self.scale = effective;
-                    if let Ok(viewport) = self.viewport.as_ref()
+                    if let Some(Ok(viewport)) = self.viewport.as_ref()
                         && viewport.set_scale(effective).is_err()
                     {
                         return Task::none();
@@ -253,11 +275,13 @@ impl cosmic::Application for App {
                 }
             }
             Message::Wake => {
-                if matches!(self.page, Page::Preview)
-                    && let Ok(viewport) = self.viewport.as_ref()
-                    && let Some(pixels) = viewport.paint()
-                {
-                    self.frame = Some(image::Handle::from_rgba(self.size.0, self.size.1, pixels));
+                if let Some(Ok(viewport)) = self.viewport.as_ref() {
+                    if let Some(pixels) = viewport.paint() {
+                        self.frame =
+                            Some(image::Handle::from_rgba(self.size.0, self.size.1, pixels));
+                    }
+                } else if let Ok(renderer) = &self.renderer {
+                    renderer.spin();
                 }
             }
         }
@@ -269,7 +293,7 @@ impl cosmic::Application for App {
             Page::Preview => {
                 let image: Element<'_, Message> =
                     match (self.viewport.as_ref(), self.frame.as_ref()) {
-                        (Err(error), _) => {
+                        (Some(Err(error)), _) => {
                             widget::text(format!("Servo preview failed to start: {error}")).into()
                         }
                         (_, Some(frame)) => mouse_area(
@@ -318,20 +342,26 @@ impl cosmic::Application for App {
 }
 
 impl App {
-    /// Resize the retained engine to the rounded physical extent.
+    /// Resize the current viewport to the rounded physical extent.
+    #[expect(
+        clippy::pattern_type_mismatch,
+        reason = "The optional borrowed viewport is matched without moving it"
+    )]
     fn resize_viewport(&mut self) {
         let size = physical_size(self.logical, self.scale);
-        if size != self.size
-            && let Ok(viewport) = self.viewport.as_mut()
-            && viewport.resize(size.0, size.1).is_ok()
-        {
+        if size != self.size {
+            if let Some(Ok(viewport)) = self.viewport.as_mut()
+                && viewport.resize(size.0, size.1).is_err()
+            {
+                return;
+            }
             self.size = size;
             self.frame = None;
         }
     }
 }
 
-/// Subscription identity is stable for the single retained viewport.
+/// Subscription identity is stable for the retained engine.
 struct Wakes(async_channel::Receiver<()>);
 #[expect(
     clippy::missing_trait_methods,
@@ -345,13 +375,6 @@ impl Hash for Wakes {
         u8::MIN.hash(state);
     }
 }
-#[cfg_attr(
-    not(test),
-    expect(
-        clippy::single_call_fn,
-        reason = "The framebuffer rounding is also tested."
-    )
-)]
 /// Round the bounded logical viewport to physical framebuffer pixels.
 #[expect(
     clippy::as_conversions,

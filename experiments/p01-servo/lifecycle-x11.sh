@@ -31,3 +31,14 @@ sleep 3
 xdotool mousemove --window "$window" 10 10
 magick import -window "$window" "$artifact/preview-after.png"
 kill -0 "$app"
+
+# Exercise repeated disposal/reopening in the private server, retaining captures.
+for ((cycle=1; cycle<=10; cycle++)); do
+    xdotool mousemove --window "$window" 55 167 click 1
+    sleep .3
+    xdotool mousemove --window "$window" 55 119 click 1
+    sleep .5
+    kill -0 "$app"
+done
+xdotool mousemove --window "$window" 10 10
+magick import -window "$window" "$artifact/preview-cycle-10.png"

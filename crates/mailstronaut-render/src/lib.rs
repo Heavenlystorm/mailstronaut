@@ -6,7 +6,11 @@
     reason = "Servo requires incompatible dependency versions; related policy items stay grouped"
 )]
 
-use core::{cell::Cell, future::Future, pin::Pin};
+use core::{
+    cell::{Cell, RefCell},
+    future::Future,
+    pin::Pin,
+};
 use servo::protocol_handler::{
     DoneChannel, FetchContext, HttpStatus, NetworkError, ProtocolHandler, ProtocolRegistry,
     Request, ResourceFetchTiming, Response, ResponseBody,
@@ -19,8 +23,6 @@ use servo::{
 };
 extern crate alloc;
 use alloc::rc::Rc;
-#[cfg(test)]
-use core::cell::RefCell;
 
 /// Maximum width or height of the software viewport.
 const MAX_SIDE: u32 = 2048;
@@ -181,36 +183,67 @@ impl ProtocolHandler for Document {
     }
 }
 
-/// A viewport on the thread on which it was created. It accepts only a fixed synthetic fixture.
-pub struct Viewport {
-    /// The GUI-thread-affine web view.
-    view: WebView,
-    /// Software viewport rendering context.
-    context: Rc<SoftwareRenderingContext>,
-    /// Servo instance owned by the creating thread.
+/// A single thread-affine Servo engine for the fixed synthetic document.
+///
+/// Servo initialization is process-global and cannot be restarted after shutdown.
+/// Retain this owner across empty intervals, and drive wakes on its creating thread.
+pub struct Renderer(Rc<Engine>);
+
+/// Thread-affine shared owner kept alive across viewport teardown.
+struct Engine {
+    /// Pinned Servo instance.
     servo: Servo,
-    /// Shared resource and frame delegate.
+    /// Engine-wide default-deny resource policy.
     policy: Rc<Policy>,
-    /// Coalesced wake receiver.
+    /// Capacity-one wake receiver.
     wakes: async_channel::Receiver<()>,
-    /// Bounded physical viewport dimensions.
+    /// One retained software context, including while no viewport exists.
+    context: RefCell<Option<Rc<SoftwareRenderingContext>>>,
+    /// Whether a viewport is alive.
+    active: Cell<bool>,
+}
+
+/// A bounded software viewport owned by its creating thread.
+pub struct Viewport {
+    /// Disposable Servo view.
+    view: WebView,
+    /// Software framebuffer context.
+    context: Rc<SoftwareRenderingContext>,
+    /// Frame state scoped to this view.
+    policy: Rc<Policy>,
+    /// Engine kept alive through view destruction.
+    engine: Rc<Engine>,
+    /// Bounded physical size.
     size: (u32, u32),
 }
+
+impl Drop for Viewport {
+    #[inline]
+    #[expect(
+        clippy::separated_literal_suffix,
+        reason = "Numeric suffix lint groups conflict."
+    )]
+    fn drop(&mut self) {
+        self.context.resize((1_u32, 1_u32).into());
+        self.engine.active.set(false);
+    }
+}
+
 #[expect(
     clippy::arbitrary_source_item_ordering,
-    reason = "Lifecycle operations are grouped by use rather than alphabetically"
+    reason = "Lifecycle operations are grouped by use."
 )]
-impl Viewport {
-    /// Create a viewport; dimensions must be between 1 and 2048 pixels.
+impl Renderer {
+    /// Initialize the engine with its fixed synthetic fixture.
     ///
     /// # Errors
-    /// Returns an error for invalid dimensions or rendering-context setup failure.
+    /// Returns an error if protocol registration fails.
     #[inline]
     #[expect(
         clippy::implicit_return,
-        reason = "This fallible constructor delegates to the bounded internal constructor"
+        reason = "The fixed fixture uses the shared fallible constructor"
     )]
-    pub fn synthetic(width: u32, height: u32) -> Result<Self, String> {
+    pub fn synthetic() -> Result<Self, String> {
         let body = sanitize(&format!(
             "<h1>Synthetic Servo viewport</h1><p>No mail</p>{}",
             "<p>Synthetic scrolling marker</p>".repeat(80)
@@ -218,25 +251,24 @@ impl Viewport {
         let document = format!(
             "<!doctype html><style>body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style>{body}"
         );
-        Self::from_document(width, height, document)
+        Self::from_document(document)
     }
-    /// Create a viewport around the internal synthetic document.
+    /// Construct the engine with an internal fixture document.
     #[cfg_attr(
         not(test),
         expect(
             clippy::single_call_fn,
-            reason = "The private constructor is also exercised by tests"
+            reason = "Tests also construct private fixtures"
         )
     )]
     #[expect(
         clippy::implicit_return,
         clippy::question_mark_used,
-        clippy::min_ident_chars,
         clippy::clone_on_ref_ptr,
-        reason = "The internal constructor shares policy and context with Servo and propagates setup failures"
+        clippy::min_ident_chars,
+        reason = "Construction shares the immutable policy and propagates protocol errors."
     )]
-    fn from_document(width: u32, height: u32, document: String) -> Result<Self, String> {
-        check_size(width, height)?;
+    fn from_document(document: String) -> Result<Self, String> {
         let (sender, wakes) = async_channel::bounded(1);
         let wake = Wake(sender);
         let policy = Rc::new(Policy {
@@ -245,13 +277,6 @@ impl Viewport {
             #[cfg(test)]
             probe: PROBE.with(|probe| probe.borrow().clone()),
         });
-        let context = Rc::new(
-            SoftwareRenderingContext::new((width, height).into())
-                .map_err(|e| format!("context: {e:?}"))?,
-        );
-        context
-            .make_current()
-            .map_err(|e| format!("context: {e:?}"))?;
         let mut registry = ProtocolRegistry::default();
         registry
             .register(
@@ -268,20 +293,88 @@ impl Viewport {
             .protocol_registry(registry)
             .build();
         servo.set_delegate(policy.clone());
-        let view = WebViewBuilder::new(&servo, context.clone())
+        Ok(Self(Rc::new(Engine {
+            servo,
+            policy,
+            wakes,
+            context: RefCell::new(None),
+            active: Cell::new(false),
+        })))
+    }
+    /// Create the only active viewport on this engine.
+    ///
+    /// # Errors
+    /// Returns an error for invalid dimensions, an active viewport, or context setup failure.
+    #[inline]
+    #[expect(
+        clippy::implicit_return,
+        clippy::question_mark_used,
+        clippy::clone_on_ref_ptr,
+        clippy::min_ident_chars,
+        reason = "The context and engine have shared thread-affine ownership."
+    )]
+    pub fn viewport(&self, width: u32, height: u32) -> Result<Viewport, String> {
+        check_size(width, height)?;
+        if self.0.active.get() {
+            return Err("viewport already active".into());
+        }
+        let cached_context = self.0.context.borrow().clone();
+        let context = if let Some(context) = cached_context {
+            context
+        } else {
+            let context = Rc::new(
+                SoftwareRenderingContext::new((width, height).into())
+                    .map_err(|e| format!("context: {e:?}"))?,
+            );
+            self.0.context.replace(Some(Rc::clone(&context)));
+            context
+        };
+        context.resize((width, height).into());
+        context
+            .make_current()
+            .map_err(|e| format!("context: {e:?}"))?;
+        let policy = Rc::new(Policy {
+            frame: Cell::new(false),
+            wake: self.0.policy.wake.clone(),
+            #[cfg(test)]
+            probe: self.0.policy.probe.clone(),
+        });
+        let view = WebViewBuilder::new(&self.0.servo, context.clone())
             .delegate(policy.clone())
             .url(url::Url::parse(DOCUMENT).map_err(|e| e.to_string())?)
             .build();
         view.show();
-        Ok(Self {
+        self.0.active.set(true);
+        Ok(Viewport {
             view,
             context,
-            servo,
             policy,
-            wakes,
+            engine: Rc::clone(&self.0),
             size: (width, height),
         })
     }
+    /// Drive pending engine work, including teardown while no viewport exists.
+    #[inline]
+    pub fn spin(&self) {
+        self.0.servo.spin_event_loop();
+    }
+    /// Clone the coalesced wake receiver for the UI subscription.
+    #[inline]
+    #[must_use = "Poll the receiver to drive Servo."]
+    #[expect(
+        clippy::implicit_return,
+        reason = "The receiver is an async subscription handle."
+    )]
+    pub fn wake_receiver(&self) -> async_channel::Receiver<()> {
+        self.0.wakes.clone()
+    }
+}
+
+#[expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "Lifecycle operations are grouped by use."
+)]
+impl Viewport {
     /// Clone the coalescing wake receiver for one async GUI subscription consumer.
     /// Servo and this viewport must still be driven on their creator thread.
     #[inline]
@@ -291,7 +384,7 @@ impl Viewport {
         reason = "The receiver is an async subscription handle"
     )]
     pub fn wake_receiver(&self) -> async_channel::Receiver<()> {
-        self.wakes.clone()
+        self.engine.wakes.clone()
     }
     /// Process pending work and return an owned viewport-sized RGBA frame when ready.
     #[inline]
@@ -305,7 +398,7 @@ impl Viewport {
         reason = "Viewport dimensions are validated below 2049 before conversion and absent frames are normal"
     )]
     pub fn paint(&self) -> Option<Vec<u8>> {
-        self.servo.spin_event_loop();
+        self.engine.servo.spin_event_loop();
         if !self.policy.frame.replace(false) {
             return None;
         }
@@ -582,7 +675,10 @@ mod tests {
             r#"<!doctype html><style>@import url('{}'); @font-face {{ font-family: probe; src: url('{}') }} body {{ margin:0; font-family:probe }} .bg {{position:absolute;left:0;top:0;width:40px;height:40px;background-image:url('{}');background-size:40px 40px}} img {{position:absolute;top:50px;width:40px;height:40px}} #http {{left:0}} #file {{left:50px}} #data {{left:100px}}</style><link rel=stylesheet href='{}'><div class=bg></div><img id=http src='{}'><img id=file src='{file_url}'><img id=data src='{DATA}'><p style="position:absolute;top:100px">Font probe</p>"#,
             urls[3], urls[4], urls[1], urls[2], urls[0]
         );
-        let viewport = Viewport::from_document(320, 200, document).expect("viewport");
+        let viewport = Renderer::from_document(document)
+            .expect("engine")
+            .viewport(320, 200)
+            .expect("viewport");
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut connections = 0usize;
         let mut red = [false; 4];
@@ -640,6 +736,128 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::panic,
+        reason = "A timed-out lifecycle child must be killed and reported"
+    )]
+    fn lifecycle_subprocess() {
+        use std::process::Command;
+        if std::env::var_os("MAILSTRONAUT_LIFECYCLE_CHILD").is_some() {
+            lifecycle_probe();
+            return;
+        }
+        let mut child = Command::new(std::env::current_exe().expect("test executable"))
+            .args(["--exact", "tests::lifecycle_subprocess", "--nocapture"])
+            .env("MAILSTRONAUT_LIFECYCLE_CHILD", "1")
+            .spawn()
+            .expect("spawn lifecycle probe");
+        let deadline = Instant::now() + Duration::from_secs(180);
+        loop {
+            if let Some(status) = child.try_wait().expect("child status") {
+                assert!(status.success(), "lifecycle probe failed: {status}");
+                break;
+            }
+            if Instant::now() >= deadline {
+                child.kill().expect("kill child");
+                child.wait().expect("reap child");
+                panic!("lifecycle probe timed out");
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[expect(
+        clippy::arithmetic_side_effects,
+        clippy::single_call_fn,
+        clippy::print_stdout,
+        clippy::separated_literal_suffix,
+        reason = "Numeric suffix lint groups conflict; the bounded synthetic probe records batch resource samples for evidence"
+    )]
+    fn lifecycle_probe() {
+        let renderer = Renderer::synthetic().expect("engine");
+        let mut peak_pss: u64 = 0;
+        let mut peak_threads: u64 = 0;
+        let baseline_threads = sample_field("/proc/self/status", "Threads:");
+        let mut retained_context = None;
+        let cycles: core::ops::RangeInclusive<u32> = 1..=100;
+        for cycle in cycles {
+            let viewport = renderer.viewport(160, 100).expect("viewport");
+            assert!(renderer.viewport(160, 100).is_err());
+            assert!(
+                !viewport.policy.frame.get(),
+                "new view starts with a stale frame"
+            );
+            if let Some(context) = retained_context.as_ref() {
+                assert!(Rc::ptr_eq(context, &viewport.context), "context changed");
+            } else {
+                retained_context = Some(Rc::clone(&viewport.context));
+            }
+            let delegate = Rc::downgrade(&viewport.policy);
+            let deadline = Instant::now() + Duration::from_secs(30);
+            loop {
+                if let Some(pixels) = viewport.paint() {
+                    assert_eq!(pixels.len(), 160 * 100 * 4);
+                    break;
+                }
+                assert!(Instant::now() < deadline, "frame timeout at cycle {cycle}");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            drop(viewport);
+            assert_eq!(
+                retained_context.as_ref().expect("context").size(),
+                (1_u32, 1_u32).into()
+            );
+            let delegate_deadline = Instant::now() + Duration::from_secs(5);
+            while delegate.upgrade().is_some() {
+                renderer.spin();
+                assert!(
+                    Instant::now() < delegate_deadline,
+                    "delegate retained at cycle {cycle}"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            // Drive asynchronous teardown in an empty interval before reopening.
+            let settle_deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                renderer.spin();
+                if sample_field("/proc/self/status", "Threads:") <= baseline_threads + 80 {
+                    break;
+                }
+                assert!(
+                    Instant::now() < settle_deadline,
+                    "threads did not settle at cycle {cycle}"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            if cycle.is_multiple_of(10) {
+                let pss = sample_field("/proc/self/smaps_rollup", "Pss:");
+                let threads = sample_field("/proc/self/status", "Threads:");
+                peak_pss = peak_pss.max(pss);
+                peak_threads = peak_threads.max(threads);
+                println!("lifecycle cycle={cycle} pss_kib={pss} threads={threads}");
+                assert!(
+                    pss < 0x0020_0000 && threads < 512,
+                    "resource limit exceeded"
+                );
+            }
+        }
+        println!("lifecycle sampled peak pss_kib={peak_pss} threads={peak_threads}");
+    }
+
+    fn sample_field(path: &str, field: &str) -> u64 {
+        std::fs::read_to_string(path)
+            .expect("process sample")
+            .lines()
+            .find_map(|line| line.strip_prefix(field))
+            .expect("sample field")
+            .split_whitespace()
+            .next()
+            .expect("sample value")
+            .parse()
+            .expect("numeric sample")
+    }
+
+    #[test]
     fn sanitizer_removes_active_content_and_css() {
         let clean = sanitize(
             r#"<table><tr><td style="background:url(http://example.invalid)">hello</td></tr></table><script>alert(1)</script><img src="file:///etc/passwd"><a href="https://example.invalid" onclick="evil()">link</a>"#,
@@ -687,7 +905,10 @@ mod tests {
         let document = format!(
             r#"<!doctype html><style>@import url(http://{address}/style); body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style><div class=marker></div><div class=gap></div><link rel="preconnect" href="http://{address}"><img src="http://{address}/pixel"><img src="{file_url}"><img src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22red%22/%3E%3C/svg%3E"><script>document.body.style.background='red'; fetch('http://{address}/script')</script><h1>Synthetic viewport</h1>{hostile}"#
         );
-        let mut viewport = Viewport::from_document(320, 200, document).expect("viewport");
+        let mut viewport = Renderer::from_document(document)
+            .expect("engine")
+            .viewport(320, 200)
+            .expect("viewport");
         fn frame(viewport: &Viewport, dark: bool) -> Vec<u8> {
             viewport.set_dark(dark);
             let deadline = Instant::now() + Duration::from_secs(30);
