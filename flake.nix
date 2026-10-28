@@ -99,9 +99,25 @@
             pkgs.libclang
           ];
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+          # Include nested Cargo calls from native binding generators.
+          CARGO_NET_OFFLINE = "true";
           # SpiderMonkey's xsum disables format warnings itself; keep all other
           # Nix hardening rather than making that warning conflict fatal.
           hardeningDisable = [ "format" ];
+          prePatch = ''
+            # cbindgen invokes Cargo metadata from inside vendored mozjs crates.
+            # The setup hook resolves @vendor@ only in the app's config; resolve
+            # the writable vendor copy too, for those nested Cargo invocations.
+            substituteInPlace "$cargoDepsCopy/.cargo/config.toml" \
+              --subst-var-by vendor "$cargoDepsCopy"
+            # Published mozjs glue crates carry standalone locks with versions
+            # outside this app's vendor set. Metadata must use the same pinned
+            # dependencies as the real build, not resolve those extra locks.
+            for crate in "$cargoDepsCopy"/source-registry-0/mozjs_{locale,properties,collator,normalizer}_glue-* \
+              "$cargoDepsCopy"/source-registry-0/mozjs_unicode_bidi_ffi-*; do
+              cp Cargo.lock "$crate/Cargo.lock"
+            done
+          '';
           preBuild = ''
             export AS="$CC"
           '';
