@@ -76,6 +76,9 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
   resizing, focus, links and webview teardown; one message viewport at a time.
 - [ ] Forward effective COSMIC dark/light theme through Servo's native method.
   Save light/dark screenshots including dark-aware and fixed-light emails.
+- [x] Exercise the synthetic resource interceptor with isolated allow controls:
+  loopback images, backgrounds, stylesheets/imports and font fetches, plus file
+  and data rasters. See P01 evidence for the seven cancellations and proof limits.
 - [ ] Enforce sanitizer + CSP + scheme/navigation/resource/permission policy;
   prove **zero remote requests** on load, including CSS/font/SVG/import/redirect
   and non-HTTP attempts. Test CID isolation and no local-file access.
