@@ -36,6 +36,19 @@ No rustup installation, separate shell.nix, FHS environment or unpinned tool
 download is needed. `rust-version = 1.98` follows mail-parser's requirement; an
 MSRV build has not been run. Exact compilers and limitations are in P01 evidence.
 
+Debug/test builds use line-only debug information to reduce artifact size while
+retaining source locations in backtraces. Incremental compilation stays enabled.
+For a session that needs debugger variable/type inspection, set
+`CARGO_PROFILE_DEV_DEBUG=full CARGO_PROFILE_TEST_DEBUG=full` before `nix develop`;
+changing these settings rebuilds affected artifacts. Release retains LLVM,
+thin LTO and one codegen unit.
+
+Coordinate one `CARGO_TARGET_DIR` across agents working on this project, using
+the main checkout's `target` directory rather than a new cache per worktree.
+Delete only inactive, untracked build outputs inside the current project when
+cleaning up. Do not remove other projects' caches, external shared targets or Nix
+store/build directories. A deleted target requires rebuilding its dependencies.
+
 The `servo-probe` shell is an alias of the default environment. The optional
 `gui-test` shell preserves that environment and adds private-display tools plus
 the pinned stock COSMIC theme assets. GUI probes must redirect XDG configuration
