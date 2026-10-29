@@ -255,6 +255,9 @@ redacted status/versions, never auth codes, tokens, passwords or mail contents.
 Extend the working libcosmic app with native widgets and synthetic/offline fixtures
 first. Core provides pagination and stable IDs; UI performs no SQL/network work.
 
+- [x] Deliver the bounded account-local conversation prototype with cached Sent
+  ancestors, revision-fenced stable IDs, per-message native selection/reply/flags,
+  upstream corpus and private offline restart evidence. See [P06 evidence](evidence/P06.md).
 - [ ] Add account/folder navigation, unified inbox, conversation list, reader pane,
   account badges, unread/star states and visible account/sync/partial-cache status.
 - [ ] Load immutable paged view models; preserve selection and scroll across updates,

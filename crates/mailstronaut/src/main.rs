@@ -71,7 +71,7 @@ enum Page {
 #[derive(Clone, Debug)]
 enum Message {
     Composer(composer::Message),
-    Reply(mailstronaut_core::reply::Kind),
+    Reply(u64, u64, mailstronaut_core::reply::Kind),
     Quit,
     CloseRequested(window::Id),
     QuitSaved(Result<(), mailstronaut_core::worker::Error>),
@@ -248,7 +248,9 @@ impl cosmic::Application for App {
                 return cosmic::iced::exit();
             }
             Message::Composer(message) => return self.compose_message(message),
-            Message::Reply(kind) => return self.reply(kind),
+            Message::Reply(generation, reading, kind) => {
+                return self.reply(generation, reading, kind);
+            }
             Message::Inbox(message) => return self.inbox_message(message),
             Message::Appearance(dark) => {
                 self.dark = dark;
@@ -427,7 +429,7 @@ impl App {
                 message,
                 inbox::Message::Sync(..)
                     | inbox::Message::SetFlag(..)
-                    | inbox::Message::UndoFlags
+                    | inbox::Message::UndoFlags(..)
                     | inbox::Message::ApplyFlags
                     | inbox::Message::Open(..)
                     | inbox::Message::Refresh
@@ -437,21 +439,33 @@ impl App {
             return Task::none();
         }
         let task = self.inbox.update(message, self.accounts.authentication());
+        let maintenance = if self.quitting {
+            Task::none()
+        } else {
+            self.inbox.maintenance()
+        };
         Task::batch([
             task,
             self.composer.attach(self.inbox.store()),
             self.maybe_quit(),
+            maintenance,
         ])
     }
-    fn reply(&mut self, kind: mailstronaut_core::reply::Kind) -> Task<Message> {
+    fn reply(
+        &mut self,
+        generation: u64,
+        reading: u64,
+        kind: mailstronaut_core::reply::Kind,
+    ) -> Task<Message> {
         if self.quitting || self.composer.busy() || self.accounts.loading() {
             self.inbox
                 .status("Finish the current compose operation before creating a reply.".into());
             return Task::none();
         }
-        let (Some(config), Some((id, projection))) =
-            (self.accounts.active(), self.inbox.compose_source())
-        else {
+        let (Some(config), Some((id, projection))) = (
+            self.accounts.active(),
+            self.inbox.compose_source(generation, reading),
+        ) else {
             return Task::none();
         };
         let Some(account) = config.accounts.iter().find(|account| account.id == id) else {
@@ -661,6 +675,10 @@ fn logical_preview_size(width: f32, height: f32, scale: f32) -> (f32, f32) {
 
 fn main() -> ExitCode {
     let arguments = env::args_os().skip(1).collect::<Vec<_>>();
+    if matches!(arguments.as_slice(),[flag] if flag==std::ffi::OsStr::new("--internal-project-threads"))
+    {
+        return mailstronaut_core::threads::helper::run();
+    }
     if let Some(status) = config_cli::dispatch(&arguments) {
         return status;
     }

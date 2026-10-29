@@ -1,0 +1,62 @@
+[
+  {
+    "account": 0,
+    "key": "parent",
+    "mid": "parent@example.test",
+    "references": "",
+    "uid": 1,
+    "sent": true,
+    "seen": true,
+    "body": "Synthetic sent parent.",
+    "from": "reader@example.test",
+    "order": 1
+  },
+  {
+    "account": 0,
+    "key": "first",
+    "mid": "first@example.test",
+    "references": "<parent@example.test>",
+    "uid": 2,
+    "sent": false,
+    "seen": false,
+    "body": "Synthetic first reply.",
+    "from": "alice@example.test",
+    "order": 2
+  },
+  {
+    "account": 0,
+    "key": "second",
+    "mid": "second@example.test",
+    "references": "<parent@example.test>",
+    "uid": 3,
+    "sent": false,
+    "seen": false,
+    "body": "Synthetic second reply.",
+    "from": "bob@example.test",
+    "order": 3
+  },
+  {
+    "account": 0,
+    "key": "unrelated",
+    "mid": "unrelated@example.test",
+    "references": "",
+    "uid": 4,
+    "sent": false,
+    "seen": false,
+    "body": "Synthetic unrelated same-subject message.",
+    "from": "alice@example.test",
+    "order": 5
+  },
+  {
+    "account": 1,
+    "key": "other",
+    "mid": "first@example.test",
+    "references": "<parent@example.test>",
+    "uid": 1,
+    "sent": false,
+    "seen": false,
+    "body": "Synthetic other-account reply.",
+    "from": "alice@example.test",
+    "order": 4
+  }
+]

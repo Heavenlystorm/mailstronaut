@@ -168,7 +168,13 @@ cycles, invalid/duplicate IDs must remain safe. Subject-only grouping can merge
 unrelated mail and is disabled. Recompute the affected account's graph off the UI
 thread initially; measure before introducing incremental graph infrastructure.
 Preserve the oldest surviving local conversation ID through merges and aliases
-so reminders and notification links remain resolvable. Thread grouping must include
+so reminders and notification links remain resolvable. The implemented first
+projection runs the library in a short-lived same-executable resource-limited
+child because deep ancestry can recurse. Supply metadata only; enforce byte/node,
+CPU/address-space and parent wall-time limits, cancellation and reaping. Validate
+exact identity coverage and the unchanged account revision before committing.
+This is computation isolation, not a second persistent service or a capability
+sandbox. Unavailable/stale projections fall back to individual cached messages. Thread grouping must include
 Sent and Archive ancestors even when the inbox shows only inbox conversations.
 
 ## 5. Synchronization and sending

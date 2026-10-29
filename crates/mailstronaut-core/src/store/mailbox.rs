@@ -119,6 +119,9 @@ pub struct Summary {
     pub seen: bool,
     /// True when any participating inbox membership is Flagged.
     pub starred: bool,
+    /// This snapshot has a participating INBOX membership; ancestor-only flags
+    /// remain read-only until general folder actions are implemented.
+    pub inbox: bool,
 }
 impl Summary {
     /// Continue after this row without using an unstable numeric offset.
@@ -313,6 +316,8 @@ impl Store {
             tx.execute("INSERT INTO provider_ids(account_id, provider_id, message_id) VALUES (?1,?2,?3) ON CONFLICT(account_id, provider_id) DO NOTHING", params![account, provider.0.get().to_string(), id])?;
         }
         tx.execute("INSERT INTO memberships(account_id, folder_id, uidvalidity, uid, message_id, seen, starred) VALUES (?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(account_id, folder_id, uidvalidity, uid) DO UPDATE SET seen=excluded.seen, starred=excluded.starred", params![account, membership.folder, membership.uid_validity.get(), membership.uid.get(), id, membership.flags.seen, membership.flags.starred])?;
+        let (references, parent, valid) = super::conversations::routing(&projection)?;
+        tx.execute("UPDATE messages SET thread_references=?2,thread_parent=?3,thread_routing_valid=?4 WHERE id=?1",params![id,references,parent,valid])?;
         tx.execute("DELETE FROM message_search WHERE rowid=?1", params![id])?;
         let body = projection
             .text
@@ -344,7 +349,7 @@ impl Store {
         // Account filtering is parameterized with SQLite's bundled JSON table
         // function; no user value becomes SQL text or an identifier.
         let selected = serde_json::to_string(accounts)?;
-        let mut statement = self.connection.prepare_cached("SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(COALESCE((SELECT p.desired FROM pending_operations p WHERE p.account_id=s.account_id AND p.folder_id=s.folder_id AND p.uidvalidity=s.uidvalidity AND p.uid=s.uid AND p.message_id=s.message_id AND p.kind='seen' AND p.state IN ('pending','submitted','failed')),s.seen)),MAX(COALESCE((SELECT p.desired FROM pending_operations p WHERE p.account_id=s.account_id AND p.folder_id=s.folder_id AND p.uidvalidity=s.uidvalidity AND p.uid=s.uid AND p.message_id=s.message_id AND p.kind='starred' AND p.state IN ('pending','submitted','failed')),s.starred)) FROM messages m JOIN memberships s ON s.message_id=m.id JOIN folders f ON f.id=s.folder_id AND f.account_id=m.account_id WHERE f.is_inbox=1 AND m.account_id IN (SELECT value FROM json_each(?1)) AND (?2 IS NULL OR m.received_at < ?2 OR (m.received_at=?2 AND m.id<?3)) GROUP BY m.id ORDER BY m.received_at DESC,m.id DESC LIMIT ?4")?;
+        let mut statement = self.connection.prepare_cached("SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen),MAX(s.starred) FROM messages m JOIN effective_memberships s ON s.message_id=m.id JOIN folders f ON f.id=s.folder_id AND f.account_id=m.account_id WHERE f.is_inbox=1 AND m.account_id IN (SELECT value FROM json_each(?1)) AND (?2 IS NULL OR m.received_at < ?2 OR (m.received_at=?2 AND m.id<?3)) GROUP BY m.id ORDER BY m.received_at DESC,m.id DESC LIMIT ?4")?;
         let rows = statement.query_map(
             params![
                 selected,
@@ -386,7 +391,7 @@ fn read_folder(row: &rusqlite::Row<'_>) -> rusqlite::Result<Folder> {
         inbox: row.get(4)?,
     })
 }
-fn read_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<Summary> {
+pub(super) fn read_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<Summary> {
     Ok(Summary {
         id: row.get(0)?,
         account: row.get(1)?,
@@ -396,6 +401,7 @@ fn read_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<Summary> {
         received_at: row.get(5)?,
         seen: row.get(6)?,
         starred: row.get(7)?,
+        inbox: true,
     })
 }
 fn check_generation(

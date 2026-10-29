@@ -150,3 +150,162 @@ async fn sqlite_writer_contention_does_not_block_the_async_timer() {
         .expect("cache after release");
     owner.shutdown().await.expect("shutdown");
 }
+
+#[derive(serde::Deserialize)]
+struct GuiMessage {
+    account: usize,
+    key: String,
+    mid: String,
+    references: String,
+    uid: u32,
+    sent: bool,
+    seen: bool,
+    body: String,
+    from: String,
+    order: i64,
+}
+
+#[tokio::test]
+#[ignore = "explicit private native conversation GUI fixture only"]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep project/private-path checks, native config validation and the ordered offline seed in this explicit harness-only fixture."
+)]
+async fn seed_conversation_gui() {
+    use mailstronaut_core::store::flags;
+    use std::{fs, path::PathBuf};
+    use tokio_util::sync::CancellationToken;
+    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates")
+        .parent()
+        .expect("workspace")
+        .join("target")
+        .canonicalize()
+        .expect("target");
+    let data = PathBuf::from(std::env::var_os("XDG_DATA_HOME").expect("private XDG root"))
+        .canonicalize()
+        .expect("data");
+    assert!(data.starts_with(workspace));
+    let config = PathBuf::from(
+        std::env::var_os("MAILSTRONAUT_THREADS_CONFIG").expect("synthetic configuration"),
+    );
+    assert!(
+        config
+            .canonicalize()
+            .expect("configuration")
+            .starts_with(data.parent().expect("private profile"))
+    );
+    let binary = PathBuf::from(
+        std::env::var_os("MAILSTRONAUT_THREADS_GUI_BINARY").expect("prebuilt application"),
+    );
+    let config = mailstronaut_config::process::evaluate(
+        &binary,
+        &fs::read_to_string(config).expect("synthetic source"),
+        &CancellationToken::new(),
+    )
+    .await
+    .expect("same native Nix schema");
+    assert_eq!(config.accounts.len(), 2);
+    let owner = Worker::open(data.join("mailstronaut"))
+        .await
+        .expect("profile owner");
+    let store = owner.handle();
+    let messages: Vec<GuiMessage> =
+        serde_json::from_str(include_str!("fixtures/conversation-gui.json"))
+            .expect("synthetic mail fixture");
+    let mut receipt = serde_json::Map::new();
+    for (index, account) in config.accounts.iter().enumerate() {
+        assert!(
+            account
+                .incoming_endpoint()
+                .expect("endpoint")
+                .host
+                .ends_with(".invalid")
+        );
+        assert!(
+            account
+                .address
+                .parse::<mailstronaut_mail::compose::Address>()
+                .expect("synthetic address")
+                .domain()
+                .eq_ignore_ascii_case("example.test")
+        );
+        store
+            .ensure_account(account.id.clone())
+            .await
+            .expect("account");
+        store
+            .bind_mailbox_context(
+                account.id.clone(),
+                flags::context(account).expect("context"),
+            )
+            .await
+            .expect("synthetic provenance");
+        let inbox = store
+            .ensure_folder(account.id.clone(), "INBOX".into(), true)
+            .await
+            .expect("inbox")
+            .id;
+        let sent = store
+            .ensure_folder(account.id.clone(), "Sent".into(), false)
+            .await
+            .expect("sent")
+            .id;
+        for folder in [inbox, sent] {
+            store
+                .select_folder(account.id.clone(), folder, nonzero(42))
+                .await
+                .expect("generation");
+        }
+        for message in &messages {
+            if message.account != index {
+                continue;
+            }
+            let GuiMessage {
+                key,
+                mid,
+                references,
+                uid,
+                sent: in_sent,
+                seen,
+                body,
+                from,
+                order: offset,
+                ..
+            } = message;
+            let folder = if *in_sent { sent } else { inbox };
+            let raw = format!(
+                "From: {from}\r\nTo: alice@example.test, {}\r\nMessage-ID: <{mid}>\r\nReferences: {references}\r\nSubject: Shared conversation\r\n\r\n{body}\r\n",
+                account.address
+            );
+            let id = store
+                .cache_message(
+                    account.id.clone(),
+                    Membership {
+                        folder,
+                        uid_validity: nonzero(42),
+                        uid: nonzero(*uid),
+                        flags: Flags {
+                            seen: *seen,
+                            starred: false,
+                        },
+                    },
+                    1_793_310_000 + *offset,
+                    None,
+                    raw.into_bytes(),
+                )
+                .await
+                .expect("cache fixture");
+            receipt.insert(key.clone(), serde_json::json!(id));
+        }
+    }
+    owner.shutdown().await.expect("release synthetic profile");
+    fs::write(
+        data.parent()
+            .expect("profile")
+            .join("conversation-ids.json"),
+        serde_json::to_vec(&receipt).expect("receipt"),
+    )
+    .expect("receipt file");
+}

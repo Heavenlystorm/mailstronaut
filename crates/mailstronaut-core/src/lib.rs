@@ -14,3 +14,6 @@ pub mod reply;
 
 /// Bounded foreground application of durable read/star intentions.
 pub mod actions;
+
+/// Bounded account-local RFC conversation projection.
+pub mod threads;

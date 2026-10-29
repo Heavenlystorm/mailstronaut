@@ -20,9 +20,10 @@ use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
     actions,
     mime::Projection,
+    store::conversations::Summary as Conversation,
     store::flags::{self, Counts},
     store::mailbox::{Cursor, Summary},
-    sync,
+    sync, threads,
     worker::{self, Worker},
 };
 use mailstronaut_mail::{
@@ -40,8 +41,10 @@ pub enum Message {
     Rows(u64, u64, Payload<Result<Listing, worker::Error>>),
     Open(String, i64),
     Body(u64, u64, Payload<Result<Arc<Body>, worker::Error>>),
-    SetFlag(FlagChange, bool),
-    UndoFlags,
+    Members(u64, u64, Payload<Result<Vec<Summary>, worker::Error>>),
+    Grouped(u64, Payload<Vec<String>>),
+    SetFlag(u64, String, i64, FlagChange, bool),
+    UndoFlags(u64, String, i64),
     FlagQueued(u64, Result<(), worker::Error>),
     ApplyFlags,
     Applied(u64, Payload<Vec<AccountResult>>),
@@ -51,7 +54,7 @@ pub enum Message {
 }
 #[derive(Clone)]
 pub struct Listing {
-    rows: Vec<Summary>,
+    rows: Vec<Conversation>,
     flags: Counts,
 }
 
@@ -74,10 +77,13 @@ pub struct Inbox {
     generation: u64,
     listing: u64,
     reading: u64,
-    rows: Vec<Summary>,
+    rows: Vec<Conversation>,
     after: Option<Cursor>,
     selected: Option<(String, i64)>,
     body: Option<Arc<Body>>,
+    members: Vec<Summary>,
+    member_labels: Vec<String>,
+    group_again: bool,
     loading: bool,
     jobs: u32,
     edits: u32,
@@ -132,6 +138,9 @@ impl Inbox {
         self.rows.clear();
         self.selected = None;
         self.body = None;
+        self.members.clear();
+        self.member_labels.clear();
+        self.group_again = true;
         self.older.clear();
         self.status.clear();
         self.loading = false;
@@ -144,16 +153,24 @@ impl Inbox {
         self.selected.is_some()
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep asynchronous generation/reading fences adjacent to their event arms; operations live in separate helpers."
+    )]
     pub fn update(&mut self, message: Message, keyring: Option<Session>) -> Task<super::Message> {
         match message {
             Message::Started(Payload(result)) => match result {
                 Ok(owner) => {
                     self.owner = Some(owner);
+                    self.group_again = true;
                     return self.query(false);
                 }
                 Err(error) => self.status = vec![error.to_string()],
             },
-            Message::Refresh => return self.query(false),
+            Message::Refresh => {
+                self.group_again = true;
+                return self.query(false);
+            }
             Message::Next => return self.query(true),
             Message::Rows(generation, listing, Payload(result))
                 if generation == self.generation && listing == self.listing =>
@@ -167,8 +184,9 @@ impl Inbox {
                     Err(error) => self.status = vec![error.to_string()],
                 }
                 if core::mem::take(&mut self.query_again) {
-                    return self.query(false);
+                    return Task::batch([self.query(false), self.load_members()]);
                 }
+                return self.load_members();
             }
             Message::Open(account, id) => return self.open(account, id),
             Message::Body(generation, reading, Payload(result))
@@ -182,8 +200,50 @@ impl Inbox {
                     Err(error) => self.status = vec![error.to_string()],
                 }
             }
-            Message::UndoFlags if !self.busy() => return self.undo_flags(),
-            Message::SetFlag(flag, desired) if !self.busy() => return self.set_flag(flag, desired),
+            Message::Members(generation, reading, Payload(result))
+                if generation == self.generation && reading == self.reading =>
+            {
+                match result {
+                    Ok(members) => {
+                        self.member_labels = members
+                            .iter()
+                            .enumerate()
+                            .map(|(index, message)| {
+                                format!(
+                                    "{} · {}{} · {}",
+                                    index + 1,
+                                    if message.seen { "" } else { "● " },
+                                    message.sender.chars().take(60).collect::<String>(),
+                                    message.subject.chars().take(80).collect::<String>()
+                                )
+                            })
+                            .collect();
+                        self.members = members;
+                    }
+                    Err(error) => self.status = vec![error.to_string()],
+                }
+            }
+            Message::Grouped(generation, Payload(errors)) => {
+                self.jobs = self.jobs.saturating_sub(1);
+                if generation == self.generation && !errors.is_empty() {
+                    self.status.extend(errors);
+                }
+                return self.query(false);
+            }
+            Message::UndoFlags(generation, account, id)
+                if !self.busy()
+                    && generation == self.generation
+                    && self.selected.as_ref() == Some(&(account.clone(), id)) =>
+            {
+                return self.undo_flags();
+            }
+            Message::SetFlag(generation, account, id, flag, desired)
+                if !self.busy()
+                    && generation == self.generation
+                    && self.selected.as_ref() == Some(&(account.clone(), id)) =>
+            {
+                return self.set_flag(flag, desired);
+            }
             Message::FlagQueued(generation, result) => {
                 self.edits = self.edits.saturating_sub(1);
                 if generation == self.generation {
@@ -237,16 +297,22 @@ impl Inbox {
         if !self
             .rows
             .iter()
-            .any(|row| row.id == id && row.account == account)
+            .any(|row| row.latest.id == id && row.latest.account == account)
+            && !self
+                .members
+                .iter()
+                .any(|row| row.id == id && row.account == account)
         {
             return Task::none();
         }
         self.selected = Some((account.clone(), id));
         self.body = None;
+        self.members.clear();
+        self.member_labels.clear();
         self.reading = self.reading.saturating_add(1);
         let (generation, reading) = (self.generation, self.reading);
         let store = owner.handle();
-        Task::perform(
+        let body = Task::perform(
             async move {
                 store.message(account, id).await.map(|projection| {
                     let text = projection.readable_text().map_or_else(
@@ -257,7 +323,8 @@ impl Inbox {
                 })
             },
             move |result| event(Message::Body(generation, reading, Payload(result))),
-        )
+        );
+        Task::batch([body, self.load_members()])
     }
 
     fn query(&mut self, next: bool) -> Task<super::Message> {
@@ -271,7 +338,7 @@ impl Inbox {
         self.loading = true;
         self.listing = self.listing.saturating_add(1);
         if next {
-            self.after = self.rows.last().map(Summary::cursor);
+            self.after = self.rows.last().map(|row| row.latest.cursor());
         } else {
             self.after = None;
         }
@@ -284,7 +351,9 @@ impl Inbox {
         let store = owner.handle();
         Task::perform(
             async move {
-                let rows = store.inbox(accounts.clone(), after, 100).await?;
+                let rows = store
+                    .conversation_inbox(accounts.clone(), after, 100)
+                    .await?;
                 let flags = store.flag_counts(accounts).await?;
                 Ok(Listing { rows, flags })
             },
@@ -359,6 +428,52 @@ impl Inbox {
         )
     }
 
+    fn load_members(&self) -> Task<super::Message> {
+        let (Some(store), Some((account, id))) = (self.store(), self.selected.as_ref()) else {
+            return Task::none();
+        };
+        let (account, id, generation, reading) =
+            (account.clone(), *id, self.generation, self.reading);
+        Task::perform(
+            async move { store.conversation_messages(account, id).await },
+            move |result| event(Message::Members(generation, reading, Payload(result))),
+        )
+    }
+    pub fn maintenance(&mut self) -> Task<super::Message> {
+        if !self.group_again || self.busy() {
+            return Task::none();
+        }
+        let (Some(store), Some(config)) = (self.store(), self.config.as_ref()) else {
+            return Task::none();
+        };
+        self.group_again = false;
+        let accounts = config
+            .accounts
+            .iter()
+            .map(|account| account.id.clone())
+            .collect::<Vec<_>>();
+        if accounts.is_empty() {
+            return Task::none();
+        }
+        self.jobs = self.jobs.saturating_add(1);
+        self.cancel = CancellationToken::new();
+        let (generation, cancel) = (self.generation, self.cancel.clone());
+        Task::perform(
+            async move {
+                let mut errors = Vec::new();
+                for account in accounts {
+                    if cancel.is_cancelled() {
+                        break;
+                    }
+                    if let Err(error) = group_account(&store, &account, &cancel).await {
+                        errors.push(format!("{account}: {error}"));
+                    }
+                }
+                errors
+            },
+            move |errors| event(Message::Grouped(generation, Payload(errors))),
+        )
+    }
     fn undo_flags(&mut self) -> Task<super::Message> {
         let (Some(store), Some((account, id))) = (self.store(), self.selected.as_ref()) else {
             return Task::none();
@@ -419,12 +534,19 @@ impl Inbox {
         )
     }
 
-    pub fn compose_source(&self) -> Option<(&str, &Projection)> {
+    pub fn compose_source(&self, generation: u64, reading: u64) -> Option<(&str, &Projection)> {
+        if generation != self.generation || reading != self.reading {
+            return None;
+        }
         Some((&self.selected.as_ref()?.0, &self.body.as_ref()?.projection))
     }
     pub fn status(&mut self, value: String) {
         self.status = vec![value];
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep native reader controls and their captured message identity together in one visible layout."
+    )]
     fn reader_view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
         let Some(body) = &self.body else {
             return widget::text(if self.selected.is_some() {
@@ -443,6 +565,33 @@ impl Inbox {
                 .unwrap_or("(no subject)")
         )]
         .spacing(8);
+        if self.members.len() > 1 {
+            let selected = self.selected.as_ref().and_then(|(account, id)| {
+                self.members
+                    .iter()
+                    .position(|message| message.id == *id && message.account == *account)
+            });
+            let ids = self
+                .members
+                .iter()
+                .map(|message| (message.account.clone(), message.id))
+                .collect::<Vec<_>>();
+            reader = reader.push(widget::dropdown(
+                &self.member_labels,
+                selected,
+                move |index| {
+                    ids.get(index)
+                        .map_or(super::Message::Inbox(Message::Refresh), |(account, id)| {
+                            super::Message::Inbox(Message::Open(account.clone(), *id))
+                        })
+                },
+            ));
+            if self.members.len() == 200 {
+                reader = reader.push(widget::text(
+                    "Showing up to 200 cached conversation members.",
+                ));
+            }
+        }
         if body.projection.status.body_truncated
             || body.projection.status.degraded
             || body.projection.status.headers_truncated
@@ -451,22 +600,10 @@ impl Inbox {
                 "This message is incomplete or has unsupported formatting.",
             ));
         }
-        reader = reader.push(
-            row![
-                widget::button::text("Reply")
-                    .on_press(super::Message::Reply(mailstronaut_core::reply::Kind::Reply)),
-                widget::button::text("Reply all").on_press(super::Message::Reply(
-                    mailstronaut_core::reply::Kind::ReplyAll
-                )),
-                widget::button::text("Forward as text").on_press(super::Message::Reply(
-                    mailstronaut_core::reply::Kind::ForwardText
-                ))
-            ]
-            .spacing(8),
-        );
+        reader = reader.push(reply_actions(self.generation, self.reading));
         if let Some((account, id)) = &self.selected
             && let Some(message) = self
-                .rows
+                .members
                 .iter()
                 .find(|row| row.account == *account && row.id == *id)
         {
@@ -477,20 +614,44 @@ impl Inbox {
                     } else {
                         "Mark read"
                     })
-                    .on_press_maybe((!self.busy()).then_some(
-                        super::Message::Inbox(Message::SetFlag(FlagChange::Seen, !message.seen))
-                    )),
+                    .on_press_maybe(
+                        (!self.busy() && message.inbox).then_some(super::Message::Inbox(
+                            Message::SetFlag(
+                                self.generation,
+                                account.clone(),
+                                *id,
+                                FlagChange::Seen,
+                                !message.seen
+                            )
+                        ))
+                    ),
                     widget::button::text(if message.starred { "Unstar" } else { "Star" })
-                        .on_press_maybe((!self.busy()).then_some(super::Message::Inbox(
-                            Message::SetFlag(FlagChange::Starred, !message.starred)
-                        ))),
+                        .on_press_maybe((!self.busy() && message.inbox).then_some(
+                            super::Message::Inbox(Message::SetFlag(
+                                self.generation,
+                                account.clone(),
+                                *id,
+                                FlagChange::Starred,
+                                !message.starred
+                            ))
+                        )),
                     widget::button::text("Undo unsent flags").on_press_maybe(
-                        (!self.busy() && self.flags.pending > 0)
-                            .then_some(super::Message::Inbox(Message::UndoFlags))
+                        (!self.busy() && message.inbox && self.flags.pending > 0).then_some(
+                            super::Message::Inbox(Message::UndoFlags(
+                                self.generation,
+                                account.clone(),
+                                *id
+                            ))
+                        )
                     )
                 ]
                 .spacing(8),
             );
+            if !message.inbox {
+                reader = reader.push(widget::text(
+                    "Cached ancestor outside Inbox · flags are read-only here.",
+                ));
+            }
         }
         // Retain decoded content in widget state; no HTML engine receives it.
         reader
@@ -519,7 +680,8 @@ impl Inbox {
             content=content.push(widget::text("No cached messages on this page. Configure accounts, unlock the keyring, then sync."));
         }
         let mut list = column![].spacing(8);
-        for message in &self.rows {
+        for conversation in &self.rows {
+            let message = &conversation.latest;
             let title = if message.subject.is_empty() {
                 "(no subject)"
             } else {
@@ -530,12 +692,19 @@ impl Inbox {
                     column![
                         widget::text(format!(
                             "{}{}{} · {}",
-                            if message.starred { "★ " } else { "" },
-                            if message.seen { "" } else { "● " },
+                            if conversation.starred { "★ " } else { "" },
+                            if conversation.unread == 0 { "" } else { "● " },
                             message.sender,
                             message.account
                         )),
-                        widget::text(title),
+                        widget::text(if conversation.cached_messages > 1 {
+                            format!(
+                                "{title} · {} messages ({} unread)",
+                                conversation.cached_messages, conversation.unread
+                            )
+                        } else {
+                            title.to_owned()
+                        }),
                         widget::text(&message.preview)
                     ]
                     .spacing(4),
@@ -576,6 +745,28 @@ impl Inbox {
     }
 }
 
+fn reply_actions(generation: u64, reading: u64) -> Element<'static, super::Message> {
+    row![
+        widget::button::text("Reply").on_press(super::Message::Reply(
+            generation,
+            reading,
+            mailstronaut_core::reply::Kind::Reply
+        )),
+        widget::button::text("Reply all").on_press(super::Message::Reply(
+            generation,
+            reading,
+            mailstronaut_core::reply::Kind::ReplyAll
+        )),
+        widget::button::text("Forward as text").on_press(super::Message::Reply(
+            generation,
+            reading,
+            mailstronaut_core::reply::Kind::ForwardText
+        ))
+    ]
+    .spacing(8)
+    .into()
+}
+
 const fn event(message: Message) -> Action<super::Message> {
     Action::App(super::Message::Inbox(message))
 }
@@ -591,7 +782,7 @@ async fn synchronize_account(
 ) -> AccountResult {
     let result = async {
         let mut connection = connect_account(&account, &keyring, &cancel).await?;
-        sync::page(
+        let page = sync::page(
             &store,
             &mut connection,
             &sync::Request {
@@ -607,16 +798,22 @@ async fn synchronize_account(
             &cancel,
         )
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+        drop(connection);
+        let warning = group_account(&store, &account.id, &cancel).await.err();
+        Ok::<_, String>((page, warning))
     }
     .await;
     match result {
-        Ok(page) => AccountResult {
+        Ok((page, warning)) => AccountResult {
             account: account.id,
             next: page.next_before,
             status: format!(
-                "{} downloaded · {} refreshed · {} omitted · partial cache",
-                page.downloaded, page.refreshed, page.skipped
+                "{} downloaded · {} refreshed · {} omitted · partial cache{}",
+                page.downloaded,
+                page.refreshed,
+                page.skipped,
+                warning.map_or_else(String::new, |warning| format!(" · {warning}"))
             ),
         },
         Err(status) => AccountResult {
@@ -625,6 +822,33 @@ async fn synchronize_account(
             status,
         },
     }
+}
+
+async fn group_account(
+    store: &worker::Handle,
+    account: &str,
+    cancel: &CancellationToken,
+) -> Result<(), String> {
+    let Some(snapshot) = store
+        .conversation_snapshot(account.into())
+        .await
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(());
+    };
+    let groups = if snapshot.messages.is_empty() {
+        threads::Groups { groups: Vec::new() }
+    } else {
+        let executable =
+            std::env::current_exe().map_err(|_| "Conversation helper path unavailable.")?;
+        threads::process::project(&executable, &snapshot.messages, cancel)
+            .await
+            .map_err(|error| error.to_string())?
+    };
+    store
+        .commit_conversations(snapshot, groups)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 async fn connect_account(

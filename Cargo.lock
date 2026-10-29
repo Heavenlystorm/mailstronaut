@@ -5268,6 +5268,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mail-threading"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "939997737fd3421e1487a898de319bf175ea0d7509dae0a0c57467f1006c48f0"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
@@ -5308,6 +5317,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "mail-parser",
+ "mail-threading",
  "mailstronaut-config",
  "mailstronaut-mail",
  "rusqlite",

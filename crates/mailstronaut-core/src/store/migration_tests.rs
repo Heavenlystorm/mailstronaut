@@ -235,7 +235,10 @@ fn schema_three_upgrade_keeps_originals_and_requires_verified_server_provenance_
     .expect("message");
     old.execute_batch("INSERT INTO memberships(account_id,folder_id,uidvalidity,uid,message_id,seen,starred) VALUES('a',7,42,11,1,0,1);").expect("membership");
     let mut store = Store::open(root.path()).expect("upgrade");
-    assert_eq!(scalar(&store.connection, "PRAGMA user_version"), 4);
+    assert_eq!(
+        scalar(&store.connection, "PRAGMA user_version"),
+        i64::from(super::SCHEMA_VERSION)
+    );
     assert_eq!(
         scalar(&store.connection, "SELECT count(*) FROM memberships"),
         1

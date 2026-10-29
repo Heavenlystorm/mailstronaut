@@ -85,6 +85,19 @@ use mailstronaut_mail::imap::{FlagChange, Metadata};
 type Reply<T> = oneshot::Sender<Result<T, Error>>;
 
 enum Command {
+    ConversationSnapshot(String, Reply<Option<store::conversations::Snapshot>>),
+    CommitConversations(
+        store::conversations::Snapshot,
+        crate::threads::Groups,
+        Reply<()>,
+    ),
+    ConversationInbox(
+        Vec<String>,
+        Option<Cursor>,
+        u32,
+        Reply<Vec<store::conversations::Summary>>,
+    ),
+    ConversationMessages(String, i64, Reply<Vec<Summary>>),
     BindContext(String, String, Reply<bool>),
     UndoFlags(String, i64, Reply<()>),
     SetFlag(String, i64, FlagChange, bool, String, Reply<()>),
@@ -125,6 +138,51 @@ enum Command {
 #[derive(Clone)]
 pub struct Handle(mpsc::Sender<Command>);
 impl Handle {
+    /// Read stale account metadata for an isolated RFC projection, without bodies.
+    /// # Errors
+    /// Rejects metadata budgets, corrupt indexes or unavailable storage.
+    pub async fn conversation_snapshot(
+        &self,
+        account: String,
+    ) -> Result<Option<store::conversations::Snapshot>, Error> {
+        self.request(|reply| Command::ConversationSnapshot(account, reply))
+            .await
+    }
+    /// Commit exact complete helper output only if its account revision still matches.
+    /// # Errors
+    /// Rejects stale/mixed/incomplete output and storage failures.
+    pub async fn commit_conversations(
+        &self,
+        snapshot: store::conversations::Snapshot,
+        groups: crate::threads::Groups,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::CommitConversations(snapshot, groups, reply))
+            .await
+    }
+    /// Read at most 100 account-local conversation rows with unread/star aggregates.
+    /// # Errors
+    /// Rejects excessive account/page selections and storage failures.
+    pub async fn conversation_inbox(
+        &self,
+        accounts: Vec<String>,
+        after: Option<Cursor>,
+        limit: u32,
+    ) -> Result<Vec<store::conversations::Summary>, Error> {
+        self.request(|reply| Command::ConversationInbox(accounts, after, limit, reply))
+            .await
+    }
+    /// Read bounded cached conversation members, including Sent/Archive ancestry.
+    /// # Errors
+    /// Rejects unknown/cross-account messages and unavailable storage.
+    pub async fn conversation_messages(
+        &self,
+        account: String,
+        message: i64,
+    ) -> Result<Vec<Summary>, Error> {
+        self.request(|reply| Command::ConversationMessages(account, message, reply))
+            .await
+    }
+
     /// Bind cached namespaces after authenticating this configuration.
     /// # Errors
     /// Returns invalid-context, account or storage failures.
@@ -569,6 +627,18 @@ fn claim_flag(store: &mut Store, account: &str, context: &str, reply: Reply<Opti
 fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
     while let Some(command) = receiver.blocking_recv() {
         match command {
+            Command::ConversationSnapshot(account, reply) => {
+                respond(reply, || store.conversation_snapshot(&account));
+            }
+            Command::CommitConversations(snapshot, groups, reply) => {
+                commit(reply, || store.commit_conversations(&snapshot, &groups));
+            }
+            Command::ConversationInbox(accounts, after, limit, reply) => {
+                respond(reply, || store.conversation_inbox(&accounts, after, limit));
+            }
+            Command::ConversationMessages(account, message, reply) => {
+                respond(reply, || store.conversation_messages(&account, message));
+            }
             Command::BindContext(account, context, reply) => {
                 commit(reply, || store.bind_mailbox_context(&account, &context));
             }

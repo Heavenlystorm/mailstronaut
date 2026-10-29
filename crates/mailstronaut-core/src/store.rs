@@ -12,12 +12,13 @@ use rusqlite::{Connection, TransactionBehavior, params};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
+pub mod conversations;
 pub mod flags;
 pub mod mailbox;
 /// Durable drafts and immutable, explicitly submitted outbox records.
 pub mod outbox;
 
-const SCHEMA_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 5;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -169,6 +170,7 @@ impl Store {
             M::up(mailbox::SCHEMA).foreign_key_check(),
             M::up(outbox::SCHEMA).foreign_key_check(),
             M::up(flags::SCHEMA).foreign_key_check(),
+            M::up(conversations::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
