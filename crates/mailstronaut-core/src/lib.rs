@@ -11,3 +11,6 @@ pub mod sync;
 
 /// Bounded local reply and text-forward draft preparation.
 pub mod reply;
+
+/// Bounded foreground application of durable read/star intentions.
+pub mod actions;

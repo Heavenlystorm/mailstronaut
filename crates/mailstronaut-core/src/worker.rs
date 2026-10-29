@@ -79,9 +79,20 @@ impl From<store::Error> for Error {
     }
 }
 
+use crate::store::flags::{Attempt, Counts};
+use mailstronaut_mail::imap::{FlagChange, Metadata};
+
 type Reply<T> = oneshot::Sender<Result<T, Error>>;
 
 enum Command {
+    BindContext(String, String, Reply<bool>),
+    UndoFlags(String, i64, Reply<()>),
+    SetFlag(String, i64, FlagChange, bool, String, Reply<()>),
+    BeginFlag(String, String, Reply<Option<Attempt>>),
+    ConfirmFlag(Attempt, Metadata, Reply<()>),
+    FailFlag(Attempt, bool, Reply<()>),
+    RetryFlags(String, String, Reply<()>),
+    FlagCounts(Vec<String>, Reply<Counts>),
     RecoverDraft(String, String, Reply<Draft>),
     SaveDraft(Draft, Reply<()>),
     Draft(String, String, Reply<Draft>),
@@ -114,6 +125,78 @@ enum Command {
 #[derive(Clone)]
 pub struct Handle(mpsc::Sender<Command>);
 impl Handle {
+    /// Bind cached namespaces after authenticating this configuration.
+    /// # Errors
+    /// Returns invalid-context, account or storage failures.
+    pub async fn bind_mailbox_context(
+        &self,
+        account: String,
+        context: String,
+    ) -> Result<bool, Error> {
+        self.request(|reply| Command::BindContext(account, context, reply))
+            .await
+    }
+    /// Persist an offline read/star intention before acknowledging the UI.
+    /// # Errors
+    /// Rejects stale server provenance, missing messages and storage failures.
+    pub async fn set_flag(
+        &self,
+        account: String,
+        message: i64,
+        flag: FlagChange,
+        desired: bool,
+        context: String,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::SetFlag(account, message, flag, desired, context, reply))
+            .await
+    }
+    /// Undo a message's local flag intentions only before any network attempt.
+    /// # Errors
+    /// Rejects attempted/missing work and storage failures.
+    pub async fn undo_flags(&self, account: String, message: i64) -> Result<(), Error> {
+        self.request(|reply| Command::UndoFlags(account, message, reply))
+            .await
+    }
+    /// Commit and claim one exact UID flag assignment.
+    /// # Errors
+    /// Rejects concurrent claims, invalid context and storage failures.
+    pub async fn begin_flag(
+        &self,
+        account: String,
+        context: String,
+    ) -> Result<Option<Attempt>, Error> {
+        self.request(|reply| Command::BeginFlag(account, context, reply))
+            .await
+    }
+    /// Persist a fresh server confirmation for the exact attempt token.
+    /// # Errors
+    /// Rejects stale/mismatched confirmations and storage failures.
+    pub async fn confirm_flag(&self, attempt: Attempt, observed: Metadata) -> Result<(), Error> {
+        self.request(|reply| Command::ConfirmFlag(attempt, observed, reply))
+            .await
+    }
+    /// Retain a failed/retired flag without implicitly retrying it.
+    /// # Errors
+    /// Rejects stale callbacks and storage failures.
+    pub async fn fail_flag(&self, attempt: Attempt, conflict: bool) -> Result<(), Error> {
+        self.request(|reply| Command::FailFlag(attempt, conflict, reply))
+            .await
+    }
+    /// Explicitly retry failed idempotent flags, never SMTP submissions.
+    /// # Errors
+    /// Rejects invalid context and storage failures.
+    pub async fn retry_flags(&self, account: String, context: String) -> Result<(), Error> {
+        self.request(|reply| Command::RetryFlags(account, context, reply))
+            .await
+    }
+    /// Read enabled accounts' pending/failed/retired flag counts.
+    /// # Errors
+    /// Rejects oversized selections and storage failures.
+    pub async fn flag_counts(&self, accounts: Vec<String>) -> Result<Counts, Error> {
+        self.request(|reply| Command::FlagCounts(accounts, reply))
+            .await
+    }
+
     /// Recover a definite SMTP rejection as a new editable draft, cancelling its
     /// old immutable intent. Unknown/accepted mail is never implicitly reopened.
     ///
@@ -443,6 +526,7 @@ fn open_profile(root: &Path) -> Result<(fs::File, Store), Error> {
     )?;
     let store = Store::open(root).map_err(Error::from)?;
     store.recover_submissions().map_err(Error::from)?;
+    store.recover_flags().map_err(Error::from)?;
     Ok((lock, store))
 }
 
@@ -471,9 +555,44 @@ fn claim(store: &mut Store, account: &str, id: &str, reply: Reply<Submission>) {
         );
     }
 }
+fn claim_flag(store: &mut Store, account: &str, context: &str, reply: Reply<Option<Attempt>>) {
+    if reply.is_closed() {
+        return;
+    }
+    let result = store.begin_flag(account, context).map_err(Error::from);
+    if let Err(Ok(Some(attempt))) = reply.send(result) {
+        // No network caller obtained this claim. Clear its in-flight fence;
+        // explicit retry remains safe and no account stays permanently busy.
+        let _failed = store.fail_flag(&attempt, false);
+    }
+}
 fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
     while let Some(command) = receiver.blocking_recv() {
         match command {
+            Command::BindContext(account, context, reply) => {
+                commit(reply, || store.bind_mailbox_context(&account, &context));
+            }
+            Command::UndoFlags(account, message, reply) => {
+                commit(reply, || store.undo_flags(&account, message));
+            }
+            Command::SetFlag(account, message, flag, desired, context, reply) => {
+                commit(reply, || {
+                    store.set_flag(&account, message, flag, desired, &context)
+                });
+            }
+            Command::BeginFlag(account, context, reply) => {
+                claim_flag(store, &account, &context, reply);
+            }
+            Command::ConfirmFlag(attempt, observed, reply) => {
+                commit(reply, || store.confirm_flag(&attempt, &observed));
+            }
+            Command::FailFlag(attempt, conflict, reply) => {
+                commit(reply, || store.fail_flag(&attempt, conflict));
+            }
+            Command::RetryFlags(account, context, reply) => {
+                commit(reply, || store.retry_flags(&account, &context));
+            }
+            Command::FlagCounts(accounts, reply) => respond(reply, || store.flag_counts(&accounts)),
             Command::RecoverDraft(account, id, reply) => {
                 commit(reply, || store.recover_draft(&account, &id));
             }

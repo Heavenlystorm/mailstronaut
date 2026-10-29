@@ -46,7 +46,12 @@ async fn gui_loopback_server() {
             .expect("existing project fixture")
             .starts_with(workspace)
     );
-    let (port, server) = fixture(false, true, false).await;
+    let writable = std::env::var("MAILSTRONAUT_GUI_FLAGS").is_ok_and(|value| value == "1");
+    let (port, server) = if writable {
+        mutation_fixture(Mutations::new(42, false, false), 2, false).await
+    } else {
+        fixture(false, true, false).await
+    };
     std::fs::write(output, port.to_string()).expect("fixture port");
     let commands = tokio::time::timeout(std::time::Duration::from_secs(120), server)
         .await
@@ -57,11 +62,25 @@ async fn gui_loopback_server() {
             .iter()
             .any(|command| command.contains("BODY.PEEK[]"))
     );
-    assert!(
-        !commands
-            .iter()
-            .any(|command| command.contains("STORE") || command.contains("EXPUNGE"))
-    );
+    if writable {
+        assert_eq!(
+            commands
+                .iter()
+                .filter(|command| command.contains("UID STORE"))
+                .count(),
+            4
+        );
+        assert!(!commands.iter().any(|command| command.contains("EXPUNGE")));
+        println!(
+            "Private native GUI: four UID-only flag assignments confirmed across restart; no EXPUNGE."
+        );
+    } else {
+        assert!(
+            !commands
+                .iter()
+                .any(|command| command.contains("STORE") || command.contains("EXPUNGE"))
+        );
+    }
 }
 
 fn endpoint(host: &str, port: u16, starttls: bool) -> Endpoint {
@@ -170,7 +189,7 @@ async fn fixture_certificate(
             socket
         };
         match acceptor(certificate).accept(socket).await {
-            Ok(socket) => serve(socket, &mut commands, !starttls, oauth).await,
+            Ok(socket) => serve(socket, &mut commands, !starttls, oauth, None).await,
             Err(_) => commands,
         }
     });
@@ -182,6 +201,7 @@ async fn serve(
     commands: &mut Vec<String>,
     greeting: bool,
     oauth: bool,
+    mut mutations: Option<&mut Mutations>,
 ) -> Vec<String> {
     let mut socket = BufReader::new(socket);
     if greeting {
@@ -249,7 +269,13 @@ async fn serve(
                 .await
                 .expect("authenticated");
         } else if command.starts_with("SELECT ") {
-            socket.get_mut().write_all(format!("* 2 EXISTS\r\n* OK [UIDVALIDITY 42] generation\r\n* OK [UIDNEXT 1004] next\r\n{tag} OK [READ-WRITE] selected\r\n").as_bytes()).await.expect("SELECT");
+            let validity = mutations.as_ref().map_or(42, |state| state.validity);
+            let permanent = if mutations.as_ref().is_none_or(|state| state.permanent) {
+                "\\Seen \\Flagged"
+            } else {
+                ""
+            };
+            socket.get_mut().write_all(format!("* 2 EXISTS\r\n* OK [UIDVALIDITY {validity}] generation\r\n* OK [UIDNEXT 1004] next\r\n* OK [PERMANENTFLAGS ({permanent})] flags\r\n{tag} OK [READ-WRITE] selected\r\n").as_bytes()).await.expect("SELECT");
         } else if command.starts_with("LIST ") {
             socket.get_mut().write_all(format!("* LIST (\\HasNoChildren) \"/\" INBOX\r\n* LIST (\\Archive) \"/\" \"&AMk-tudes\"\r\n{tag} OK folders\r\n").as_bytes()).await.expect("LIST");
         } else if command.starts_with("UID SEARCH ") {
@@ -259,7 +285,18 @@ async fn serve(
                 .await
                 .expect("SEARCH");
         } else if command.starts_with("UID FETCH ") {
-            fetch_response(socket.get_mut(), tag, command).await;
+            fetch_response(socket.get_mut(), tag, command, mutations.as_deref()).await;
+        } else if command.starts_with("UID STORE ") && mutations.is_some() {
+            if store_response(
+                socket.get_mut(),
+                tag,
+                command,
+                mutations.as_deref_mut().expect("write fixture"),
+            )
+            .await
+            {
+                return core::mem::take(commands);
+            }
         } else {
             panic!("unexpected synthetic IMAP command");
         }
@@ -270,6 +307,7 @@ async fn fetch_response(
     socket: &mut tokio_rustls::server::TlsStream<TcpStream>,
     tag: &str,
     command: &str,
+    mutations: Option<&Mutations>,
 ) {
     let requested = command.split_whitespace().nth(2).expect("UID set");
     let peek = command.contains("BODY.PEEK[]");
@@ -278,6 +316,18 @@ async fn fetch_response(
         if !requested.split(',').any(|id| id == uid) {
             continue;
         }
+        let flags = mutations
+            .and_then(|state| state.flags.get(uid))
+            .map_or_else(
+                || flags.to_owned(),
+                |(seen, starred)| {
+                    format!(
+                        "{}{}\\Answered synthetic-keyword",
+                        if *seen { "\\Seen " } else { "" },
+                        if *starred { "\\Flagged " } else { "" }
+                    )
+                },
+            );
         let prefix = format!(
             "* {sequence} FETCH (UID {uid} FLAGS ({flags}) RFC822.SIZE {} INTERNALDATE \"29-Oct-2026 10:00:00 +0000\"",
             ORIGINAL.len()
@@ -447,6 +497,7 @@ async fn sync_pages_commit_once_and_remain_readable_after_network_and_worker_res
     .expect("TLS login");
     let request = sync::Request {
         account: "synthetic",
+        context: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         folder: "INBOX",
         inbox: true,
         before: None,
@@ -524,6 +575,7 @@ async fn paging_cursors_from_an_old_uid_generation_restart_at_the_newest_mail() 
     .expect("TLS login");
     let request = sync::Request {
         account: "synthetic",
+        context: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         folder: "INBOX",
         inbox: true,
         before: None,
@@ -740,4 +792,330 @@ async fn protocol_wire_traces_cannot_be_enabled_by_a_verbose_logger() {
     server.await.expect("fixture");
     assert_eq!(OBSERVED.load(Ordering::Relaxed), 1);
     assert_eq!(PROTOCOL_RECORDS.load(Ordering::Relaxed), 0);
+}
+
+struct Mutations {
+    validity: u32,
+    permanent: bool,
+    reject: bool,
+    drop_ack: bool,
+    flags: std::collections::BTreeMap<&'static str, (bool, bool)>,
+}
+impl Mutations {
+    fn new(validity: u32, reject: bool, drop_ack: bool) -> Self {
+        Self {
+            validity,
+            permanent: true,
+            reject,
+            drop_ack,
+            flags: [("1001", (false, false)), ("1003", (true, true))].into(),
+        }
+    }
+}
+async fn store_response(
+    socket: &mut tokio_rustls::server::TlsStream<TcpStream>,
+    tag: &str,
+    command: &str,
+    state: &mut Mutations,
+) -> bool {
+    let parts = command.split_whitespace().collect::<Vec<_>>();
+    assert_eq!(parts.len(), 5);
+    assert!(
+        matches!(parts[3], "+FLAGS.SILENT" | "-FLAGS.SILENT"),
+        "preserve unrelated flags/keywords"
+    );
+    if state.reject {
+        socket
+            .write_all(format!("{tag} NO synthetic read-only refusal\r\n").as_bytes())
+            .await
+            .expect("refusal");
+        return false;
+    }
+    let flags = state.flags.get_mut(parts[2]).expect("exact fixture UID");
+    match parts[4] {
+        "(\\Seen)" => flags.0 = parts[3] == "+FLAGS.SILENT",
+        "(\\Flagged)" => flags.1 = parts[3] == "+FLAGS.SILENT",
+        _ => panic!("only one supported system flag"),
+    }
+    if core::mem::take(&mut state.drop_ack) {
+        return true;
+    }
+    socket
+        .write_all(format!("{tag} OK stored\r\n").as_bytes())
+        .await
+        .expect("STORE ack");
+    false
+}
+async fn mutation_fixture(
+    mut state: Mutations,
+    connections: usize,
+    preserve_other: bool,
+) -> (u16, JoinHandle<Vec<String>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("loopback");
+    let port = listener.local_addr().expect("address").port();
+    let task = tokio::spawn(async move {
+        let mut commands = Vec::new();
+        for _ in 0..connections {
+            let (socket, _) = listener.accept().await.expect("accept");
+            let socket = acceptor(Certificate::Current)
+                .accept(socket)
+                .await
+                .expect("TLS");
+            let mut session = Vec::new();
+            commands.extend(serve(socket, &mut session, true, false, Some(&mut state)).await);
+        }
+        if preserve_other {
+            assert_eq!(
+                state.flags["1003"],
+                (true, true),
+                "another UID is never modified"
+            );
+        }
+        commands
+    });
+    (port, task)
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep the four ordered real-TLS outcomes and their durable acknowledgment/retry assertions together."
+)]
+async fn durable_uid_flag_batches_confirm_refuse_retire_and_explicitly_recover_lost_acknowledgments()
+ {
+    use mailstronaut_core::actions;
+    const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    for (validity, reject, drop_ack) in [
+        (42, false, false),
+        (43, false, false),
+        (42, true, false),
+        (42, false, true),
+    ] {
+        let (_root, owner) = flag_profile(CONTEXT).await;
+        let store = owner.handle();
+        let (port, server) = mutation_fixture(
+            Mutations::new(validity, reject, drop_ack),
+            if drop_ack { 2 } else { 1 },
+            true,
+        )
+        .await;
+        let cancel = CancellationToken::new();
+        let password = SecretString::from(SECRET);
+        let request = actions::Request {
+            account: "synthetic",
+            context: CONTEXT,
+            retry: false,
+        };
+        let mut connection = Connection::connect(
+            &endpoint("localhost", port, false),
+            &trust(true),
+            USER,
+            Authentication::Password(&password),
+            &cancel,
+        )
+        .await
+        .expect("verified TLS login");
+        let result = actions::apply(&store, &mut connection, &request, &cancel).await;
+        if validity != 42 {
+            assert!(result.is_err());
+            assert_eq!(
+                store
+                    .flag_counts(vec!["synthetic".into()])
+                    .await
+                    .expect("counts")
+                    .conflicts,
+                1
+            );
+        } else if reject || drop_ack {
+            assert!(result.is_err());
+            assert_eq!(
+                store
+                    .flag_counts(vec!["synthetic".into()])
+                    .await
+                    .expect("counts")
+                    .failed,
+                1
+            );
+        } else {
+            assert_eq!(result.expect("confirmed"), 2);
+        }
+        drop(connection);
+        if drop_ack {
+            let mut connection = Connection::connect(
+                &endpoint("localhost", port, false),
+                &trust(true),
+                USER,
+                Authentication::Password(&password),
+                &cancel,
+            )
+            .await
+            .expect("explicit reconnect");
+            assert_eq!(
+                actions::apply(
+                    &store,
+                    &mut connection,
+                    &actions::Request {
+                        retry: true,
+                        ..request
+                    },
+                    &cancel
+                )
+                .await
+                .expect("explicit idempotent retry"),
+                2
+            );
+            drop(connection);
+        }
+        let commands = server.await.expect("server");
+        let stores = commands
+            .iter()
+            .filter(|line| line.contains("UID STORE"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            stores.len(),
+            if validity != 42 {
+                0
+            } else if reject {
+                1
+            } else if drop_ack {
+                3
+            } else {
+                2
+            }
+        );
+        assert!(
+            stores
+                .iter()
+                .all(|line| line.contains("UID STORE 1001 +FLAGS.SILENT"))
+        );
+        assert!(
+            !commands
+                .iter()
+                .any(|line| line.contains("EXPUNGE") || line.contains("BODY["))
+        );
+        if !reject && validity == 42 {
+            let rows = store
+                .inbox(vec!["synthetic".into()], None, 100)
+                .await
+                .expect("rows");
+            assert!(rows[0].seen && rows[0].starred);
+            assert_eq!(
+                store
+                    .flag_counts(vec!["synthetic".into()])
+                    .await
+                    .expect("counts")
+                    .pending,
+                0
+            );
+        }
+        owner.shutdown().await.expect("shutdown");
+    }
+}
+
+async fn flag_profile(context: &str) -> (tempfile::TempDir, mailstronaut_core::worker::Worker) {
+    use core::num::NonZeroU32;
+    use mailstronaut_core::{
+        store::mailbox::{Flags, Membership},
+        worker::Worker,
+    };
+    use mailstronaut_mail::imap::FlagChange;
+    let root = tempfile::tempdir().expect("profile");
+    let owner = Worker::open(root.path().to_owned()).await.expect("owner");
+    let store = owner.handle();
+    store
+        .ensure_account("synthetic".into())
+        .await
+        .expect("account");
+    store
+        .bind_mailbox_context("synthetic".into(), context.into())
+        .await
+        .expect("authenticated context");
+    let folder = store
+        .ensure_folder("synthetic".into(), "INBOX".into(), true)
+        .await
+        .expect("folder")
+        .id;
+    let namespace = NonZeroU32::new(42).expect("namespace");
+    store
+        .select_folder("synthetic".into(), folder, namespace)
+        .await
+        .expect("select");
+    let message = store
+        .cache_message(
+            "synthetic".into(),
+            Membership {
+                folder,
+                uid_validity: namespace,
+                uid: NonZeroU32::new(1001).expect("UID"),
+                flags: Flags::default(),
+            },
+            100,
+            None,
+            ORIGINAL.to_vec(),
+        )
+        .await
+        .expect("cache");
+    for flag in [FlagChange::Seen, FlagChange::Starred] {
+        store
+            .set_flag("synthetic".into(), message, flag, true, context.into())
+            .await
+            .expect("intent");
+    }
+    (root, owner)
+}
+
+#[tokio::test]
+async fn nonpermanent_flag_support_stops_before_store_and_never_confirms_a_session_only_change() {
+    use mailstronaut_core::actions;
+    const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let (_root, owner) = flag_profile(CONTEXT).await;
+    let store = owner.handle();
+    let mut state = Mutations::new(42, false, false);
+    state.permanent = false;
+    let (port, server) = mutation_fixture(state, 1, true).await;
+    let password = SecretString::from(SECRET);
+    let cancel = CancellationToken::new();
+    let mut connection = Connection::connect(
+        &endpoint("localhost", port, false),
+        &trust(true),
+        USER,
+        Authentication::Password(&password),
+        &cancel,
+    )
+    .await
+    .expect("TLS");
+    let result = actions::apply(
+        &store,
+        &mut connection,
+        &actions::Request {
+            account: "synthetic",
+            context: CONTEXT,
+            retry: false,
+        },
+        &cancel,
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Err(mailstronaut_core::sync::Error::Transport(
+            Error::FlagUnavailable
+        ))
+    ));
+    assert_eq!(
+        store
+            .flag_counts(vec!["synthetic".into()])
+            .await
+            .expect("counts")
+            .failed,
+        1
+    );
+    drop(connection);
+    assert!(
+        !server
+            .await
+            .expect("server")
+            .iter()
+            .any(|line| line.contains("STORE"))
+    );
+    owner.shutdown().await.expect("shutdown");
 }

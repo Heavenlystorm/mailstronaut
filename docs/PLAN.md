@@ -297,6 +297,12 @@ Deliver screenshots/interaction checklist and measurements in P06 evidence.
 - [ ] Test accepted-DATA/drop ambiguity, delivery_unknown, manual reconciliation,
   provider Sent auto-save and separately retriable Sent APPEND. Never resend merely
   because the Sent copy failed; no exactly-once SMTP claim.
+- [x] Deliver bounded read/unread/star/unstar intentions, offline overlays,
+  unsent-only undo, explicit TLS application, exact UID/configuration fencing and
+  restart recovery. Synthetic storage/TLS/native GUI acceptance:
+  [flag evidence](evidence/P07-actions.md). Archive/trash/move, automatic application,
+  live-provider and release/distribution acceptance remain open.
+
 - [ ] Implement read/unread/star/archive/trash with pending-ops/undo UX, safe UID
   MOVE/UIDPLUS fallbacks, Gmail labels and no global EXPUNGE of unrelated mail.
 - [ ] Recover interrupted operations/moves and reconcile actual server state;

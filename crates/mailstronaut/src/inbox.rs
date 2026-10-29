@@ -18,14 +18,16 @@ use cosmic::{
 use futures_util::{StreamExt as _, stream};
 use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
+    actions,
     mime::Projection,
+    store::flags::{self, Counts},
     store::mailbox::{Cursor, Summary},
     sync,
     worker::{self, Worker},
 };
 use mailstronaut_mail::{
     auth::Session,
-    imap::{self, Connection},
+    imap::{self, Connection, FlagChange},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -35,13 +37,24 @@ pub enum Message {
     Started(Payload<Result<Arc<Worker>, worker::Error>>),
     Refresh,
     Next,
-    Rows(u64, u64, Payload<Result<Vec<Summary>, worker::Error>>),
+    Rows(u64, u64, Payload<Result<Listing, worker::Error>>),
     Open(String, i64),
     Body(u64, u64, Payload<Result<Arc<Body>, worker::Error>>),
+    SetFlag(FlagChange, bool),
+    UndoFlags,
+    FlagQueued(u64, Result<(), worker::Error>),
+    ApplyFlags,
+    Applied(u64, Payload<Vec<AccountResult>>),
     Sync(bool),
     Cancel,
     Synced(u64, Payload<Vec<AccountResult>>),
 }
+#[derive(Clone)]
+pub struct Listing {
+    rows: Vec<Summary>,
+    flags: Counts,
+}
+
 #[derive(Clone)]
 pub struct AccountResult {
     account: String,
@@ -66,7 +79,10 @@ pub struct Inbox {
     selected: Option<(String, i64)>,
     body: Option<Arc<Body>>,
     loading: bool,
-    busy: bool,
+    jobs: u32,
+    edits: u32,
+    query_again: bool,
+    flags: Counts,
     cancel: CancellationToken,
     older: BTreeMap<String, sync::Position>,
     status: Vec<String>,
@@ -74,6 +90,9 @@ pub struct Inbox {
 impl Inbox {
     pub fn store(&self) -> Option<worker::Handle> {
         self.owner.as_ref().map(|owner| owner.handle())
+    }
+    pub const fn busy(&self) -> bool {
+        self.jobs != 0 || self.edits != 0
     }
     pub fn cancel(&self) {
         self.cancel.cancel();
@@ -115,8 +134,9 @@ impl Inbox {
         self.body = None;
         self.older.clear();
         self.status.clear();
-        self.busy = false;
         self.loading = false;
+        self.query_again = false;
+        self.flags = Counts::default();
         self.after = None;
         self.query(false)
     }
@@ -140,42 +160,17 @@ impl Inbox {
             {
                 self.loading = false;
                 match result {
-                    Ok(rows) => self.rows = rows,
+                    Ok(listing) => {
+                        self.rows = listing.rows;
+                        self.flags = listing.flags;
+                    }
                     Err(error) => self.status = vec![error.to_string()],
                 }
-            }
-            Message::Open(account, id) => {
-                let Some(owner) = &self.owner else {
-                    return Task::none();
-                };
-                if !self
-                    .rows
-                    .iter()
-                    .any(|row| row.id == id && row.account == account)
-                {
-                    return Task::none();
+                if core::mem::take(&mut self.query_again) {
+                    return self.query(false);
                 }
-                self.selected = Some((account.clone(), id));
-                self.body = None;
-                self.reading = self.reading.saturating_add(1);
-                let (generation, reading) = (self.generation, self.reading);
-                let store = owner.handle();
-                return Task::perform(
-                    async move {
-                        store.message(account, id).await.map(|projection| {
-                            let text = projection.readable_text().map_or_else(
-                                || {
-                                    "No readable body. Encrypted messages are not supported yet."
-                                        .into()
-                                },
-                                std::borrow::Cow::into_owned,
-                            );
-                            Arc::new(Body { projection, text })
-                        })
-                    },
-                    move |result| event(Message::Body(generation, reading, Payload(result))),
-                );
             }
+            Message::Open(account, id) => return self.open(account, id),
             Message::Body(generation, reading, Payload(result))
                 if generation == self.generation && reading == self.reading =>
             {
@@ -187,10 +182,38 @@ impl Inbox {
                     Err(error) => self.status = vec![error.to_string()],
                 }
             }
-            Message::Sync(older) if !self.busy => return self.synchronize(keyring, older),
+            Message::UndoFlags if !self.busy() => return self.undo_flags(),
+            Message::SetFlag(flag, desired) if !self.busy() => return self.set_flag(flag, desired),
+            Message::FlagQueued(generation, result) => {
+                self.edits = self.edits.saturating_sub(1);
+                if generation == self.generation {
+                    self.status = vec![match result {
+                        Ok(()) => "Flag changes saved locally. Apply changes when online.".into(),
+                        Err(error) => {
+                            format!("{error}. Sync first if the account configuration changed.")
+                        }
+                    }];
+                }
+                return self.query(false);
+            }
+            Message::ApplyFlags if !self.busy() => return self.apply_flags(keyring),
+            Message::Applied(generation, Payload(results)) => {
+                self.jobs = self.jobs.saturating_sub(1);
+                if generation == self.generation {
+                    self.status = results
+                        .into_iter()
+                        .map(|result| format!("{}: {}", result.account, result.status))
+                        .collect();
+                }
+                return self.query(false);
+            }
+            Message::Sync(older) if !self.busy() => return self.synchronize(keyring, older),
             Message::Cancel => self.cancel.cancel(),
-            Message::Synced(generation, Payload(results)) if generation == self.generation => {
-                self.busy = false;
+            Message::Synced(generation, Payload(results)) => {
+                self.jobs = self.jobs.saturating_sub(1);
+                if generation != self.generation {
+                    return self.query(false);
+                }
                 self.status.clear();
                 for result in results {
                     self.older.remove(&result.account);
@@ -207,11 +230,42 @@ impl Inbox {
         Task::none()
     }
 
+    fn open(&mut self, account: String, id: i64) -> Task<super::Message> {
+        let Some(owner) = &self.owner else {
+            return Task::none();
+        };
+        if !self
+            .rows
+            .iter()
+            .any(|row| row.id == id && row.account == account)
+        {
+            return Task::none();
+        }
+        self.selected = Some((account.clone(), id));
+        self.body = None;
+        self.reading = self.reading.saturating_add(1);
+        let (generation, reading) = (self.generation, self.reading);
+        let store = owner.handle();
+        Task::perform(
+            async move {
+                store.message(account, id).await.map(|projection| {
+                    let text = projection.readable_text().map_or_else(
+                        || "No readable body. Encrypted messages are not supported yet.".into(),
+                        std::borrow::Cow::into_owned,
+                    );
+                    Arc::new(Body { projection, text })
+                })
+            },
+            move |result| event(Message::Body(generation, reading, Payload(result))),
+        )
+    }
+
     fn query(&mut self, next: bool) -> Task<super::Message> {
         let (Some(owner), Some(config)) = (&self.owner, &self.config) else {
             return Task::none();
         };
         if self.loading {
+            self.query_again = true;
             return Task::none();
         }
         self.loading = true;
@@ -226,10 +280,14 @@ impl Inbox {
             .accounts
             .iter()
             .map(|account| account.id.clone())
-            .collect();
+            .collect::<Vec<_>>();
         let store = owner.handle();
         Task::perform(
-            async move { store.inbox(accounts, after, 100).await },
+            async move {
+                let rows = store.inbox(accounts.clone(), after, 100).await?;
+                let flags = store.flag_counts(accounts).await?;
+                Ok(Listing { rows, flags })
+            },
             move |result| event(Message::Rows(generation, listing, Payload(result))),
         )
     }
@@ -243,7 +301,7 @@ impl Inbox {
             return Task::none();
         };
         self.cancel = CancellationToken::new();
-        self.busy = true;
+        self.jobs = self.jobs.saturating_add(1);
         self.status = vec!["Fetching a bounded inbox page per account…".into()];
         let (generation, config, cancel, store, cursors) = (
             self.generation,
@@ -301,6 +359,66 @@ impl Inbox {
         )
     }
 
+    fn undo_flags(&mut self) -> Task<super::Message> {
+        let (Some(store), Some((account, id))) = (self.store(), self.selected.as_ref()) else {
+            return Task::none();
+        };
+        let (account, id, generation) = (account.clone(), *id, self.generation);
+        self.edits = self.edits.saturating_add(1);
+        Task::perform(
+            async move { store.undo_flags(account, id).await },
+            move |result| event(Message::FlagQueued(generation, result)),
+        )
+    }
+    fn set_flag(&mut self, flag: FlagChange, desired: bool) -> Task<super::Message> {
+        let (Some(store), Some(config), Some((account, id))) =
+            (self.store(), self.config.as_ref(), self.selected.as_ref())
+        else {
+            return Task::none();
+        };
+        let Some(config) = config.accounts.iter().find(|item| item.id == *account) else {
+            return Task::none();
+        };
+        let context = match flags::context(config) {
+            Ok(value) => value,
+            Err(error) => {
+                self.status = vec![error.to_string()];
+                return Task::none();
+            }
+        };
+        let (account, id, generation) = (account.clone(), *id, self.generation);
+        self.edits = self.edits.saturating_add(1);
+        Task::perform(
+            async move { store.set_flag(account, id, flag, desired, context).await },
+            move |result| event(Message::FlagQueued(generation, result)),
+        )
+    }
+    fn apply_flags(&mut self, keyring: Option<Session>) -> Task<super::Message> {
+        let (Some(store), Some(config), Some(keyring)) =
+            (self.store(), self.config.clone(), keyring)
+        else {
+            self.status = vec![
+                "Unlock the encrypted keyring in Accounts before applying pending flags.".into(),
+            ];
+            return Task::none();
+        };
+        self.cancel = CancellationToken::new();
+        self.jobs = self.jobs.saturating_add(1);
+        let (cancel, generation) = (self.cancel.clone(), self.generation);
+        Task::perform(
+            async move {
+                stream::iter(config.accounts.clone().into_iter().map(|account| {
+                    let (store, keyring, cancel) = (store.clone(), keyring.clone(), cancel.clone());
+                    async move { apply_account_flags(account, keyring, store, cancel).await }
+                }))
+                .buffer_unordered(4)
+                .collect::<Vec<_>>()
+                .await
+            },
+            move |results| event(Message::Applied(generation, Payload(results))),
+        )
+    }
+
     pub fn compose_source(&self) -> Option<(&str, &Projection)> {
         Some((&self.selected.as_ref()?.0, &self.body.as_ref()?.projection))
     }
@@ -346,6 +464,34 @@ impl Inbox {
             ]
             .spacing(8),
         );
+        if let Some((account, id)) = &self.selected
+            && let Some(message) = self
+                .rows
+                .iter()
+                .find(|row| row.account == *account && row.id == *id)
+        {
+            reader = reader.push(
+                row![
+                    widget::button::text(if message.seen {
+                        "Mark unread"
+                    } else {
+                        "Mark read"
+                    })
+                    .on_press_maybe((!self.busy()).then_some(
+                        super::Message::Inbox(Message::SetFlag(FlagChange::Seen, !message.seen))
+                    )),
+                    widget::button::text(if message.starred { "Unstar" } else { "Star" })
+                        .on_press_maybe((!self.busy()).then_some(super::Message::Inbox(
+                            Message::SetFlag(FlagChange::Starred, !message.starred)
+                        ))),
+                    widget::button::text("Undo unsent flags").on_press_maybe(
+                        (!self.busy() && self.flags.pending > 0)
+                            .then_some(super::Message::Inbox(Message::UndoFlags))
+                    )
+                ]
+                .spacing(8),
+            );
+        }
         // Retain decoded content in widget state; no HTML engine receives it.
         reader
             .push(crate::text_reader::view(
@@ -358,9 +504,10 @@ impl Inbox {
 
     pub fn view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
         let mut content=column![widget::text::title1("Unified inbox"),
-            row![widget::button::text("Sync inboxes").on_press_maybe((!self.busy).then_some(super::Message::Inbox(Message::Sync(false)))),
-                widget::button::text("Fetch older page").on_press_maybe((!self.busy&&!self.older.is_empty()).then_some(super::Message::Inbox(Message::Sync(true)))),
-                widget::button::text("Cancel").on_press_maybe(self.busy.then_some(super::Message::Inbox(Message::Cancel)))].spacing(8),
+            row![widget::button::text("Sync inboxes").on_press_maybe((!self.busy()).then_some(super::Message::Inbox(Message::Sync(false)))),
+                widget::button::text("Fetch older page").on_press_maybe((!self.busy()&&!self.older.is_empty()).then_some(super::Message::Inbox(Message::Sync(true)))),
+                widget::button::text("Cancel").on_press_maybe(self.busy().then_some(super::Message::Inbox(Message::Cancel))),
+                widget::button::text(format!("Apply flags ({})",self.flags.pending+self.flags.failed)).on_press_maybe((!self.busy()&&(self.flags.pending>0||self.flags.failed>0)).then_some(super::Message::Inbox(Message::ApplyFlags)))].spacing(8),
             widget::text("Partial offline cache · opening a message currently leaves its read flag unchanged.")].spacing(12).padding(20);
         for status in &self.status {
             content = content.push(widget::text(status));
@@ -382,7 +529,8 @@ impl Inbox {
                 widget::button::custom(
                     column![
                         widget::text(format!(
-                            "{}{} · {}",
+                            "{}{}{} · {}",
+                            if message.starred { "★ " } else { "" },
                             if message.seen { "" } else { "● " },
                             message.sender,
                             message.account
@@ -398,6 +546,9 @@ impl Inbox {
                 )))
                 .width(Length::Fill),
             );
+        }
+        if self.flags.conflicts > 0 {
+            content=content.push(widget::text(format!("{} flag operations retired because their server identity changed. Sync to reconcile.",self.flags.conflicts)));
         }
         let reader = self.reader_view(width, height);
         content = content.push(
@@ -439,36 +590,14 @@ async fn synchronize_account(
     cancel: CancellationToken,
 ) -> AccountResult {
     let result = async {
-        let credential = keyring
-            .resolve(&account, false, &cancel)
-            .await
-            .map_err(|error| error.to_string())?;
-        let endpoint = account
-            .incoming_endpoint()
-            .ok_or("Incoming endpoint missing.")?;
-        let connection = Connection::connect(
-            &endpoint,
-            &account.tls,
-            &account.user_name,
-            credential.authentication(),
-            &cancel,
-        )
-        .await;
-        drop(credential);
-        let mut connection = match connection {
-            Ok(connection) => connection,
-            Err(error) => {
-                if error == imap::Error::Authentication {
-                    keyring.invalidate(&account, false).await;
-                }
-                return Err(error.to_string());
-            }
-        };
+        let mut connection = connect_account(&account, &keyring, &cancel).await?;
         sync::page(
             &store,
             &mut connection,
             &sync::Request {
                 account: &account.id,
+                context: &mailstronaut_core::store::flags::context(&account)
+                    .map_err(|error| error.to_string())?,
                 folder: account.folders.inbox.as_deref().unwrap_or("INBOX"),
                 inbox: true,
                 before,
@@ -498,9 +627,100 @@ async fn synchronize_account(
     }
 }
 
+async fn connect_account(
+    account: &Account,
+    keyring: &Session,
+    cancel: &CancellationToken,
+) -> Result<Connection, String> {
+    let credential = keyring
+        .resolve(account, false, cancel)
+        .await
+        .map_err(|error| error.to_string())?;
+    let endpoint = account
+        .incoming_endpoint()
+        .ok_or("Incoming endpoint missing.")?;
+    let connection = Connection::connect(
+        &endpoint,
+        &account.tls,
+        &account.user_name,
+        credential.authentication(),
+        cancel,
+    )
+    .await;
+    drop(credential);
+    let connection = match connection {
+        Ok(connection) => connection,
+        Err(error) => {
+            if error == imap::Error::Authentication {
+                keyring.invalidate(account, false).await;
+            }
+            return Err(error.to_string());
+        }
+    };
+    Ok(connection)
+}
+async fn apply_account_flags(
+    account: Account,
+    keyring: Session,
+    store: worker::Handle,
+    cancel: CancellationToken,
+) -> AccountResult {
+    let result = async {
+        let counts = store
+            .flag_counts(vec![account.id.clone()])
+            .await
+            .map_err(|error| error.to_string())?;
+        if counts.pending == 0 && counts.failed == 0 {
+            return Ok(0);
+        }
+        let context = flags::context(&account).map_err(|error| error.to_string())?;
+        let mut connection = connect_account(&account, &keyring, &cancel).await?;
+        actions::apply(
+            &store,
+            &mut connection,
+            &actions::Request {
+                account: &account.id,
+                context: &context,
+                retry: true,
+            },
+            &cancel,
+        )
+        .await
+        .map_err(|error| error.to_string())
+    }
+    .await;
+    AccountResult {
+        account: account.id,
+        next: None,
+        status: match result {
+            Ok(count) => format!(
+                "{count} flag assignments confirmed; further queued work may need another batch."
+            ),
+            Err(error) => error,
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn retiring_a_configuration_keeps_inflight_work_visible_to_quit_until_its_callbacks_arrive() {
+        let mut inbox = Inbox {
+            generation: 2,
+            jobs: 1,
+            edits: 1,
+            ..Inbox::default()
+        };
+        let _task = inbox.update(Message::Applied(1, Payload(Vec::new())), None);
+        assert!(inbox.busy());
+        let _task = inbox.update(Message::FlagQueued(1, Err(worker::Error::Storage)), None);
+        assert!(!inbox.busy());
+        assert!(
+            inbox.status.is_empty(),
+            "retired errors never replace current UI status"
+        );
+    }
     const MARKER: &str = "SYNTHETIC-BODY-MUST-NOT-ENTER-EVENT-LOGS";
     #[test]
     fn body_results_are_redacted_and_old_configurations_cannot_replace_the_reader() {

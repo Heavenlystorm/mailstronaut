@@ -19,6 +19,9 @@ use tokio_util::sync::CancellationToken;
 mod read;
 pub use read::{Folder, MessageData, Metadata};
 
+mod flags;
+pub use flags::FlagChange;
+
 /// Total received bytes for one connection, including protocol framing. A worker
 /// reconnects/reconciles when this budget is exhausted rather than reading forever.
 pub const MAX_SESSION_BYTES: u64 = 32 * 1024 * 1024;
@@ -38,6 +41,8 @@ pub enum Error {
     Configuration,
     /// Session ended or is no longer usable.
     Disconnected,
+    /// SELECT did not explicitly advertise this flag as permanent.
+    FlagUnavailable,
     /// Network operation failed.
     Network,
     /// Malformed or unexpected protocol response.
@@ -61,6 +66,9 @@ impl fmt::Display for Error {
             Self::Cancelled => "mail operation cancelled",
             Self::Configuration => "invalid mail connection configuration or credentials",
             Self::Disconnected => "mail connection closed; reconnect required",
+            Self::FlagUnavailable => {
+                "server did not advertise permanent support for this mail flag"
+            }
             Self::Network => "mail network operation failed",
             Self::Protocol => "unexpected mail server response",
             Self::ResponseLimit => "mail server response exceeds the supported limit",
@@ -96,6 +104,7 @@ pub enum Authentication<'a> {
 pub struct Connection {
     session: Option<Session<Wire>>,
     capabilities: BTreeSet<String>,
+    permanent_flags: Option<(bool, bool)>,
 }
 impl Connection {
     /// Connect and authenticate only after validating implicit/required-upgrade TLS.
@@ -155,6 +164,7 @@ impl Connection {
             let mut connection = Self {
                 session: Some(session),
                 capabilities,
+                permanent_flags: None,
             };
             // TLS and authentication may both change capabilities. The post-auth
             // set drives folder discovery, IDLE and optional provider extensions.
@@ -190,6 +200,7 @@ impl Connection {
         cancellation: &CancellationToken,
     ) -> Result<async_imap::types::Mailbox, Error> {
         read::validate_mailbox(mailbox)?;
+        self.permanent_flags = None;
         let mut session = self.session.take().ok_or(Error::Disconnected)?;
         let selected = limited(cancellation, async {
             session.select(mailbox).await.map_err(protocol_error)
@@ -198,6 +209,14 @@ impl Connection {
         if selected.uid_validity.is_none_or(|value| value == 0) {
             return Err(Error::Protocol);
         }
+        self.permanent_flags = Some((
+            selected
+                .permanent_flags
+                .contains(&async_imap::types::Flag::Seen),
+            selected
+                .permanent_flags
+                .contains(&async_imap::types::Flag::Flagged),
+        ));
         self.session = Some(session);
         Ok(selected)
     }

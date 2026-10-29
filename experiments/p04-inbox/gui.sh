@@ -7,6 +7,7 @@ fixture=$(realpath "${MAILSTRONAUT_IMAP_FIXTURE:?prebuilt imap_tls test executab
 [[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus"* ]]
 [[ $XDG_DATA_HOME == "$root/data" ]]
 mkdir -p "$root/inbox-gui"
+if [[ ${MAILSTRONAUT_FLAGS_GUI:-0} == 1 ]]; then export MAILSTRONAUT_GUI_FLAGS=1; fi
 export MAILSTRONAUT_GUI_PORT_FILE="$root/inbox-gui/port"
 export LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND=gl XDG_SESSION_TYPE=x11 WINIT_X11_SCALE_FACTOR=1
 unset WAYLAND_DISPLAY
@@ -58,7 +59,7 @@ start() {
   sleep 1
 }
 stop() {
-  if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 ]]; then
+  if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 || ${MAILSTRONAUT_FLAGS_GUI:-0} == 1 ]]; then
     xdotool mousemove --window "$window" 1000 24 click 1
     for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
     if kill -0 "$app" 2>/dev/null; then printf '%s\n' 'Close failed to finish draft persistence' >&2; exit 1; fi
@@ -118,6 +119,53 @@ assert db.execute('SELECT count(*) FROM outbox').fetchone()[0]==0
 print('Native reply/reply-all/text forward created three durable drafts, saved an intervening edit, and never queued mail.')
 PYREPLY
 }
+queue_flags() {
+  xdotool mousemove --window "$window" 575 340 click 1
+  sleep .5
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYBEFOREUNDO'
+import sqlite3,sys
+assert sqlite3.connect(sys.argv[1]).execute("SELECT count(*) FROM pending_operations WHERE kind='seen' AND desired=1 AND state='pending'").fetchone()[0]==2
+PYBEFOREUNDO
+  xdotool mousemove --window "$window" 800 340 click 1
+  sleep .5
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYUNDO'
+import sqlite3,sys
+assert sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM pending_operations WHERE kind IS NOT NULL').fetchone()[0]==0
+print('Native unsent flag undo returned to the observed server state.')
+PYUNDO
+  xdotool mousemove --window "$window" 575 340 click 1
+  sleep .5
+  xdotool mousemove --window "$window" 665 340 click 1
+  sleep .5
+  capture queued-flags
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYQUEUED'
+import sqlite3,sys
+c=sqlite3.connect(sys.argv[1])
+assert c.execute("SELECT kind,desired,state,count(*) FROM pending_operations WHERE kind IS NOT NULL GROUP BY kind,desired,state ORDER BY kind").fetchall()==[('seen',1,'pending',2),('starred',0,'pending',2)]
+assert c.execute('SELECT uid,seen,starred FROM memberships ORDER BY uid').fetchall()==[(1001,0,0),(1003,1,1)]
+print('Native read/unstar changes committed locally for both inbox copies without a network write.')
+PYQUEUED
+}
+apply_flags() {
+  capture offline-pending-flags
+  # Foreground unlock of the same private encrypted keyring after app restart.
+  xdotool mousemove --window "$window" 55 263 click 1
+  xdotool mousemove --window "$window" 300 242 click 1
+  xdotool mousemove --window "$window" 240 362 click 1
+  sleep .5
+  xdotool mousemove --window "$window" 55 310 click 1
+  xdotool mousemove --window "$window" 590 145 click 1
+  for _ in {1..100}; do
+    if python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYREADY'
+import sqlite3,sys
+c=sqlite3.connect(sys.argv[1]);sys.exit(0 if c.execute('SELECT uid,seen,starred FROM memberships ORDER BY uid').fetchall()==[(1001,1,0),(1003,1,0)] and c.execute('SELECT count(*) FROM pending_operations WHERE kind IS NOT NULL').fetchone()[0]==0 else 1)
+PYREADY
+    then break; fi
+    kill -0 "$app"; sleep .1
+  done
+  wait "$server"; server=''
+  capture confirmed-flags
+}
 start online
 xdotool mousemove --window "$window" 300 242 click 1
 xdotool mousemove --window "$window" 240 362 click 1
@@ -142,14 +190,16 @@ capture inbox
 copy_body online
 capture reader
 if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 ]]; then reply_drafts; fi
+if [[ ${MAILSTRONAUT_FLAGS_GUI:-0} == 1 ]]; then queue_flags; fi
 stop
-wait "$server"; server=''
+if [[ ${MAILSTRONAUT_FLAGS_GUI:-0} != 1 ]]; then wait "$server"; server=''; fi
 sed -i 's/appearance = "dark"/appearance = "light"/' "$root/inbox-config.nix"
 start offline
 xdotool mousemove --window "$window" 55 310 click 1
 sleep .5
 copy_body offline
 capture offline
+if [[ ${MAILSTRONAUT_FLAGS_GUI:-0} == 1 ]]; then apply_flags; fi
 if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 ]]; then
   xdotool mousemove --window "$window" 55 358 click 1
   sleep .5
@@ -175,11 +225,19 @@ print('Offline restart preserved all three reply/forward drafts and did not queu
 PYRESTART
 fi
 stop
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PY'
+if [[ ${MAILSTRONAUT_FLAGS_GUI:-0} == 1 ]]; then
+  start confirmed-offline
+  xdotool mousemove --window "$window" 55 310 click 1
+  sleep .5
+  copy_body confirmed-offline
+  capture confirmed-offline
+  stop
+fi
+python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "${MAILSTRONAUT_FLAGS_GUI:-0}" <<'PY'
 import sqlite3,sys
-db=sqlite3.connect(sys.argv[1]); assert db.execute('SELECT uid,seen FROM memberships ORDER BY uid').fetchall()==[(1001,0),(1003,1)]
+db=sqlite3.connect(sys.argv[1]); expected=[(1001,1),(1003,1)] if sys.argv[2]=='1' else [(1001,0),(1003,1)]; assert db.execute('SELECT uid,seen FROM memberships ORDER BY uid').fetchall()==expected
 assert db.execute('SELECT count(*) FROM messages').fetchone()[0]==1
-print('GUI PEEK preserved server flags and persisted canonical offline content.')
+print('GUI read-only PEEK and explicit flag changes matched the requested fixture mode across offline restart.')
 PY
 if rg -F 'SYNTHETIC-AUTH-SECRET-NOT-REAL' "$root/inbox-gui/"*-app.log; then
   printf '%s\n' 'Application log exposed the synthetic credential marker' >&2

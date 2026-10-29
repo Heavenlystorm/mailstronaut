@@ -53,7 +53,9 @@ native source. Password accounts can save credentials through an explicitly
 unlocked encrypted keyring. Select Inbox and Sync inboxes to fetch a bounded page
 from each configured account; cached messages open in the native text reader.
 Fetch older page continues the partial cache. Opening currently leaves read flags
-unchanged. Compose supports local autosaved drafts, account/alias identities,
+unchanged; Mark read/unread and Star/Unstar save local intentions. Apply flags
+submits a bounded batch after keyring unlock; Undo unsent flags works before any
+network attempt. Changed server identities require a new sync. Compose supports local autosaved drafts, account/alias identities,
 To/Cc/Bcc and explicit password/XOAUTH2 SMTP with required TLS.
 OAuth accounts can Connect in browser after keyring unlock; refresh tokens stay in
 the encrypted keyring and access tokens stay in memory. Google needs your own

@@ -252,7 +252,7 @@ impl Store {
                 "DELETE FROM memberships WHERE account_id=?1 AND folder_id=?2",
                 params![account, folder],
             )?;
-            tx.execute("UPDATE pending_operations SET state='conflict' WHERE account_id=?1 AND folder_id=?2 AND state IN ('pending', 'submitted')", params![account, folder])?;
+            tx.execute("UPDATE pending_operations SET state='conflict' WHERE account_id=?1 AND folder_id=?2 AND state IN ('pending', 'submitted', 'failed')", params![account, folder])?;
             tx.execute(
                 "UPDATE folders SET uidvalidity=?3 WHERE account_id=?1 AND id=?2",
                 params![account, folder, validity.get()],
@@ -344,7 +344,7 @@ impl Store {
         // Account filtering is parameterized with SQLite's bundled JSON table
         // function; no user value becomes SQL text or an identifier.
         let selected = serde_json::to_string(accounts)?;
-        let mut statement = self.connection.prepare_cached("SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen),MAX(s.starred) FROM messages m JOIN memberships s ON s.message_id=m.id JOIN folders f ON f.id=s.folder_id AND f.account_id=m.account_id WHERE f.is_inbox=1 AND m.account_id IN (SELECT value FROM json_each(?1)) AND (?2 IS NULL OR m.received_at < ?2 OR (m.received_at=?2 AND m.id<?3)) GROUP BY m.id ORDER BY m.received_at DESC,m.id DESC LIMIT ?4")?;
+        let mut statement = self.connection.prepare_cached("SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(COALESCE((SELECT p.desired FROM pending_operations p WHERE p.account_id=s.account_id AND p.folder_id=s.folder_id AND p.uidvalidity=s.uidvalidity AND p.uid=s.uid AND p.message_id=s.message_id AND p.kind='seen' AND p.state IN ('pending','submitted','failed')),s.seen)),MAX(COALESCE((SELECT p.desired FROM pending_operations p WHERE p.account_id=s.account_id AND p.folder_id=s.folder_id AND p.uidvalidity=s.uidvalidity AND p.uid=s.uid AND p.message_id=s.message_id AND p.kind='starred' AND p.state IN ('pending','submitted','failed')),s.starred)) FROM messages m JOIN memberships s ON s.message_id=m.id JOIN folders f ON f.id=s.folder_id AND f.account_id=m.account_id WHERE f.is_inbox=1 AND m.account_id IN (SELECT value FROM json_each(?1)) AND (?2 IS NULL OR m.received_at < ?2 OR (m.received_at=?2 AND m.id<?3)) GROUP BY m.id ORDER BY m.received_at DESC,m.id DESC LIMIT ?4")?;
         let rows = statement.query_map(
             params![
                 selected,

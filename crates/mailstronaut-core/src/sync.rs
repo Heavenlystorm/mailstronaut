@@ -29,6 +29,8 @@ pub struct Position {
 pub struct Request<'a> {
     /// Stable enabled configuration account ID.
     pub account: &'a str,
+    /// Fingerprint of the authenticated public account configuration.
+    pub context: &'a str,
     /// Opaque server wire mailbox name.
     pub folder: &'a str,
     /// This folder participates in unified inbox queries.
@@ -207,6 +209,9 @@ async fn prepare(
         .and_then(NonZeroU32::new)
         .ok_or(imap::Error::Protocol)?;
     store.ensure_account(request.account.into()).await?;
+    let changed = store
+        .bind_mailbox_context(request.account.into(), request.context.into())
+        .await?;
     let folder = store
         .ensure_folder(request.account.into(), request.folder.into(), request.inbox)
         .await?;
@@ -215,7 +220,9 @@ async fn prepare(
         .await?;
     let upper = request
         .before
-        .filter(|position| position.folder == folder.id && position.uid_validity == validity)
+        .filter(|position| {
+            !changed && position.folder == folder.id && position.uid_validity == validity
+        })
         .map_or_else(
             || next.get(),
             |position| position.before.get().min(next.get()),

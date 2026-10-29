@@ -210,3 +210,68 @@ fn future_schema_is_rejected_without_downgrading_or_clearing_data() {
     assert_eq!(scalar(&old, "PRAGMA user_version"), 999);
     assert_eq!(scalar(&old, "SELECT count(*) FROM drafts"), 1);
 }
+
+#[test]
+fn schema_three_upgrade_keeps_originals_and_requires_verified_server_provenance_before_flags() {
+    use mailstronaut_mail::imap::FlagChange;
+    const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let root = tempfile::tempdir().expect("profile");
+    let mut old = Connection::open(root.path().join("mail.sqlite3")).expect("schema three");
+    rusqlite_migration::Migrations::new(vec![
+        rusqlite_migration::M::up(SCHEMA),
+        rusqlite_migration::M::up(super::mailbox::SCHEMA),
+        rusqlite_migration::M::up(super::outbox::SCHEMA),
+    ])
+    .to_latest(&mut old)
+    .expect("old migrations");
+    fs::create_dir(root.path().join("blobs")).expect("blobs");
+    let original = b"Subject: Legacy namespace fixture\r\n\r\nPrivate synthetic original.\r\n";
+    let hash = super::write_blob(&root.path().join("blobs"), original).expect("original");
+    old.execute_batch("INSERT INTO accounts(id) VALUES('a'); INSERT INTO folders VALUES(7,'a','INBOX',42,1); INSERT INTO drafts(id,content) VALUES('legacy-draft',x'0102'); INSERT INTO pending_operations(id,account_id,folder_id,uidvalidity,uid,state) VALUES('legacy-operation','a',7,42,11,'pending');").expect("user state");
+    old.execute(
+        "INSERT INTO messages(id,account_id,blob_hash) VALUES(1,'a',?1)",
+        [hash],
+    )
+    .expect("message");
+    old.execute_batch("INSERT INTO memberships(account_id,folder_id,uidvalidity,uid,message_id,seen,starred) VALUES('a',7,42,11,1,0,1);").expect("membership");
+    let mut store = Store::open(root.path()).expect("upgrade");
+    assert_eq!(scalar(&store.connection, "PRAGMA user_version"), 4);
+    assert_eq!(
+        scalar(&store.connection, "SELECT count(*) FROM memberships"),
+        1
+    );
+    assert_eq!(scalar(&store.connection, "SELECT count(*) FROM drafts"), 1);
+    assert!(
+        matches!(
+            store.set_flag("a", 1, FlagChange::Seen, true, CONTEXT),
+            Err(Error::StaleMailbox)
+        ),
+        "legacy UIDs are not attributed to an arbitrary current server"
+    );
+    assert!(
+        store
+            .bind_mailbox_context("a", CONTEXT)
+            .expect("authenticated server")
+    );
+    assert_eq!(
+        scalar(&store.connection, "SELECT count(*) FROM memberships"),
+        0
+    );
+    assert!(
+        store.message("a", 1).is_ok(),
+        "original is retained for reconciliation"
+    );
+    let backup = fs::read_dir(root.path().join("backups"))
+        .expect("backups")
+        .next()
+        .expect("backup")
+        .expect("entry")
+        .path();
+    assert_eq!(
+        scalar(
+            &Connection::open(backup).expect("snapshot"),
+            "PRAGMA user_version"
+        ),
+        3
+    );
+}

@@ -249,10 +249,7 @@ impl cosmic::Application for App {
             }
             Message::Composer(message) => return self.compose_message(message),
             Message::Reply(kind) => return self.reply(kind),
-            Message::Inbox(message) => {
-                let task = self.inbox.update(message, self.accounts.authentication());
-                return Task::batch([task, self.composer.attach(self.inbox.store())]);
-            }
+            Message::Inbox(message) => return self.inbox_message(message),
             Message::Appearance(dark) => {
                 self.dark = dark;
                 if let Some(Ok(viewport)) = self.viewport.as_ref() {
@@ -424,6 +421,28 @@ impl App {
             self.composer.configure(self.accounts.active()),
         ])
     }
+    fn inbox_message(&mut self, message: inbox::Message) -> Task<Message> {
+        if self.quitting
+            && matches!(
+                message,
+                inbox::Message::Sync(..)
+                    | inbox::Message::SetFlag(..)
+                    | inbox::Message::UndoFlags
+                    | inbox::Message::ApplyFlags
+                    | inbox::Message::Open(..)
+                    | inbox::Message::Refresh
+                    | inbox::Message::Next
+            )
+        {
+            return Task::none();
+        }
+        let task = self.inbox.update(message, self.accounts.authentication());
+        Task::batch([
+            task,
+            self.composer.attach(self.inbox.store()),
+            self.maybe_quit(),
+        ])
+    }
     fn reply(&mut self, kind: mailstronaut_core::reply::Kind) -> Task<Message> {
         if self.quitting || self.composer.busy() || self.accounts.loading() {
             self.inbox
@@ -493,6 +512,7 @@ impl App {
     fn maybe_quit(&mut self) -> Task<Message> {
         if self.quitting
             && !self.quit_flushing
+            && !self.inbox.busy()
             && !self.composer.busy()
             && !self.accounts.authenticating()
         {
