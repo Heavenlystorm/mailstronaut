@@ -99,6 +99,10 @@ impl Store {
         if changed {
             tx.execute("UPDATE pending_operations SET state='conflict',attempt_id=NULL,attempt_revision=NULL,attempt_desired=NULL,error='identity_changed' WHERE account_id=?1 AND kind IS NOT NULL AND state IN ('pending','submitted','failed')",[account])?;
             tx.execute("DELETE FROM memberships WHERE account_id=?1", [account])?;
+            // Provider IDs belong to that authenticated mailbox too. Reusing
+            // one on a different server/principal must not replace an old
+            // original or transfer its reminders/read history to unrelated mail.
+            tx.execute("DELETE FROM provider_ids WHERE account_id=?1", [account])?;
             tx.execute(
                 "UPDATE folders SET uidvalidity=NULL WHERE account_id=?1",
                 [account],

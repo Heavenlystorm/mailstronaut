@@ -286,3 +286,71 @@ fn undo_is_local_only_before_submission_and_never_revives_priority_read_history(
         "a newer edit cannot erase earlier possible STORE delivery"
     );
 }
+
+#[test]
+fn changed_server_cannot_reuse_provider_ids_to_replace_originals_or_user_state() {
+    use core::num::NonZeroU64;
+    use mailstronaut_core::store::mailbox::GmailId;
+    let root = tempfile::tempdir().expect("profile");
+    let mut store = Store::open(root.path()).expect("store");
+    store.ensure_account("a").expect("account");
+    store
+        .bind_mailbox_context("a", CONTEXT)
+        .expect("old server");
+    let folder = store.ensure_folder("a", "INBOX", true).expect("folder").id;
+    store.select_folder("a", folder, nz(42)).expect("namespace");
+    let membership = Membership {
+        folder,
+        uid_validity: nz(42),
+        uid: nz(11),
+        flags: Flags::default(),
+    };
+    let provider = Some(GmailId(NonZeroU64::new(123).expect("provider ID")));
+    let old = store
+        .cache_message("a", membership, 100, provider, RAW)
+        .expect("old original");
+    let db = rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("user state");
+    db.execute(
+        "INSERT INTO reminders(id,message_id,due_at,state) VALUES('keep',?1,123,'pending')",
+        [old],
+    )
+    .expect("reminder");
+    store
+        .bind_mailbox_context("a", OTHER)
+        .expect("different authenticated server");
+    store
+        .select_folder("a", folder, nz(42))
+        .expect("same numeric generation");
+    let different=b"From: other@example.test\r\nSubject: Different account original\r\nMessage-ID: <other@example.test>\r\n\r\nDifferent synthetic content.\r\n";
+    let new = store
+        .cache_message("a", membership, 101, provider, different)
+        .expect("reused numeric provider ID");
+    assert_ne!(old, new);
+    assert_eq!(
+        store
+            .message("a", old)
+            .expect("retained original")
+            .headers
+            .subject
+            .as_deref(),
+        Some("Flags fixture")
+    );
+    assert_eq!(
+        store
+            .message("a", new)
+            .expect("new original")
+            .headers
+            .subject
+            .as_deref(),
+        Some("Different account original")
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT message_id FROM reminders WHERE id='keep'",
+            [],
+            |row| row.get::<_, i64>(0)
+        )
+        .expect("retained reminder"),
+        old
+    );
+}

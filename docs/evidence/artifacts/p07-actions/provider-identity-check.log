@@ -1,0 +1,19 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+   Compiling mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.81s
+     Running tests/flags.rs (target/debug/build/mailstronaut-core/09ec572f92326bfb/out/flags-09ec572f92326bfb)
+
+running 7 tests
+test offline_flags_overlay_all_inbox_copies_and_survive_restart_without_touching_other_accounts ... ok
+test changed_server_cannot_reuse_provider_ids_to_replace_originals_or_user_state ... ok
+test changed_server_or_uid_namespace_retires_old_work_without_rebinding_identical_uid_numbers ... ok
+test failure_requires_explicit_retry_and_unknown_confirmation_is_not_success ... ok
+test undo_is_local_only_before_submission_and_never_revives_priority_read_history ... ok
+test only_the_exclusive_owner_recovers_interrupted_idempotent_flags ... ok
+test opposite_edit_while_submitted_survives_old_ack_and_stale_callback_cannot_complete_new_attempt ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+    Checking mailstronaut-mail v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-mail)
+    Checking mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.05s

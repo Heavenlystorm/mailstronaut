@@ -109,3 +109,19 @@ sync cursors, IDLE/reconnect, automatic read/application, archive/trash/move, Se
 APPEND, reminders/background and priority classification remain open. The existing
 hostile IMAP literal allocation gap remains; no full protocol-boundary claim is
 made. Arbitrary email HTML remains excluded from the synthetic Servo renderer.
+
+## Provider identity follow-up
+
+Review of the account-provenance boundary found that retiring UID memberships
+also needs to retire provider-ID mappings. Otherwise a different authenticated
+mailbox reusing a numeric provider ID could replace an earlier original and inherit
+its local reminder/read identity. The follow-up removes only that account's provider
+mappings in the same context-change transaction. Originals and user state remain.
+A new synthetic regression reuses both UIDVALIDITY/UID and provider ID on another
+server and verifies distinct canonical messages, unchanged old content and its
+retained reminder. The seven focused flag tests and strict core all-target Clippy
+passed through `nix develop`; see
+[provider-identity-check.log](artifacts/p07-actions/provider-identity-check.log).
+The earlier complete development/native run above precedes this follow-up. The
+in-progress release gate started at `962050d3ce4cd375e8f55010935ce211164e0f05`
+and does not include it.
