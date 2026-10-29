@@ -4,7 +4,7 @@
 
 A planned local-first email client for the COSMIC desktop, written in Rust with
 libcosmic and Servo. This repository contains the architecture, a native COSMIC
-preview window, and initial configuration and storage components.
+preview window, native Nix account setup, and initial storage components.
 **It is not yet a usable email client.** The preview displays a fixed synthetic
 Servo document with native theme forwarding. Untrusted mail rendering, input,
 accessibility and background lifecycle remain feasibility gates.
@@ -46,7 +46,11 @@ Four SpiderMonkey FFI crates use LLVM in debug/test because the pinned Cranelift
 cannot handle their symbol-name marker. Wild still links those builds; see the
 narrow overrides and removal condition in [.cargo/config.toml](.cargo/config.toml).
 
-`nix run` launches the synthetic native preview. Current implementation evidence
+`nix run` opens native account setup; Preview and Text retain the synthetic
+rendering probes. `nix run -- --config /path/to/config.nix` selects an explicit
+native source. Password accounts can save credentials through an explicitly
+unlocked encrypted keyring. OAuth and mail synchronization are not implemented.
+Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P02](docs/evidence/P02.md), and [P03](docs/evidence/P03.md). The flake exports
 x86_64-linux and aarch64-linux outputs; runtime verification and release support
@@ -54,7 +58,8 @@ for each architecture are separate checklist gates. Flatpak production packaging
 is planned in P10 after Servo's build dependencies are established.
 
 Root `Cargo.toml` uses `members = ["crates/*"]`, centralized dependencies and all
-active Clippy groups, including opt-in restriction/nursery/pedantic/cargo. See
+Clippy policy: all, pedantic and nursery, plus selected unfinished-code and
+unguarded-unwrap checks. See
 [AGENTS.md](AGENTS.md) before implementing a milestone. GPL-3.0-only; third-party
 code/model licenses and notices remain separate.
 

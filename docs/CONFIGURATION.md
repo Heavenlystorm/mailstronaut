@@ -1,7 +1,9 @@
 # Native Nix configuration and account authentication
 
-This is the **target contract** for P02/P05/P08, not functionality in the initial
-scaffold. Canonical user configuration is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
+This is the **target contract** for P02/P05/P08. Native file loading, bounded
+evaluation, last-valid reload and foreground password storage are implemented;
+OAuth, synchronization and portal acceptance remain open. Canonical user
+configuration is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
 Flatpak uses its usual application-specific XDG config directory. A `.nix` file is
 the actual input consumed by the Rust application in both distributions.
 

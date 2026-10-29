@@ -1,0 +1,105 @@
+{
+  "source": "/nix/store/aanl0sbmyxvvhfpbzxn25kw0rr2bnggp-source",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "34a49622106044832b31910edc7ce4bdb2a3fb5f3f9f8e36e33162da9cbdba57"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "89784755a1bef252010cf630820da421446a76308549d975cb63c9c5c4acc146"
+    },
+    {
+      "path": "crates/mailstronaut/Cargo.toml",
+      "sha256": "770cd2b90a4de96650aeac180b35e77ade9b583bf51b11ec91deb7007092dc80"
+    },
+    {
+      "path": "crates/mailstronaut/src/accounts.rs",
+      "sha256": "a83eecc031b3aa8c2cdd09592087bc800afe436e784baf52830a8e498f35b093"
+    },
+    {
+      "path": "crates/mailstronaut/src/config_cli.rs",
+      "sha256": "449b97ddccbf9ad1bad020d4ea961e45fa81381085070eb69ba93d45392c8e4b"
+    },
+    {
+      "path": "crates/mailstronaut/src/main.rs",
+      "sha256": "7377534cd0420a1180abf9739e57157e331051b100134a7874b72c2a4d71f916"
+    },
+    {
+      "path": "crates/mailstronaut/src/text_reader.rs",
+      "sha256": "204d830a4c92206e3a78a706403197dc075b27f8180158dc4778ba4a80b1d8cc"
+    },
+    {
+      "path": "crates/mailstronaut/tests/configuration.rs",
+      "sha256": "352e7c7fc6e659e820c97eda9349ce8ce1530e3aa4e3d13305c3cfe7a1121ed5"
+    },
+    {
+      "path": "crates/mailstronaut/tests/configuration_source.rs",
+      "sha256": "43bc7c35d4c27b47433b079e6617d015f9ed0f87f04d7323fc821e31863b941a"
+    },
+    {
+      "path": "crates/mailstronaut-config/Cargo.toml",
+      "sha256": "43e29111d062d48656343b4f7cb85ffb547eece4ec58e3e5a1de64fe02adbea1"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/helper.rs",
+      "sha256": "fc2470a1029d89ad20e33b29013b1f74705354eecbf3cc1e535a0570989da908"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/lib.rs",
+      "sha256": "9b909d8aa6fe15f48c87422bd03fe3771486ea0c2bfe3bf9c7e636610a3991da"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/process.rs",
+      "sha256": "f000e28bd03a7579e16d1d5fc594bf10e4e6c99c5564ca11bb876677813f4d5b"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/source.rs",
+      "sha256": "9ffb2e6947f107dc146cbadfc18b68a37ecf8b62f05abd3c256d26a743774c35"
+    },
+    {
+      "path": "crates/mailstronaut-core/Cargo.toml",
+      "sha256": "f9fa741aac1931e698b9bdf15663f9bd8c1f5738f97acbba3227da50632ece2f"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/lib.rs",
+      "sha256": "1f38f3c4f4ea9ad36e3c497989e77dc812851f4562e6d777fdb1696075cc34c2"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/mime.rs",
+      "sha256": "30dd23f9a55390968e91bf3fee10b2642117df14ac47b2b0107a191d3bc02f49"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store.rs",
+      "sha256": "b244b33a37b12b74d1a0318944cdf18cefe0547c4922d97f39e398e820490dd0"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/mime.rs",
+      "sha256": "db7c70b5810bc726153ba307f2c1b05c345f3fbe648e2b8fae55d4a24baa9bd7"
+    },
+    {
+      "path": "crates/mailstronaut-mail/Cargo.toml",
+      "sha256": "81c8d8da1350d716bccafe0c560168641c57d45d6ae8bde20b03bb9a08d5e8a2"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/credentials.rs",
+      "sha256": "89f1a1f768c97441bead639b2402482d3e0058dd83ae5d0cec32f228045057b3"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/lib.rs",
+      "sha256": "d4655909a37f3ac2f2063deb98b21a1cb564d023e411359f709beb88787abc7c"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/credentials.rs",
+      "sha256": "4c5481947297567432394bf438baf81dad6c6908df201ffcae657229b45556c3"
+    },
+    {
+      "path": "crates/mailstronaut-render/Cargo.toml",
+      "sha256": "2ab893f37a19977023d8cd770b002da8cebda25bd410ecf459f0c017f7710c13"
+    },
+    {
+      "path": "crates/mailstronaut-render/src/lib.rs",
+      "sha256": "6a771b8ae568324e6365ba5efa2745d8aa8700efd7c97f09809b44d1f0b87a57"
+    }
+  ]
+}

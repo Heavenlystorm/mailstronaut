@@ -132,13 +132,19 @@ Read CONFIGURATION.md. Create `mailstronaut-config`; no HM module or TOML parser
   typed result/error IPC; no I/O builtins, imported Nixpkgs, shell or host Nix.
 - [ ] Test native Nix let/references/lists/conditionals, invalid types/unknown keys,
   unsupported schema, attempted IO and nontermination; verify limits empirically.
-- [ ] Implement `config init/check`, explicit config path, missing/invalid startup
+- [x] Implement `config init/check`, explicit config path, missing/invalid startup
   state and atomic last-valid reload; no partially applied account changes.
+  See `evidence/P02-accounts.md`; account worker reconfiguration remains P04.
 - [ ] Detect managed/store-backed/read-only files; preserve source expressions,
   do not rewrite HM files; app-owned unmanaged writes use native Nix serializer
   and atomic validation. No hidden SQLite preference overrides.
 - [ ] Implement oo7 credential store, attributes, foreground unlock/redacted errors,
   no plaintext fallback; test native Secret Service and Flatpak Secret portal.
+- [x] Implement and test the scoped oo7 adapter against a disposable native Secret
+  Service: persistence, rotation, account/purpose isolation, ambiguity, lock and
+  unavailable behavior; exercise installed GUI masked save/readback with managed
+  source preservation. Flatpak portal and real desktop unlock acceptance remain
+  in the separate unchecked credential row. See `evidence/P02-accounts.md`.
 - [ ] Link the same .nix source via a disposable Home Manager test configuration;
   test Flatpak regular-file copy/direct-link caveat. Do not activate user dotfiles.
 - [ ] Confirm no password/token can enter config/store paths, Debug output, tracing

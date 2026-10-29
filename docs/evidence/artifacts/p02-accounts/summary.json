@@ -1,0 +1,14 @@
+{
+  "package": "/nix/store/nxi38afxdfh3xhbhm7hrsz9pa2hfwqzl-mailstronaut-0.1.0",
+  "package_derivation": "/nix/store/j7qzyc8lhlik69zlma5mhdrq3j2kg1ja-mailstronaut-0.1.0.drv",
+  "gate_invocation": "fd84a1f8d717440aaf5208519b40ae30",
+  "workspace_tests": 39,
+  "renderer_children": 7,
+  "private_credential_tests": 2,
+  "gui_credential_round_trip": true,
+  "managed_source_unchanged": true,
+  "native_reader_full_copy_checks": 21,
+  "native_reader_accessibility": "blocked",
+  "runtime_paths": 35,
+  "source_files_matched": 25
+}

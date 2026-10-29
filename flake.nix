@@ -72,11 +72,12 @@
               ./assets
               ./examples
               ./docs/CONFIGURATION.md
+              ./experiments/p02-accounts/credentials.sh
             ];
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-a+I+yc5+kU3p/igFhcyVpj/aW5/h7qSoZmyB4HjTcKc=";
+          cargoHash = "sha256-BtdcAm2vHeaBTkXOZlU/imllvVUh3QpiAuVUGaaNm+A=";
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit pname version;
             hash = cargoHash;
@@ -145,6 +146,17 @@
           // {
             inherit cargoArtifacts;
             passthru = { inherit cargoDeps cargoArtifacts cargoHash; };
+            nativeCheckInputs = [
+              pkgs.dbus
+              pkgs.gnome-keyring
+            ];
+            preBuild = common.preBuild + ''
+              # Reject source/lint failures before linking the large executable.
+              cargo fmt --all -- --check
+              cargo clippy --jobs "$NIX_BUILD_CORES" --release \
+                --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+                --workspace --all-targets --all-features --locked --offline -- -D warnings
+            '';
             postInstall = ''
               install -Dm444 ${
                 pkgs.makeDesktopItem {
@@ -170,12 +182,11 @@
               export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
               export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri"
               export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
-              cargo fmt --all -- --check
-              # Match the package profile/target so native build scripts can reuse
-              # the release artifacts, and honor Nix's requested parallelism.
-              cargo clippy --jobs "$NIX_BUILD_CORES" --release \
-                --target ${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
-                --workspace --all-targets --all-features --locked --offline -- -D warnings
+            '';
+            postCheck = ''
+              MAILSTRONAUT_CREDENTIAL_TEST_PROFILE=release \
+                CARGO_BUILD_TARGET=${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+                bash experiments/p02-accounts/credentials.sh
             '';
             meta = {
               description = "Mailstronaut planning scaffold; not yet a usable mail client";
@@ -220,7 +231,9 @@
               }
               ''
                 actionlint ${self}/.github/workflows/ci.yml
-                shellcheck ${self}/ci/check.sh
+                shellcheck ${self}/ci/check.sh \
+                  ${self}/experiments/p02-accounts/credentials.sh \
+                  ${self}/experiments/p02-accounts/gui.sh
                 touch "$out"
               '';
         }
@@ -254,6 +267,8 @@
               pkgs.dbus
               pkgs.xclip
               pkgs.zenity
+              pkgs.gnome-keyring
+              pkgs.libsecret
             ];
           });
           default = pkgs.mkShell {

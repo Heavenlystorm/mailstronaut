@@ -5,6 +5,9 @@ pub mod helper;
 /// Parent lifecycle for the short-lived configuration evaluator.
 pub mod process;
 
+/// Native configuration files and last-valid runtime snapshots.
+pub mod source;
+
 use core::iter::once;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::Path};
@@ -678,6 +681,7 @@ fn valid_text(value: &str) -> bool {
 /// Check a stable identifier.
 fn valid_id(value: &str) -> bool {
     !value.is_empty()
+        && value.len() <= 256
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))

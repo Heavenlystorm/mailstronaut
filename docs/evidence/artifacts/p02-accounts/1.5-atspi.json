@@ -1,0 +1,79 @@
+{
+  "status": "blocked",
+  "body_found": false,
+  "observer_control_found": true,
+  "nodes": [
+    {
+      "role": "desktop frame",
+      "name": "main"
+    },
+    {
+      "role": "application",
+      "name": "zenity"
+    },
+    {
+      "role": "dialog",
+      "name": "Mailstronaut observer control"
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "label",
+      "name": "Mailstronaut observer control"
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "image",
+      "name": ""
+    },
+    {
+      "role": "label",
+      "name": "Native reader accessibility observer control"
+    },
+    {
+      "role": "panel",
+      "name": ""
+    },
+    {
+      "role": "button",
+      "name": "OK"
+    },
+    {
+      "role": "label",
+      "name": "OK"
+    },
+    {
+      "role": "application",
+      "name": ".mailstronaut-wrapped"
+    },
+    {
+      "role": "frame",
+      "name": ""
+    }
+  ]
+}

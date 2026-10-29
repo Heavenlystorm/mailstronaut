@@ -1,0 +1,59 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-mail/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-mail` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+    Checking mailstronaut-mail v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-mail)
+    Checking mailstronaut-config v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-config)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.55s

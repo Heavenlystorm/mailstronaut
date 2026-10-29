@@ -1,5 +1,6 @@
 //! Minimal native window for the rendering feasibility gate.
 
+mod accounts;
 mod config_cli;
 mod text_reader;
 
@@ -14,6 +15,8 @@ use mailstronaut_render::{Renderer, Viewport};
 
 /// Toolkit-owned application state.
 struct App {
+    /// Validated account configuration and foreground credential setup.
+    accounts: accounts::Accounts,
     /// COSMIC application state, including the system theme.
     core: Core,
     /// Current system theme, including changes while hidden.
@@ -27,7 +30,7 @@ struct App {
     /// Most recent pointer position within the image.
     pointer: Point,
     /// Retained thread-affine engine.
-    renderer: Result<Renderer, String>,
+    renderer: Option<Result<Renderer, String>>,
     /// Effective physical pixels per logical unit.
     scale: f32,
     /// Dimensions of the current frame and viewport.
@@ -43,6 +46,8 @@ struct App {
 /// Synthetic navigation targets.
 #[derive(Clone, Copy, Debug)]
 enum Page {
+    /// Native account setup.
+    Accounts,
     /// Information about this preview.
     About,
     /// Synthetic reader preview.
@@ -54,6 +59,10 @@ enum Page {
 /// Actions from the native navigation.
 #[derive(Clone, Debug)]
 enum Message {
+    /// Effective configured theme, forwarded to Servo's native theme API.
+    Appearance(bool),
+    /// Native configuration and credential setup.
+    Accounts(accounts::Message),
     /// Pointer moved within the viewport.
     Pointer(Point),
     /// Keyboard scrolling in the native text reader.
@@ -73,7 +82,7 @@ enum Message {
 impl cosmic::Application for App {
     const APP_ID: &'static str = include_str!("../../../assets/app-id");
     type Executor = executor::Default;
-    type Flags = ();
+    type Flags = Option<std::path::PathBuf>;
     type Message = Message;
 
     fn core(&self) -> &Core {
@@ -82,12 +91,14 @@ impl cosmic::Application for App {
     fn core_mut(&mut self) -> &mut Core {
         &mut self.core
     }
-    fn init(core: Core, (): ()) -> (Self, Task<Message>) {
+    fn init(core: Core, path: Self::Flags) -> (Self, Task<Message>) {
+        let (accounts, load) = accounts::Accounts::new(path);
         (
             Self {
+                accounts,
                 core,
-                page: Page::Preview,
-                renderer: Renderer::synthetic(),
+                page: Page::Accounts,
+                renderer: None,
                 dark: theme::is_dark(),
                 viewport: None,
                 frame: None,
@@ -98,7 +109,7 @@ impl cosmic::Application for App {
                 pointer: Point::ORIGIN,
                 text: Renderer::synthetic_text(),
             },
-            Task::done(Action::App(Message::Select(Page::Preview))),
+            load,
         )
     }
 
@@ -141,7 +152,7 @@ impl cosmic::Application for App {
         } else {
             Subscription::none()
         };
-        if let Ok(renderer) = self.renderer.as_ref() {
+        if let Some(Ok(renderer)) = self.renderer.as_ref() {
             let wakes = Subscription::run_with(Wakes(renderer.wake_receiver()), |wakes| {
                 stream::unfold(wakes.0.clone(), |receiver| async move {
                     receiver
@@ -161,9 +172,9 @@ impl cosmic::Application for App {
         _: &[&'static str],
         new_theme: &cosmic_theme::ThemeMode,
     ) -> Task<Message> {
-        self.dark = new_theme.is_dark;
+        self.dark = self.accounts.effective_dark(new_theme.is_dark);
         if let Some(Ok(viewport)) = self.viewport.as_ref() {
-            viewport.set_dark(new_theme.is_dark);
+            viewport.set_dark(self.dark);
         }
         Task::none()
     }
@@ -176,20 +187,26 @@ impl cosmic::Application for App {
         // The pinned COSMIC callbacks run before its global theme is updated;
         // its Wayland-enabled branch also drops returned callback tasks.
         // Forward the supplied theme here, on the viewport's owning thread.
-        self.dark = new_theme.is_dark;
+        self.dark = self.accounts.effective_dark(new_theme.is_dark);
         if let Some(Ok(viewport)) = self.viewport.as_ref() {
-            viewport.set_dark(new_theme.is_dark);
+            viewport.set_dark(self.dark);
         }
         Task::none()
     }
 
     #[expect(
-        clippy::cast_precision_loss,
         clippy::float_cmp,
         reason = "Viewport dimensions are bounded and scale changes require exact event values."
     )]
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Appearance(dark) => {
+                self.dark = dark;
+                if let Some(Ok(viewport)) = self.viewport.as_ref() {
+                    viewport.set_dark(dark);
+                }
+            }
+            Message::Accounts(message) => return self.accounts.update(message),
             Message::Select(page) => return self.select_page(page),
             Message::Read(id, command) => {
                 if matches!(self.page, Page::Text) && Some(id) == self.core.main_window_id() {
@@ -197,28 +214,7 @@ impl cosmic::Application for App {
                 }
             }
             Message::Pointer(point) => self.pointer = point,
-            Message::Wheel(delta) => {
-                if let Some(Ok(viewport)) = self.viewport.as_ref() {
-                    let (dx, dy, lines) = match delta {
-                        mouse::ScrollDelta::Lines { x, y } => (x, y, true),
-                        mouse::ScrollDelta::Pixels { x, y } => (x, y, false),
-                    };
-                    // The pinned mouse_area publishes each wheel event twice.
-                    // Preserve the native delta across those two deliveries.
-                    if viewport
-                        .wheel(
-                            self.pointer.x * (self.size.0 as f32 / self.logical.0),
-                            self.pointer.y * (self.size.1 as f32 / self.logical.1),
-                            dx * 0.5,
-                            dy * 0.5,
-                            lines,
-                        )
-                        .is_err()
-                    {
-                        return Task::none();
-                    }
-                }
-            }
+            Message::Wheel(delta) => self.wheel(delta),
             Message::Window(id, event) => {
                 if Some(id) == self.core.main_window_id()
                     && let window::Event::Opened { size, position: _ } = event
@@ -265,7 +261,7 @@ impl cosmic::Application for App {
                         self.frame =
                             Some(image::Handle::from_rgba(self.size.0, self.size.1, pixels));
                     }
-                } else if let Ok(renderer) = &self.renderer {
+                } else if let Some(Ok(renderer)) = &self.renderer {
                     renderer.spin();
                 }
             }
@@ -275,6 +271,7 @@ impl cosmic::Application for App {
 
     fn view(&self) -> Element<'_, Message> {
         let content: Element<'_, Message> = match self.page {
+            Page::Accounts => self.accounts.view(),
             Page::Preview => {
                 let image: Element<'_, Message> =
                     match (self.viewport.as_ref(), self.frame.as_ref()) {
@@ -326,11 +323,12 @@ impl cosmic::Application for App {
                 widget::text("Mailstronaut"),
                 widget::button::text("Preview").on_press(Message::Select(Page::Preview)),
                 widget::button::text("About").on_press(Message::Select(Page::About)),
-                widget::button::text("Text").on_press(Message::Select(Page::Text))
+                widget::button::text("Text").on_press(Message::Select(Page::Text)),
+                widget::button::text("Accounts").on_press(Message::Select(Page::Accounts))
             ]
             .spacing(theme::spacing().space_s)
             .padding(20),
-            content
+            widget::container(content).width(cosmic::iced::Length::Fill)
         ]
         .spacing(20)
         .into()
@@ -338,6 +336,28 @@ impl cosmic::Application for App {
 }
 
 impl App {
+    /// Forward bounded native wheel input to the selected synthetic viewport.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Renderer dimensions are bounded to 2048 pixels."
+    )]
+    fn wheel(&self, delta: mouse::ScrollDelta) {
+        if let Some(Ok(viewport)) = self.viewport.as_ref() {
+            let (dx, dy, lines) = match delta {
+                mouse::ScrollDelta::Lines { x, y } => (x, y, true),
+                mouse::ScrollDelta::Pixels { x, y } => (x, y, false),
+            };
+            // The pinned mouse_area publishes each wheel event twice.
+            let _result = viewport.wheel(
+                self.pointer.x * (self.size.0 as f32 / self.logical.0),
+                self.pointer.y * (self.size.1 as f32 / self.logical.1),
+                dx * 0.5,
+                dy * 0.5,
+                lines,
+            );
+        }
+    }
+
     /// Resize the current viewport to the rounded physical extent.
     fn resize_viewport(&mut self) {
         let size = physical_size(self.logical, self.scale);
@@ -354,11 +374,14 @@ impl App {
 
     /// Enter a native page or create the single synthetic `WebView`.
     fn select_page(&mut self, page: Page) -> Task<Message> {
+        if !matches!(page, Page::Accounts) {
+            self.accounts.clear_input();
+        }
         self.page = page;
-        if matches!(page, Page::About | Page::Text) {
+        if matches!(page, Page::About | Page::Text | Page::Accounts) {
             self.viewport = None;
             self.frame = None;
-            if let Ok(renderer) = &self.renderer {
+            if let Some(Ok(renderer)) = &self.renderer {
                 renderer.spin();
             }
             return if matches!(page, Page::Text) {
@@ -369,16 +392,20 @@ impl App {
         }
         if self.viewport.is_none() {
             self.size = physical_size(self.logical, self.scale);
-            self.viewport = Some(match &self.renderer {
-                Ok(renderer) => renderer
-                    .viewport(self.size.0, self.size.1)
-                    .and_then(|viewport| {
-                        viewport.set_scale(self.scale)?;
-                        viewport.set_dark(self.dark);
-                        Ok(viewport)
-                    }),
-                Err(error) => Err(error.clone()),
-            });
+            self.viewport = Some(
+                match self.renderer.get_or_insert_with(Renderer::synthetic) {
+                    Ok(renderer) => {
+                        renderer
+                            .viewport(self.size.0, self.size.1)
+                            .and_then(|viewport| {
+                                viewport.set_scale(self.scale)?;
+                                viewport.set_dark(self.dark);
+                                Ok(viewport)
+                            })
+                    }
+                    Err(error) => Err(error.clone()),
+                },
+            );
             return Task::done(Action::App(Message::Wake));
         }
         Task::none()
@@ -428,7 +455,7 @@ fn main() -> ExitCode {
     if let Some(status) = config_cli::dispatch(&arguments) {
         return status;
     }
-    match app::run::<App>(Settings::default(), ()) {
+    match app::run::<App>(Settings::default(), config_cli::selected_path(&arguments)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("Unable to start Mailstronaut: {error}");

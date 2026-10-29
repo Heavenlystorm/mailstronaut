@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Explicit, synthetic-only Secret Service acceptance in private project directories.
+# Run: nix develop .#gui-test --command bash experiments/p02-accounts/credentials.sh
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+mkdir -p target/p02-accounts
+root=$(mktemp -d "$PWD/target/p02-accounts/keyring.XXXXXXXX")
+export MAILSTRONAUT_SECRET_TEST_ROOT="$root"
+export XDG_DATA_HOME="$root/data" XDG_CONFIG_HOME="$root/config"
+export XDG_CACHE_HOME="$root/cache" XDG_RUNTIME_DIR="$root/runtime"
+mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR"
+chmod 700 "$root" "$XDG_RUNTIME_DIR"
+unset DBUS_SESSION_BUS_ADDRESS AT_SPI_BUS_ADDRESS DISPLAY WAYLAND_DISPLAY
+bus_pid='' keyring_pid=''
+cleanup() {
+  if [[ -n "$keyring_pid" ]]; then kill "$keyring_pid" 2>/dev/null || true; wait "$keyring_pid" 2>/dev/null || true; fi
+  if [[ -n "$bus_pid" ]]; then kill "$bus_pid" 2>/dev/null || true; wait "$bus_pid" 2>/dev/null || true; fi
+}
+trap cleanup EXIT
+# The bus path itself is checked by the ignored Rust acceptance test.
+cat > "$root/bus.conf" <<CONFIG
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>session</type>
+  <listen>unix:path=$root/runtime/bus</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <allow user="*"/>
+    <allow own="*"/>
+    <allow send_destination="*"/>
+    <allow receive_sender="*"/>
+  </policy>
+</busconfig>
+CONFIG
+# No service directories: probing readiness cannot auto-start another daemon and
+# race the explicitly unlocked fixture against a second keyring process.
+dbus-daemon --nofork --nopidfile --config-file="$root/bus.conf" > "$root/bus.log" 2>&1 &
+bus_pid=$!
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$root/runtime/bus"
+for _ in {1..100}; do [[ -S "$root/runtime/bus" ]] && break; sleep 0.05; done
+# This public synthetic fixture value is not a user credential. The daemon writes
+# only under the private XDG data root; the user's bus/keyring is never contacted.
+printf '%s' 'mailstronaut-synthetic-fixture-only' | gnome-keyring-daemon --foreground --unlock --components=secrets --control-directory="$root/runtime/control" > "$root/keyring.log" 2>&1 &
+keyring_pid=$!
+for _ in {1..100}; do
+  if dbus-send --session --dest=org.freedesktop.secrets --type=method_call --print-reply /org/freedesktop/secrets org.freedesktop.DBus.Peer.Ping > /dev/null 2>&1; then break; fi
+  sleep 0.05
+done
+if [[ -n ${MAILSTRONAUT_ACCOUNT_GUI_BINARY:-} ]]; then
+  bash experiments/p02-accounts/gui.sh "$MAILSTRONAUT_ACCOUNT_GUI_BINARY" "$root"
+fi
+cargo_flags=(--locked --offline)
+if [[ ${MAILSTRONAUT_CREDENTIAL_TEST_PROFILE:-debug} == release ]]; then
+  cargo_flags+=(--release)
+fi
+cargo test -p mailstronaut-mail --test credentials "${cargo_flags[@]}" private_secret_service_round_trip_isolation_rotation_and_lock -- --ignored --nocapture | tee "$root/test.log"
+kill "$keyring_pid"
+wait "$keyring_pid" 2>/dev/null || true
+keyring_pid=''
+find "$root/data" -type f -exec sha256sum '{}' + | sort > "$root/before-unavailable.sha256"
+cargo test -p mailstronaut-mail --test credentials "${cargo_flags[@]}" private_missing_service_fails_closed -- --ignored --nocapture | tee "$root/unavailable.log"
+find "$root/data" -type f -exec sha256sum '{}' + | sort > "$root/after-unavailable.sha256"
+cmp "$root/before-unavailable.sha256" "$root/after-unavailable.sha256"
+python3 - "$root/data" <<'PY'
+import pathlib, sys
+files = list(pathlib.Path(sys.argv[1]).rglob('*.keyring'))
+assert files, 'fixture did not persist an encrypted keyring'
+for path in files:
+    data = path.read_bytes()
+    for value in (b'synthetic-rotated', b'synthetic-other-account', b'synthetic-refresh', b'synthetic-duplicate'):
+        assert value not in data, 'synthetic credential appeared in persisted keyring bytes'
+print('Persisted fixture keyring contains none of the synthetic credential markers in plaintext.')
+PY
+printf 'Private keyring artifacts: %s\n' "$root"

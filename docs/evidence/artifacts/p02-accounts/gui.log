@@ -1,0 +1,135 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+GUI password save/readback, secure clipboard, unchanged managed source and reload walkthrough passed.
+Account GUI window: 2097155
+Artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.Zf8EClyc/gui
+X connection to :1 broken (explicit kill or server shutdown).
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-mail/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-mail` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running tests/credentials.rs (target/debug/build/mailstronaut-mail/aa3c8097eb5b60cf/out/credentials-aa3c8097eb5b60cf)
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.13s
+
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-mail/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-mail` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running tests/credentials.rs (target/debug/build/mailstronaut-mail/aa3c8097eb5b60cf/out/credentials-aa3c8097eb5b60cf)
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.Zf8EClyc

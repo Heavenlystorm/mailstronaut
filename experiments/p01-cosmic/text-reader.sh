@@ -132,7 +132,8 @@ for scale in 1 1.5 2; do
   keys Tab shift+Tab
   copy_all tab-copy
   # Re-enter Text from its keyboard-focused navigation button, then cycle focus.
-  keys shift+Tab Return
+  # Accounts follows Text in the sidebar; move past it before activating Text.
+  keys shift+Tab shift+Tab Return
   copy_all keyboard-open-copy
   keys Tab shift+Tab
   copy_all keyboard-tab-copy

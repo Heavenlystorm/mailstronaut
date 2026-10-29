@@ -4,14 +4,14 @@ use std::{
     env,
     ffi::{OsStr, OsString},
     fs,
-    io::{Read as _, Write as _},
+    io::Write as _,
     os::unix::fs::DirBuilderExt as _,
     path::{Path, PathBuf},
     process::ExitCode,
 };
 
 use directories::BaseDirs;
-use mailstronaut_config::{MAX_SOURCE_BYTES, helper, process};
+use mailstronaut_config::{helper, process, source};
 use tokio::runtime;
 use tokio_util::sync::CancellationToken;
 
@@ -22,13 +22,16 @@ const INITIAL_CONFIG: &str = "{\n  schemaVersion = 1;\n  accounts = [ ];\n}\n";
 pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
     match arguments {
         [] => None,
+        [flag, _path] if flag == OsStr::new("--config") => None,
         [flag] if flag == OsStr::new("--internal-evaluate-config") => Some(helper::run()),
         [flag] if flag == OsStr::new("--version") => {
             println!("mailstronaut {}", env!("CARGO_PKG_VERSION"));
             Some(ExitCode::SUCCESS)
         }
         [flag] if flag == OsStr::new("--help") => {
-            println!("Usage: mailstronaut [--version | config <init|check> [--path FILE]]");
+            println!(
+                "Usage: mailstronaut [--config FILE | --version | config <init|check> [--path FILE]]"
+            );
             Some(ExitCode::SUCCESS)
         }
         [command, rest @ ..] if command == OsStr::new("config") => {
@@ -69,7 +72,9 @@ fn configuration_command(arguments: &[OsString]) -> Result<&'static str, String>
         initialize(&path)?;
         return Ok("Created native Nix configuration.");
     }
-    let source = read_source(&path)?;
+    let source = source::read(&path)
+        .map_err(|error| error.to_string())?
+        .ok_or("configuration does not exist")?;
     let executable = env::current_exe().map_err(|_error| "unable to locate this executable")?;
     let runtime = runtime::Builder::new_current_thread()
         .enable_all()
@@ -82,23 +87,14 @@ fn configuration_command(arguments: &[OsString]) -> Result<&'static str, String>
     Ok("Configuration is valid.")
 }
 
-/// Read at most the documented source bound, following managed-file symlinks.
-fn read_source(path: &Path) -> Result<String, String> {
-    if !fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
-        return Err("configuration must be an existing regular file".into());
+/// Select the same native source for GUI startup and explicit CLI checks.
+pub fn selected_path(arguments: &[OsString]) -> Option<PathBuf> {
+    if let [flag, path] = arguments
+        && flag == OsStr::new("--config")
+    {
+        return Some(PathBuf::from(path));
     }
-    let file = fs::File::open(path).map_err(|_error| "unable to read configuration")?;
-    let limit = u64::try_from(MAX_SOURCE_BYTES)
-        .map_err(|_error| "invalid source limit")?
-        .saturating_add(1);
-    let mut bytes = Vec::new();
-    file.take(limit)
-        .read_to_end(&mut bytes)
-        .map_err(|_error| "unable to read configuration")?;
-    if bytes.len() > MAX_SOURCE_BYTES {
-        return Err("configuration exceeds the source size limit".into());
-    }
-    String::from_utf8(bytes).map_err(|_error| "configuration must be UTF-8".into())
+    BaseDirs::new().map(|base| base.config_dir().join("mailstronaut/config.nix"))
 }
 
 /// Install a private native template atomically, without overwriting any path.
