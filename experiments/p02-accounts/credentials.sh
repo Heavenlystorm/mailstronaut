@@ -52,16 +52,26 @@ fi
 if [[ -n ${MAILSTRONAUT_INBOX_GUI_BINARY:-} ]]; then
   bash experiments/p04-inbox/gui.sh "$MAILSTRONAUT_INBOX_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"
+fi
 cargo_flags=(--locked --offline)
 if [[ ${MAILSTRONAUT_CREDENTIAL_TEST_PROFILE:-debug} == release ]]; then
   cargo_flags+=(--release)
 fi
-cargo test -p mailstronaut-mail --test credentials "${cargo_flags[@]}" private_secret_service_round_trip_isolation_rotation_and_lock -- --ignored --nocapture | tee "$root/test.log"
+# GUI shells add native inputs that invalidate Cargo build-script fingerprints.
+# Build in the normal shell first, then execute that fixture here without Cargo.
+if [[ -n ${MAILSTRONAUT_CREDENTIAL_FIXTURE:-} ]]; then
+  credential_tests=("$(realpath "$MAILSTRONAUT_CREDENTIAL_FIXTURE")")
+else
+  credential_tests=(cargo test -p mailstronaut-mail --test credentials "${cargo_flags[@]}" --)
+fi
+"${credential_tests[@]}" private_secret_service_round_trip_isolation_rotation_and_lock --exact --ignored --nocapture | tee "$root/test.log"
 kill "$keyring_pid"
 wait "$keyring_pid" 2>/dev/null || true
 keyring_pid=''
 find "$root/data" -type f -exec sha256sum '{}' + | sort > "$root/before-unavailable.sha256"
-cargo test -p mailstronaut-mail --test credentials "${cargo_flags[@]}" private_missing_service_fails_closed -- --ignored --nocapture | tee "$root/unavailable.log"
+"${credential_tests[@]}" private_missing_service_fails_closed --exact --ignored --nocapture | tee "$root/unavailable.log"
 find "$root/data" -type f -exec sha256sum '{}' + | sort > "$root/after-unavailable.sha256"
 cmp "$root/before-unavailable.sha256" "$root/after-unavailable.sha256"
 python3 - "$root/data" <<'PY'

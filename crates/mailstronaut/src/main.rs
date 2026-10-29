@@ -1,8 +1,10 @@
 //! Minimal native window for the rendering feasibility gate.
 
 mod accounts;
+mod composer;
 mod config_cli;
 mod inbox;
+mod private;
 mod text_reader;
 
 use core::hash::{Hash, Hasher};
@@ -16,6 +18,9 @@ use mailstronaut_render::{Renderer, Viewport};
 
 /// Toolkit-owned application state.
 struct App {
+    composer: composer::Composer,
+    quitting: bool,
+    quit_flushing: bool,
     /// Durable unified inbox and native cached-message reader.
     inbox: inbox::Inbox,
     /// Validated account configuration and foreground credential setup.
@@ -49,6 +54,7 @@ struct App {
 /// Synthetic navigation targets.
 #[derive(Clone, Copy, Debug)]
 enum Page {
+    Compose,
     /// Real, locally cached messages.
     Inbox,
     /// Native account setup.
@@ -64,6 +70,11 @@ enum Page {
 /// Actions from the native navigation.
 #[derive(Clone, Debug)]
 enum Message {
+    Composer(composer::Message),
+    Quit,
+    CloseRequested(window::Id),
+    QuitSaved(Result<(), mailstronaut_core::worker::Error>),
+    QuitReady(Result<(), mailstronaut_core::worker::Error>),
     /// Native mailbox queries and explicit synchronization.
     Inbox(inbox::Message),
     /// Effective configured theme, forwarded to Servo's native theme API.
@@ -103,6 +114,9 @@ impl cosmic::Application for App {
         let (inbox, open) = inbox::Inbox::new();
         (
             Self {
+                composer: composer::Composer::default(),
+                quitting: false,
+                quit_flushing: false,
                 inbox,
                 accounts,
                 core,
@@ -128,8 +142,16 @@ impl cosmic::Application for App {
         self.resize_viewport();
     }
 
+    fn on_app_exit(&mut self) -> Option<Message> {
+        Some(Message::Quit)
+    }
+    fn on_close_requested(&self, id: window::Id) -> Option<Message> {
+        (Some(id) == self.core.main_window_id()).then_some(Message::Quit)
+    }
+
     fn subscription(&self) -> Subscription<Message> {
         let windows = event::listen_with(|incoming, _, id| match incoming {
+            Event::Window(window::Event::CloseRequested) => Some(Message::CloseRequested(id)),
             Event::Window(
                 event @ (window::Event::Opened {
                     position: _,
@@ -211,22 +233,31 @@ impl cosmic::Application for App {
     )]
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Inbox(message) => return self.inbox.update(message, self.accounts.keyring()),
+            Message::Quit => return self.request_quit(),
+            Message::CloseRequested(id) => {
+                if Some(id) == self.core.main_window_id() {
+                    return self.request_quit();
+                }
+            }
+            Message::QuitSaved(result) => return self.quit_saved(result),
+            Message::QuitReady(result) => {
+                if result.is_err() {
+                    eprintln!("Mail storage stopped unexpectedly after the final draft save.");
+                }
+                return cosmic::iced::exit();
+            }
+            Message::Composer(message) => return self.compose_message(message),
+            Message::Inbox(message) => {
+                let task = self.inbox.update(message, self.accounts.keyring());
+                return Task::batch([task, self.composer.attach(self.inbox.store())]);
+            }
             Message::Appearance(dark) => {
                 self.dark = dark;
                 if let Some(Ok(viewport)) = self.viewport.as_ref() {
                     viewport.set_dark(dark);
                 }
             }
-            Message::Accounts(message) => {
-                let previous = self.accounts.revision();
-                let task = self.accounts.update(message);
-                return if previous == self.accounts.revision() {
-                    task
-                } else {
-                    Task::batch([task, self.inbox.configure(self.accounts.active())])
-                };
-            }
+            Message::Accounts(message) => return self.account_message(message),
             Message::Select(page) => return self.select_page(page),
             Message::Read(id, command) => {
                 if (matches!(self.page, Page::Text)
@@ -293,7 +324,13 @@ impl cosmic::Application for App {
     }
 
     fn view(&self) -> Element<'_, Message> {
+        if self.quitting {
+            return widget::text("Saving drafts and closing mail operations…").into();
+        }
         let content: Element<'_, Message> = match self.page {
+            Page::Compose => self
+                .composer
+                .view(self.logical.0, self.accounts.keyring().is_some()),
             Page::Inbox => self
                 .inbox
                 .view(self.logical.0, (self.logical.1 - 140.0).max(100.0)),
@@ -351,7 +388,8 @@ impl cosmic::Application for App {
                 widget::button::text("About").on_press(Message::Select(Page::About)),
                 widget::button::text("Text").on_press(Message::Select(Page::Text)),
                 widget::button::text("Accounts").on_press(Message::Select(Page::Accounts)),
-                widget::button::text("Inbox").on_press(Message::Select(Page::Inbox))
+                widget::button::text("Inbox").on_press(Message::Select(Page::Inbox)),
+                widget::button::text("Compose").on_press(Message::Select(Page::Compose))
             ]
             .spacing(theme::spacing().space_s)
             .padding(20),
@@ -363,6 +401,92 @@ impl cosmic::Application for App {
 }
 
 impl App {
+    fn account_message(&mut self, message: accounts::Message) -> Task<Message> {
+        if self.quitting {
+            return Task::none();
+        }
+        if matches!(message, accounts::Message::Reload) && self.composer.busy() {
+            self.accounts.status(
+                "Finish or cancel the current compose operation before reloading accounts.",
+            );
+            return Task::none();
+        }
+        let previous = self.accounts.revision();
+        let task = self.accounts.update(message);
+        if previous == self.accounts.revision() {
+            return task;
+        }
+        Task::batch([
+            task,
+            self.inbox.configure(self.accounts.active()),
+            self.composer.configure(self.accounts.active()),
+        ])
+    }
+    fn compose_message(&mut self, message: composer::Message) -> Task<Message> {
+        if self.quitting
+            && matches!(
+                message,
+                composer::Message::Field(..)
+                    | composer::Message::Body(..)
+                    | composer::Message::Switch(..)
+                    | composer::Message::Send
+                    | composer::Message::Submit(..)
+                    | composer::Message::CancelQueued(..)
+            )
+        {
+            return Task::none();
+        }
+        if self.accounts.loading()
+            && matches!(
+                message,
+                composer::Message::Send
+                    | composer::Message::Submit(..)
+                    | composer::Message::Switch(..)
+                    | composer::Message::CancelQueued(..)
+            )
+        {
+            self.composer
+                .status("Wait for account configuration to finish loading.".into());
+            return Task::none();
+        }
+        let task = self.composer.update(message, self.accounts.keyring());
+        Task::batch([task, self.maybe_quit()])
+    }
+    fn request_quit(&mut self) -> Task<Message> {
+        self.quitting = true;
+        self.inbox.cancel();
+        self.composer.cancel();
+        self.accounts.clear_input();
+        self.maybe_quit()
+    }
+    fn maybe_quit(&mut self) -> Task<Message> {
+        if self.quitting && !self.quit_flushing && !self.composer.busy() {
+            self.quit_flushing = true;
+            return self.composer.flush();
+        }
+        Task::none()
+    }
+    fn quit_saved(
+        &mut self,
+        result: Result<(), mailstronaut_core::worker::Error>,
+    ) -> Task<Message> {
+        match result {
+            Ok(()) => {
+                let owner = self.inbox.take_owner();
+                Task::perform(inbox::Inbox::shutdown(owner), |result| {
+                    Action::App(Message::QuitReady(result))
+                })
+            }
+            Err(error) => {
+                self.quitting = false;
+                self.quit_flushing = false;
+                self.page = Page::Compose;
+                self.composer
+                    .status(format!("Unable to save before closing: {error}"));
+                Task::none()
+            }
+        }
+    }
     /// Forward bounded native wheel input to the selected synthetic viewport.
     #[expect(
         clippy::cast_precision_loss,
@@ -407,7 +531,7 @@ impl App {
         self.page = page;
         if matches!(
             page,
-            Page::About | Page::Text | Page::Accounts | Page::Inbox
+            Page::About | Page::Text | Page::Accounts | Page::Inbox | Page::Compose
         ) {
             self.viewport = None;
             self.frame = None;
@@ -485,7 +609,10 @@ fn main() -> ExitCode {
     if let Some(status) = config_cli::dispatch(&arguments) {
         return status;
     }
-    match app::run::<App>(Settings::default(), config_cli::selected_path(&arguments)) {
+    match app::run::<App>(
+        Settings::default().exit_on_close(false),
+        config_cli::selected_path(&arguments),
+    ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("Unable to start Mailstronaut: {error}");

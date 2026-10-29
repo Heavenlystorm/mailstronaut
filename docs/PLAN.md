@@ -268,6 +268,12 @@ Deliver screenshots/interaction checklist and measurements in P06 evidence.
 
 ## P07 — Compose, drafts, submission and mailbox actions
 
+- [x] Deliver the bounded plain-text/password-account prototype: native To/Cc/Bcc,
+  configured identity selection, local transactional autosave and close/restart
+  recovery, frozen originals, fenced SMTP attempts and durable delivery uncertainty.
+  Synthetic localhost TLS and private Xvfb/keyring evidence: [P07](evidence/P07.md).
+  This covers neither full composer/action acceptance nor provider/distribution gates.
+
 - [ ] Implement native plain-text composer, account/alias identity selection,
   To/Cc/Bcc, attachments via portals, signature, reply/reply-all/forward and validation.
 - [ ] Use lettre's typed MIME builder for headers, References/In-Reply-To, UTF8,

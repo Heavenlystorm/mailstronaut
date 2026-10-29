@@ -221,6 +221,33 @@ pub struct Account {
     pub folders: Folders,
 }
 impl Account {
+    /// Effective submission endpoint, always requiring implicit TLS or STARTTLS.
+    #[must_use]
+    pub fn outgoing_endpoint(&self) -> Option<Endpoint> {
+        self.smtp.clone().or_else(|| {
+            let host = match self.provider {
+                Provider::Google => "smtp.gmail.com",
+                Provider::Icloud => "smtp.mail.me.com",
+                Provider::Manual => return None,
+            };
+            Some(Endpoint {
+                host: host.into(),
+                port: 587,
+                security: Security::Starttls,
+            })
+        })
+    }
+    /// Explicit outgoing login wins; iCloud otherwise requires the full address.
+    #[must_use]
+    pub fn outgoing_user_name(&self) -> &str {
+        self.smtp_user_name.as_deref().unwrap_or({
+            if matches!(self.provider, Provider::Icloud) {
+                self.address.as_str()
+            } else {
+                self.user_name.as_str()
+            }
+        })
+    }
     /// Effective incoming endpoint: explicit configuration overrides the provider
     /// preset. Institutional/manual accounts always require an explicit endpoint.
     #[must_use]

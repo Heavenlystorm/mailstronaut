@@ -5,7 +5,7 @@
 A planned local-first email client for the COSMIC desktop, written in Rust with
 libcosmic and Servo. This repository contains the architecture, a native COSMIC
 preview window, native Nix account setup, secured IMAP fetching and a native
-offline unified inbox.
+offline unified inbox, and a native plain-text draft/outbox prototype.
 **It is not yet a usable email client.** The preview displays a fixed synthetic
 Servo document with native theme forwarding. Untrusted mail rendering, input,
 accessibility and background lifecycle remain feasibility gates.
@@ -53,12 +53,17 @@ native source. Password accounts can save credentials through an explicitly
 unlocked encrypted keyring. Select Inbox and Sync inboxes to fetch a bounded page
 from each password account; cached messages open in the native text reader.
 Fetch older page continues the partial cache. Opening currently leaves read flags
-unchanged. Google OAuth onboarding, sending and automatic/background sync remain
-unimplemented. The Servo preview still accepts only its fixed synthetic document.
+unchanged. Compose supports local autosaved drafts, account/alias identities,
+To/Cc/Bcc and explicit password-authenticated SMTP with required TLS. Closing the
+window saves the final edit. Delivery uncertainty remains visible and requires an
+explicit possible-duplicate retry; accepted mail cannot be resent to repair a Sent
+copy. Sent APPEND, attachments, reply/forward, Google OAuth onboarding and
+automatic/background sync remain unimplemented. The Servo preview still accepts only its fixed synthetic document.
 Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P02](docs/evidence/P02.md), [P03](docs/evidence/P03.md), and
-[P04 receiving/inbox](docs/evidence/P04.md). The flake exports
+[P04 receiving/inbox](docs/evidence/P04.md), and
+[P07 compose/outbox](docs/evidence/P07.md). The flake exports
 x86_64-linux and aarch64-linux outputs; runtime verification and release support
 for each architecture are separate checklist gates. Flatpak production packaging
 is planned in P10 after Servo's build dependencies are established.

@@ -1,0 +1,12 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+these 2 derivations will be built:
+  /nix/store/4mhyv2hbbhiabpkrv2waynhgc151skc9-mailstronaut-0.1.0-vendor-staging.drv
+  /nix/store/7ba8dyzj2c9kkl9jj4qxnq8wjrbrxq83-mailstronaut-0.1.0-vendor.drv
+building '/nix/store/4mhyv2hbbhiabpkrv2waynhgc151skc9-mailstronaut-0.1.0-vendor-staging.drv'...
+error: hash mismatch in fixed-output derivation '/nix/store/4mhyv2hbbhiabpkrv2waynhgc151skc9-mailstronaut-0.1.0-vendor-staging.drv':
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-ggulS3ACyR8TdFKcKH3UiEqkMoxrlPfu84UdOrT4eXY=
+error: Cannot build '/nix/store/7ba8dyzj2c9kkl9jj4qxnq8wjrbrxq83-mailstronaut-0.1.0-vendor.drv'.
+       Reason: 1 dependency failed.
+       Output paths:
+         /nix/store/0anz2jic9dgys46xyzy5b9w30hq1gyzf-mailstronaut-0.1.0-vendor

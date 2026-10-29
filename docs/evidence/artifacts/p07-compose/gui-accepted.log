@@ -1,0 +1,25 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Native editable fields and local autosave verified.
+Close flushed the last edit and exited normally.
+Restart preserved terminal submission state, fixed Message-ID and exact recipient DATA bytes.
+Native compose GUI artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.JVTQUskW/compose-gui
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running tests/credentials.rs (target/debug/build/mailstronaut-mail/90735835c135b750/out/credentials-90735835c135b750)
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.10s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running tests/credentials.rs (target/debug/build/mailstronaut-mail/90735835c135b750/out/credentials-90735835c135b750)
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.JVTQUskW

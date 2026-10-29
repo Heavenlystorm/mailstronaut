@@ -26,6 +26,9 @@ url.workspace = true
 log.workspace = true
 async-channel.workspace = true
 chrono.workspace = true
+lettre.workspace = true
+serde.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 mailstronaut-core.workspace = true

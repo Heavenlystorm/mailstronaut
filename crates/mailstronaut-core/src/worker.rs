@@ -1,7 +1,12 @@
 //! A bounded channel to one dedicated blocking SQLite owner, not a daemon/RPC service.
 
 use core::{error::Error as StdError, fmt};
-use std::{path::PathBuf, thread};
+use std::{
+    fs,
+    os::unix::fs::PermissionsExt as _,
+    path::{Path, PathBuf},
+    thread,
+};
 
 use tokio::sync::{mpsc, oneshot};
 
@@ -10,6 +15,7 @@ use crate::{
     store::{
         self, Store,
         mailbox::{Cursor, Folder, GmailId, Membership, Summary, UidSnapshot},
+        outbox::{self, Draft, DraftSummary, Submission},
     },
 };
 
@@ -20,6 +26,10 @@ pub const QUEUE_CAPACITY: usize = 16;
 /// Redacted store-worker failures that can cross the UI/engine channel.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// A draft revision or submission intent changed before it was applied.
+    Conflict,
+    /// Another live application owner holds this profile's advisory lock.
+    ProfileInUse,
     /// The owner stopped or could not be started.
     Closed,
     /// A UID/provider identity conflicts with cached mail.
@@ -40,6 +50,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::Conflict => "mail operation changed; refresh before retrying",
+            Self::ProfileInUse => "another Mailstronaut instance is using this profile",
             Self::Closed => "mail storage worker unavailable",
             Self::IdentityConflict => "server identity conflicts with cached mail",
             Self::InvalidRequest => "invalid or oversized mail storage request",
@@ -55,6 +67,7 @@ impl StdError for Error {}
 impl From<store::Error> for Error {
     fn from(error: store::Error) -> Self {
         match error {
+            store::Error::OperationConflict => Self::Conflict,
             store::Error::IdentityConflict => Self::IdentityConflict,
             store::Error::InvalidInput => Self::InvalidRequest,
             store::Error::MissingMessage | store::Error::CorruptBlob => Self::MessageUnavailable,
@@ -69,6 +82,16 @@ impl From<store::Error> for Error {
 type Reply<T> = oneshot::Sender<Result<T, Error>>;
 
 enum Command {
+    RecoverDraft(String, String, Reply<Draft>),
+    SaveDraft(Draft, Reply<()>),
+    Draft(String, String, Reply<Draft>),
+    Drafts(Vec<String>, Reply<Vec<DraftSummary>>),
+    QueueDraft(String, String, u64, bool, Reply<outbox::Summary>),
+    BeginSubmission(String, String, Reply<Submission>),
+    FinishSubmission(Submission, mailstronaut_mail::smtp::Outcome, Reply<()>),
+    RetrySubmission(String, String, bool, Reply<()>),
+    CancelSubmission(String, String, Reply<()>),
+    Outbox(Vec<String>, Reply<Vec<outbox::Summary>>),
     Account(String, Reply<()>),
     Folder(String, String, bool, Reply<Folder>),
     Select(String, i64, core::num::NonZeroU32, Reply<()>),
@@ -91,6 +114,119 @@ enum Command {
 #[derive(Clone)]
 pub struct Handle(mpsc::Sender<Command>);
 impl Handle {
+    /// Recover a definite SMTP rejection as a new editable draft, cancelling its
+    /// old immutable intent. Unknown/accepted mail is never implicitly reopened.
+    ///
+    /// # Errors
+    /// Returns a phase/account/integrity or storage failure.
+    pub async fn recover_draft(&self, account: String, id: String) -> Result<Draft, Error> {
+        self.request(|reply| Command::RecoverDraft(account, id, reply))
+            .await
+    }
+    /// Persist one editor revision without blocking the UI.
+    ///
+    /// # Errors
+    /// Rejects oversized input, stale/closed drafts and unavailable storage.
+    pub async fn save_draft(&self, draft: Draft) -> Result<(), Error> {
+        if draft.content.body.len() > mailstronaut_mail::compose::MAX_BODY_BYTES
+            || draft.content.references.len() > 256
+        {
+            return Err(Error::InvalidRequest);
+        }
+        let size = [
+            &draft.content.from,
+            &draft.content.to,
+            &draft.content.cc,
+            &draft.content.bcc,
+            &draft.content.subject,
+        ]
+        .into_iter()
+        .chain(&draft.content.references)
+        .try_fold(draft.content.body.len(), |total, value| {
+            total.checked_add(value.len())
+        });
+        if size.is_none_or(|size| size > outbox::MAX_DRAFT_BYTES) {
+            return Err(Error::InvalidRequest);
+        }
+        self.request(|reply| Command::SaveDraft(draft, reply)).await
+    }
+    /// Load an editable, account-scoped saved draft.
+    ///
+    /// # Errors
+    /// Returns a missing, invalid or unavailable-storage error.
+    pub async fn draft(&self, account: String, id: String) -> Result<Draft, Error> {
+        self.request(|reply| Command::Draft(account, id, reply))
+            .await
+    }
+    /// List at most 100 drafts belonging to enabled accounts.
+    ///
+    /// # Errors
+    /// Returns a request/metadata/storage error.
+    pub async fn drafts(&self, accounts: Vec<String>) -> Result<Vec<DraftSummary>, Error> {
+        self.request(|reply| Command::Drafts(accounts, reply)).await
+    }
+    /// Freeze exactly the displayed, committed editor revision.
+    ///
+    /// # Errors
+    /// Rejects stale/closed/invalid drafts and failed durable writes.
+    pub async fn queue_draft(
+        &self,
+        account: String,
+        id: String,
+        revision: u64,
+        server_saves_sent: bool,
+    ) -> Result<outbox::Summary, Error> {
+        self.request(|reply| Command::QueueDraft(account, id, revision, server_saves_sent, reply))
+            .await
+    }
+    /// Persist submission intent before returning the original to the network task.
+    ///
+    /// # Errors
+    /// Rejects non-pending/wrong-account/damaged records.
+    pub async fn begin_submission(&self, account: String, id: String) -> Result<Submission, Error> {
+        self.request(|reply| Command::BeginSubmission(account, id, reply))
+            .await
+    }
+    /// Persist only this claimed attempt's result; never retry Unknown implicitly.
+    ///
+    /// # Errors
+    /// Rejects stale attempts and failed durable writes.
+    pub async fn finish_submission(
+        &self,
+        submission: Submission,
+        outcome: mailstronaut_mail::smtp::Outcome,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::FinishSubmission(submission, outcome, reply))
+            .await
+    }
+    /// Explicit retry of the same frozen original, with separate Unknown consent.
+    ///
+    /// # Errors
+    /// Rejects accepted, active or unconfirmed unknown records.
+    pub async fn retry_submission(
+        &self,
+        account: String,
+        id: String,
+        confirm_unknown: bool,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::RetrySubmission(account, id, confirm_unknown, reply))
+            .await
+    }
+    /// Cancel a pending intent and recover its draft before network submission.
+    ///
+    /// # Errors
+    /// Rejects in-flight, accepted or unknown records.
+    pub async fn cancel_submission(&self, account: String, id: String) -> Result<(), Error> {
+        self.request(|reply| Command::CancelSubmission(account, id, reply))
+            .await
+    }
+    /// List bounded outgoing state for enabled accounts.
+    ///
+    /// # Errors
+    /// Returns a request/metadata/storage error.
+    pub async fn outbox(&self, accounts: Vec<String>) -> Result<Vec<outbox::Summary>, Error> {
+        self.request(|reply| Command::Outbox(accounts, reply)).await
+    }
     /// Apply server flags without rereading a cached original.
     ///
     /// # Errors
@@ -227,14 +363,14 @@ impl Worker {
         let (ready, opened) = oneshot::channel();
         let thread = thread::Builder::new()
             .name("mailstronaut-store".into())
-            .spawn(move || match Store::open(&root) {
-                Ok(mut store) => {
+            .spawn(move || match open_profile(&root) {
+                Ok((_profile, mut store)) => {
                     if ready.send(Ok(())).is_ok() {
                         run(&mut store, receiver);
                     }
                 }
                 Err(error) => {
-                    let _sent = ready.send(Err(Error::from(error)));
+                    let _sent = ready.send(Err(error));
                 }
             })
             .map_err(|_| Error::Closed)?;
@@ -275,6 +411,41 @@ impl Worker {
     }
 }
 
+// The application owner holds this lock before migration/recovery and until its
+// queue drains. Independent Store handles used for integrity/GC retain their
+// SQLite transaction coordination, but cannot become a second app worker.
+fn open_profile(root: &Path) -> Result<(fs::File, Store), Error> {
+    fs::create_dir_all(root).map_err(|_| Error::Storage)?;
+    fs::set_permissions(root, fs::Permissions::from_mode(0o700)).map_err(|_| Error::Storage)?;
+    let lock = fs::File::from(
+        rustix::fs::open(
+            root.join("profile.lock"),
+            rustix::fs::OFlags::RDWR
+                | rustix::fs::OFlags::CREATE
+                | rustix::fs::OFlags::CLOEXEC
+                | rustix::fs::OFlags::NOFOLLOW
+                | rustix::fs::OFlags::NONBLOCK,
+            rustix::fs::Mode::from_bits_truncate(0o600),
+        )
+        .map_err(|_| Error::Storage)?,
+    );
+    if !lock.metadata().map_err(|_| Error::Storage)?.is_file() {
+        return Err(Error::Storage);
+    }
+    rustix::fs::flock(&lock, rustix::fs::FlockOperation::NonBlockingLockExclusive).map_err(
+        |error| {
+            if error == rustix::io::Errno::WOULDBLOCK {
+                Error::ProfileInUse
+            } else {
+                Error::Storage
+            }
+        },
+    )?;
+    let store = Store::open(root).map_err(Error::from)?;
+    store.recover_submissions().map_err(Error::from)?;
+    Ok((lock, store))
+}
+
 fn respond<T>(reply: Reply<T>, operation: impl FnOnce() -> Result<T, store::Error>) {
     // A discarded read/cache request need not perform expensive parsing or I/O.
     // Once a transaction starts it completes atomically even if its caller goes.
@@ -282,9 +453,51 @@ fn respond<T>(reply: Reply<T>, operation: impl FnOnce() -> Result<T, store::Erro
         let _sent = reply.send(operation().map_err(Error::from));
     }
 }
+fn commit<T>(reply: Reply<T>, operation: impl FnOnce() -> Result<T, store::Error>) {
+    // Once a durable edit/result is queued, closing its UI waiter must not lose
+    // the draft or a known SMTP acknowledgment. The channel remains bounded.
+    let _sent = reply.send(operation().map_err(Error::from));
+}
+fn claim(store: &mut Store, account: &str, id: &str, reply: Reply<Submission>) {
+    if reply.is_closed() {
+        return;
+    }
+    let result = store.begin_submission(account, id).map_err(Error::from);
+    if let Err(Ok(submission)) = reply.send(result) {
+        // The network task never obtained the claim, so no DATA could be sent.
+        let _cancelled = store.finish_submission(
+            &submission,
+            mailstronaut_mail::smtp::Outcome::CancelledBeforeSubmission,
+        );
+    }
+}
 fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
     while let Some(command) = receiver.blocking_recv() {
         match command {
+            Command::RecoverDraft(account, id, reply) => {
+                commit(reply, || store.recover_draft(&account, &id));
+            }
+            Command::SaveDraft(draft, reply) => commit(reply, || store.save_draft(&draft)),
+            Command::Draft(account, id, reply) => respond(reply, || store.draft(&account, &id)),
+            Command::Drafts(accounts, reply) => respond(reply, || store.drafts(&accounts)),
+            Command::QueueDraft(account, id, revision, server_saves_sent, reply) => {
+                commit(reply, || {
+                    store.queue_draft(&account, &id, revision, server_saves_sent)
+                });
+            }
+            Command::BeginSubmission(account, id, reply) => {
+                claim(store, &account, &id, reply);
+            }
+            Command::FinishSubmission(submission, outcome, reply) => {
+                commit(reply, || store.finish_submission(&submission, outcome));
+            }
+            Command::RetrySubmission(account, id, confirm, reply) => {
+                commit(reply, || store.retry_submission(&account, &id, confirm));
+            }
+            Command::CancelSubmission(account, id, reply) => {
+                commit(reply, || store.cancel_submission(&account, &id));
+            }
+            Command::Outbox(accounts, reply) => respond(reply, || store.outbox(&accounts)),
             Command::Observe(account, membership, reply) => {
                 respond(reply, || store.observe_membership(&account, membership));
             }
@@ -317,5 +530,61 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn accepted_draft_and_smtp_result_commands_survive_dropped_ui_waiters() {
+        let root = tempfile::tempdir().expect("fixture");
+        let owner = Worker::open(root.path().to_owned()).await.expect("owner");
+        let handle = owner.handle();
+        handle.ensure_account("a".into()).await.expect("account");
+        let mut draft = Draft::new("a".into(), "sender@example.test".into());
+        draft.content.to = "to@example.test".into();
+        draft.content.body = "Durable synthetic edit.".into();
+        let (reply, waiter) = oneshot::channel();
+        drop(waiter);
+        handle
+            .0
+            .send(Command::SaveDraft(draft.clone(), reply))
+            .await
+            .expect("accepted save command");
+        assert_eq!(
+            handle
+                .draft("a".into(), draft.id.clone())
+                .await
+                .expect("FIFO barrier")
+                .content
+                .body,
+            "Durable synthetic edit."
+        );
+        let queued = handle
+            .queue_draft("a".into(), draft.id, draft.revision, false)
+            .await
+            .expect("freeze");
+        let submission = handle
+            .begin_submission("a".into(), queued.id.clone())
+            .await
+            .expect("claim");
+        let (reply, waiter) = oneshot::channel();
+        drop(waiter);
+        handle
+            .0
+            .send(Command::FinishSubmission(
+                submission,
+                mailstronaut_mail::smtp::Outcome::Accepted,
+                reply,
+            ))
+            .await
+            .expect("accepted delivery result");
+        assert_eq!(
+            handle.outbox(vec!["a".into()]).await.expect("FIFO barrier")[0].phase,
+            outbox::Phase::Accepted,
+            "known DATA acknowledgment must not turn ambiguous because a view closed"
+        );
+        owner.shutdown().await.expect("shutdown");
     }
 }

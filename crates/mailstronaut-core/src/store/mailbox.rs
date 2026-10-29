@@ -1,11 +1,9 @@
 //! Account-scoped IMAP identities and paginated offline inbox snapshots.
 
 use core::num::NonZeroU32;
-use std::{fs, io::Read as _};
 
 use rusqlite::{OptionalExtension as _, Transaction, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
 
 use super::{Error, Store, write_blob};
 use crate::mime::{self, Headers, Projection, Status};
@@ -374,35 +372,7 @@ impl Store {
             )
             .optional()?
             .ok_or(Error::MissingMessage)?;
-        if hash.len() != 64
-            || !hash
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
-            return Err(Error::CorruptBlob);
-        }
-        let file = fs::File::from(
-            rustix::fs::open(
-                self.blobs.join(&hash),
-                rustix::fs::OFlags::RDONLY
-                    | rustix::fs::OFlags::NOFOLLOW
-                    | rustix::fs::OFlags::NONBLOCK
-                    | rustix::fs::OFlags::CLOEXEC,
-                rustix::fs::Mode::empty(),
-            )
-            .map_err(|_| Error::CorruptBlob)?,
-        );
-        if !file.metadata()?.is_file() {
-            return Err(Error::CorruptBlob);
-        }
-        let mut original = Vec::new();
-        file.take((mime::MAX_INPUT_BYTES as u64) + 1)
-            .read_to_end(&mut original)?;
-        if original.len() > mime::MAX_INPUT_BYTES
-            || format!("{:x}", Sha256::digest(&original)) != hash
-        {
-            return Err(Error::CorruptBlob);
-        }
+        let original = super::read_blob(&self.blobs, &hash)?;
         mime::project(&original).map_err(Error::Mime)
     }
 }

@@ -2,7 +2,8 @@
 
 use core::time::Duration;
 use std::{
-    fs, io,
+    fs,
+    io::{self, Read as _},
     os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _},
     path::{Path, PathBuf},
 };
@@ -12,6 +13,10 @@ use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
 pub mod mailbox;
+/// Durable drafts and immutable, explicitly submitted outbox records.
+pub mod outbox;
+
+const SCHEMA_VERSION: u32 = 3;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -40,6 +45,8 @@ pub struct Store {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// A draft revision or submission attempt is no longer current.
+    OperationConflict,
     /// Invalid identity, page size or filesystem encoding.
     InvalidInput,
     /// A server UID cannot be rebound to a different canonical message.
@@ -67,6 +74,7 @@ pub enum Error {
 impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
+            Self::OperationConflict => "mail operation changed; refresh before retrying",
             Self::InvalidInput => "invalid mailbox identity or request limit",
             Self::IdentityConflict => "server message identity conflicts with cached mail",
             Self::MissingMessage => "message is not cached in this account",
@@ -146,10 +154,10 @@ impl Store {
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;")?;
         let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        if version > 2 {
+        if version > SCHEMA_VERSION {
             return Err(Error::UnsupportedSchema);
         }
-        if version > 0 && version < 2 {
+        if version > 0 && version < SCHEMA_VERSION {
             backup_schema(&connection, root, version)?;
         }
         // SQLite's documented table-rebuild procedure: disable enforcement
@@ -158,6 +166,7 @@ impl Store {
         let migrated = Migrations::new(vec![
             M::up(SCHEMA).foreign_key_check(),
             M::up(mailbox::SCHEMA).foreign_key_check(),
+            M::up(outbox::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -254,7 +263,7 @@ impl Store {
                 continue;
             }
             let count: i64 = transaction.query_row(
-                "SELECT count(*) FROM messages WHERE blob_hash = ?1",
+                "SELECT (SELECT count(*) FROM messages WHERE blob_hash=?1)+(SELECT count(*) FROM outbox WHERE blob_hash=?1)",
                 params![name],
                 |row| return row.get(0),
             )?;
@@ -265,6 +274,40 @@ impl Store {
         transaction.commit()?;
         return Ok(());
     }
+}
+
+/// Verify a bounded regular original without following links or trusting its name.
+fn read_blob(blobs: &Path, hash: &str) -> Result<Vec<u8>, Error> {
+    if hash.len() != 64
+        || !hash
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(Error::CorruptBlob);
+    }
+    let file = fs::File::from(
+        rustix::fs::open(
+            blobs.join(hash),
+            rustix::fs::OFlags::RDONLY
+                | rustix::fs::OFlags::NOFOLLOW
+                | rustix::fs::OFlags::NONBLOCK
+                | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )
+        .map_err(|_| Error::CorruptBlob)?,
+    );
+    if !file.metadata()?.is_file() {
+        return Err(Error::CorruptBlob);
+    }
+    let mut original = Vec::new();
+    file.take((crate::mime::MAX_INPUT_BYTES as u64) + 1)
+        .read_to_end(&mut original)?;
+    if original.len() > crate::mime::MAX_INPUT_BYTES
+        || format!("{:x}", Sha256::digest(&original)) != hash
+    {
+        return Err(Error::CorruptBlob);
+    }
+    Ok(original)
 }
 
 /// SQLite creates a consistent backup that includes committed WAL state. A
@@ -344,7 +387,7 @@ mod tests {
         let mut store = Store::open(dir.path()).unwrap();
         let hash = super::write_blob(&store.blobs, b"synthetic message").unwrap();
         let orphan = super::write_blob(&store.blobs, b"unreferenced synthetic blob").unwrap();
-        store.connection.execute_batch("INSERT INTO accounts VALUES ('a'); INSERT INTO folders VALUES (7, 'a', 'INBOX', 42, 1); INSERT INTO drafts VALUES ('d', x'01'); INSERT INTO outbox VALUES ('o', x'02', 'pending');").unwrap();
+        store.connection.execute_batch("INSERT INTO accounts VALUES ('a'); INSERT INTO folders VALUES (7, 'a', 'INBOX', 42, 1); INSERT INTO drafts(id,content) VALUES ('d', x'01'); INSERT INTO outbox(id,content,phase) VALUES ('o', x'02', 'pending');").unwrap();
         store.connection.execute("INSERT INTO messages (id, account_id, message_id, subject, preview, blob_hash) VALUES (11, 'a', '<synthetic>', 'subject', 'preview', ?1)", params![hash]).unwrap();
         store.connection.execute_batch("INSERT INTO memberships (account_id, folder_id, uidvalidity, uid, message_id, seen) VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
         store.clear_rebuildable_indexes().unwrap();
@@ -544,14 +587,14 @@ mod tests {
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, i64::from(super::SCHEMA_VERSION));
         drop(store);
         let reopened = Store::open(dir.path()).unwrap();
         let reopened_version: i64 = reopened
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(reopened_version, 2);
+        assert_eq!(reopened_version, i64::from(super::SCHEMA_VERSION));
     }
 }
 

@@ -13,6 +13,25 @@ const fn nonzero(value: u32) -> NonZeroU32 {
 }
 
 #[tokio::test]
+async fn only_one_application_worker_can_own_a_profile_until_shutdown() {
+    let root = tempfile::tempdir().expect("fixture");
+    let owner = Worker::open(root.path().to_owned())
+        .await
+        .expect("first owner");
+    assert!(matches!(
+        Worker::open(root.path().to_owned()).await,
+        Err(Error::ProfileInUse)
+    ));
+    let _independent_store = mailstronaut_core::store::Store::open(root.path())
+        .expect("independent integrity/GC handles remain supported");
+    owner.shutdown().await.expect("release profile");
+    let next = Worker::open(root.path().to_owned())
+        .await
+        .expect("new owner after shutdown");
+    next.shutdown().await.expect("shutdown");
+}
+
+#[tokio::test]
 async fn durable_round_trip_restarts_and_shutdown_closes_cloned_handles() {
     let root = tempfile::tempdir().expect("fixture");
     let owner = Worker::open(root.path().to_owned()).await.expect("owner");

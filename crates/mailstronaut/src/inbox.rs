@@ -1,6 +1,5 @@
 //! Native offline inbox and explicit, bounded foreground synchronization.
 
-use core::fmt;
 use std::{
     collections::BTreeMap,
     sync::Arc,
@@ -30,14 +29,7 @@ use mailstronaut_mail::{
 };
 use tokio_util::sync::CancellationToken;
 
-/// Prevent bodies, subjects, sender names and backend handles entering event logs.
-#[derive(Clone)]
-pub struct Payload<T>(T);
-impl<T> fmt::Debug for Payload<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("<private mailbox result>")
-    }
-}
+use crate::private::Private as Payload;
 #[derive(Clone, Debug)]
 pub enum Message {
     Started(Payload<Result<Arc<Worker>, worker::Error>>),
@@ -80,6 +72,26 @@ pub struct Inbox {
     status: Vec<String>,
 }
 impl Inbox {
+    pub fn store(&self) -> Option<worker::Handle> {
+        self.owner.as_ref().map(|owner| owner.handle())
+    }
+    pub fn cancel(&self) {
+        self.cancel.cancel();
+    }
+    pub async fn shutdown(owner: Option<Arc<Worker>>) -> Result<(), worker::Error> {
+        match owner {
+            Some(owner) => {
+                Arc::try_unwrap(owner)
+                    .map_err(|_| worker::Error::Closed)?
+                    .shutdown()
+                    .await
+            }
+            None => Ok(()),
+        }
+    }
+    pub const fn take_owner(&mut self) -> Option<Arc<Worker>> {
+        self.owner.take()
+    }
     pub fn new() -> (Self, Task<super::Message>) {
         let task = Task::perform(
             async {

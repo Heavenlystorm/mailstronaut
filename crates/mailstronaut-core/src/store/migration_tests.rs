@@ -25,6 +25,55 @@ fn scalar(connection: &Connection, sql: &str) -> i64 {
 }
 
 #[test]
+fn schema_two_upgrade_retains_legacy_drafts_and_has_a_schema_two_backup() {
+    let root = tempfile::tempdir().expect("fixture");
+    let connection =
+        Connection::open(root.path().join("mail.sqlite3")).expect("schema two database");
+    rusqlite_migration::Migrations::new(vec![
+        rusqlite_migration::M::up(SCHEMA),
+        rusqlite_migration::M::up(super::mailbox::SCHEMA),
+    ])
+    .to_latest(&mut { connection })
+    .expect("old migrations");
+    let old = Connection::open(root.path().join("mail.sqlite3")).expect("old data");
+    old.execute_batch("INSERT INTO accounts VALUES('a'); INSERT INTO drafts(id,content) VALUES('legacy',x'0102'); INSERT INTO outbox(id,content,phase) VALUES('legacy-outgoing',x'0304','pending');").expect("legacy payloads");
+    let store = Store::open(root.path()).expect("upgrade");
+    assert_eq!(
+        scalar(&store.connection, "PRAGMA user_version"),
+        i64::from(super::SCHEMA_VERSION)
+    );
+    assert_eq!(
+        store
+            .connection
+            .query_row("SELECT content FROM drafts WHERE id='legacy'", [], |row| {
+                row.get::<_, Vec<u8>>(0)
+            })
+            .expect("original draft"),
+        [1, 2]
+    );
+    assert_eq!(
+        store
+            .connection
+            .query_row(
+                "SELECT content FROM outbox WHERE id='legacy-outgoing'",
+                [],
+                |row| row.get::<_, Vec<u8>>(0)
+            )
+            .expect("original outgoing"),
+        [3, 4]
+    );
+    let backup = fs::read_dir(root.path().join("backups"))
+        .expect("backup directory")
+        .next()
+        .expect("backup")
+        .expect("entry")
+        .path();
+    let backup = Connection::open(backup).expect("backup opens");
+    assert_eq!(scalar(&backup, "PRAGMA user_version"), 2);
+    assert_eq!(scalar(&backup, "SELECT count(*) FROM drafts"), 1);
+}
+
+#[test]
 fn upgrades_with_consistent_private_backup_including_committed_wal() {
     let root = tempfile::tempdir().expect("fixture");
     let old = legacy(root.path());
@@ -35,7 +84,10 @@ fn upgrades_with_consistent_private_backup_including_committed_wal() {
             > 0
     );
     let store = Store::open(root.path()).expect("upgrade");
-    assert_eq!(scalar(&store.connection, "PRAGMA user_version"), 2);
+    assert_eq!(
+        scalar(&store.connection, "PRAGMA user_version"),
+        i64::from(super::SCHEMA_VERSION)
+    );
     for table in [
         "messages",
         "memberships",

@@ -52,6 +52,7 @@ futures-util = "=0.3.34"
 # Compile those debug/trace records out even if RUST_LOG requests protocol trace.
 log = { version = "=0.4.34", features = ["max_level_info", "release_max_level_info"] }
 base64 = "=0.23.1"
+lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "rustls-native-certs"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "process", "io-util", "time", "sync", "net", "fs"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 directories = "6"

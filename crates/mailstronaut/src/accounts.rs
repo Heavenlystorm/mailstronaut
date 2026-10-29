@@ -43,6 +43,12 @@ pub struct Accounts {
     status: Option<String>,
 }
 impl Accounts {
+    pub const fn loading(&self) -> bool {
+        self.loading
+    }
+    pub fn status(&mut self, status: &str) {
+        self.status = Some(status.into());
+    }
     /// Validated configuration snapshot for native mailbox queries/workers.
     pub fn active(&self) -> Option<std::sync::Arc<Config>> {
         self.config.active().cloned()
