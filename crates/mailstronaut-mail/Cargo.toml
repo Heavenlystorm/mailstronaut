@@ -5,7 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 description = "Mail transport and credential access for Mailstronaut"
 keywords.workspace = true
 categories.workspace = true
@@ -15,6 +14,24 @@ readme.workspace = true
 oo7.workspace = true
 secrecy.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
+async-imap.workspace = true
+tokio-rustls.workspace = true
+rustls.workspace = true
+rustls-native-certs.workspace = true
+rustls-pemfile.workspace = true
+futures-util.workspace = true
+mailstronaut-config.workspace = true
+url.workspace = true
+log.workspace = true
+async-channel.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+mailstronaut-core.workspace = true
+base64.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true

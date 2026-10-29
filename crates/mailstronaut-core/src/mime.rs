@@ -145,6 +145,20 @@ pub struct Projection {
 }
 
 impl Projection {
+    /// Native text-reader content. HTML is converted to inert Unicode text by
+    /// the existing MIME library; no browser or remote resource is invoked.
+    #[must_use]
+    pub fn readable_text(&self) -> Option<std::borrow::Cow<'_, str>> {
+        self.text
+            .as_deref()
+            .map(std::borrow::Cow::Borrowed)
+            .or_else(|| {
+                self.html
+                    .as_deref()
+                    .map(|html| std::borrow::Cow::Owned(mail_parser::html_to_text(html)))
+            })
+    }
+
     /// Resolve a CID only when exactly one root-message attachment has that ID.
     #[must_use = "CID lookup has no effect unless its result is used."]
     #[inline]

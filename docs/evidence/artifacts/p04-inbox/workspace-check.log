@@ -1,0 +1,388 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+    Blocking waiting for file lock on build directory
+   Compiling libz-sys v1.1.30
+   Compiling x11-dl v2.21.0
+   Compiling aws-lc-sys v0.46.0
+   Compiling smithay-client-toolkit v0.20.0
+   Compiling yeslogic-fontconfig-sys v6.0.1
+   Compiling tiny-xlib v0.2.5
+    Checking softbuffer v0.4.1 (https://github.com/pop-os/softbuffer?tag=cosmic-4.0#c2b2c19d)
+   Compiling freetype-sys v0.23.0
+   Compiling fontsan v0.7.0
+   Compiling mozjs_sys v153.3.0-1
+   Compiling harfbuzz-sys v0.8.0
+    Checking sctk-adwaita v0.11.1
+    Checking smithay-clipboard v0.8.0 (https://github.com/pop-os/smithay-clipboard?tag=sctk-0.20#859b02c8)
+    Checking cosmic-client-toolkit v0.2.0 (https://github.com/pop-os/cosmic-protocols?rev=c0cff4d#c0cff4db)
+    Checking freetype v0.8.0
+    Checking wr_glyph_rasterizer v0.70.0
+    Checking mime v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+    Checking dnd v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+    Checking webrender v0.70.0
+    Checking surfman v0.14.0
+    Checking winit-common v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+    Checking clipboard_wayland v0.2.2 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+    Checking window_clipboard v0.4.1 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+    Checking winit-wayland v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+    Checking winit-x11 v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+    Checking winit v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+    Checking accesskit_winit v0.30.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+    Checking iced_accessibility v0.1.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_core v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_futures v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_graphics v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_debug v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_runtime v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking cosmic-config v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_wgpu v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_tiny_skia v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_program v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_winit v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking cosmic-theme v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_renderer v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking iced_widget v0.14.2 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking servo-malloc-size-of v0.7.0
+    Checking servo-base v0.7.0
+    Checking servo-url v0.7.0
+    Checking servo-geometry v0.7.0
+    Checking servo-media-streams v0.7.0
+    Checking servo-media-traits v0.7.0
+    Checking servo-media-webrtc v0.7.0
+    Checking servo-timers v0.7.0
+    Checking servo-xpath v0.7.0
+    Checking servo-pixels v0.7.0
+    Checking servo-profile-traits v0.7.0
+    Checking servo-media-player v0.7.0
+    Checking servo-background-hang-monitor-api v0.7.0
+    Checking servo-background-hang-monitor v0.7.0
+    Checking servo-media-audio v0.7.0
+    Checking servo-fonts-traits v0.7.0
+    Checking servo-storage-traits v0.7.0
+    Checking servo-profile v0.7.0
+    Checking servo-embedder-traits v0.7.0
+   Compiling aws-lc-rs v1.18.2
+   Compiling rustls v0.23.46
+   Compiling servo-script v0.7.0
+    Checking servo-media v0.7.0
+    Checking servo-media-dummy v0.7.0
+    Checking iced v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking libcosmic v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+    Checking rustls-webpki v0.103.16
+    Checking servo-paint-api v0.7.0
+    Checking servo-webxr-api v0.7.0
+    Checking servo-default-resources v0.7.0
+    Checking servo-wakelock v0.7.0
+    Checking servo-media-thread v0.7.0
+    Checking servo-canvas-traits v0.7.0
+    Checking servo-net-traits v0.7.0
+    Checking tokio-rustls v0.26.6
+    Checking tungstenite v0.30.0
+    Checking rustls-platform-verifier v0.7.1
+    Checking mailstronaut-mail v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-mail)
+    Checking hyper-rustls v0.27.10
+    Checking async-tungstenite v0.35.0
+    Checking mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Checking servo-devtools-traits v0.7.0
+    Checking servo-storage v0.7.0
+    Checking servo-fonts v0.7.0
+    Checking servo-constellation-traits v0.7.0
+    Checking servo-net v0.7.0
+    Checking servo-canvas v0.7.0
+    Checking servo-script-traits v0.7.0
+    Checking servo-paint v0.7.0
+    Checking servo-layout-api v0.7.0
+    Checking servo-metrics v0.7.0
+    Checking servo-devtools v0.7.0
+    Checking servo-constellation v0.7.0
+    Checking mozjs v0.26.4
+    Checking servo-script-bindings v0.7.0
+    Checking servo-layout v0.7.0
+    Checking servo v0.7.0
+    Checking mailstronaut-render v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-render)
+    Checking mailstronaut v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3m 48s
+    Blocking waiting for file lock on build directory
+   Compiling x11-dl v2.21.0
+   Compiling smithay-client-toolkit v0.20.0
+   Compiling yeslogic-fontconfig-sys v6.0.1
+   Compiling tiny-xlib v0.2.5
+   Compiling softbuffer v0.4.1 (https://github.com/pop-os/softbuffer?tag=cosmic-4.0#c2b2c19d)
+   Compiling smithay-clipboard v0.8.0 (https://github.com/pop-os/smithay-clipboard?tag=sctk-0.20#859b02c8)
+   Compiling sctk-adwaita v0.11.1
+   Compiling cosmic-client-toolkit v0.2.0 (https://github.com/pop-os/cosmic-protocols?rev=c0cff4d#c0cff4db)
+   Compiling mime v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+   Compiling dnd v0.1.0 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+   Compiling clipboard_wayland v0.2.2 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+   Compiling surfman v0.14.0
+   Compiling winit-common v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+   Compiling window_clipboard v0.4.1 (https://github.com/pop-os/window_clipboard.git?tag=sctk-0.20#f68595ee)
+   Compiling winit-wayland v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+   Compiling winit-x11 v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+   Compiling servo-paint-api v0.7.0
+   Compiling winit v0.31.0-beta.2 (https://github.com/pop-os/winit.git?rev=9567503#9567503d)
+   Compiling accesskit_winit v0.30.0 (https://github.com/wash2/accesskit?rev=6c20249#6c20249d)
+   Compiling iced_accessibility v0.1.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_core v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling servo-net-traits v0.7.0
+   Compiling servo-media-thread v0.7.0
+   Compiling iced_futures v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_graphics v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_debug v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_runtime v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling cosmic-config v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling cosmic-theme v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling servo-devtools-traits v0.7.0
+   Compiling servo-fonts v0.7.0
+   Compiling servo-storage v0.7.0
+   Compiling iced_wgpu v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_tiny_skia v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_program v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_winit v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling servo-constellation-traits v0.7.0
+   Compiling servo-net v0.7.0
+   Compiling servo-canvas v0.7.0
+   Compiling iced_renderer v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling iced_widget v0.14.2 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling servo-script-traits v0.7.0
+   Compiling servo-script-bindings v0.7.0
+   Compiling servo-paint v0.7.0
+   Compiling servo-layout-api v0.7.0
+   Compiling servo-metrics v0.7.0
+   Compiling servo-devtools v0.7.0
+   Compiling iced v0.14.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling servo-constellation v0.7.0
+   Compiling libcosmic v1.0.0 (https://github.com/pop-os/libcosmic?rev=8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec#8990a058)
+   Compiling servo-script v0.7.0
+   Compiling servo-layout v0.7.0
+   Compiling servo v0.7.0
+   Compiling mailstronaut-render v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-render)
+   Compiling mailstronaut v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 55s
+     Running unittests src/main.rs (target/debug/build/mailstronaut/e814ef9aeef1d4c1/out/mailstronaut-e814ef9aeef1d4c1)
+
+running 3 tests
+test tests::preview_respects_renderer_bounds ... ok
+test accounts::tests::password_events_do_not_reveal_typed_values ... ok
+test inbox::tests::body_results_are_redacted_and_old_configurations_cannot_replace_the_reader ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/configuration.rs (target/debug/build/mailstronaut/b12406fc43df2c96/out/configuration-b12406fc43df2c96)
+
+running 3 tests
+test tests::cli_errors_are_redacted_and_never_initialize_graphics ... ok
+test tests::native_cli_initialization_and_managed_symlinks_are_non_destructive ... ok
+test tests::recursive_helper_is_timed_out_and_cancellation_reaps_a_live_child ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.32s
+
+     Running tests/configuration_source.rs (target/debug/build/mailstronaut/09ef6cab50fba3bf/out/configuration_source-09ef6cab50fba3bf)
+
+running 2 tests
+test missing_startup_oversized_nonfile_and_cancellation_are_distinct ... ok
+test last_valid_reload_survives_invalid_and_removed_managed_source ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-config/d6884779ffa553b8/out/mailstronaut_config-d6884779ffa553b8)
+
+running 8 tests
+test tests::incoming_provider_presets_preserve_explicit_institutional_endpoints ... ok
+test tests::url_and_time_validation_rejects_malformed_values ... ok
+test tests::rejects_unsupported_version_and_oversize_source ... ok
+test tests::pure_expression_and_defaults ... ok
+test tests::rejects_unknown_and_impure_inputs_without_echoing_them ... ok
+test helper::tests::typed_responses_and_rejection ... ok
+test tests::native_accounts_and_auth_fields ... ok
+test helper::tests::oversized_expansion_is_rejected ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-core/8539b6c87e043734/out/mailstronaut_core-8539b6c87e043734)
+
+running 10 tests
+test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+test store::tests::failed_insert_leaves_collectible_orphan ... ok
+test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+test store::migration_tests::future_schema_is_rejected_without_downgrading_or_clearing_data ... ok
+test store::migration_tests::removed_messages_never_reuse_an_old_reminder_identity_even_after_restart ... ok
+test store::migration_tests::upgrades_with_consistent_private_backup_including_committed_wal ... ok
+test store::migration_tests::failed_upgrade_rolls_back_schema_and_keeps_original_user_state ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/mailbox.rs (target/debug/build/mailstronaut-core/1fa5ed17476af733/out/mailbox-1fa5ed17476af733)
+
+running 8 tests
+test reconciliation_rejects_stale_or_filtered_uid_snapshots ... ok
+test raw_messages_without_identifiers_do_not_collapse_and_corruption_is_rejected ... ok
+test a_server_read_observation_survives_later_unread_and_store_restart ... ok
+test uid_conflicts_and_stale_generations_do_not_retarget_cached_messages ... ok
+test gmail_ids_win_over_header_duplicates_and_share_label_copies ... ok
+test reconciliation_updates_flags_and_removes_only_searched_expunges ... ok
+test canonical_copies_remain_account_local_and_distinct_bodies_stay_distinct ... ok
+test keyset_pagination_survives_new_arrivals_and_disabled_accounts ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/mime.rs (target/debug/build/mailstronaut-core/a4630eb48ff2e6f0/out/mime-a4630eb48ff2e6f0)
+
+running 12 tests
+test tests::forwarded_message_is_not_outer_body ... ok
+test tests::missing_headers_still_produce_a_preview ... ok
+test tests::inline_encryption_is_detected_without_headers_or_after_a_long_preamble ... ok
+test tests::preview_records_extracted_source_and_original_revision ... ok
+test tests::malformed_cid_is_not_resolved ... ok
+test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+test tests::unique_cid_is_scoped_to_its_message ... ok
+test tests::html_preview_attachments_and_duplicate_cid ... ok
+test tests::alternatives_headers_and_encodings ... ok
+test tests::retained_headers_are_bounded_without_inventing_routing_addresses ... ok
+test tests::part_and_attachment_limits_are_reported ... ok
+test tests::bounds_encryption_and_malformed ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/worker.rs (target/debug/build/mailstronaut-core/48ced114b625c9d4/out/worker-48ced114b625c9d4)
+
+running 2 tests
+test durable_round_trip_restarts_and_shutdown_closes_cloned_handles ... ok
+test sqlite_writer_contention_does_not_block_the_async_timer ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-mail/4dd8eb3f49af4782/out/mailstronaut_mail-4dd8eb3f49af4782)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/credentials.rs (target/debug/build/mailstronaut-mail/b7318f6d42812628/out/credentials-b7318f6d42812628)
+
+running 3 tests
+test private_missing_service_fails_closed ... ignored, requires the private fixture after its Secret Service has stopped
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ignored, requires experiments/p02-accounts/credentials.sh private bus and disposable keyring
+test rejects_invalid_identities_before_backend_access ... ok
+
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/imap_tls.rs (target/debug/build/mailstronaut-mail/b07c4a92ad9ac6c1/out/imap_tls-b07c4a92ad9ac6c1)
+
+running 10 tests
+test gui_loopback_server ... ignored, explicit private-bus GUI harness only; waits for its synthetic client
+test a_live_tls_handshake_can_be_cancelled_without_sending_credentials ... ok
+test protocol_wire_traces_cannot_be_enabled_by_a_verbose_logger ... ok
+test untrusted_expired_and_wrong_hostname_certificates_never_receive_credentials ... ok
+test missing_starttls_and_unadvertised_oauth_fail_before_authentication ... ok
+test implicit_and_starttls_authenticate_and_select_only_after_tls_validation ... ok
+test advertised_oauth_mechanisms_use_the_library_sasl_exchange ... ok
+test uid_search_and_peek_preserve_wire_names_gaps_and_unread_flags ... ok
+test paging_cursors_from_an_old_uid_generation_restart_at_the_newest_mail ... ok
+test sync_pages_commit_once_and_remain_readable_after_network_and_worker_restart ... ok
+
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-render/785d8e0ecf5fc852/out/mailstronaut_render-785d8e0ecf5fc852)
+
+running 7 tests
+test tests::bounded_and_coalesced ... ok
+test tests::sanitizer_removes_active_content_and_css ... ok
+test tests::generated_document_is_bounded ... ok
+
+running 1 test
+
+running 1 test
+
+running 1 test
+lifecycle cycle=10 pss_kib=111291 threads=71
+test tests::synthetic_pixels_and_native_theme ... ok
+lifecycle cycle=20 pss_kib=110657 threads=70
+lifecycle cycle=30 pss_kib=112963 threads=71
+lifecycle cycle=40 pss_kib=113136 threads=71
+lifecycle cycle=50 pss_kib=142084 threads=71
+lifecycle cycle=60 pss_kib=146085 threads=70
+lifecycle cycle=70 pss_kib=155276 threads=71
+lifecycle cycle=80 pss_kib=160433 threads=71
+lifecycle cycle=90 pss_kib=161169 threads=70
+lifecycle cycle=100 pss_kib=162880 threads=71
+lifecycle sampled peak pss_kib=162880 threads=71
+test tests::lifecycle_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.02s
+
+test tests::lifecycle_subprocess ... ok
+P01 allow=false connections=0 red=[false, false, false, false] callbacks=[("mailstronaut://981c8485-7645-4b8b-9c67-ccca4abd9b19/document", "Document", false), ("http://127.0.0.1:42705/import", "Style", true), ("http://127.0.0.1:42705/sheet", "Style", true), ("http://127.0.0.1:42705/image", "Image", true), ("file:///tmp/nix-shell.FKHvCD/.tmpnzoYAX", "Image", true), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", true), ("http://127.0.0.1:42705/font", "Font", true), ("http://127.0.0.1:42705/background", "Image", true)]
+script mode=production ready=true trigger=true inline=false event=false requests=[]
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.08s
+
+
+running 1 test
+
+running 1 test
+P01 allow=true connections=5 red=[true, true, true, true] callbacks=[("mailstronaut://d510a506-acdd-475a-8ff6-dd27fb39945c/document", "Document", false), ("http://127.0.0.1:42653/import", "Style", false), ("http://127.0.0.1:42653/sheet", "Style", false), ("file:///tmp/nix-shell.FKHvCD/.tmpNcLy4k", "Image", false), ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGP4z8AARAwQCgAf7gP9i18U1AAAAABJRU5ErkJggg==", "Image", false), ("http://127.0.0.1:42653/image", "Image", false), ("http://127.0.0.1:42653/font", "Font", false), ("http://127.0.0.1:42653/background", "Image", false)]
+script mode=positive ready=true trigger=true inline=true event=true requests=["/inline", "/event"]
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+
+
+running 1 test
+
+running 1 test
+P01 local raster visible; initial document/view association, A-to-B retirement, unknown URL and wrong-view/destination checks passed under production CSP
+test tests::resource_interception_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.29s
+
+test tests::resource_interception_subprocess ... ok
+script mode=sanitized ready=true trigger=false inline=false event=false requests=[]
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.07s
+
+test tests::script_layers_subprocess ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.31s
+
+   Doc-tests mailstronaut_config
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mailstronaut_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mailstronaut_mail
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mailstronaut_render
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.35s
+   Compiling mailstronaut-config v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-config)
+   Compiling mailstronaut-mail v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-mail)
+   Compiling mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.95s

@@ -21,17 +21,6 @@ pub enum Message {
     Stored(u64, Result<(), credentials::Error>),
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn password_events_do_not_reveal_typed_values() {
-        let event = crate::Message::Accounts(super::Message::Password(
-            secrecy::SecretString::from("SYNTHETIC-UI-PASSWORD-MARKER"),
-        ));
-        assert!(!format!("{event:?}").contains("SYNTHETIC-UI-PASSWORD-MARKER"));
-    }
-}
-
 /// Incoming and optional independently configured outgoing credentials.
 #[derive(Clone, Copy, Debug)]
 pub enum Slot {
@@ -54,6 +43,17 @@ pub struct Accounts {
     status: Option<String>,
 }
 impl Accounts {
+    /// Validated configuration snapshot for native mailbox queries/workers.
+    pub fn active(&self) -> Option<std::sync::Arc<Config>> {
+        self.config.active().cloned()
+    }
+    pub const fn revision(&self) -> u64 {
+        self.config.revision()
+    }
+    /// Existing foreground-unlocked backend; this never opens a prompt itself.
+    pub fn keyring(&self) -> Option<Store> {
+        self.keyring.clone()
+    }
     pub fn new(path: Option<PathBuf>) -> (Self, Task<super::Message>) {
         let mut state = Self {
             path,
@@ -325,5 +325,16 @@ impl Accounts {
             content = content.push(widget::text(status));
         }
         content.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn password_events_do_not_reveal_typed_values() {
+        let event = crate::Message::Accounts(super::Message::Password(
+            secrecy::SecretString::from("SYNTHETIC-UI-PASSWORD-MARKER"),
+        ));
+        assert!(!format!("{event:?}").contains("SYNTHETIC-UI-PASSWORD-MARKER"));
     }
 }

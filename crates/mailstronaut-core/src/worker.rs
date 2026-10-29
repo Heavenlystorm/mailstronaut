@@ -9,7 +9,7 @@ use crate::{
     mime::{self, Projection},
     store::{
         self, Store,
-        mailbox::{Cursor, Folder, GmailId, Membership, Summary},
+        mailbox::{Cursor, Folder, GmailId, Membership, Summary, UidSnapshot},
     },
 };
 
@@ -82,6 +82,8 @@ enum Command {
     },
     Inbox(Vec<String>, Option<Cursor>, u32, Reply<Vec<Summary>>),
     Message(String, i64, Reply<Projection>),
+    Observe(String, Membership, Reply<bool>),
+    Reconcile(String, UidSnapshot, Reply<()>),
     Shutdown(oneshot::Sender<()>),
 }
 
@@ -89,6 +91,30 @@ enum Command {
 #[derive(Clone)]
 pub struct Handle(mpsc::Sender<Command>);
 impl Handle {
+    /// Apply server flags without rereading a cached original.
+    ///
+    /// # Errors
+    /// Returns a redacted identity, generation or worker failure.
+    pub async fn observe_membership(
+        &self,
+        account: String,
+        membership: Membership,
+    ) -> Result<bool, Error> {
+        self.request(|reply| Command::Observe(account, membership, reply))
+            .await
+    }
+    /// Retire memberships absent from a complete, unfiltered UID search.
+    ///
+    /// # Errors
+    /// Returns a redacted invalid/stale snapshot or storage failure.
+    pub async fn reconcile_span(
+        &self,
+        account: String,
+        snapshot: UidSnapshot,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::Reconcile(account, snapshot, reply))
+            .await
+    }
     async fn request<T>(&self, command: impl FnOnce(Reply<T>) -> Command) -> Result<T, Error> {
         let (reply, response) = oneshot::channel();
         self.0
@@ -259,6 +285,12 @@ fn respond<T>(reply: Reply<T>, operation: impl FnOnce() -> Result<T, store::Erro
 fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
     while let Some(command) = receiver.blocking_recv() {
         match command {
+            Command::Observe(account, membership, reply) => {
+                respond(reply, || store.observe_membership(&account, membership));
+            }
+            Command::Reconcile(account, snapshot, reply) => {
+                respond(reply, || store.reconcile_span(&account, &snapshot));
+            }
             Command::Account(account, reply) => respond(reply, || store.ensure_account(&account)),
             Command::Folder(account, name, inbox, reply) => {
                 respond(reply, || store.ensure_folder(&account, &name, inbox));

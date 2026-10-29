@@ -361,6 +361,11 @@ impl Renderer {
     }
     /// Construct the engine with an internal fixture document.
     fn from_document(document: String) -> Result<Self, String> {
+        // The unified mail/Servo graph enables Ring and AWS-LC. Servo's own
+        // network clients use Rustls' process default, which cannot infer one
+        // with both features present. Choose Ring before starting its threads;
+        // an already-installed process provider remains owned by its caller.
+        let _selection = rustls::crypto::ring::default_provider().install_default();
         let (sender, wakes) = async_channel::bounded(1);
         let wake = Wake(sender);
         let policy = Rc::new(Policy {

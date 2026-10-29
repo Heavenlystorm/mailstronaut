@@ -77,7 +77,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-BtdcAm2vHeaBTkXOZlU/imllvVUh3QpiAuVUGaaNm+A=";
+          cargoHash = "sha256-0rK2DjxX5E0FLSbrRpO7/FxBQE5URhOEn2gJR9t2PaQ=";
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit pname version;
             hash = cargoHash;
@@ -233,7 +233,8 @@
                 actionlint ${self}/.github/workflows/ci.yml
                 shellcheck ${self}/ci/check.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
-                  ${self}/experiments/p02-accounts/gui.sh
+                  ${self}/experiments/p02-accounts/gui.sh \
+                  ${self}/experiments/p04-inbox/gui.sh
                 touch "$out"
               '';
         }
@@ -310,6 +311,7 @@
               actionlint
               shellcheck
               time
+              openssl
             ];
           };
         }

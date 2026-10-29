@@ -49,6 +49,9 @@ done
 if [[ -n ${MAILSTRONAUT_ACCOUNT_GUI_BINARY:-} ]]; then
   bash experiments/p02-accounts/gui.sh "$MAILSTRONAUT_ACCOUNT_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_INBOX_GUI_BINARY:-} ]]; then
+  bash experiments/p04-inbox/gui.sh "$MAILSTRONAUT_INBOX_GUI_BINARY" "$root"
+fi
 cargo_flags=(--locked --offline)
 if [[ ${MAILSTRONAUT_CREDENTIAL_TEST_PROFILE:-debug} == release ]]; then
   cargo_flags+=(--release)

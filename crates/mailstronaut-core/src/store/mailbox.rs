@@ -43,7 +43,7 @@ pub struct Folder {
     pub id: i64,
     /// Owning configuration account ID.
     pub account: String,
-    /// Exact decoded server mailbox name, never a filesystem component.
+    /// Exact opaque server wire name, never a filesystem component.
     pub name: String,
     /// UID namespace, absent until SELECT succeeds.
     pub uid_validity: Option<NonZeroU32>,
@@ -77,6 +77,21 @@ pub struct Membership {
 /// This ID must never be populated from an email header.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GmailId(pub core::num::NonZeroU64);
+
+/// Complete unfiltered SEARCH result for one closed UID span.
+#[derive(Clone, Debug)]
+pub struct UidSnapshot {
+    /// Account-local folder identity.
+    pub folder: i64,
+    /// Selected UID namespace.
+    pub uid_validity: NonZeroU32,
+    /// First searched UID, inclusive.
+    pub first: NonZeroU32,
+    /// Last searched UID, inclusive.
+    pub last: NonZeroU32,
+    /// Every UID returned by the successful unfiltered search.
+    pub present: Vec<NonZeroU32>,
+}
 
 /// A stable keyset cursor, independent of offset shifts after new mail arrives.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -126,6 +141,72 @@ struct Metadata {
 }
 
 impl Store {
+    /// Observe flags for an already cached UID without fetching its original
+    /// again. Read-cleared analysis history is monotonic across later Unseen.
+    ///
+    /// # Errors
+    /// Rejects stale/wrong-account generations and storage failures.
+    pub fn observe_membership(
+        &mut self,
+        account: &str,
+        membership: Membership,
+    ) -> Result<bool, Error> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        check_generation(&tx, account, membership)?;
+        let changed = tx.execute("UPDATE memberships SET seen=?5,starred=?6 WHERE account_id=?1 AND folder_id=?2 AND uidvalidity=?3 AND uid=?4",params![account,membership.folder,membership.uid_validity.get(),membership.uid.get(),membership.flags.seen,membership.flags.starred])?;
+        if changed != 0 && membership.flags.seen {
+            tx.execute("UPDATE messages SET read_cleared=1 WHERE account_id=?1 AND id IN (SELECT message_id FROM memberships WHERE account_id=?1 AND folder_id=?2 AND uidvalidity=?3 AND uid=?4)",params![account,membership.folder,membership.uid_validity.get(),membership.uid.get()])?;
+        }
+        tx.commit()?;
+        Ok(changed != 0)
+    }
+
+    /// Retire expunged memberships only inside a successfully searched closed
+    /// UID span. The caller must pass an unfiltered UID SEARCH result (no SINCE,
+    /// UNSEEN or other filter). Originals/user-owned state remain intact.
+    ///
+    /// # Errors
+    /// Rejects spans over 1000, duplicate/out-of-range UIDs and stale generations.
+    pub fn reconcile_span(&mut self, account: &str, snapshot: &UidSnapshot) -> Result<(), Error> {
+        let UidSnapshot {
+            folder,
+            uid_validity: validity,
+            first,
+            last,
+            present,
+        } = snapshot;
+        if last < first || last.get() - first.get() >= 1000 || present.len() > 1000 {
+            return Err(Error::InvalidInput);
+        }
+        let unique = present
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        if unique.len() != present.len() || unique.iter().any(|uid| uid < first || uid > last) {
+            return Err(Error::InvalidInput);
+        }
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        check_generation(
+            &tx,
+            account,
+            Membership {
+                folder: *folder,
+                uid_validity: *validity,
+                uid: *first,
+                flags: Flags::default(),
+            },
+        )?;
+        let present =
+            serde_json::to_string(&present.iter().map(|uid| uid.get()).collect::<Vec<_>>())?;
+        tx.execute("DELETE FROM memberships WHERE account_id=?1 AND folder_id=?2 AND uidvalidity=?3 AND uid BETWEEN ?4 AND ?5 AND uid NOT IN (SELECT value FROM json_each(?6))",params![account,folder,validity.get(),first.get(),last.get(),present])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Add a discovered mailbox without resetting a known UID generation.
     ///
     /// # Errors

@@ -220,6 +220,25 @@ pub struct Account {
     #[serde(default)]
     pub folders: Folders,
 }
+impl Account {
+    /// Effective incoming endpoint: explicit configuration overrides the provider
+    /// preset. Institutional/manual accounts always require an explicit endpoint.
+    #[must_use]
+    pub fn incoming_endpoint(&self) -> Option<Endpoint> {
+        self.imap.clone().or_else(|| {
+            let host = match self.provider {
+                Provider::Google => "imap.gmail.com",
+                Provider::Icloud => "imap.mail.me.com",
+                Provider::Manual => return None,
+            };
+            Some(Endpoint {
+                host: host.into(),
+                port: 993,
+                security: Security::Tls,
+            })
+        })
+    }
+}
 /// Supported endpoint presets.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -826,6 +845,38 @@ mod tests {
         }
         assert!(valid_time("09:00"));
         assert!(!valid_time("24:60"));
+    }
+
+    #[test]
+    fn incoming_provider_presets_preserve_explicit_institutional_endpoints() {
+        for (provider, host) in [
+            ("google", Some("imap.gmail.com")),
+            ("icloud", Some("imap.mail.me.com")),
+            ("manual", None),
+        ] {
+            let mut account: Account = serde_json::from_value(serde_json::json!({
+                "id":"synthetic", "provider":provider,"address":"reader@example.test",
+                "displayName":"Synthetic", "userName":"synthetic",
+                "auth":{"kind":"password","secretRef":"fixture"}
+            }))
+            .expect("account fixture");
+            assert_eq!(
+                account
+                    .incoming_endpoint()
+                    .as_ref()
+                    .map(|endpoint| endpoint.host.as_str()),
+                host
+            );
+            account.imap = Some(Endpoint {
+                host: "imap.example.test".into(),
+                port: 143,
+                security: Security::Starttls,
+            });
+            let endpoint = account.incoming_endpoint().expect("explicit endpoint");
+            assert_eq!(endpoint.host, "imap.example.test");
+            assert_eq!(endpoint.port, 143);
+            assert!(matches!(endpoint.security, Security::Starttls));
+        }
     }
 
     #[test]

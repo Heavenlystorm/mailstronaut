@@ -4,11 +4,170 @@ use core::num::{NonZeroU32, NonZeroU64};
 
 use mailstronaut_core::store::{
     Error, Store,
-    mailbox::{Flags, Folder, GmailId, Membership},
+    mailbox::{Flags, Folder, GmailId, Membership, UidSnapshot},
 };
 
 const fn nonzero(value: u32) -> NonZeroU32 {
     NonZeroU32::new(value).expect("nonzero fixture")
+}
+
+#[test]
+fn reconciliation_updates_flags_and_removes_only_searched_expunges() {
+    let root = tempfile::tempdir().expect("fixture");
+    let mut store = Store::open(root.path()).expect("open");
+    let inbox = folder(&mut store, "a", "INBOX", true);
+    let elsewhere = folder(&mut store, "a", "Other inbox", true);
+    let bytes = original("reconcile", "Retained original.");
+    let first = store
+        .cache_message("a", membership(&inbox, 10, false), 100, None, &bytes)
+        .expect("first");
+    store
+        .cache_message(
+            "a",
+            membership(&inbox, 20, false),
+            100,
+            None,
+            &original("other", "Another."),
+        )
+        .expect("second");
+    store
+        .cache_message("a", membership(&elsewhere, 10, false), 100, None, &bytes)
+        .expect("another membership");
+    assert!(
+        store
+            .observe_membership("a", membership(&inbox, 10, true))
+            .expect("observe")
+    );
+    assert!(
+        !store
+            .observe_membership("a", membership(&inbox, 11, true))
+            .expect("uncached")
+    );
+    assert!(
+        !store
+            .inbox(&["a".into()], None, 100)
+            .expect("rows")
+            .iter()
+            .find(|row| row.id == first)
+            .expect("first")
+            .seen,
+        "other unread membership remains unread"
+    );
+    store
+        .reconcile_span(
+            "a",
+            &UidSnapshot {
+                folder: inbox.id,
+                uid_validity: nonzero(42),
+                first: nonzero(1),
+                last: nonzero(15),
+                present: vec![],
+            },
+        )
+        .expect("expunge only window");
+    assert_eq!(
+        store.inbox(&["a".into()], None, 100).expect("rows").len(),
+        2,
+        "other folder and UID 20 survive"
+    );
+    store
+        .reconcile_span(
+            "a",
+            &UidSnapshot {
+                folder: elsewhere.id,
+                uid_validity: nonzero(42),
+                first: nonzero(1),
+                last: nonzero(15),
+                present: vec![],
+            },
+        )
+        .expect("last membership removed");
+    assert_eq!(
+        store.inbox(&["a".into()], None, 100).expect("rows").len(),
+        1
+    );
+    assert_eq!(
+        store
+            .message("a", first)
+            .expect("original retained")
+            .text
+            .as_deref(),
+        Some("Retained original.")
+    );
+}
+
+#[test]
+fn reconciliation_rejects_stale_or_filtered_uid_snapshots() {
+    let root = tempfile::tempdir().expect("fixture");
+    let mut store = Store::open(root.path()).expect("open");
+    let inbox = folder(&mut store, "a", "INBOX", true);
+    assert!(matches!(
+        store.reconcile_span(
+            "a",
+            &UidSnapshot {
+                folder: inbox.id,
+                uid_validity: nonzero(43),
+                first: nonzero(1),
+                last: nonzero(15),
+                present: vec![]
+            }
+        ),
+        Err(Error::StaleMailbox)
+    ));
+    assert!(matches!(
+        store.reconcile_span(
+            "a",
+            &UidSnapshot {
+                folder: inbox.id,
+                uid_validity: nonzero(42),
+                first: nonzero(1),
+                last: nonzero(15),
+                present: vec![nonzero(20)]
+            }
+        ),
+        Err(Error::InvalidInput)
+    ));
+}
+
+#[test]
+fn a_server_read_observation_survives_later_unread_and_store_restart() {
+    let root = tempfile::tempdir().expect("fixture");
+    let mut store = Store::open(root.path()).expect("open");
+    let inbox = folder(&mut store, "a", "INBOX", true);
+    let id = store
+        .cache_message(
+            "a",
+            membership(&inbox, 10, false),
+            100,
+            None,
+            &original("read-history", "Read elsewhere."),
+        )
+        .expect("cache");
+    assert!(
+        store
+            .observe_membership("a", membership(&inbox, 10, true))
+            .expect("read elsewhere")
+    );
+    assert!(
+        store
+            .observe_membership("a", membership(&inbox, 10, false))
+            .expect("later unread")
+    );
+    drop(store);
+    let store = Store::open(root.path()).expect("restart");
+    assert!(!store.inbox(&["a".into()], None, 100).expect("row")[0].seen);
+    let database = rusqlite::Connection::open(root.path().join("mail.sqlite3"))
+        .expect("inspect durable history");
+    assert!(
+        database
+            .query_row(
+                "SELECT read_cleared FROM messages WHERE id=?1",
+                [id],
+                |row| row.get::<_, bool>(0)
+            )
+            .expect("history"),
+        "future analysis must not revive an old priority decision after Unseen"
+    );
 }
 const fn gmail(value: u64) -> GmailId {
     GmailId(NonZeroU64::new(value).expect("nonzero fixture"))

@@ -1,7 +1,7 @@
 # Implementation checklist
 
 This is the authoritative handoff. `[x]` means completed **and verified**, `[ ]`
-means work whose acceptance checks remain open. P00 is complete; P01–P03 have
+means work whose acceptance checks remain open. P00 is complete; P01–P04 have
 partial implementations recorded in their milestone evidence files.
 Do not mark planned features complete because an interface, mock or upstream API
 exists. Update only the acceptance rows actually proven, citing a small evidence
@@ -184,6 +184,11 @@ tests and measured scale limits in `docs/evidence/P03.md`.
 
 Create `mailstronaut-mail`; the engine owns scheduling/persistence. Use local
 protocol fixtures, not real accounts, for deterministic integration tests.
+
+- [x] Implement and test a bounded read-only UID page from validated TLS through
+  the blocking store worker to offline native reading, with expunge/flag updates,
+  UIDVALIDITY-bound paging and private dark/light GUI fixtures. This is the
+  receiving prototype in [P04 evidence](evidence/P04.md), not complete sync.
 
 - [ ] Implement validated TLS/required STARTTLS stream setup with native roots and
   optional extra CAs; test wrong host/expired cert/missing STARTTLS/revoked trust.

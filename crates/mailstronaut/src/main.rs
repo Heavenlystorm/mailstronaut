@@ -2,6 +2,7 @@
 
 mod accounts;
 mod config_cli;
+mod inbox;
 mod text_reader;
 
 use core::hash::{Hash, Hasher};
@@ -15,6 +16,8 @@ use mailstronaut_render::{Renderer, Viewport};
 
 /// Toolkit-owned application state.
 struct App {
+    /// Durable unified inbox and native cached-message reader.
+    inbox: inbox::Inbox,
     /// Validated account configuration and foreground credential setup.
     accounts: accounts::Accounts,
     /// COSMIC application state, including the system theme.
@@ -46,6 +49,8 @@ struct App {
 /// Synthetic navigation targets.
 #[derive(Clone, Copy, Debug)]
 enum Page {
+    /// Real, locally cached messages.
+    Inbox,
     /// Native account setup.
     Accounts,
     /// Information about this preview.
@@ -59,6 +64,8 @@ enum Page {
 /// Actions from the native navigation.
 #[derive(Clone, Debug)]
 enum Message {
+    /// Native mailbox queries and explicit synchronization.
+    Inbox(inbox::Message),
     /// Effective configured theme, forwarded to Servo's native theme API.
     Appearance(bool),
     /// Native configuration and credential setup.
@@ -93,8 +100,10 @@ impl cosmic::Application for App {
     }
     fn init(core: Core, path: Self::Flags) -> (Self, Task<Message>) {
         let (accounts, load) = accounts::Accounts::new(path);
+        let (inbox, open) = inbox::Inbox::new();
         (
             Self {
+                inbox,
                 accounts,
                 core,
                 page: Page::Accounts,
@@ -109,7 +118,7 @@ impl cosmic::Application for App {
                 pointer: Point::ORIGIN,
                 text: Renderer::synthetic_text(),
             },
-            load,
+            Task::batch([load, open]),
         )
     }
 
@@ -132,7 +141,9 @@ impl cosmic::Application for App {
             ) => Some(Message::Window(id, event)),
             _ => None,
         });
-        let reader = if matches!(self.page, Page::Text) {
+        let reader = if matches!(self.page, Page::Text)
+            || (matches!(self.page, Page::Inbox) && self.inbox.reading())
+        {
             event::listen_with(|incoming, _, id| {
                 if let Event::Keyboard(keyboard::Event::KeyPressed {
                     key,
@@ -200,16 +211,28 @@ impl cosmic::Application for App {
     )]
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Inbox(message) => return self.inbox.update(message, self.accounts.keyring()),
             Message::Appearance(dark) => {
                 self.dark = dark;
                 if let Some(Ok(viewport)) = self.viewport.as_ref() {
                     viewport.set_dark(dark);
                 }
             }
-            Message::Accounts(message) => return self.accounts.update(message),
+            Message::Accounts(message) => {
+                let previous = self.accounts.revision();
+                let task = self.accounts.update(message);
+                return if previous == self.accounts.revision() {
+                    task
+                } else {
+                    Task::batch([task, self.inbox.configure(self.accounts.active())])
+                };
+            }
             Message::Select(page) => return self.select_page(page),
             Message::Read(id, command) => {
-                if matches!(self.page, Page::Text) && Some(id) == self.core.main_window_id() {
+                if (matches!(self.page, Page::Text)
+                    || (matches!(self.page, Page::Inbox) && self.inbox.reading()))
+                    && Some(id) == self.core.main_window_id()
+                {
                     return text_reader::scroll(command, self.logical.1);
                 }
             }
@@ -271,6 +294,9 @@ impl cosmic::Application for App {
 
     fn view(&self) -> Element<'_, Message> {
         let content: Element<'_, Message> = match self.page {
+            Page::Inbox => self
+                .inbox
+                .view(self.logical.0, (self.logical.1 - 140.0).max(100.0)),
             Page::Accounts => self.accounts.view(),
             Page::Preview => {
                 let image: Element<'_, Message> =
@@ -324,7 +350,8 @@ impl cosmic::Application for App {
                 widget::button::text("Preview").on_press(Message::Select(Page::Preview)),
                 widget::button::text("About").on_press(Message::Select(Page::About)),
                 widget::button::text("Text").on_press(Message::Select(Page::Text)),
-                widget::button::text("Accounts").on_press(Message::Select(Page::Accounts))
+                widget::button::text("Accounts").on_press(Message::Select(Page::Accounts)),
+                widget::button::text("Inbox").on_press(Message::Select(Page::Inbox))
             ]
             .spacing(theme::spacing().space_s)
             .padding(20),
@@ -378,7 +405,10 @@ impl App {
             self.accounts.clear_input();
         }
         self.page = page;
-        if matches!(page, Page::About | Page::Text | Page::Accounts) {
+        if matches!(
+            page,
+            Page::About | Page::Text | Page::Accounts | Page::Inbox
+        ) {
             self.viewport = None;
             self.frame = None;
             if let Some(Ok(renderer)) = &self.renderer {
