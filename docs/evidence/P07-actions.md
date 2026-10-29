@@ -125,3 +125,23 @@ passed through `nix develop`; see
 The earlier complete development/native run above precedes this follow-up. The
 in-progress release gate started at `962050d3ce4cd375e8f55010935ce211164e0f05`
 and does not include it.
+
+## Completed release gate for the read/star and reply prototype
+
+The coordinated gate at **962050d3ce4cd375e8f55010935ce211164e0f05**
+completed successfully on x86_64-linux. The collected service invocation
+`c30ddf668d344736b5632592d286263e` was inactive/dead with exit status 0; its
+numeric receipt was 0 and complete log reported all checks passed. It ran
+`nix flake check --no-update-lock-file --print-build-logs --cores 16 --max-jobs 1`.
+Stable Rust 1.99 release Clippy, thin LTO/single-codegen-unit builds, 101 workspace
+tests, seven isolated renderer children and four private credential/OAuth checks
+passed. The incompatible aarch64-linux system was omitted.
+
+The subsequent exact-revision Nix build and pinned-shell installed CLI/native-Nix
+configuration smoke passed for
+`/nix/store/793axn5vmxfvp88sb5pdpak9pcvnd79a-mailstronaut-0.1.0`. See the
+[release excerpt](artifacts/p07-actions/release-gate-excerpt.log) and
+[installed smoke](artifacts/p07-actions/installed-smoke.log). Full logs remain in
+`target/p07-actions`. This gate includes the reply prototype, but precedes the
+provider-ID follow-up and conversation implementation. It adds local Nix release
+evidence, not CI, Flatpak, live-provider or complete-client acceptance.
