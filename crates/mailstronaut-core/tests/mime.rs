@@ -164,4 +164,29 @@ mod tests {
         assert!(result.attachment_for_cid("bad id").is_none());
         assert!(result.attachment_for_cid("").is_none());
     }
+    #[test]
+    fn retained_headers_are_bounded_without_inventing_routing_addresses() {
+        let subject = "é".repeat(mime::MAX_HEADER_BYTES);
+        let address = format!("{}@example.test", "a".repeat(mime::MAX_HEADER_BYTES + 1));
+        let references = (0..mime::MAX_HEADER_VALUES + 10)
+            .map(|i| format!("<ref-{i}@example.test>"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let raw = format!(
+            "Subject: {subject}\r\nFrom: Oversized <{address}>\r\nReferences: {references}\r\n\r\nReadable body."
+        );
+        let result = mime::project(raw.as_bytes()).expect("bounded header projection");
+        assert!(result.status.headers_truncated);
+        assert!(result.headers.subject.as_ref().expect("subject").len() <= mime::MAX_HEADER_BYTES);
+        assert!(
+            result
+                .headers
+                .from
+                .iter()
+                .all(|mailbox| mailbox.address.is_none())
+        );
+        assert_eq!(result.headers.references.len(), mime::MAX_HEADER_VALUES);
+        assert_eq!(result.original, raw.as_bytes());
+        assert_eq!(result.text.as_deref(), Some("Readable body."));
+    }
 }

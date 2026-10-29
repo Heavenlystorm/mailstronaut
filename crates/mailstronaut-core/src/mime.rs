@@ -3,6 +3,7 @@
 use core::ops::Range;
 
 use mail_parser::{AddressList, MessageParser, MessagePart, PartFlags, PartKind};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 
 /// Maximum accepted original message size.
@@ -13,12 +14,16 @@ pub const MAX_PARTS: usize = 256;
 pub const MAX_ATTACHMENTS: usize = 64;
 /// Maximum decoded bytes retained for each body alternative.
 pub const MAX_BODY_BYTES: usize = 256 * 1024;
+/// Maximum retained bytes in an individual decoded header field.
+pub const MAX_HEADER_BYTES: usize = 4096;
+/// Maximum retained addresses or ancestry identifiers in one header list.
+pub const MAX_HEADER_VALUES: usize = 256;
 
 /// Unsupported inline encryption marker, never a request to decrypt content.
 const INLINE_PGP_HEADER: &str = "-----BEGIN PGP MESSAGE-----";
 
 /// A decoded mailbox; group names are not retained.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Mailbox {
     /// Address, if parsed.
@@ -28,7 +33,7 @@ pub struct Mailbox {
 }
 
 /// Decoded root-message headers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Headers {
     /// Blind-copy recipients if present in the source.
@@ -95,13 +100,16 @@ pub struct Preview {
 }
 
 /// Degradation and resource-limit indicators.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 #[expect(
     clippy::struct_excessive_bools,
     reason = "Independent parse conditions may occur together."
 )]
 pub struct Status {
+    /// Header fields exceeded their retained size/count budget.
+    #[serde(default)]
+    pub headers_truncated: bool,
     /// Attachment descriptors exceeded their limit.
     pub attachments_truncated: bool,
     /// A body alternative exceeded its limit.
@@ -170,14 +178,51 @@ pub enum Error {
 }
 
 /// Flatten parsed address groups.
-fn addresses(list: Option<AddressList<'_>>) -> Vec<Mailbox> {
-    list.into_iter()
-        .flat_map(|items| items.mailboxes())
-        .map(|mailbox| Mailbox {
-            name: mailbox.name().map(str::to_owned),
-            address: mailbox.address().map(str::to_owned),
-        })
-        .collect()
+fn addresses(list: Option<AddressList<'_>>, status: &mut Status) -> Vec<Mailbox> {
+    let mut result = Vec::new();
+    for mailbox in list.into_iter().flat_map(|items| items.mailboxes()) {
+        if result.len() == MAX_HEADER_VALUES {
+            status.headers_truncated = true;
+            break;
+        }
+        result.push(Mailbox {
+            name: header(mailbox.name(), status, true),
+            // Never invent a different routing address by truncating it.
+            address: header(mailbox.address(), status, false),
+        });
+    }
+    result
+}
+
+/// Bound retained headers without altering a routing/identity field's meaning.
+fn header(value: Option<&str>, status: &mut Status, display: bool) -> Option<String> {
+    let value = value?;
+    if value.len() <= MAX_HEADER_BYTES {
+        return Some(value.to_owned());
+    }
+    status.headers_truncated = true;
+    if !display {
+        return None;
+    }
+    let mut end = MAX_HEADER_BYTES;
+    while !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(value[..end].to_owned())
+}
+
+fn identifiers<'a>(values: impl Iterator<Item = &'a str>, status: &mut Status) -> Vec<String> {
+    let mut result = Vec::new();
+    for value in values {
+        if result.len() == MAX_HEADER_VALUES {
+            status.headers_truncated = true;
+            break;
+        }
+        if let Some(value) = header(Some(value), status, false) {
+            result.push(value);
+        }
+    }
+    result
 }
 
 /// Accept only a conservative, unambiguous Content-ID lookup key.
@@ -247,22 +292,22 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
         .parse(raw)
         .ok_or(Error::Unparseable)?;
     let revision: [u8; 32] = Sha256::digest(raw).into();
+    let mut status = Status::default();
     let headers = Headers {
-        message_id: message.message_id().map(str::to_owned),
-        references: message.references().map_or_else(Vec::new, |values| {
-            values.iter().map(str::to_owned).collect()
-        }),
-        in_reply_to: message.in_reply_to().map_or_else(Vec::new, |values| {
-            values.iter().map(str::to_owned).collect()
-        }),
-        from: addresses(message.from()),
-        to: addresses(message.to()),
-        cc: addresses(message.cc()),
-        bcc: addresses(message.bcc()),
-        subject: message.subject().map(str::to_owned),
+        message_id: header(message.message_id(), &mut status, false),
+        references: message
+            .references()
+            .map_or_else(Vec::new, |values| identifiers(values.iter(), &mut status)),
+        in_reply_to: message
+            .in_reply_to()
+            .map_or_else(Vec::new, |values| identifiers(values.iter(), &mut status)),
+        from: addresses(message.from(), &mut status),
+        to: addresses(message.to(), &mut status),
+        cc: addresses(message.cc(), &mut status),
+        bcc: addresses(message.bcc(), &mut status),
+        subject: header(message.subject(), &mut status, true),
         date: message.date().map(|date| date.to_timestamp()),
     };
-    let mut status = Status::default();
     inspect(message.root_part(), &mut status);
     let mut attachments = Vec::new();
     for part in message.attachments() {

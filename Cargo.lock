@@ -5203,8 +5203,12 @@ dependencies = [
  "mail-parser",
  "rusqlite",
  "rusqlite_migration",
+ "rustix 1.1.6",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]

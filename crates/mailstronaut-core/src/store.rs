@@ -11,6 +11,8 @@ use rusqlite::{Connection, TransactionBehavior, params};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
+pub mod mailbox;
+
 /// Initial numbered migration.
 const SCHEMA: &str = "
 CREATE TABLE accounts (id TEXT PRIMARY KEY NOT NULL);
@@ -38,6 +40,20 @@ pub struct Store {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// Invalid identity, page size or filesystem encoding.
+    InvalidInput,
+    /// A server UID cannot be rebound to a different canonical message.
+    IdentityConflict,
+    /// The requested message is not cached in this account.
+    MissingMessage,
+    /// SELECT's generation has changed; old work must be discarded.
+    StaleMailbox,
+    /// Database belongs to a newer application schema.
+    UnsupportedSchema,
+    /// Original MIME could not be projected within its resource budget.
+    Mime(crate::mime::Error),
+    /// Cached metadata serialization failed.
+    Metadata(serde_json::Error),
     /// A hash-named destination is not the expected regular file.
     CorruptBlob,
     /// Filesystem access failed.
@@ -46,6 +62,30 @@ pub enum Error {
     Migration(rusqlite_migration::Error),
     /// SQLite operation failed.
     Sql(rusqlite::Error),
+}
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::InvalidInput => "invalid mailbox identity or request limit",
+            Self::IdentityConflict => "server message identity conflicts with cached mail",
+            Self::MissingMessage => "message is not cached in this account",
+            Self::StaleMailbox => "mailbox generation changed; resynchronization required",
+            Self::UnsupportedSchema => "mail database was created by a newer application",
+            Self::Mime(_) => "message exceeds supported MIME parsing limits",
+            Self::Metadata(_) => "cached message metadata is invalid",
+            Self::CorruptBlob => "cached original failed its integrity check",
+            Self::Io(_) => "mail storage filesystem operation failed",
+            Self::Migration(_) => "mail database migration failed; original data retained",
+            Self::Sql(_) => "mail database operation failed",
+        })
+    }
+}
+impl core::error::Error for Error {}
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Metadata(value)
+    }
 }
 
 #[expect(
@@ -104,8 +144,24 @@ impl Store {
         fs::set_permissions(&database, fs::Permissions::from_mode(0o600))?;
         let mut connection = Connection::open(database)?;
         connection.busy_timeout(Duration::from_secs(5))?;
-        connection.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
-        Migrations::new(vec![M::up(SCHEMA)]).to_latest(&mut connection)?;
+        connection.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;")?;
+        let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if version > 2 {
+            return Err(Error::UnsupportedSchema);
+        }
+        if version > 0 && version < 2 {
+            backup_schema(&connection, root, version)?;
+        }
+        // SQLite's documented table-rebuild procedure: disable enforcement
+        // outside the transaction, then validate every FK before committing.
+        connection.pragma_update(None, "foreign_keys", "OFF")?;
+        let migrated = Migrations::new(vec![
+            M::up(SCHEMA).foreign_key_check(),
+            M::up(mailbox::SCHEMA).foreign_key_check(),
+        ])
+        .to_latest(&mut connection);
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        migrated?;
         return Ok(Self { blobs, connection });
     }
 
@@ -211,6 +267,24 @@ impl Store {
     }
 }
 
+/// SQLite creates a consistent backup that includes committed WAL state. A
+/// filesystem copy of the main database file alone would not provide that.
+fn backup_schema(connection: &Connection, root: &Path, version: u32) -> Result<(), Error> {
+    let directory = root.join("backups");
+    fs::create_dir_all(&directory)?;
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
+    let backup = tempfile::Builder::new()
+        .prefix(&format!("schema-{version}-"))
+        .suffix(".sqlite3")
+        .tempfile_in(&directory)?;
+    let path = backup.path().to_str().ok_or(Error::InvalidInput)?;
+    connection.execute("VACUUM INTO ?1", params![path])?;
+    backup.as_file().sync_all()?;
+    let _retained = backup.keep().map_err(|error| error.error)?;
+    fs::File::open(directory)?.sync_all()?;
+    Ok(())
+}
+
 /// Persist and validate a content-addressed original while holding the SQLite writer lock.
 #[expect(
     clippy::needless_return,
@@ -272,7 +346,7 @@ mod tests {
         let orphan = super::write_blob(&store.blobs, b"unreferenced synthetic blob").unwrap();
         store.connection.execute_batch("INSERT INTO accounts VALUES ('a'); INSERT INTO folders VALUES (7, 'a', 'INBOX', 42, 1); INSERT INTO drafts VALUES ('d', x'01'); INSERT INTO outbox VALUES ('o', x'02', 'pending');").unwrap();
         store.connection.execute("INSERT INTO messages (id, account_id, message_id, subject, preview, blob_hash) VALUES (11, 'a', '<synthetic>', 'subject', 'preview', ?1)", params![hash]).unwrap();
-        store.connection.execute_batch("INSERT INTO memberships VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
+        store.connection.execute_batch("INSERT INTO memberships (account_id, folder_id, uidvalidity, uid, message_id, seen) VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
         store.clear_rebuildable_indexes().unwrap();
         drop(store);
         let mut reopened = Store::open(dir.path()).unwrap();
@@ -470,13 +544,16 @@ mod tests {
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
         drop(store);
         let reopened = Store::open(dir.path()).unwrap();
         let reopened_version: i64 = reopened
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(reopened_version, 1);
+        assert_eq!(reopened_version, 2);
     }
 }
+
+#[cfg(test)]
+mod migration_tests;

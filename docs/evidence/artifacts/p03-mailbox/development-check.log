@@ -1,0 +1,233 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-mail/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-mail` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.58s
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-mail/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-mail` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+    Checking mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.44s
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-mail/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-mail` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-render/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-render` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-config/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-config` (manifest) generated 1 warning
+warning: `package.homepage` is redundant with `package.repository`
+ --> crates/mailstronaut-core/Cargo.toml:8:1
+  |
+7 | repository.workspace = true
+  | ----------
+8 | homepage.workspace = true
+  | ^^^^^^^^
+  |
+  = note: `cargo::redundant_homepage` is set to `warn` by default
+help: consider removing `package.homepage`
+warning: `mailstronaut-core` (manifest) generated 1 warning
+   Compiling mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.65s
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-core/514c0ed632753142/out/mailstronaut_core-514c0ed632753142)
+
+running 10 tests
+test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+test store::tests::failed_insert_leaves_collectible_orphan ... ok
+test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+test store::migration_tests::future_schema_is_rejected_without_downgrading_or_clearing_data ... ok
+test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+test store::migration_tests::removed_messages_never_reuse_an_old_reminder_identity_even_after_restart ... ok
+test store::migration_tests::upgrades_with_consistent_private_backup_including_committed_wal ... ok
+test store::migration_tests::failed_upgrade_rolls_back_schema_and_keeps_original_user_state ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/mailbox.rs (target/debug/build/mailstronaut-core/7263d71987f76630/out/mailbox-7263d71987f76630)
+
+running 5 tests
+test raw_messages_without_identifiers_do_not_collapse_and_corruption_is_rejected ... ok
+test uid_conflicts_and_stale_generations_do_not_retarget_cached_messages ... ok
+test gmail_ids_win_over_header_duplicates_and_share_label_copies ... ok
+test canonical_copies_remain_account_local_and_distinct_bodies_stay_distinct ... ok
+test keyset_pagination_survives_new_arrivals_and_disabled_accounts ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/mime.rs (target/debug/build/mailstronaut-core/f34dfab3c284c08b/out/mime-f34dfab3c284c08b)
+
+running 12 tests
+test tests::forwarded_message_is_not_outer_body ... ok
+test tests::html_preview_attachments_and_duplicate_cid ... ok
+test tests::missing_headers_still_produce_a_preview ... ok
+test tests::alternatives_headers_and_encodings ... ok
+test tests::preview_records_extracted_source_and_original_revision ... ok
+test tests::malformed_cid_is_not_resolved ... ok
+test tests::unique_cid_is_scoped_to_its_message ... ok
+test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+test tests::inline_encryption_is_detected_without_headers_or_after_a_long_preamble ... ok
+test tests::retained_headers_are_bounded_without_inventing_routing_addresses ... ok
+test tests::part_and_attachment_limits_are_reported ... ok
+test tests::bounds_encryption_and_malformed ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/worker.rs (target/debug/build/mailstronaut-core/451e3e9ce3afdd87/out/worker-451e3e9ce3afdd87)
+
+running 2 tests
+test durable_round_trip_restarts_and_shutdown_closes_cloned_handles ... ok
+test sqlite_writer_contention_does_not_block_the_async_timer ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+   Doc-tests mailstronaut_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

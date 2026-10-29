@@ -17,6 +17,10 @@ rusqlite.workspace = true
 rusqlite_migration.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rustix.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true
