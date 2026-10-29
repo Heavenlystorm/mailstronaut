@@ -5306,7 +5306,9 @@ dependencies = [
 name = "mailstronaut-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "mail-parser",
+ "mailstronaut-config",
  "mailstronaut-mail",
  "rusqlite",
  "rusqlite_migration",

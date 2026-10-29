@@ -9,6 +9,9 @@ use lettre::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Standard validated address type reused for reply recipient preparation.
+pub use lettre::Address;
+
 /// Maximum decoded editor body in the initial composer.
 pub const MAX_BODY_BYTES: usize = 256 * 1024;
 /// Maximum complete frozen MIME original, matching local message storage.
@@ -242,7 +245,9 @@ fn recipients(value: &str) -> Result<Vec<Mailbox>, Error> {
         .map(Into::into)
         .map_err(|_| Error::Invalid)
 }
-fn valid_id(id: &str) -> bool {
+/// Whether an ancestry token fits the bounded header policy, without angle brackets.
+#[must_use]
+pub fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 998
         && id.is_ascii()

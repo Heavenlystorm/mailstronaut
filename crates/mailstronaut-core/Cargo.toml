@@ -11,6 +11,8 @@ categories.workspace = true
 readme.workspace = true
 
 [dependencies]
+chrono.workspace = true
+mailstronaut-config.workspace = true
 mail-parser.workspace = true
 rusqlite.workspace = true
 rusqlite_migration.workspace = true

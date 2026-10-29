@@ -57,7 +57,17 @@ start() {
   xdotool windowfocus "$window"
   sleep 1
 }
-stop() { kill "$app"; wait "$app" 2>/dev/null || true; app=''; }
+stop() {
+  if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 ]]; then
+    xdotool mousemove --window "$window" 1000 24 click 1
+    for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
+    if kill -0 "$app" 2>/dev/null; then printf '%s\n' 'Close failed to finish draft persistence' >&2; exit 1; fi
+    wait "$app"
+  else
+    kill "$app"; wait "$app" 2>/dev/null || true
+  fi
+  app=''
+}
 capture() { xdotool mousemove --window "$window" 5 5; sleep .2; magick import -window "$window" "$root/inbox-gui/$1.png"; }
 copy_body() {
   xdotool mousemove --window "$window" 300 280 click 1
@@ -68,6 +78,45 @@ copy_body() {
 import pathlib,sys
 assert 'Synthetic body for offline reading.' in pathlib.Path(sys.argv[1]).read_text()
 PY
+}
+reply_drafts() {
+  # The only source message and its recipients are synthetic. This flow never
+  # clicks Send, and SMTP is deliberately configured to an invalid test host.
+  xdotool mousemove --window "$window" 555 300 click 1
+  sleep .8
+  capture reply
+  xdotool mousemove --window "$window" 300 420 click 1
+  xdotool key --clearmodifiers ctrl+Home
+  xdotool type --clearmodifiers --delay 1 'Unsaved reply edit. '
+  # Switch immediately: reply-all must save the current editor before replacing it.
+  xdotool mousemove --window "$window" 55 310 click 1
+  xdotool mousemove --window "$window" 635 300 click 1
+  sleep .8
+  capture reply-all
+  xdotool mousemove --window "$window" 55 310 click 1
+  xdotool mousemove --window "$window" 755 300 click 1
+  sleep .8
+  capture text-forward
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYREPLY'
+import json,sqlite3,sys
+db=sqlite3.connect(sys.argv[1])
+rows=db.execute('SELECT account_id,content,closed FROM drafts ORDER BY rowid').fetchall()
+assert len(rows)==3 and all(account=='inbox-synthetic' and closed==0 for account,_,closed in rows)
+reply,all_reply,forward=[json.loads(content) for _,content,_ in rows]
+assert reply['from']=='Synthetic inbox <reader@example.test>'
+assert reply['to']=='Synthetic Sender <sender@example.test>'
+assert reply['body'].startswith('Unsaved reply edit. ')
+for draft in (reply,all_reply):
+    assert draft['subject']=='Re: Offline fixture'
+    assert draft['in_reply_to']=='fixture@example.test'
+    assert draft['references']==['fixture@example.test']
+    assert draft['bcc']=='' and '> Synthetic body for offline reading.' in draft['body']
+assert forward['subject']=='Fwd: Offline fixture' and forward['to']==''
+assert forward['in_reply_to'] is None and forward['references']==[]
+assert 'attachments not included' in forward['body'] and forward['bcc']==''
+assert db.execute('SELECT count(*) FROM outbox').fetchone()[0]==0
+print('Native reply/reply-all/text forward created three durable drafts, saved an intervening edit, and never queued mail.')
+PYREPLY
 }
 start online
 xdotool mousemove --window "$window" 300 242 click 1
@@ -92,6 +141,7 @@ done
 capture inbox
 copy_body online
 capture reader
+if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 ]]; then reply_drafts; fi
 stop
 wait "$server"; server=''
 sed -i 's/appearance = "dark"/appearance = "light"/' "$root/inbox-config.nix"
@@ -100,6 +150,30 @@ xdotool mousemove --window "$window" 55 310 click 1
 sleep .5
 copy_body offline
 capture offline
+if [[ ${MAILSTRONAUT_REPLY_GUI:-0} == 1 ]]; then
+  xdotool mousemove --window "$window" 55 358 click 1
+  sleep .5
+  capture offline-reply-drafts
+  xdotool mousemove --window "$window" 300 420 click 1
+  sleep .5
+  capture offline-reply-editor
+  xdotool mousemove --window "$window" 300 420 click 1
+  xdotool key --clearmodifiers ctrl+a ctrl+c
+  timeout 5 xclip -selection clipboard -out > "$root/inbox-gui/recovered-reply.txt"
+  python3 - "$root/inbox-gui/recovered-reply.txt" <<'PYCOPY'
+import pathlib,sys
+text=pathlib.Path(sys.argv[1]).read_text()
+assert text.startswith('Unsaved reply edit. ') and '> Synthetic body for offline reading.' in text
+print('Native editor reopened the saved reply offline with its last edit and quote intact.')
+PYCOPY
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYRESTART'
+import json,sqlite3,sys
+db=sqlite3.connect(sys.argv[1]); rows=db.execute('SELECT content FROM drafts ORDER BY rowid').fetchall()
+assert len(rows)==3 and json.loads(rows[0][0])['body'].startswith('Unsaved reply edit. ')
+assert db.execute('SELECT count(*) FROM outbox').fetchone()[0]==0
+print('Offline restart preserved all three reply/forward drafts and did not queue or submit mail.')
+PYRESTART
+fi
 stop
 python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PY'
 import sqlite3,sys

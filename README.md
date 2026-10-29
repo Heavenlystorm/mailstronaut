@@ -60,8 +60,9 @@ the encrypted keyring and access tokens stay in memory. Google needs your own
 registered public desktop client ID; live sign-in acceptance remains open. Closing the
 window saves the final edit. Delivery uncertainty remains visible and requires an
 explicit possible-duplicate retry; accepted mail cannot be resent to repair a Sent
-copy. Sent APPEND, attachments, reply/forward and automatic/background sync remain
-unimplemented. The Servo preview still accepts only its fixed synthetic document.
+copy. The cached reader can prepare reply/reply-all drafts and explicit text-only
+forwards; routing uses Reply-To, the receiving account/alias and bounded ancestry.
+Sent APPEND, attachments and automatic/background sync remain unimplemented. The Servo preview still accepts only its fixed synthetic document.
 Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P02](docs/evidence/P02.md), [P03](docs/evidence/P03.md), and

@@ -32,6 +32,7 @@ pub enum Field {
 #[derive(Clone, Debug)]
 pub enum Switch {
     New,
+    Prepared(Private<Box<Draft>>),
     Sender(usize),
     Draft(String, String),
     Recover(String, String),
@@ -258,6 +259,12 @@ impl Composer {
         self.draft = Some(draft);
         self.status = "Draft loaded.".into();
     }
+    pub fn prepared(&mut self, draft: Draft) -> Task<super::Message> {
+        self.update(
+            Message::Switch(Switch::Prepared(Private(Box::new(draft)))),
+            None,
+        )
+    }
     fn request_switch(&mut self, target: Switch) -> Task<super::Message> {
         self.autosave.cancel();
         if let (Some(draft), Some(store)) = (&self.draft, &self.store)
@@ -273,6 +280,11 @@ impl Composer {
     }
     fn switch(&mut self, target: Switch) -> Task<super::Message> {
         match target {
+            Switch::Prepared(Private(draft)) => {
+                self.load(*draft);
+                self.saved_revision = 0;
+                return self.save();
+            }
             Switch::New => {
                 let Some(identity) = self.selected.and_then(|index| self.identities.get(index))
                 else {

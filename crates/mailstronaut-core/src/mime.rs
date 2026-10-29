@@ -44,6 +44,9 @@ pub struct Headers {
     pub date: Option<i64>,
     /// Sender mailboxes.
     pub from: Vec<Mailbox>,
+    /// Explicit reply routing, defaulting empty for older cached projections.
+    #[serde(default)]
+    pub reply_to: Vec<Mailbox>,
     /// Reply identifiers in order.
     pub in_reply_to: Vec<String>,
     /// Message identifier without angle brackets.
@@ -316,6 +319,7 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
             .in_reply_to()
             .map_or_else(Vec::new, |values| identifiers(values.iter(), &mut status)),
         from: addresses(message.from(), &mut status),
+        reply_to: addresses(message.reply_to(), &mut status),
         to: addresses(message.to(), &mut status),
         cc: addresses(message.cc(), &mut status),
         bcc: addresses(message.bcc(), &mut status),

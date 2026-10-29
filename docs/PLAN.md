@@ -280,6 +280,12 @@ Deliver screenshots/interaction checklist and measurements in P06 evidence.
   Synthetic localhost TLS and private Xvfb/keyring evidence: [P07](evidence/P07.md).
   This covers neither full composer/action acceptance nor provider/distribution gates.
 
+- [x] Add bounded reply/reply-all and explicit text-only forwarding to the native
+  cached reader, with receiving-account/alias selection, self/recipient exclusion,
+  thread headers, safe draft switching and offline recovery. Synthetic development
+  and native GUI acceptance: [reply evidence](evidence/P07-reply.md). Attachments,
+  real-provider reply delivery and release/distribution checks remain open.
+
 - [ ] Implement native plain-text composer, account/alias identity selection,
   To/Cc/Bcc, attachments via portals, signature, reply/reply-all/forward and validation.
 - [ ] Use lettre's typed MIME builder for headers, References/In-Reply-To, UTF8,

@@ -301,6 +301,12 @@ impl Inbox {
         )
     }
 
+    pub fn compose_source(&self) -> Option<(&str, &Projection)> {
+        Some((&self.selected.as_ref()?.0, &self.body.as_ref()?.projection))
+    }
+    pub fn status(&mut self, value: String) {
+        self.status = vec![value];
+    }
     fn reader_view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
         let Some(body) = &self.body else {
             return widget::text(if self.selected.is_some() {
@@ -327,6 +333,19 @@ impl Inbox {
                 "This message is incomplete or has unsupported formatting.",
             ));
         }
+        reader = reader.push(
+            row![
+                widget::button::text("Reply")
+                    .on_press(super::Message::Reply(mailstronaut_core::reply::Kind::Reply)),
+                widget::button::text("Reply all").on_press(super::Message::Reply(
+                    mailstronaut_core::reply::Kind::ReplyAll
+                )),
+                widget::button::text("Forward as text").on_press(super::Message::Reply(
+                    mailstronaut_core::reply::Kind::ForwardText
+                ))
+            ]
+            .spacing(8),
+        );
         // Retain decoded content in widget state; no HTML engine receives it.
         reader
             .push(crate::text_reader::view(

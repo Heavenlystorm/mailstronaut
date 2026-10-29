@@ -71,6 +71,7 @@ enum Page {
 #[derive(Clone, Debug)]
 enum Message {
     Composer(composer::Message),
+    Reply(mailstronaut_core::reply::Kind),
     Quit,
     CloseRequested(window::Id),
     QuitSaved(Result<(), mailstronaut_core::worker::Error>),
@@ -247,6 +248,7 @@ impl cosmic::Application for App {
                 return cosmic::iced::exit();
             }
             Message::Composer(message) => return self.compose_message(message),
+            Message::Reply(kind) => return self.reply(kind),
             Message::Inbox(message) => {
                 let task = self.inbox.update(message, self.accounts.authentication());
                 return Task::batch([task, self.composer.attach(self.inbox.store())]);
@@ -421,6 +423,32 @@ impl App {
             self.inbox.configure(self.accounts.active()),
             self.composer.configure(self.accounts.active()),
         ])
+    }
+    fn reply(&mut self, kind: mailstronaut_core::reply::Kind) -> Task<Message> {
+        if self.quitting || self.composer.busy() || self.accounts.loading() {
+            self.inbox
+                .status("Finish the current compose operation before creating a reply.".into());
+            return Task::none();
+        }
+        let (Some(config), Some((id, projection))) =
+            (self.accounts.active(), self.inbox.compose_source())
+        else {
+            return Task::none();
+        };
+        let Some(account) = config.accounts.iter().find(|account| account.id == id) else {
+            return Task::none();
+        };
+        match mailstronaut_core::reply::prepare(account, projection, kind) {
+            Ok(draft) => {
+                self.page = Page::Compose;
+                self.accounts.clear_input();
+                self.composer.prepared(draft)
+            }
+            Err(error) => {
+                self.inbox.status(error.to_string());
+                Task::none()
+            }
+        }
     }
     fn compose_message(&mut self, message: composer::Message) -> Task<Message> {
         if self.quitting
