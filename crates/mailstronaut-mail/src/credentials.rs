@@ -27,6 +27,7 @@ pub struct Key {
     account: String,
     reference: String,
     purpose: Purpose,
+    oauth_context: Option<String>,
 }
 impl Key {
     /// Validate a stable config identity before any backend access.
@@ -48,11 +49,30 @@ impl Key {
             account: account.into(),
             reference: reference.into(),
             purpose,
+            oauth_context: None,
         })
     }
 
-    fn attributes(&self) -> [(&str, &str); 4] {
-        [
+    /// Bind a refresh credential to a SHA-256 digest of its public OAuth metadata.
+    /// Different clients/issuers/scopes cannot retrieve each other's stored token.
+    ///
+    /// # Errors
+    /// Only refresh credentials and lowercase 64-hex context hashes are accepted.
+    pub fn bind_oauth(mut self, context: String) -> Result<Self, Error> {
+        if self.purpose != Purpose::RefreshToken
+            || context.len() != 64
+            || !context
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        {
+            return Err(Error::Invalid);
+        }
+        self.oauth_context = Some(context);
+        Ok(self)
+    }
+
+    fn attributes(&self) -> Vec<(&str, &str)> {
+        let mut attributes = vec![
             ("application", APPLICATION),
             ("account", &self.account),
             ("reference", &self.reference),
@@ -63,7 +83,11 @@ impl Key {
                     Purpose::RefreshToken => "oauth-refresh",
                 },
             ),
-        ]
+        ];
+        if let Some(context) = &self.oauth_context {
+            attributes.push(("oauth-context", context));
+        }
+        attributes
     }
 }
 
@@ -204,7 +228,7 @@ impl Store {
         .map_err(|_| Error::TimedOut)?
     }
 
-    /// Delete only this exact scoped credential after an explicit user request.
+    /// Delete this scoped credential on explicit removal or confirmed provider revocation.
     ///
     /// # Errors
     /// Rejects ambiguity and locked/unavailable storage; never broadens the query.

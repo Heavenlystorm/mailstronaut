@@ -217,6 +217,12 @@ shows it reduces work without changing correctness. Deliver P04 evidence.
 
 Standard OAuth2 library, external browser and oo7; no login UI inside Servo.
 
+- [x] Deliver the bounded public-client prototype: native portal authorization,
+  library S256/CSRF/code exchange, bound encrypted refresh storage, serialized
+  rotation and IMAP/SMTP credential sharing. Local protocol/keyring/native mock-
+  portal evidence: [P05](evidence/P05.md). Live providers and full auth acceptance
+  below remain pending.
+
 - [ ] Implement shared authorization-code + S256 PKCE + CSRF state/loopback flow,
   secure callback lifecycle and redacted errors; timeout/duplicate/cancel/denial tests.
 - [ ] Implement serialized refresh/rotation, expiry and invalid_grant behavior,

@@ -1,0 +1,22 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Native editable fields and local autosave verified.
+Close flushed the last edit and exited normally.
+Native OAuth grant refreshed after restart and rotated before SMTP submission.
+Restart preserved terminal submission state, fixed Message-ID and exact recipient DATA bytes.
+Native compose GUI artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.0dnHSRU4/compose-gui
+
+running 1 test
+Private OAuth: refresh rotation persisted before shared use, restart recovery, locked-cache denial and revoked-credential removal passed.
+test private_secret_service_oauth_rotation_is_serialized_and_revocation_stops_retries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.16s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.0dnHSRU4

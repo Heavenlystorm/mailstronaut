@@ -77,7 +77,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-ggulS3ACyR8TdFKcKH3UiEqkMoxrlPfu84UdOrT4eXY=";
+          cargoHash = "sha256-5TPnIGPa3kvB+hGcVdVSXfgIjjct/2EpwWMPNlq6TVY=";
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit pname version;
             hash = cargoHash;
@@ -184,12 +184,31 @@
               export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
             '';
             postCheck = ''
-              MAILSTRONAUT_CREDENTIAL_TEST_PROFILE=release \
-                CARGO_BUILD_TARGET=${pkgs.stdenv.hostPlatform.rust.rustcTarget} \
+              # Reuse the just-tested workspace feature graph. Building only the
+              # credential target again changes unified features and recompiles
+              # dependencies even though its test executable already exists.
+              cargo test --release --workspace --all-features --locked --offline \
+                --target ${target} --no-run --message-format=json \
+                > "$NIX_BUILD_TOP/private-fixtures.json"
+              fixture_path() {
+                python3 -c '
+              import json, sys
+              records = [json.loads(line) for line in open(sys.argv[1])]
+              paths = [r["executable"] for r in records if r.get("target", {}).get("name") == sys.argv[2] and r.get("executable")]
+              assert len(paths) == 1, "expected one compiled credential fixture"
+              print(paths[0])
+              ' "$NIX_BUILD_TOP/private-fixtures.json" "$1"
+              }
+              credential_fixture="$(fixture_path credentials)"
+              oauth_fixture="$(fixture_path oauth)"
+              MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
+                bash experiments/p02-accounts/credentials.sh
+              MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
+                MAILSTRONAUT_OAUTH_FIXTURE="$oauth_fixture" \
                 bash experiments/p02-accounts/credentials.sh
             '';
             meta = {
-              description = "Mailstronaut planning scaffold; not yet a usable mail client";
+              description = "Local email client for COSMIC; development prototype";
               homepage = "https://github.com/eduardz1/mailstronaut";
               license = pkgs.lib.licenses.gpl3Only;
               mainProgram = "mailstronaut";

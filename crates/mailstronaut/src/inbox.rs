@@ -16,7 +16,7 @@ use cosmic::{
     widget,
 };
 use futures_util::{StreamExt as _, stream};
-use mailstronaut_config::{Account, Auth, Config};
+use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
     mime::Projection,
     store::mailbox::{Cursor, Summary},
@@ -24,8 +24,8 @@ use mailstronaut_core::{
     worker::{self, Worker},
 };
 use mailstronaut_mail::{
-    credentials::{Key, Purpose, Store},
-    imap::{Authentication, Connection},
+    auth::Session,
+    imap::{self, Connection},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -124,7 +124,7 @@ impl Inbox {
         self.selected.is_some()
     }
 
-    pub fn update(&mut self, message: Message, keyring: Option<Store>) -> Task<super::Message> {
+    pub fn update(&mut self, message: Message, keyring: Option<Session>) -> Task<super::Message> {
         match message {
             Message::Started(Payload(result)) => match result {
                 Ok(owner) => {
@@ -233,7 +233,7 @@ impl Inbox {
             move |result| event(Message::Rows(generation, listing, Payload(result))),
         )
     }
-    fn synchronize(&mut self, keyring: Option<Store>, older: bool) -> Task<super::Message> {
+    fn synchronize(&mut self, keyring: Option<Session>, older: bool) -> Task<super::Message> {
         let (Some(owner), Some(config), Some(keyring)) = (&self.owner, &self.config, keyring)
         else {
             self.status = vec![
@@ -412,7 +412,7 @@ const fn event(message: Message) -> Action<super::Message> {
 
 async fn synchronize_account(
     account: Account,
-    keyring: Store,
+    keyring: Session,
     store: worker::Handle,
     before: Option<sync::Position>,
     earliest: i64,
@@ -420,28 +420,31 @@ async fn synchronize_account(
     cancel: CancellationToken,
 ) -> AccountResult {
     let result = async {
-        let Auth::Password { secret_ref } = &account.auth else {
-            return Err("OAuth authorization is not implemented yet.".to_owned());
-        };
-        let key = Key::new(&account.id, secret_ref, Purpose::Password)
-            .map_err(|error| error.to_string())?;
-        let password = keyring
-            .get(&key)
+        let credential = keyring
+            .resolve(&account, false, &cancel)
             .await
-            .map_err(|error| error.to_string())?
-            .ok_or("No stored password. Save one in Accounts.")?;
+            .map_err(|error| error.to_string())?;
         let endpoint = account
             .incoming_endpoint()
             .ok_or("Incoming endpoint missing.")?;
-        let mut connection = Connection::connect(
+        let connection = Connection::connect(
             &endpoint,
             &account.tls,
             &account.user_name,
-            Authentication::Password(&password),
+            credential.authentication(),
             &cancel,
         )
-        .await
-        .map_err(|error| error.to_string())?;
+        .await;
+        drop(credential);
+        let mut connection = match connection {
+            Ok(connection) => connection,
+            Err(error) => {
+                if error == imap::Error::Authentication {
+                    keyring.invalidate(&account, false).await;
+                }
+                return Err(error.to_string());
+            }
+        };
         sync::page(
             &store,
             &mut connection,

@@ -248,7 +248,7 @@ impl cosmic::Application for App {
             }
             Message::Composer(message) => return self.compose_message(message),
             Message::Inbox(message) => {
-                let task = self.inbox.update(message, self.accounts.keyring());
+                let task = self.inbox.update(message, self.accounts.authentication());
                 return Task::batch([task, self.composer.attach(self.inbox.store())]);
             }
             Message::Appearance(dark) => {
@@ -402,7 +402,7 @@ impl cosmic::Application for App {
 
 impl App {
     fn account_message(&mut self, message: accounts::Message) -> Task<Message> {
-        if self.quitting {
+        if self.quitting && !matches!(message, accounts::Message::Authorized(..)) {
             return Task::none();
         }
         if matches!(message, accounts::Message::Reload) && self.composer.busy() {
@@ -414,7 +414,7 @@ impl App {
         let previous = self.accounts.revision();
         let task = self.accounts.update(message);
         if previous == self.accounts.revision() {
-            return task;
+            return Task::batch([task, self.maybe_quit()]);
         }
         Task::batch([
             task,
@@ -449,18 +449,25 @@ impl App {
                 .status("Wait for account configuration to finish loading.".into());
             return Task::none();
         }
-        let task = self.composer.update(message, self.accounts.keyring());
+        let task = self
+            .composer
+            .update(message, self.accounts.authentication());
         Task::batch([task, self.maybe_quit()])
     }
     fn request_quit(&mut self) -> Task<Message> {
         self.quitting = true;
         self.inbox.cancel();
         self.composer.cancel();
+        self.accounts.cancel_authorization();
         self.accounts.clear_input();
         self.maybe_quit()
     }
     fn maybe_quit(&mut self) -> Task<Message> {
-        if self.quitting && !self.quit_flushing && !self.composer.busy() {
+        if self.quitting
+            && !self.quit_flushing
+            && !self.composer.busy()
+            && !self.accounts.authenticating()
+        {
             self.quit_flushing = true;
             return self.composer.flush();
         }

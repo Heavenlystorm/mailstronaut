@@ -8,15 +8,14 @@ use cosmic::{
     iced::widget::{column, row},
     widget::{self, text_editor},
 };
-use mailstronaut_config::{Account, Auth, Config, Provider};
+use mailstronaut_config::{Account, Config, Provider};
 use mailstronaut_core::{
     store::outbox::{Draft, DraftSummary, Phase, Summary},
     worker::{self, Handle},
 };
 use mailstronaut_mail::{
+    auth::Session,
     compose,
-    credentials::{Key, Purpose, Store},
-    imap::Authentication,
     smtp::{Outcome, Transport},
 };
 use tokio_util::sync::CancellationToken;
@@ -137,7 +136,7 @@ impl Composer {
         self.status = message;
     }
 
-    pub fn update(&mut self, message: Message, keyring: Option<Store>) -> Task<super::Message> {
+    pub fn update(&mut self, message: Message, keyring: Option<Session>) -> Task<super::Message> {
         match message {
             Message::Switch(target) if !self.busy() => return self.request_switch(target),
             Message::Switched(generation, target, result) if generation == self.generation => {
@@ -411,7 +410,7 @@ impl Composer {
             .find(|account| account.id == id)
             .cloned()
     }
-    fn send(&mut self, keyring: Option<Store>) -> Task<super::Message> {
+    fn send(&mut self, keyring: Option<Session>) -> Task<super::Message> {
         let Some(draft) = self.draft.as_ref() else {
             return Task::none();
         };
@@ -444,7 +443,7 @@ impl Composer {
         id: String,
         phase: Phase,
         consent: bool,
-        keyring: Option<Store>,
+        keyring: Option<Session>,
     ) -> Task<super::Message> {
         let (Some(account), Some(store), Some(keyring)) =
             (self.account(account), self.store.clone(), keyring)
@@ -650,7 +649,7 @@ async fn send_new(
     store: Handle,
     draft: Draft,
     account: Account,
-    keyring: Store,
+    keyring: Session,
     cancel: CancellationToken,
 ) -> SendResult {
     if let Err(error) = save_snapshot(store.clone(), draft.clone()).await {
@@ -681,19 +680,18 @@ async fn submit_frozen(
     store: Handle,
     account: &Account,
     id: &str,
-    keyring: Store,
+    keyring: Session,
     cancel: CancellationToken,
 ) -> Result<Outcome, String> {
-    let Auth::Password { secret_ref } = account.smtp_auth.as_ref().unwrap_or(&account.auth) else {
-        return Err("OAuth authorization is not implemented yet; message remains queued.".into());
-    };
-    let key =
-        Key::new(&account.id, secret_ref, Purpose::Password).map_err(|error| error.to_string())?;
-    let password = keyring
-        .get(&key)
-        .await
-        .map_err(|error| error.to_string())?
-        .ok_or("No stored outgoing password. Message remains queued.")?;
+    let resolved = keyring.resolve(account, true, &cancel).await;
+    if cancel.is_cancelled() {
+        store
+            .cancel_submission(account.id.clone(), id.into())
+            .await
+            .map_err(|error| error.to_string())?;
+        return Ok(Outcome::CancelledBeforeSubmission);
+    }
+    let credential = resolved.map_err(|error| error.to_string())?;
     let endpoint = account
         .outgoing_endpoint()
         .ok_or("Outgoing endpoint missing.")?;
@@ -701,10 +699,11 @@ async fn submit_frozen(
         &endpoint,
         &account.tls,
         account.outgoing_user_name(),
-        Authentication::Password(&password),
+        credential.authentication(),
     )
     .await
     .map_err(|error| error.to_string())?;
+    drop(credential);
     if cancel.is_cancelled() {
         store
             .cancel_submission(account.id.clone(), id.into())
@@ -728,6 +727,9 @@ async fn submit_frozen(
         .finish_submission(submission, outcome)
         .await
         .map_err(|error| error.to_string())?;
+    if outcome == Outcome::AuthenticationRequired {
+        keyring.invalidate(account, true).await;
+    }
     if !allowed {
         return Err(
             "Sender identity is no longer enabled. No new attempt was submitted; check Outbox."

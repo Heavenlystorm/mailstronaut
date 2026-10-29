@@ -51,18 +51,22 @@ narrow overrides and removal condition in [.cargo/config.toml](.cargo/config.tom
 rendering probes. `nix run -- --config /path/to/config.nix` selects an explicit
 native source. Password accounts can save credentials through an explicitly
 unlocked encrypted keyring. Select Inbox and Sync inboxes to fetch a bounded page
-from each password account; cached messages open in the native text reader.
+from each configured account; cached messages open in the native text reader.
 Fetch older page continues the partial cache. Opening currently leaves read flags
 unchanged. Compose supports local autosaved drafts, account/alias identities,
-To/Cc/Bcc and explicit password-authenticated SMTP with required TLS. Closing the
+To/Cc/Bcc and explicit password/XOAUTH2 SMTP with required TLS.
+OAuth accounts can Connect in browser after keyring unlock; refresh tokens stay in
+the encrypted keyring and access tokens stay in memory. Google needs your own
+registered public desktop client ID; live sign-in acceptance remains open. Closing the
 window saves the final edit. Delivery uncertainty remains visible and requires an
 explicit possible-duplicate retry; accepted mail cannot be resent to repair a Sent
-copy. Sent APPEND, attachments, reply/forward, Google OAuth onboarding and
-automatic/background sync remain unimplemented. The Servo preview still accepts only its fixed synthetic document.
+copy. Sent APPEND, attachments, reply/forward and automatic/background sync remain
+unimplemented. The Servo preview still accepts only its fixed synthetic document.
 Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P02](docs/evidence/P02.md), [P03](docs/evidence/P03.md), and
-[P04 receiving/inbox](docs/evidence/P04.md), and
+[P04 receiving/inbox](docs/evidence/P04.md),
+[P05 OAuth](docs/evidence/P05.md), and
 [P07 compose/outbox](docs/evidence/P07.md). The flake exports
 x86_64-linux and aarch64-linux outputs; runtime verification and release support
 for each architecture are separate checklist gates. Flatpak production packaging

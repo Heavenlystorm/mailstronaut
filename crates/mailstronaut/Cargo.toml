@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 async-channel.workspace = true
+ashpd.workspace = true
 cosmic.workspace = true
 directories.workspace = true
 mailstronaut-config.workspace = true

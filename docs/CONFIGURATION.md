@@ -3,7 +3,8 @@
 This is the **target contract** for P02/P05/P08. Native file loading, bounded
 evaluation, last-valid reload, foreground password storage, bounded explicit
 password-account inbox fetching and plain-text draft/SMTP prototypes are implemented;
-OAuth, automatic synchronization and portal acceptance remain open. Canonical user
+Public-client OAuth/refresh and native browser-portal wiring are implemented;
+automatic synchronization and live-provider/real-portal acceptance remain open. Canonical user
 configuration is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
 Flatpak uses its usual application-specific XDG config directory. A `.nix` file is
 the actual input consumed by the Rust application in both distributions.
@@ -287,7 +288,9 @@ These are configuration evidence, not live login proof.
 
 ## Credential lifecycle
 
-Use oo7's standard native/portal-backed encrypted storage. Lookup attributes include
+Use oo7's standard native/portal-backed encrypted storage. OAuth items also bind
+their public client/provider/endpoint/scope metadata; changing it requires a new
+authorization rather than reusing a token with another issuer/client. Lookup attributes include
 the application ID, stable account ID and `secretRef`; never email contents. Store
 refresh tokens/app passwords here; access tokens stay redacted in memory. Serialize
 refresh per account and update rotated refresh tokens durably. `invalid_grant`

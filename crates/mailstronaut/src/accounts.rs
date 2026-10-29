@@ -4,7 +4,11 @@ use std::{env, path::PathBuf};
 
 use cosmic::{Action, Element, app::Task, iced::widget::column, widget};
 use mailstronaut_config::{Appearance, Auth, Config, source};
-use mailstronaut_mail::credentials::{self, Key, Purpose, Store};
+use mailstronaut_mail::{
+    auth::Session,
+    credentials::{self, Key, Purpose, Store},
+    oauth,
+};
 use secrecy::{ExposeSecret as _, SecretString};
 use tokio_util::sync::CancellationToken;
 
@@ -17,6 +21,9 @@ pub enum Message {
     Password(SecretString),
     Save,
     Unlock,
+    Authorize,
+    CancelAuthorization,
+    Authorized(u64, Result<(), String>),
     Connected(u64, Result<Store, credentials::Error>),
     Stored(u64, Result<(), credentials::Error>),
 }
@@ -39,6 +46,9 @@ pub struct Accounts {
     selected: Option<(String, Slot)>,
     password: SecretString,
     keyring: Option<Store>,
+    authentication: Option<Session>,
+    authorization: CancellationToken,
+    authenticating: bool,
     busy: bool,
     status: Option<String>,
 }
@@ -59,6 +69,15 @@ impl Accounts {
     /// Existing foreground-unlocked backend; this never opens a prompt itself.
     pub fn keyring(&self) -> Option<Store> {
         self.keyring.clone()
+    }
+    pub fn authentication(&self) -> Option<Session> {
+        self.authentication.clone()
+    }
+    pub const fn authenticating(&self) -> bool {
+        self.authenticating
+    }
+    pub fn cancel_authorization(&self) {
+        self.authorization.cancel();
     }
     pub fn new(path: Option<PathBuf>) -> (Self, Task<super::Message>) {
         let mut state = Self {
@@ -130,14 +149,30 @@ impl Accounts {
                 self.busy = false;
                 match result {
                     Ok(store) => {
+                        if self.authentication.is_none() {
+                            self.authentication = Some(Session::new(store.clone()));
+                        }
                         self.keyring = Some(store);
                         self.status = Some("Encrypted keyring ready.".into());
                     }
                     Err(error) => {
                         self.keyring = None;
+                        self.authentication = None;
                         self.status = Some(error.to_string());
                     }
                 }
+            }
+            Message::Authorize if !self.busy && !self.loading => return self.authorize(),
+            Message::CancelAuthorization => self.authorization.cancel(),
+            Message::Authorized(generation, result) if generation == self.generation => {
+                self.busy = false;
+                self.authenticating = false;
+                self.status = Some(match result {
+                    Ok(()) => {
+                        "Authorization saved in encrypted keyring. You can sync or send.".into()
+                    }
+                    Err(error) => error,
+                });
             }
             Message::Save if !self.busy && !self.loading => return self.save(),
             Message::Stored(generation, result) if generation == self.generation => {
@@ -203,6 +238,38 @@ impl Accounts {
             async move { keyring.put(&key, &password).await },
             move |result| {
                 Action::App(super::Message::Accounts(Message::Stored(
+                    generation, result,
+                )))
+            },
+        )
+    }
+
+    fn authorize(&mut self) -> Task<super::Message> {
+        let (Some(session), Some((id, slot)), Some(config)) = (
+            self.authentication.clone(),
+            self.selected.clone(),
+            self.active(),
+        ) else {
+            self.status = Some("Unlock the encrypted keyring before connecting.".into());
+            return Task::none();
+        };
+        let Some(account) = config
+            .accounts
+            .iter()
+            .find(|account| account.id == id)
+            .cloned()
+        else {
+            return Task::none();
+        };
+        self.busy = true;
+        self.authenticating = true;
+        self.authorization = CancellationToken::new();
+        let (cancel, generation) = (self.authorization.clone(), self.generation);
+        self.status = Some("Complete authorization in your external browser.".into());
+        Task::perform(
+            authorize(session, account, matches!(slot, Slot::Outgoing), cancel),
+            move |result| {
+                Action::App(super::Message::Accounts(Message::Authorized(
                     generation, result,
                 )))
             },
@@ -325,13 +392,73 @@ impl Accounts {
                 ),
             );
         } else if self.selected.is_some() {
-            content = content.push(widget::text("This account requires external-browser OAuth authorization; that connection flow is not implemented yet."));
+            content = content.push(widget::text(
+                "Sign in using your browser. Credentials stay in your encrypted keyring.",
+            ));
+            content = content.push(widget::button::text("Unlock keyring").on_press_maybe(
+                (!self.busy && !self.loading).then_some(super::Message::Accounts(Message::Unlock)),
+            ));
+            content = content.push(
+                widget::button::text("Connect in browser").on_press_maybe(
+                    (!self.busy && !self.loading && self.authentication.is_some())
+                        .then_some(super::Message::Accounts(Message::Authorize)),
+                ),
+            );
+            if self.authenticating {
+                content = content.push(
+                    widget::button::text("Cancel authorization")
+                        .on_press(super::Message::Accounts(Message::CancelAuthorization)),
+                );
+            }
         }
         if let Some(status) = &self.status {
             content = content.push(widget::text(status));
         }
         content.into()
     }
+}
+
+async fn authorize(
+    session: Session,
+    account: mailstronaut_config::Account,
+    outgoing: bool,
+    cancel: CancellationToken,
+) -> Result<(), String> {
+    let auth = if outgoing {
+        account.smtp_auth.as_ref().unwrap_or(&account.auth)
+    } else {
+        &account.auth
+    };
+    let provider = oauth::Provider::prepare(auth, &account.tls)
+        .await
+        .map_err(|error| error.to_string())?;
+    let flow = provider
+        .begin(&account.address)
+        .await
+        .map_err(|error| error.to_string())?;
+    let opened = cancel
+        .run_until_cancelled(tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            ashpd::desktop::open_uri::OpenFileRequest::default()
+                .ask(false)
+                .send_uri(flow.authorization_url()),
+        ))
+        .await
+        .ok_or("Authorization cancelled.")?
+        .map_err(|_| "External browser portal timed out.")?
+        .map_err(|_| "External browser portal unavailable or access refused.")?;
+    opened
+        .response()
+        .map_err(|_| "External browser request was declined.")?;
+    let grant = flow
+        .finish(&cancel)
+        .await
+        .map_err(|error| error.to_string())?;
+    // Finish this bounded encrypted write even if cancellation arrives now.
+    session
+        .accept(&account, outgoing, grant)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

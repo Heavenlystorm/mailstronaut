@@ -66,7 +66,13 @@ if [[ -n ${MAILSTRONAUT_CREDENTIAL_FIXTURE:-} ]]; then
 else
   credential_tests=(cargo test -p mailstronaut-mail --test credentials "${cargo_flags[@]}" --)
 fi
-"${credential_tests[@]}" private_secret_service_round_trip_isolation_rotation_and_lock --exact --ignored --nocapture | tee "$root/test.log"
+# Each fixture deliberately locks its private collection. Run one lifecycle per
+# fresh daemon/bus rather than depending on a desktop unlock prompter in tests.
+if [[ -n ${MAILSTRONAUT_OAUTH_FIXTURE:-} ]]; then
+  "$(realpath "$MAILSTRONAUT_OAUTH_FIXTURE")" private_secret_service_oauth_rotation_is_serialized_and_revocation_stops_retries --exact --ignored --nocapture | tee "$root/oauth.log"
+else
+  "${credential_tests[@]}" private_secret_service_round_trip_isolation_rotation_and_lock --exact --ignored --nocapture | tee "$root/test.log"
+fi
 kill "$keyring_pid"
 wait "$keyring_pid" 2>/dev/null || true
 keyring_pid=''
@@ -80,7 +86,7 @@ files = list(pathlib.Path(sys.argv[1]).rglob('*.keyring'))
 assert files, 'fixture did not persist an encrypted keyring'
 for path in files:
     data = path.read_bytes()
-    for value in (b'synthetic-rotated', b'synthetic-other-account', b'synthetic-refresh', b'synthetic-duplicate'):
+    for value in (b'synthetic-rotated', b'synthetic-other-account', b'synthetic-refresh', b'synthetic-duplicate', b'SYNTHETIC-OAUTH-INITIAL', b'SYNTHETIC-OAUTH-REFRESH-ONE', b'SYNTHETIC-OAUTH-REFRESH-TWO', b'SYNTHETIC-OAUTH-ROTATED', b'SYNTHETIC-OAUTH-REFRESH-THREE', b'SYNTHETIC-OAUTH-RECONNECTED', b'SYNTHETIC-PORTAL-REFRESH-ONE', b'SYNTHETIC-PORTAL-REFRESH-TWO', b'SYNTHETIC-OAUTH-ACCESS-NOT-REAL'):
         assert value not in data, 'synthetic credential appeared in persisted keyring bytes'
 print('Persisted fixture keyring contains none of the synthetic credential markers in plaintext.')
 PY

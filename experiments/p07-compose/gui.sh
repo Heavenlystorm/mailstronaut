@@ -10,13 +10,19 @@ mkdir -p "$root/compose-gui"
 export MAILSTRONAUT_SMTP_PORT_FILE="$root/compose-gui/port"
 export LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND=gl XDG_SESSION_TYPE=x11 WINIT_X11_SCALE_FACTOR=1
 unset WAYLAND_DISPLAY
-app='' xvfb='' server=''
+app='' xvfb='' server='' oauth_server=''
 cleanup() {
-  for pid in "$app" "$xvfb" "$server"; do
+  for pid in "$app" "$xvfb" "$server" "$oauth_server"; do
     if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   done
 }
 trap cleanup EXIT
+if [[ ${MAILSTRONAUT_COMPOSE_OAUTH:-0} == 1 ]]; then
+  export MAILSTRONAUT_SMTP_OAUTH=1
+  export MAILSTRONAUT_GUI_OAUTH_PORT_FILE="$root/compose-gui/oauth-port"
+  "${MAILSTRONAUT_OAUTH_FIXTURE:?prebuilt OAuth fixture}" --ignored --exact gui_loopback_server --nocapture > "$root/compose-gui/oauth-server.log" 2>&1 & oauth_server=$!
+  for _ in {1..100}; do [[ -s $MAILSTRONAUT_GUI_OAUTH_PORT_FILE ]] && break; kill -0 "$oauth_server"; sleep .05; done
+fi
 "$fixture" --ignored --exact gui_loopback_server --nocapture > "$root/compose-gui/server.log" 2>&1 & server=$!
 for _ in {1..100}; do [[ -s $MAILSTRONAUT_SMTP_PORT_FILE ]] && break; kill -0 "$server"; sleep .05; done
 port=$(cat "$MAILSTRONAUT_SMTP_PORT_FILE")
@@ -40,8 +46,17 @@ cat > "$root/compose-config.nix" <<NIX
   }];
 }
 NIX
+if [[ ${MAILSTRONAUT_COMPOSE_OAUTH:-0} == 1 ]]; then
+  python3 - "$root/compose-config.nix" "$(cat "$MAILSTRONAUT_GUI_OAUTH_PORT_FILE")" <<'PYOAUTH'
+import pathlib,sys
+path=pathlib.Path(sys.argv[1]); port=int(sys.argv[2])
+replacement=f'auth = {{kind = "oauth2"; provider = "custom"; clientId = "synthetic-public-client"; secretRef = "compose-password"; authorizationUrl = "https://localhost:{port}/authorize"; tokenUrl = "https://localhost:{port}/token"; scopes = [ "mail.read" "mail.send" ]; sasl = "xoauth2";}};'
+path.write_text(path.read_text().replace('auth = {kind = "password"; secretRef = "compose-password";};', replacement))
+PYOAUTH
+else
 printf 'SYNTHETIC-SMTP-SECRET-NOT-REAL' | secret-tool store --label='Synthetic compose fixture' \
   application "$(cat assets/app-id)" account compose-synthetic reference compose-password purpose password
+fi
 Xvfb -displayfd 3 -screen 0 1280x1000x24 -nolisten tcp 3> "$root/compose-gui/display" > "$root/compose-gui/xvfb.log" 2>&1 & xvfb=$!
 for _ in {1..100}; do [[ -s "$root/compose-gui/display" ]] && break; sleep .05; done
 DISPLAY=":$(cat "$root/compose-gui/display")"
@@ -66,6 +81,17 @@ start editing
 click 300 242
 click 240 362
 sleep .5
+if [[ ${MAILSTRONAUT_COMPOSE_OAUTH:-0} == 1 ]]; then
+  click 240 410
+  granted=0
+  for _ in {1..100}; do
+    if secret-tool lookup application "$(cat assets/app-id)" account compose-synthetic reference compose-password purpose oauth-refresh | python3 -c 'import sys; sys.exit(0 if sys.stdin.read().strip()=="SYNTHETIC-PORTAL-REFRESH-ONE" else 1)'; then granted=1; break; fi
+    kill -0 "$app"; sleep .1
+  done
+  [[ $granted == 1 ]]
+  sleep .3
+  capture browser-connected
+fi
 click 55 358
 sleep .5
 click 250 145
@@ -124,6 +150,10 @@ PY
   kill -0 "$app"; sleep .1
 done
 wait "$server"; server=''
+if [[ -n "$oauth_server" ]]; then
+  wait "$oauth_server"; oauth_server=''
+  secret-tool lookup application "$(cat assets/app-id)" account compose-synthetic reference compose-password purpose oauth-refresh | python3 -c 'import sys; assert sys.stdin.read().strip()=="SYNTHETIC-PORTAL-REFRESH-TWO"; print("Native OAuth grant refreshed after restart and rotated before SMTP submission.")'
+fi
 capture submitted
 python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/compose-gui/attempt" <<'PYTOKEN'
 import pathlib,sqlite3,sys

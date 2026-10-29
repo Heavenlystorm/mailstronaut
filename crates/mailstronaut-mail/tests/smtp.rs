@@ -3,7 +3,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use mailstronaut_config::{Endpoint, Tls};
+use mailstronaut_config::{Endpoint, Sasl, Tls};
 use mailstronaut_mail::{
     compose::{Content, Frozen},
     imap::Authentication,
@@ -23,6 +23,7 @@ const PASSWORD: &str = "SYNTHETIC-SMTP-SECRET-NOT-REAL";
 #[derive(Clone, Copy)]
 enum Mode {
     Accept,
+    AcceptOAuth,
     DropAfterData,
     RejectData,
     RejectAuth,
@@ -154,7 +155,11 @@ async fn serve(
         }
         observed.commands.push(line.clone());
         let response = if line.starts_with("EHLO ") {
-            "250-localhost\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN\r\n"
+            if matches!(mode, Mode::AcceptOAuth) {
+                "250-localhost\r\n250-8BITMIME\r\n250 AUTH XOAUTH2\r\n"
+            } else {
+                "250-localhost\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN\r\n"
+            }
         } else if line.starts_with("AUTH PLAIN ") {
             let encoded = line.trim_end().strip_prefix("AUTH PLAIN ").expect("auth");
             assert_eq!(
@@ -169,6 +174,18 @@ async fn serve(
                     .expect("auth refusal");
                 return observed;
             }
+            "235 2.7.0 authenticated\r\n"
+        } else if line.starts_with("AUTH XOAUTH2 ") {
+            assert!(matches!(mode, Mode::AcceptOAuth));
+            let encoded = line
+                .trim_end()
+                .strip_prefix("AUTH XOAUTH2 ")
+                .expect("XOAUTH2");
+            assert_eq!(
+                STANDARD.decode(encoded).expect("SASL"),
+                format!("user={USER}\x01auth=Bearer SYNTHETIC-OAUTH-ACCESS-NOT-REAL\x01\x01")
+                    .as_bytes()
+            );
             "235 2.7.0 authenticated\r\n"
         } else if line.starts_with("MAIL FROM:") || line.starts_with("RCPT TO:") {
             "250 2.1.0 accepted\r\n"
@@ -428,7 +445,9 @@ async fn gui_loopback_server() {
         .canonicalize()
         .expect("existing directory");
     assert!(directory.starts_with(workspace));
-    let mode = if std::env::var("MAILSTRONAUT_SMTP_DROP_ACK").as_deref() == Ok("1") {
+    let mode = if std::env::var("MAILSTRONAUT_SMTP_OAUTH").as_deref() == Ok("1") {
+        Mode::AcceptOAuth
+    } else if std::env::var("MAILSTRONAUT_SMTP_DROP_ACK").as_deref() == Ok("1") {
         Mode::DropAfterData
     } else {
         Mode::Accept
@@ -457,4 +476,42 @@ async fn gui_loopback_server() {
     std::fs::write(directory.join("received.eml"), observed.data)
         .expect("synthetic received original");
     println!("One SMTP DATA received; Bcc recipient was envelope-only.");
+}
+
+#[tokio::test]
+async fn oauth_submission_uses_only_the_advertised_xoauth2_mechanism_over_verified_tls() {
+    let (port, server) = fixture(false, true, Mode::AcceptOAuth).await;
+    let token = SecretString::from("SYNTHETIC-OAUTH-ACCESS-NOT-REAL");
+    let transport = Transport::prepare(
+        &endpoint("localhost", port, false),
+        &roots(),
+        USER,
+        Authentication::OAuth2 {
+            token: &token,
+            mechanism: Sasl::Xoauth2,
+        },
+    )
+    .await
+    .expect("prepare");
+    let message = message();
+    assert_eq!(
+        transport.submit(&message, &CancellationToken::new()).await,
+        Outcome::Accepted
+    );
+    let observed = server.await.expect("fixture");
+    assert_eq!(observed.data, message.original());
+    assert_eq!(
+        observed
+            .commands
+            .iter()
+            .filter(|line| line.starts_with("AUTH "))
+            .count(),
+        1
+    );
+    assert!(
+        !observed
+            .commands
+            .iter()
+            .any(|line| line.starts_with("AUTH PLAIN ") || line.starts_with("AUTH LOGIN"))
+    );
 }

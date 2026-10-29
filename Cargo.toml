@@ -22,6 +22,13 @@ servo = { version = "=0.7.0", default-features = false, features = ["baked-in-re
 ammonia = "=4.2.4"
 async-channel = "=2.5.0"
 http = "1"
+http-body-util = "=0.1.5"
+hyper = { version = "=1.12.0", default-features = false, features = ["http1", "server"] }
+hyper-util = { version = "=0.1.21", default-features = false, features = ["tokio"] }
+oauth2 = { version = "=5.0.0", default-features = false, features = ["timing-resistant-secret-traits"] }
+reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls-native-roots"] }
+ashpd = { version = "=0.12.3", default-features = false, features = ["tokio"] }
+zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
 content-security-policy = "=0.9.0"
 uuid = { version = "=1.29.0", features = ["v4"] }
 mail-parser = { version = "=1.0.0", features = ["full_encoding"] }
