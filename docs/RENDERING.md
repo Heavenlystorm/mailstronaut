@@ -230,8 +230,19 @@ while leaving HTML available. Record that HTML accessibility limitation; do not
 call a raster texture a fully accessible document. Native mode still has keyboard
 navigation, copyable text and attachments and uses COSMIC's native dark theme.
 
-Pinned candidate, not an implemented fallback: use
-`cosmic::widget::selectable_text` inside an Iced scrollable. The selected libcosmic
+The fixed synthetic message now has a native Text mode using
+`cosmic::widget::selectable_text` inside an Iced scrollable. It shares the decoded
+fixture with the HTML view, focuses the body when opened, and uses standard widget
+operations for Page Up/Down and Ctrl+Home/End. It accepts no arbitrary mail input.
+See [native text evidence](evidence/P01-text-reader.md) for validation and limits.
+Leave the selectable-text widget's generated ID alone. At this pin its wrapper
+forwards the ID to its inner text; a custom named ID caused duplicate named-state
+restoration and a stateless-state downcast panic. Its `operate` implementation
+also exposes an anonymous focus target, so ID-based focus has no effect. Place it
+in a named container and use the toolkit's `operation::scoped` with
+`focusable::focus_next` to focus its sole child. Standard selection and context
+menus remain enabled; no toolkit fork or custom focus widget is involved.
+The selected libcosmic
 defaults retain `a11y`; its wrapper delegates to Iced's selectable text, which
 already handles Unicode layout, focus, selection, Ctrl+A/C and copy context menus.
 The inspected paragraph accessibility node exposes the whole fragment as its
@@ -263,3 +274,10 @@ Source audit, 2026-10-28: [COSMIC selectable text](https://github.com/pop-os/lib
 [Iced editor](https://github.com/pop-os/iced/blob/229186b5180b6217d93866c912e6373ac378b231/widget/src/text_editor.rs),
 and the vendored Servo WebView/delegate APIs. No accessibility acceptance row is
 checked by this source audit.
+
+The subsequent private X11 AT-SPI run found an application and empty frame only,
+even after redraws. A standard GTK positive control exposed its label and button
+to the same observer. The inspected pinned winit runner creates an initial
+window-only tree without a found widget-tree publication call. See the native
+text evidence for the concrete upstream blocker; neither text nor HTML
+accessibility acceptance is complete.

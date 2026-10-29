@@ -1,0 +1,23 @@
+{
+  "source": "/nix/store/s76vmnbx0w69wdqzncazs0mrwg600vs0-source",
+  "files": {
+    "Cargo.toml": "7efd5204da719fdc7d41cc49b3c4a18e9c0d30699200007371ce3d0c72b211a9",
+    "Cargo.lock": "612e511dd2cd6554d868048635d57b7db47a93f1c8a72ac3158673971f4ecb9e",
+    "crates/mailstronaut/src/config_cli.rs": "a0b8c2948147e9b9fd25fc81e8382ebfd6bd596e3b64cb8a53ce8f9faad72a81",
+    "crates/mailstronaut/src/main.rs": "ad11fda286337aa235c906e5e205636030287d43f0d13a20fb228dfb2a0c0c17",
+    "crates/mailstronaut/src/text_reader.rs": "204d830a4c92206e3a78a706403197dc075b27f8180158dc4778ba4a80b1d8cc",
+    "crates/mailstronaut/tests/configuration.rs": "352e7c7fc6e659e820c97eda9349ce8ce1530e3aa4e3d13305c3cfe7a1121ed5",
+    "crates/mailstronaut-config/src/helper.rs": "fc2470a1029d89ad20e33b29013b1f74705354eecbf3cc1e535a0570989da908",
+    "crates/mailstronaut-config/src/lib.rs": "0fbc836d9013cd84c5a86eadc9ac3a74c7b5e8547843edd59fb286b2c9bdefd7",
+    "crates/mailstronaut-config/src/process.rs": "f000e28bd03a7579e16d1d5fc594bf10e4e6c99c5564ca11bb876677813f4d5b",
+    "crates/mailstronaut-core/src/lib.rs": "1f38f3c4f4ea9ad36e3c497989e77dc812851f4562e6d777fdb1696075cc34c2",
+    "crates/mailstronaut-core/src/mime.rs": "30dd23f9a55390968e91bf3fee10b2642117df14ac47b2b0107a191d3bc02f49",
+    "crates/mailstronaut-core/src/store.rs": "b244b33a37b12b74d1a0318944cdf18cefe0547c4922d97f39e398e820490dd0",
+    "crates/mailstronaut-core/tests/mime.rs": "db7c70b5810bc726153ba307f2c1b05c345f3fbe648e2b8fae55d4a24baa9bd7",
+    "crates/mailstronaut-render/src/lib.rs": "6a771b8ae568324e6365ba5efa2745d8aa8700efd7c97f09809b44d1f0b87a57",
+    "crates/mailstronaut/Cargo.toml": "47a8d591891c2bf42a63b6e5ffe551102c6e83a203f16d3b6d0511516a6eba37",
+    "crates/mailstronaut-config/Cargo.toml": "43e29111d062d48656343b4f7cb85ffb547eece4ec58e3e5a1de64fe02adbea1",
+    "crates/mailstronaut-core/Cargo.toml": "f9fa741aac1931e698b9bdf15663f9bd8c1f5738f97acbba3227da50632ece2f",
+    "crates/mailstronaut-render/Cargo.toml": "2ab893f37a19977023d8cd770b002da8cebda25bd410ecf459f0c017f7710c13"
+  }
+}

@@ -1,13 +1,14 @@
 //! Minimal native window for the rendering feasibility gate.
 
 mod config_cli;
+mod text_reader;
 
 use core::hash::{Hash, Hasher};
 use std::{env, process::ExitCode};
 
 use cosmic::app::{self, Core, Settings, Task};
 use cosmic::iced::widget::{column, image, mouse_area, row};
-use cosmic::iced::{Event, Point, Subscription, event, futures::stream, mouse, window};
+use cosmic::iced::{Event, Point, Subscription, event, futures::stream, keyboard, mouse, window};
 use cosmic::{Action, Element, cosmic_theme, executor, theme, widget};
 use mailstronaut_render::{Renderer, Viewport};
 
@@ -31,6 +32,8 @@ struct App {
     scale: f32,
     /// Dimensions of the current frame and viewport.
     size: (u32, u32),
+    /// Fixed synthetic decoded body shared by the HTML and native readers.
+    text: String,
     /// Disposable UI-thread viewport or its startup error.
     viewport: Option<Result<Viewport, String>>,
     /// Most recently reported logical window size.
@@ -44,6 +47,8 @@ enum Page {
     About,
     /// Synthetic reader preview.
     Preview,
+    /// Native selectable reader for the fixed synthetic message.
+    Text,
 }
 
 /// Actions from the native navigation.
@@ -51,6 +56,8 @@ enum Page {
 enum Message {
     /// Pointer moved within the viewport.
     Pointer(Point),
+    /// Keyboard scrolling in the native text reader.
+    Read(window::Id, text_reader::Command),
     /// Native window scale query completed.
     Scale(f32),
     /// Select a synthetic page.
@@ -89,6 +96,7 @@ impl cosmic::Application for App {
                 window_size: (1024.0, 768.0),
                 scale: 1.0,
                 pointer: Point::ORIGIN,
+                text: Renderer::synthetic_text(),
             },
             Task::done(Action::App(Message::Select(Page::Preview))),
         )
@@ -113,6 +121,26 @@ impl cosmic::Application for App {
             ) => Some(Message::Window(id, event)),
             _ => None,
         });
+        let reader = if matches!(self.page, Page::Text) {
+            event::listen_with(|incoming, _, id| {
+                if let Event::Keyboard(keyboard::Event::KeyPressed {
+                    key,
+                    modifiers,
+                    modified_key: _,
+                    physical_key: _,
+                    location: _,
+                    text: _,
+                    repeat: _,
+                }) = incoming
+                {
+                    return text_reader::command(key, modifiers)
+                        .map(|command| Message::Read(id, command));
+                }
+                None
+            })
+        } else {
+            Subscription::none()
+        };
         if let Ok(renderer) = self.renderer.as_ref() {
             let wakes = Subscription::run_with(Wakes(renderer.wake_receiver()), |wakes| {
                 stream::unfold(wakes.0.clone(), |receiver| async move {
@@ -123,9 +151,9 @@ impl cosmic::Application for App {
                         .map(|()| (Message::Wake, receiver))
                 })
             });
-            return Subscription::batch([windows, wakes]);
+            return Subscription::batch([windows, reader, wakes]);
         }
-        windows
+        Subscription::batch([windows, reader])
     }
 
     fn system_theme_mode_update(
@@ -162,29 +190,10 @@ impl cosmic::Application for App {
     )]
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Select(page) => {
-                self.page = page;
-                if matches!(page, Page::About) {
-                    self.viewport = None;
-                    self.frame = None;
-                    if let Ok(renderer) = &self.renderer {
-                        renderer.spin();
-                    }
-                } else if self.viewport.is_none() {
-                    self.size = physical_size(self.logical, self.scale);
-                    self.viewport = Some(match &self.renderer {
-                        Ok(renderer) => {
-                            renderer
-                                .viewport(self.size.0, self.size.1)
-                                .and_then(|viewport| {
-                                    viewport.set_scale(self.scale)?;
-                                    viewport.set_dark(self.dark);
-                                    Ok(viewport)
-                                })
-                        }
-                        Err(error) => Err(error.clone()),
-                    });
-                    return Task::done(Action::App(Message::Wake));
+            Message::Select(page) => return self.select_page(page),
+            Message::Read(id, command) => {
+                if matches!(self.page, Page::Text) && Some(id) == self.core.main_window_id() {
+                    return text_reader::scroll(command, self.logical.1);
                 }
             }
             Message::Pointer(point) => self.pointer = point,
@@ -301,12 +310,23 @@ impl cosmic::Application for App {
             .spacing(theme::spacing().space_s)
             .padding(20)
             .into(),
+            Page::Text => column![
+                widget::text("Text preview"),
+                text_reader::view(&self.text, self.logical.0, self.logical.1),
+                widget::text(
+                    "Page Up/Down to scroll; Ctrl+Home/End for top/bottom; Ctrl+A/C to select/copy"
+                )
+            ]
+            .spacing(theme::spacing().space_s)
+            .padding(20)
+            .into(),
         };
         row![
             column![
                 widget::text("Mailstronaut"),
                 widget::button::text("Preview").on_press(Message::Select(Page::Preview)),
-                widget::button::text("About").on_press(Message::Select(Page::About))
+                widget::button::text("About").on_press(Message::Select(Page::About)),
+                widget::button::text("Text").on_press(Message::Select(Page::Text))
             ]
             .spacing(theme::spacing().space_s)
             .padding(20),
@@ -330,6 +350,38 @@ impl App {
             self.size = size;
             self.frame = None;
         }
+    }
+
+    /// Enter a native page or create the single synthetic `WebView`.
+    fn select_page(&mut self, page: Page) -> Task<Message> {
+        self.page = page;
+        if matches!(page, Page::About | Page::Text) {
+            self.viewport = None;
+            self.frame = None;
+            if let Ok(renderer) = &self.renderer {
+                renderer.spin();
+            }
+            return if matches!(page, Page::Text) {
+                text_reader::open()
+            } else {
+                Task::none()
+            };
+        }
+        if self.viewport.is_none() {
+            self.size = physical_size(self.logical, self.scale);
+            self.viewport = Some(match &self.renderer {
+                Ok(renderer) => renderer
+                    .viewport(self.size.0, self.size.1)
+                    .and_then(|viewport| {
+                        viewport.set_scale(self.scale)?;
+                        viewport.set_dark(self.dark);
+                        Ok(viewport)
+                    }),
+                Err(error) => Err(error.clone()),
+            });
+            return Task::done(Action::App(Message::Wake));
+        }
+        Task::none()
     }
 }
 

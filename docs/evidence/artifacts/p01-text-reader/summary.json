@@ -1,0 +1,22 @@
+{
+  "architecture": "x86_64-linux",
+  "package": "/nix/store/8dgf65w8gxb7ysbrscda937lh9f1p9yi-mailstronaut-0.1.0",
+  "derivation": "/nix/store/wfcwz44k3jxjp96k8903kkg5zfgqwhn2-mailstronaut-0.1.0.drv",
+  "workspace_tests": 35,
+  "renderer_children": 7,
+  "source_files_match": 18,
+  "gui_scales": [
+    1,
+    1.5,
+    2
+  ],
+  "functional_gui": "passed",
+  "full_copy_bytes": 2369,
+  "full_copy_checks": 21,
+  "partial_copy_checks": 6,
+  "accessibility": "blocked: window frame only; GTK observer control detected at each scale",
+  "installed_cli_smoke": "passed",
+  "gate_invocation": "9bf0c714bccf466cb3551e4f853d108b",
+  "runtime_closure_paths": 35,
+  "observer_tools_in_runtime": false
+}

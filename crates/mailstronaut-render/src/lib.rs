@@ -340,14 +340,24 @@ impl Renderer {
     /// Returns an error if protocol registration fails.
     #[inline]
     pub fn synthetic() -> Result<Self, String> {
+        let text = Self::synthetic_text();
         let body = sanitize(&format!(
-            "<h1>Synthetic Servo viewport</h1><p>No mail</p>{}",
-            "<p>Synthetic scrolling marker</p>".repeat(80)
+            "<h1>Synthetic Servo viewport</h1><p>{}</p>",
+            text.lines().skip(1).collect::<Vec<_>>().join("</p><p>")
         ));
         let document = format!(
             "<!doctype html><style>body {{ margin: 0; padding: 30px; background: white; color: black }} .marker {{ width: 80px; height: 80px; background: #00ff00 }} .gap {{ height: 400px }} @media (prefers-color-scheme: dark) {{ body {{ background: black; color: white }} }}</style>{body}"
         );
         Self::from_document(document)
+    }
+    /// Decoded text of the fixed synthetic message, shared with the native reader.
+    #[inline]
+    #[must_use]
+    pub fn synthetic_text() -> String {
+        format!(
+            "Synthetic Servo viewport\n\nNo mail\n\nCafé — français, italiano: caffè. Ελληνικά. 日本語.\n\n{}End of synthetic message.",
+            "Synthetic scrolling marker\n\n".repeat(80)
+        )
     }
     /// Construct the engine with an internal fixture document.
     fn from_document(document: String) -> Result<Self, String> {

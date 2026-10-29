@@ -1,0 +1,14 @@
+version.log:
+mailstronaut 0.1.0
+example.log:
+Configuration is valid.
+init.log:
+Created native Nix configuration.
+generated.log:
+Configuration is valid.
+repeat-init.log:
+configuration already exists or could not be installed
+invalid.log:
+invalid configuration expression or schema
+Generated directory mode: 0o700
+Generated config mode: 0o600

@@ -101,6 +101,10 @@ not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pin
   stop redraw work when hidden and release browser/graphics resources headless.
 - [ ] Verify HTML accessibility bridge or document/test the native accessible text
   reader mode; a texture alone is not an accessibility tree.
+- [x] Add a fixed synthetic native Text mode using COSMIC selection/copy and
+  standard focus/scroll operations; verify keyboard/mouse copy, theme, resize and
+  initial X11 100/150/200% scale. Actual AT-SPI publication is blocked and remains
+  in the separate unchecked accessibility row. See `evidence/P01-text-reader.md`.
 - [x] Inventory a project-local x86_64 Flatpak SDK with pinned Rust/LLVM extensions;
   exercise frozen offline workspace fetch and all five nested mozjs metadata
   calls in the SDK and metadata-only builder. This does not establish compilation.

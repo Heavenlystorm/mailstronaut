@@ -238,12 +238,22 @@
           # toolchain/environment setting without relying on inputsFrom.
           gui-test = self.devShells.${system}.default.overrideAttrs (old: {
             MAILSTRONAUT_TEST_THEME_DATA = "${pkgs.cosmic-settings}/share";
+            MAILSTRONAUT_TEST_AT_SPI_BUS = "${pkgs.at-spi2-core}/libexec/at-spi-bus-launcher";
+            GI_TYPELIB_PATH = "${pkgs.at-spi2-core}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0";
+            MAILSTRONAUT_TEST_AT_SPI_PYTHON = "${
+              pkgs.python3.withPackages (python: [
+                python.pyatspi
+                python.pygobject3
+              ])
+            }/bin/python3";
             nativeBuildInputs = old.nativeBuildInputs ++ [
               pkgs.weston
               pkgs.xorg-server
               pkgs.xdotool
               pkgs.imagemagick
               pkgs.dbus
+              pkgs.xclip
+              pkgs.zenity
             ];
           });
           default = pkgs.mkShell {
