@@ -586,6 +586,8 @@ impl App {
                     | composer::Message::Send
                     | composer::Message::Submit(..)
                     | composer::Message::CancelQueued(..)
+                    | composer::Message::AttachFiles(..)
+                    | composer::Message::RemoveAttachment(..)
             )
         {
             return Task::none();
@@ -597,6 +599,8 @@ impl App {
                     | composer::Message::Submit(..)
                     | composer::Message::Switch(..)
                     | composer::Message::CancelQueued(..)
+                    | composer::Message::AttachFiles(..)
+                    | composer::Message::RemoveAttachment(..)
             )
         {
             self.composer

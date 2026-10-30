@@ -52,7 +52,10 @@ fn message() -> Frozen {
         body: "Café — 日本語\n.leading dot\n".into(),
         ..Content::default()
     }
-    .freeze()
+    .freeze_with_attachments(&[mailstronaut_mail::compose::AttachmentData {
+        name: "synthetic-binary.bin".into(),
+        bytes: vec![0, 255, 1, 13, 10],
+    }])
     .expect("MIME")
 }
 fn acceptor() -> TlsAcceptor {

@@ -20,7 +20,7 @@ pub mod mailbox;
 pub mod outbox;
 pub mod reminders;
 
-const SCHEMA_VERSION: u32 = 6;
+const SCHEMA_VERSION: u32 = 7;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -174,6 +174,7 @@ impl Store {
             M::up(flags::SCHEMA).foreign_key_check(),
             M::up(conversations::SCHEMA).foreign_key_check(),
             M::up(reminders::SCHEMA).foreign_key_check(),
+            M::up(outbox::attachments::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -270,7 +271,7 @@ impl Store {
                 continue;
             }
             let count: i64 = transaction.query_row(
-                "SELECT (SELECT count(*) FROM messages WHERE blob_hash=?1)+(SELECT count(*) FROM outbox WHERE blob_hash=?1)",
+                "SELECT (SELECT count(*) FROM messages WHERE blob_hash=?1)+(SELECT count(*) FROM outbox WHERE blob_hash=?1)+(SELECT count(*) FROM draft_attachments WHERE blob_hash=?1)",
                 params![name],
                 |row| return row.get(0),
             )?;

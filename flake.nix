@@ -74,6 +74,7 @@
               ./docs/CONFIGURATION.md
               ./experiments/p02-accounts/credentials.sh
               ./experiments/p08-reminders/portal.sh
+              ./experiments/p07-compose/attachments-portal.sh
             ];
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
@@ -224,6 +225,7 @@
               oauth_fixture="$(fixture_path oauth)"
               reminder_fixture="$(fixture_path mailstronaut)"
               bash experiments/p08-reminders/portal.sh "$reminder_fixture"
+              bash experiments/p07-compose/attachments-portal.sh "$reminder_fixture"
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
                 bash experiments/p02-accounts/credentials.sh
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
@@ -278,6 +280,8 @@
                   ${self}/experiments/p02-accounts/gui.sh \
                   ${self}/experiments/p04-inbox/gui.sh \
                   ${self}/experiments/p07-compose/gui.sh \
+                  ${self}/experiments/p07-compose/attachments-portal.sh \
+                  ${self}/experiments/p07-compose/attachments-gui.sh \
                   ${self}/experiments/p06-conversations/gui.sh \
                   ${self}/experiments/p08-reminders/portal.sh \
                   ${self}/experiments/p08-reminders/gui.sh \

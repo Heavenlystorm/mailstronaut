@@ -1,5 +1,7 @@
 //! Native plain-text compose, transactional autosave and explicit outbox submission.
 
+mod attachments;
+
 use std::{sync::Arc, time::Duration};
 
 use cosmic::{
@@ -45,6 +47,14 @@ pub enum Message {
     Field(Field, Private<String>),
     Body(Private<text_editor::Action>),
     Save,
+    AttachFiles(String),
+    FilesChosen(
+        u64,
+        String,
+        Private<Result<Option<Vec<compose::AttachmentData>>, String>>,
+    ),
+    RemoveAttachment(String, String),
+    AttachmentsSaved(u64, String, u64, Private<Result<Box<Draft>, worker::Error>>),
     Saved(u64, String, u64, Result<(), worker::Error>),
     Refresh,
     Lists(u64, Private<Result<Lists, worker::Error>>),
@@ -84,6 +94,7 @@ pub struct Composer {
     generation: u64,
     loading: bool,
     sending: bool,
+    attachment_pending: Option<u64>,
     autosave: CancellationToken,
     cancellation: CancellationToken,
     drafts: Vec<DraftSummary>,
@@ -127,7 +138,7 @@ impl Composer {
         Task::none()
     }
     pub const fn busy(&self) -> bool {
-        self.loading || self.sending
+        self.loading || self.sending || self.attachment_pending.is_some()
     }
     pub fn cancel(&self) {
         self.autosave.cancel();
@@ -138,6 +149,13 @@ impl Composer {
     }
 
     pub fn update(&mut self, message: Message, keyring: Option<Session>) -> Task<super::Message> {
+        let message = match message {
+            Message::AttachFiles(..)
+            | Message::FilesChosen(..)
+            | Message::RemoveAttachment(..)
+            | Message::AttachmentsSaved(..) => return self.attachment_message(message),
+            other => other,
+        };
         match message {
             Message::Switch(target) if !self.busy() => return self.request_switch(target),
             Message::Switched(generation, target, result) if generation == self.generation => {
@@ -173,7 +191,7 @@ impl Composer {
                     return self.edited();
                 }
             }
-            Message::Save => return self.save(),
+            Message::Save if !self.busy() => return self.save(),
             Message::Saved(generation, id, revision, result) if generation == self.generation => {
                 return self.saved(&id, revision, result);
             }
@@ -300,14 +318,29 @@ impl Composer {
                 let Some(identity) = self.identities.get(index) else {
                     return Task::none();
                 };
+                if let Some(draft) = &self.draft
+                    && draft.account != identity.account
+                {
+                    let Some(store) = self.store.clone() else {
+                        return Task::none();
+                    };
+                    let (draft, account, from, generation) = (
+                        draft.clone(),
+                        identity.account.clone(),
+                        identity.from.clone(),
+                        self.generation,
+                    );
+                    self.loading = true;
+                    return Task::perform(
+                        async move {
+                            store.ensure_account(account.clone()).await?;
+                            store.copy_draft(draft, account, from).await.map(Box::new)
+                        },
+                        move |result| event(Message::Loaded(generation, Private(result))),
+                    );
+                }
                 self.selected = Some(index);
                 if let Some(draft) = &mut self.draft {
-                    if draft.account != identity.account {
-                        let content = draft.content.clone();
-                        *draft = Draft::new(identity.account.clone(), identity.from.clone());
-                        draft.content = content;
-                        self.saved_revision = 0;
-                    }
                     draft.content.from.clone_from(&identity.from);
                     return self.edited();
                 }
@@ -336,6 +369,127 @@ impl Composer {
             }
         }
         Task::none()
+    }
+    fn attachment_message(&mut self, message: Message) -> Task<super::Message> {
+        match message {
+            Message::AttachFiles(id)
+                if !self.busy() && self.draft.as_ref().is_some_and(|d| d.id == id) =>
+            {
+                return self.pick_files();
+            }
+            Message::FilesChosen(generation, id, Private(result))
+                if self.attachment_pending == Some(generation) =>
+            {
+                self.attachment_pending = None;
+                if generation == self.generation
+                    && self.draft.as_ref().is_some_and(|draft| draft.id == id)
+                {
+                    match result {
+                        Ok(Some(files)) => return self.add_files(files),
+                        Ok(None) => self.status = "File selection cancelled.".into(),
+                        Err(error) => self.status = error,
+                    }
+                }
+            }
+            Message::RemoveAttachment(draft_id, id)
+                if !self.busy() && self.draft.as_ref().is_some_and(|d| d.id == draft_id) =>
+            {
+                return self.remove_file(id);
+            }
+            Message::AttachmentsSaved(generation, id, revision, Private(result))
+                if self.attachment_pending == Some(generation) =>
+            {
+                self.attachment_pending = None;
+                // A committed local edit is authoritative even if configuration reloaded.
+                if self
+                    .draft
+                    .as_ref()
+                    .is_some_and(|draft| draft.id == id && draft.revision == revision)
+                {
+                    match result {
+                        Ok(draft) => {
+                            self.load(*draft);
+                            self.status = "Attachments saved locally.".into();
+                            return self.refresh();
+                        }
+                        Err(error) => {
+                            self.status =
+                                format!("{error}. Draft retained; reopen it before retrying.");
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        Task::none()
+    }
+    fn pick_files(&mut self) -> Task<super::Message> {
+        let Some(draft) = &self.draft else {
+            return Task::none();
+        };
+        let bytes = draft
+            .attachments
+            .iter()
+            .map(|file| file.bytes)
+            .sum::<usize>();
+        let remaining = compose::MAX_ATTACHMENT_BYTES.saturating_sub(bytes);
+        let count = compose::MAX_ATTACHMENTS.saturating_sub(draft.attachments.len());
+        if count == 0 {
+            self.status = "Maximum 16 attachments reached.".into();
+            return Task::none();
+        }
+        let (generation, id) = (self.generation, draft.id.clone());
+        self.attachment_pending = Some(generation);
+        self.status = "Choose files to attach (5 MiB total maximum).".into();
+        Task::perform(attachments::choose(remaining, count), move |result| {
+            event(Message::FilesChosen(generation, id, Private(result)))
+        })
+    }
+    fn add_files(&mut self, files: Vec<compose::AttachmentData>) -> Task<super::Message> {
+        let (Some(draft), Some(store)) = (self.draft.clone(), self.store.clone()) else {
+            return Task::none();
+        };
+        self.autosave.cancel();
+        let (generation, id, revision) = (self.generation, draft.id.clone(), draft.revision);
+        self.attachment_pending = Some(generation);
+        Task::perform(
+            async move {
+                store.ensure_account(draft.account.clone()).await?;
+                store.add_attachments(draft, files).await.map(Box::new)
+            },
+            move |result| {
+                event(Message::AttachmentsSaved(
+                    generation,
+                    id,
+                    revision,
+                    Private(result),
+                ))
+            },
+        )
+    }
+    fn remove_file(&mut self, attachment: String) -> Task<super::Message> {
+        let (Some(draft), Some(store)) = (self.draft.clone(), self.store.clone()) else {
+            return Task::none();
+        };
+        self.autosave.cancel();
+        let (generation, id, revision) = (self.generation, draft.id.clone(), draft.revision);
+        self.attachment_pending = Some(generation);
+        Task::perform(
+            async move {
+                store
+                    .remove_attachment(draft, attachment)
+                    .await
+                    .map(Box::new)
+            },
+            move |result| {
+                event(Message::AttachmentsSaved(
+                    generation,
+                    id,
+                    revision,
+                    Private(result),
+                ))
+            },
+        )
     }
     fn edited(&mut self) -> Task<super::Message> {
         let Some(draft) = &mut self.draft else {
@@ -639,6 +793,25 @@ impl Composer {
         } else {
             editor.on_action(|action| super::Message::Composer(Message::Body(Private(action))))
         });
+        content = content.push(widget::button::text("Attach files…").on_press_maybe(
+            (!busy && self.store.is_some()).then_some(super::Message::Composer(
+                Message::AttachFiles(draft.id.clone()),
+            )),
+        ));
+        for file in &draft.attachments {
+            content = content.push(
+                row![
+                    widget::text(format!("{} · {} bytes", file.name, file.bytes)),
+                    widget::button::text("Remove").on_press_maybe((!busy).then(|| {
+                        super::Message::Composer(Message::RemoveAttachment(
+                            draft.id.clone(),
+                            file.id.clone(),
+                        ))
+                    }))
+                ]
+                .spacing(8),
+            );
+        }
         content = content.push(
             row![
                 widget::button::text("Save draft")
@@ -796,6 +969,51 @@ fn outcome_text(result: &Result<Outcome, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_picker_and_storage_callbacks_never_replace_another_draft() {
+        let mut composer = Composer::default();
+        let draft = Draft::new("a".into(), "sender@example.test".into());
+        let id = draft.id.clone();
+        composer.load(draft);
+        composer.attachment_pending = Some(0);
+        assert!(composer.busy());
+        let _task = composer.update(
+            Message::Field(Field::Subject, Private("blocked edit".into())),
+            None,
+        );
+        assert_eq!(composer.draft.as_ref().expect("draft").content.subject, "");
+        composer.generation = 1;
+        let _task = composer.update(
+            Message::FilesChosen(
+                0,
+                id.clone(),
+                Private(Ok(Some(vec![compose::AttachmentData {
+                    name: "private.bin".into(),
+                    bytes: vec![1],
+                }]))),
+            ),
+            None,
+        );
+        assert!(!composer.busy());
+        assert_eq!(composer.draft.as_ref().expect("draft").attachments, []);
+        let replacement = Draft::new("b".into(), "other@example.test".into());
+        let replacement_id = replacement.id.clone();
+        composer.load(replacement);
+        composer.attachment_pending = Some(1);
+        let _task = composer.update(
+            Message::AttachmentsSaved(1, id, 1, Private(Err(worker::Error::Storage))),
+            None,
+        );
+        assert!(!composer.busy());
+        assert_eq!(composer.draft.as_ref().expect("current").id, replacement_id);
+        assert_eq!(composer.status, "Draft loaded.");
+        let _task = composer.update(Message::AttachFiles("retired-draft".into()), None);
+        assert!(
+            !composer.busy(),
+            "retired attachment controls cannot act on the new draft"
+        );
+    }
 
     #[test]
     fn late_save_callbacks_do_not_clear_newer_edits_or_replace_another_draft() {

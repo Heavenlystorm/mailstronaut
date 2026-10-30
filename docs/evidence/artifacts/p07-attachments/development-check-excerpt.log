@@ -1,0 +1,61 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 11s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 18s
+     Running unittests src/main.rs (target/debug/build/mailstronaut/7f3a3ea241b3211a/out/mailstronaut-7f3a3ea241b3211a)
+test result: ok. 12 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.05s
+     Running tests/configuration.rs (target/debug/build/mailstronaut/a37709e6b6666f62/out/configuration-a37709e6b6666f62)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+     Running tests/configuration_source.rs (target/debug/build/mailstronaut/378fb2d1892c5082/out/configuration_source-378fb2d1892c5082)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+     Running tests/threading.rs (target/debug/build/mailstronaut/90ddfb414780ea47/out/threading-90ddfb414780ea47)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.24s
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-config/ea75458ebc10fd1e/out/mailstronaut_config-ea75458ebc10fd1e)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-core/79166c8fda7b61d3/out/mailstronaut_core-79166c8fda7b61d3)
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.42s
+     Running tests/attachments.rs (target/debug/build/mailstronaut-core/22ba35cc9b1d66f8/out/attachments-22ba35cc9b1d66f8)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+     Running tests/flags.rs (target/debug/build/mailstronaut-core/311549e7e83828c3/out/flags-311549e7e83828c3)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+     Running tests/mailbox.rs (target/debug/build/mailstronaut-core/376b7191031d84cd/out/mailbox-376b7191031d84cd)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+     Running tests/mime.rs (target/debug/build/mailstronaut-core/d73ce60faa746b7f/out/mime-d73ce60faa746b7f)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests/outbox.rs (target/debug/build/mailstronaut-core/b70586eeef2271e6/out/outbox-b70586eeef2271e6)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+     Running tests/reply.rs (target/debug/build/mailstronaut-core/a21545bd13ba24bf/out/reply-a21545bd13ba24bf)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests/threading_corpus.rs (target/debug/build/mailstronaut-core/2e6f6d6116f21b51/out/threading_corpus-2e6f6d6116f21b51)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/worker.rs (target/debug/build/mailstronaut-core/abc65fea1bf518c0/out/worker-abc65fea1bf518c0)
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.09s
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-mail/e9b90160819c5634/out/mailstronaut_mail-e9b90160819c5634)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/compose.rs (target/debug/build/mailstronaut-mail/bb6687cecd1a87d4/out/compose-bb6687cecd1a87d4)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+     Running tests/credentials.rs (target/debug/build/mailstronaut-mail/effe691b0fd2dfa3/out/credentials-effe691b0fd2dfa3)
+test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/imap_tls.rs (target/debug/build/mailstronaut-mail/54cb81297907a52a/out/imap_tls-54cb81297907a52a)
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.76s
+     Running tests/oauth.rs (target/debug/build/mailstronaut-mail/448c140bc32df7b2/out/oauth-448c140bc32df7b2)
+test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.27s
+     Running tests/smtp.rs (target/debug/build/mailstronaut-mail/ffd512103daf1f81/out/smtp-ffd512103daf1f81)
+test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.31s
+     Running unittests src/lib.rs (target/debug/build/mailstronaut-render/e03d090c130952d8/out/mailstronaut_render-e03d090c130952d8)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.64s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.21s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.23s
+   Doc-tests mailstronaut_config
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests mailstronaut_core
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests mailstronaut_mail
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests mailstronaut_render
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.39s

@@ -250,6 +250,16 @@ the original receiving account, avoids duplicate/self reply-all recipients, keep
 Bcc out of the transmitted visible headers, and validates header injection through
 the library. Account aliases are explicit. Preserve non-ASCII names and charsets.
 
+Compose attachments are bounded owned snapshots, selected through the standard
+file portal and copied off the UI/store-owner threads. Keep at most 16 files and
+5 MiB decoded bytes per draft, with validated basenames used only as MIME metadata.
+Store content-addressed bytes and revisioned draft-local references; never persist
+source paths as a requirement for later sending. A missing or corrupt owned blob
+must stop freezing, leaving the draft editable. Account changes and rejected-send
+recovery preserve references. Lettre owns multipart and transfer encoding; the
+complete frozen MIME remains bounded to 8 MiB. Received-attachment export is a
+separate operation requiring its own safe destination handling.
+
 Draft autosave is local and transactional. Freeze rendered MIME and Message-ID
 before entering the outbox. SMTP is not exactly-once: a connection can drop after
 the server accepted DATA. Mark this `delivery_unknown`; do not blindly retry and

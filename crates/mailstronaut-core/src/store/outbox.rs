@@ -1,5 +1,7 @@
 //! Transactional editable drafts, frozen submission intent and attempt fencing.
 
+pub mod attachments;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use mailstronaut_mail::{
@@ -47,6 +49,8 @@ pub struct Draft {
     pub revision: u64,
     /// Editable content; incomplete recipients are allowed until queueing.
     pub content: Content,
+    /// Private profile snapshots, loaded and changed through attachment operations.
+    pub attachments: Vec<attachments::StoredAttachment>,
 }
 impl Draft {
     /// Start a new local draft without contacting the account or generating MIME.
@@ -56,6 +60,7 @@ impl Draft {
             id: uuid::Uuid::new_v4().to_string(),
             account,
             revision: 1,
+            attachments: Vec::new(),
             content: Content {
                 from,
                 ..Content::default()
@@ -166,8 +171,8 @@ impl Store {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let content:Option<Vec<u8>>=tx.query_row("SELECT d.content FROM outbox o JOIN drafts d ON d.id=o.draft_id WHERE o.id=?1 AND o.account_id=?2 AND o.phase='failed' AND o.uncertain=0",params![id,account],|row|row.get(0)).optional()?;
-        let content = content.ok_or(Error::OperationConflict)?;
+        let record:Option<(Vec<u8>,String)>=tx.query_row("SELECT d.content,d.id FROM outbox o JOIN drafts d ON d.id=o.draft_id WHERE o.id=?1 AND o.account_id=?2 AND o.phase='failed' AND o.uncertain=0",params![id,account],|row|Ok((row.get(0)?,row.get(1)?))).optional()?;
+        let (content, source) = record.ok_or(Error::OperationConflict)?;
         if content.len() > MAX_DRAFT_BYTES {
             return Err(Error::InvalidInput);
         }
@@ -176,6 +181,7 @@ impl Store {
             id: uuid::Uuid::new_v4().to_string(),
             account: account.into(),
             revision: 1,
+            attachments: attachments::read_refs(&tx, &source)?,
             content,
         };
         tx.execute(
@@ -187,6 +193,7 @@ impl Store {
                 now()
             ],
         )?;
+        attachments::copy_refs(&tx, &source, &draft.id)?;
         tx.execute(
             "UPDATE outbox SET phase='cancelled',updated_at=?3 WHERE id=?1 AND account_id=?2",
             params![id, account, now()],
@@ -218,6 +225,9 @@ impl Store {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()?;
+        if attachments::read_refs(&tx, &draft.id)? != draft.attachments {
+            return Err(Error::OperationConflict);
+        }
         if old
             .as_ref()
             .is_some_and(|(account, old_revision, closed, old_content)| {
@@ -257,6 +267,7 @@ impl Store {
             account: account.into(),
             revision: u64::try_from(revision).map_err(|_| Error::InvalidInput)?,
             content: serde_json::from_slice(&content)?,
+            attachments: attachments::read_refs(&self.connection, id)?,
         })
     }
 
@@ -314,7 +325,10 @@ impl Store {
             return Err(Error::InvalidInput);
         }
         let content: Content = serde_json::from_slice(&content)?;
-        let frozen = content.freeze().map_err(|_| Error::InvalidInput)?;
+        let files = attachments::load_bytes(&tx, &self.blobs, id)?;
+        let frozen = content
+            .freeze_with_attachments(&files)
+            .map_err(|_| Error::InvalidInput)?;
         let hash = write_blob(&self.blobs, frozen.original())?;
         let envelope = Envelope {
             sender: frozen

@@ -131,6 +131,13 @@ enum Command {
     FlagCounts(Vec<String>, Reply<Counts>),
     RecoverDraft(String, String, Reply<Draft>),
     SaveDraft(Draft, Reply<()>),
+    AddAttachments(
+        Draft,
+        Vec<mailstronaut_mail::compose::AttachmentData>,
+        Reply<Draft>,
+    ),
+    RemoveAttachment(Draft, String, Reply<Draft>),
+    CopyDraft(Draft, String, String, Reply<Draft>),
     Draft(String, String, Reply<Draft>),
     Drafts(Vec<String>, Reply<Vec<DraftSummary>>),
     QueueDraft(String, String, u64, bool, Reply<outbox::Summary>),
@@ -457,6 +464,38 @@ impl Handle {
             return Err(Error::InvalidRequest);
         }
         self.request(|reply| Command::SaveDraft(draft, reply)).await
+    }
+    /// Add owned files on the blocking storage owner.
+    /// # Errors
+    /// Rejects stale drafts, oversized files and storage failures.
+    pub async fn add_attachments(
+        &self,
+        draft: Draft,
+        files: Vec<mailstronaut_mail::compose::AttachmentData>,
+    ) -> Result<Draft, Error> {
+        mailstronaut_mail::compose::validate_attachments(&files)
+            .map_err(|_| Error::InvalidRequest)?;
+        self.request(|reply| Command::AddAttachments(draft, files, reply))
+            .await
+    }
+    /// Remove one exact draft-local file.
+    /// # Errors
+    /// Rejects stale drafts, unknown identifiers and storage failures.
+    pub async fn remove_attachment(&self, draft: Draft, id: String) -> Result<Draft, Error> {
+        self.request(|reply| Command::RemoveAttachment(draft, id, reply))
+            .await
+    }
+    /// Retain file snapshots when the user switches sending accounts.
+    /// # Errors
+    /// Rejects stale drafts, unknown accounts and storage failures.
+    pub async fn copy_draft(
+        &self,
+        draft: Draft,
+        account: String,
+        from: String,
+    ) -> Result<Draft, Error> {
+        self.request(|reply| Command::CopyDraft(draft, account, from, reply))
+            .await
     }
     /// Load an editable, account-scoped saved draft.
     ///
@@ -880,6 +919,15 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 commit(reply, || store.recover_draft(&account, &id));
             }
             Command::SaveDraft(draft, reply) => commit(reply, || store.save_draft(&draft)),
+            Command::AddAttachments(draft, files, reply) => {
+                commit(reply, || store.add_draft_attachments(&draft, files));
+            }
+            Command::RemoveAttachment(draft, id, reply) => {
+                commit(reply, || store.remove_draft_attachment(&draft, &id));
+            }
+            Command::CopyDraft(draft, account, from, reply) => {
+                commit(reply, || store.copy_draft(&draft, &account, from));
+            }
             Command::Draft(account, id, reply) => respond(reply, || store.draft(&account, &id)),
             Command::Drafts(accounts, reply) => respond(reply, || store.drafts(&accounts)),
             Command::QueueDraft(account, id, revision, server_saves_sent, reply) => {

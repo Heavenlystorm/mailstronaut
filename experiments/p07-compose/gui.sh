@@ -139,7 +139,7 @@ click 300 306
 sleep .5
 capture recovered-editor
 # Explicit foreground action against the local synthetic SMTP endpoint only.
-click 312 644
+click 312 684
 for _ in {1..100}; do
   if python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "${MAILSTRONAUT_SMTP_DROP_ACK:-0}" <<'PY'
 import sqlite3,sys

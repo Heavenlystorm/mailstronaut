@@ -343,6 +343,12 @@ Deliver screenshots/interaction checklist and measurements in P06 evidence.
   and native GUI acceptance: [reply evidence](evidence/P07-reply.md). Attachments,
   real-provider reply delivery and release/distribution checks remain open.
 
+- [ ] Deliver bounded owned draft attachments through the native file portal,
+  with durable snapshots, account-copy/rejection recovery, frozen MIME integrity,
+  private portal/native restart controls and the Nix release gate.
+  [Attachment evidence](evidence/P07-attachments.md). Real portal/Flatpak grants,
+  received attachment export and provider attachment delivery remain separate.
+
 - [ ] Implement native plain-text composer, account/alias identity selection,
   To/Cc/Bcc, attachments via portals, signature, reply/reply-all/forward and validation.
 - [ ] Use lettre's typed MIME builder for headers, References/In-Reply-To, UTF8,

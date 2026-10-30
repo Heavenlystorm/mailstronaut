@@ -1,5 +1,6 @@
 //! Local persistence primitives for Mailstronaut.
 
+pub mod attachments;
 pub mod mime;
 pub mod store;
 

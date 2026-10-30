@@ -5,7 +5,7 @@ use core::{error::Error as StdError, fmt};
 use lettre::{
     Message,
     address::Envelope,
-    message::{Mailbox, Mailboxes, header::ContentType},
+    message::{Attachment, Mailbox, Mailboxes, MultiPart, SinglePart, header::ContentType},
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +16,52 @@ pub use lettre::Address;
 pub const MAX_BODY_BYTES: usize = 256 * 1024;
 /// Maximum complete frozen MIME original, matching local message storage.
 pub const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
+/// Maximum decoded attachment bytes in one draft (leaves room for MIME encoding).
+pub const MAX_ATTACHMENT_BYTES: usize = 5 * 1024 * 1024;
+/// Maximum attachments in one editable or frozen message.
+pub const MAX_ATTACHMENTS: usize = 16;
+
+/// Owned file contents; diagnostics omit filenames and bytes.
+#[derive(Clone)]
+pub struct AttachmentData {
+    /// Basename displayed to the recipient, never used as a storage path.
+    pub name: String,
+    /// A bounded private snapshot of the selected file.
+    pub bytes: Vec<u8>,
+}
+impl fmt::Debug for AttachmentData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("AttachmentData(<private file>)")
+    }
+}
+
+/// Check a displayed attachment basename, without interpreting it as a path.
+#[must_use]
+pub fn valid_attachment_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 255
+        && name != "."
+        && name != ".."
+        && !name
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '/' | '\\'))
+}
+
+/// Validate the complete decoded attachment budget before MIME allocation.
+/// # Errors
+/// Rejects unsafe names, excessive count or total bytes.
+pub fn validate_attachments(files: &[AttachmentData]) -> Result<(), Error> {
+    if files.len() > MAX_ATTACHMENTS
+        || files.iter().any(|file| !valid_attachment_name(&file.name))
+        || files
+            .iter()
+            .try_fold(0usize, |n, f| n.checked_add(f.bytes.len()))
+            .is_none_or(|n| n > MAX_ATTACHMENT_BYTES)
+    {
+        return Err(Error::TooLarge);
+    }
+    Ok(())
+}
 
 /// Editable local content. Debug intentionally omits all headers and body text.
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -130,13 +176,20 @@ impl Content {
     /// # Errors
     /// Rejects invalid content or a message exceeding the original byte budget.
     pub fn freeze(&self) -> Result<Frozen, Error> {
+        self.freeze_with_attachments(&[])
+    }
+
+    /// Freeze owned attachments using lettre's standard multipart MIME builder.
+    /// # Errors
+    /// Rejects invalid content, attachment metadata or encoded message size.
+    pub fn freeze_with_attachments(&self, files: &[AttachmentData]) -> Result<Frozen, Error> {
         self.validate()?;
+        validate_attachments(files)?;
         let id = format!("{}@mailstronaut.invalid", uuid::Uuid::new_v4());
         let mut builder = Message::builder()
             .from(self.from.parse().map_err(|_| Error::Invalid)?)
             .subject(&self.subject)
-            .message_id(Some(format!("<{id}>")))
-            .header(ContentType::TEXT_PLAIN);
+            .message_id(Some(format!("<{id}>")));
         for recipient in recipients(&self.to)? {
             builder = builder.to(recipient);
         }
@@ -158,9 +211,21 @@ impl Content {
                     .join(" "),
             );
         }
-        let message = builder
-            .body(self.body.clone())
-            .map_err(|_| Error::Invalid)?;
+        let message = if files.is_empty() {
+            builder
+                .header(ContentType::TEXT_PLAIN)
+                .body(self.body.clone())
+        } else {
+            let mut multipart = MultiPart::mixed().singlepart(SinglePart::plain(self.body.clone()));
+            for file in files {
+                multipart = multipart.singlepart(Attachment::new(file.name.clone()).body(
+                    file.bytes.clone(),
+                    ContentType::parse("application/octet-stream").map_err(|_| Error::Invalid)?,
+                ));
+            }
+            builder.multipart(multipart)
+        }
+        .map_err(|_| Error::Invalid)?;
         let mut original = message.formatted();
         // SMTP must terminate the final data line with CRLF. Freeze that byte
         // sequence now so submission and a later Sent copy remain identical.

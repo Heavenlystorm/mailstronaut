@@ -1,0 +1,10 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+
+running 1 test
+Native Attach/Remove and close/restart recovery passed after deleting the selected source. No mail was sent.
+Private file portal: copied granted binary; cancellation, remote URI, aggregate size, missing source and count failures preserved drafts.
+test composer::attachments::portal_tests::private_portal_grants_cancel_invalid_uris_and_failed_copies ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 6.64s
+
+Private attachment portal artifacts: /home/eduard/.t3/projects/mailstronaut/target/p07-attachments/portal.9EcXLApY

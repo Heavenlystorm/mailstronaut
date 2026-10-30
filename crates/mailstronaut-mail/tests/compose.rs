@@ -100,3 +100,44 @@ fn malformed_and_injected_headers_are_rejected_and_bcc_only_is_valid() {
     content.bcc.clear();
     assert!(matches!(content.freeze(), Err(Error::Invalid)));
 }
+
+#[test]
+fn typed_multipart_rejects_unsafe_names_and_bounds_encoded_size() {
+    use mailstronaut_mail::compose::{AttachmentData, MAX_ATTACHMENT_BYTES, MAX_MESSAGE_BYTES};
+    for name in [
+        "",
+        ".",
+        "..",
+        "../x",
+        "x/y",
+        "x\\y",
+        "x\r\nInjected: yes",
+        "x\0",
+    ] {
+        assert!(
+            draft()
+                .freeze_with_attachments(&[AttachmentData {
+                    name: name.into(),
+                    bytes: vec![0]
+                }])
+                .is_err()
+        );
+    }
+    let frozen = draft()
+        .freeze_with_attachments(&[AttachmentData {
+            name: "max.bin".into(),
+            bytes: vec![255; MAX_ATTACHMENT_BYTES],
+        }])
+        .expect("bounded MIME");
+    assert!(frozen.original().len() <= MAX_MESSAGE_BYTES);
+    assert!(
+        !format!(
+            "{:?}",
+            AttachmentData {
+                name: "private filename".into(),
+                bytes: vec![0]
+            }
+        )
+        .contains("private filename")
+    );
+}
