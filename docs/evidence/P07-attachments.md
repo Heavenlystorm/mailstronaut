@@ -63,7 +63,34 @@ no SMTP connection or keyring unlock. It proves the native controls against the
 portal protocol fixture, not a real COSMIC file dialog or a Flatpak document grant.
 No provider, accessibility or distribution acceptance is claimed.
 
+The existing private keyring/native compose regression also passed with the new
+Attach row: editable fields, autosave, close-before-debounce flush, restart,
+explicit synthetic TLS SMTP send and exact captured frozen DATA/Message-ID.
+[Receipt](artifacts/p07-attachments/native-compose-regression.log). This used the
+prebuilt final development binary and fixture executables in `nix develop .#gui-test`;
+artifacts are in `target/p02-accounts/keyring.3QV7iqbL/compose-gui`.
+
 ## Release/package gate
 
-Pending for this implementation; the bounded PLAN row remains open until the
-coordinated `nix flake check`, package build and installed smoke are recorded.
+The coordinated `nix flake check --no-update-lock-file --print-build-logs` gate
+passed on x86_64-linux for exact implementation commit
+`d3572fe7e732870a3944674a1b68a242c3535f8a`. The runner used all 16 CPUs and one
+Nix job, retaining stable LLVM, thin LTO and one codegen unit. It reused the
+existing dependency artifact `/nix/store/j2k9b80y20cfcldzd9qc83v4xy90ysc3-mailstronaut-deps-0.1.0`.
+Release Clippy, 143 workspace tests, seven isolated renderer children and six
+private portal/credential/OAuth fixture invocations passed. The service
+`mailstronaut-attachments-nix-gate.service`, invocation
+`d2fac5e547c04f92bff873cf1fadfa36`, exited 0; its fresh receipt is 0 and it is
+inactive/dead with `ExecMainStatus=0`. The complete log ends `all checks passed!`.
+`aarch64-linux` was omitted. [Receipt](artifacts/p07-attachments/release-gate.status),
+[revision](artifacts/p07-attachments/release-gate-revision.txt),
+[excerpt](artifacts/p07-attachments/release-gate-excerpt.log).
+Full log: `target/p01-package-gate-service.log`.
+
+The subsequent cached `nix build --no-update-lock-file` and installed CLI/config
+smoke passed. Package:
+`/nix/store/fwgymqzrygvyd3zfxgwk21awpssllr3r-mailstronaut-0.1.0`.
+[Installed smoke](artifacts/p07-attachments/installed-smoke.log); full smoke fixture:
+`target/p01-installed-smoke.Y88TsC`. This covers same-binary configuration evaluation
+without an ambient PATH, safe initialization permissions/no-overwrite and schema
+rejection. It adds no release GUI, hosted CI, real-provider or Flatpak acceptance.
