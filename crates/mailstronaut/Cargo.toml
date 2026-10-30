@@ -12,18 +12,13 @@ readme.workspace = true
 publish = false
 
 [dependencies]
-async-channel.workspace = true
-ashpd.workspace = true
-cosmic.workspace = true
-chrono.workspace = true
-jiff.workspace = true
+gpui-kit.workspace = true
+image.workspace = true
 directories.workspace = true
 mailstronaut-config.workspace = true
 mailstronaut-core.workspace = true
-futures-util.workspace = true
 mailstronaut-render.workspace = true
 mailstronaut-mail.workspace = true
-secrecy.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true

@@ -1,7 +1,7 @@
 //! Seen authorization comes only from an explicit message-open action.
 
 #[derive(Default)]
-pub(super) struct Gate {
+pub struct Gate {
     visible: bool,
     clicked: Option<(u64, u64)>,
 }

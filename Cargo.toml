@@ -9,16 +9,22 @@ edition = "2024"
 rust-version = "1.98"
 license = "GPL-3.0-only"
 repository = "https://github.com/eduardz1/mailstronaut"
-description = "A local-first COSMIC email client (planning scaffold)"
-keywords = ["email", "cosmic", "imap", "servo", "desktop"]
+description = "A local-first native Wayland email client"
+keywords = ["email", "gpui", "imap", "blitz", "desktop"]
 categories = ["email", "gui"]
 readme = "../../README.md"
 
 # Add third-party dependencies here, when their implementation milestone begins.
 # The researched dependency list is in docs/DEPENDENCIES.md.
 [workspace.dependencies]
-cosmic = { package = "libcosmic", git = "https://github.com/pop-os/libcosmic", rev = "8990a058e1deb8f9f7f4c0a42f6b1362fa1437ec", features = ["wgpu"] }
-servo = { version = "=0.7.0", default-features = false, features = ["baked-in-resources"] }
+gpui-kit = "=0.8.1"
+blitz-dom = { version = "=0.3.0-beta.2", default-features = false, features = ["system-fonts", "floats", "complex-scripts"] }
+blitz-html = { version = "=0.3.0-beta.2", default-features = false }
+blitz-paint = { version = "=0.3.0-beta.2", default-features = false }
+blitz-traits = { version = "=0.3.0-beta.2", default-features = false }
+anyrender = "=0.13.0"
+anyrender_vello_cpu = { version = "=0.17.0", features = ["multithreading"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 ammonia = "=4.2.4"
 async-channel = "=2.5.0"
 http = "1"
@@ -27,9 +33,7 @@ hyper = { version = "=1.12.0", default-features = false, features = ["http1", "s
 hyper-util = { version = "=0.1.21", default-features = false, features = ["tokio"] }
 oauth2 = { version = "=5.0.0", default-features = false, features = ["timing-resistant-secret-traits"] }
 reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls-native-roots"] }
-ashpd = { version = "=0.12.3", default-features = false, features = ["tokio"] }
 zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
-content-security-policy = "=0.9.0"
 uuid = { version = "=1.29.0", features = ["v4"] }
 mail-parser = { version = "=1.0.0", features = ["full_encoding"] }
 mail-threading = "=0.1.3"
@@ -39,7 +43,6 @@ sha2 = "=0.10.9"
 tempfile = "=3.23.0"
 chrono-tz = "=0.10.4"
 chrono = "=0.4.45"
-jiff = "=0.2.38"
 url = "=2.5.8"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.154"
@@ -49,7 +52,7 @@ mailstronaut-config = { path = "crates/mailstronaut-config" }
 mailstronaut-core = { path = "crates/mailstronaut-core" }
 mailstronaut-render = { path = "crates/mailstronaut-render" }
 mailstronaut-mail = { path = "crates/mailstronaut-mail" }
-oo7 = { version = "=0.6.0", default-features = false, features = ["tokio", "native_crypto"] }
+oo7 = { version = "=0.6.0", default-features = false, features = ["async-std", "native_crypto"] }
 secrecy = "=0.10.3"
 async-imap = { version = "=0.12.0", default-features = false, features = ["runtime-tokio"] }
 tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }

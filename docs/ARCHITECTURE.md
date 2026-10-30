@@ -1,124 +1,83 @@
-# Mailstronaut architecture and product contract
+# Architecture
 
-Status: architecture and implementation contract; **implementation in progress**.
-The initial native window, configuration schema and storage primitives do not yet
-form a usable email client. See the per-milestone evidence for current limits.
-Research date: 2026-10-27. Follow [PLAN.md](PLAN.md) in dependency order.
-Upstream evidence and version caveats are in [DEPENDENCIES.md](DEPENDENCIES.md)
-and [RESEARCH.md](RESEARCH.md). Requirements here are design decisions, not claims
-that upstream components already implement the complete application.
+Current direction: **GPUI Kit + Blitz**, native Rust, native Wayland. The previous
+UI/browser implementation is being replaced. PLAN.md is the current progress
+contract; historical frontend evidence does not prove this architecture.
 
 ## 1. Product boundary
 
-Build a Linux desktop email client for COSMIC, with all application logic and UI
-written in Rust. Use libcosmic widgets and Servo for HTML mail. Use standard mail
-protocols, an embedded local database, and a small CPU classifier. No hosted
-backend, web application, JavaScript UI, Python service, Ollama server, or custom
-mail protocol implementation. Build descriptions and assets can use their native
-formats (Nix, YAML, XML, Fluent, SVG, CSS inside email fixtures).
+Build a polished, responsive local email client using maintained components.
+Support Google, iCloud and manually configured INRIA, Politecnico di Torino and
+Université de Pau et des Pays de l'Adour accounts; unified inboxes, account-local
+threads, durable composition, strong local search, reminders and lightweight
+on-device priority/deadline analysis remain the product requirements.
 
-“Written in Rust” applies to our code. Servo includes SpiderMonkey and other
-native dependencies; SQLite and desktop/graphics libraries also contain C/C++.
-The requested components cannot provide a dependency tree consisting exclusively
-of Rust. Track these native dependencies in packaging; do not replace the requested
-components to manufacture that claim.
+GPUI Kit owns the visual system: standard navigation, resizable panes, virtualized
+lists, inputs/editor, menus, dialogs, themes, focus and keyboard behavior. Do not
+reproduce another desktop's appearance or read desktop-specific theme/configuration.
+Use native Wayland; neither the application nor embedded HTML may require an X
+server, XWayland or a foreign embedded window. The selected upstream GPUI family
+may compile optional X11 support; that is not a runtime fallback for Mailstronaut.
 
-The first usable release includes:
+Blitz handles HTML/CSS layout; its existing CPU renderer produces bounded pixels
+for GPUI's ordinary image element. This avoids a full browser and unnecessary GPU
+interop. Untrusted mail gets no script/native execution, ambient resource loader,
+clipboard/file dialog capability or automatic remote tracking request. Rich text
+accessibility and interactive HTML need their own evidence; retain a native text
+reader and document actual Blitz limitations.
 
-- Google OAuth2, iCloud app passwords, and arbitrary IMAP/SMTP accounts, including
-  separate incoming/outgoing usernames and configurable OAuth2 for institutions.
-- Offline cached reading, folder navigation, unified inbox, typo-tolerant fuzzy and
-  multilingual meaning-based search, conversation
-  grouping, read/unread, star, archive, move to trash, and undo before submission.
-- Plain-text compose, reply, reply-all, forward, To/Cc/Bcc, attachments, persistent
-  drafts and an outbox. No automatic sending or forwarding by the classifier.
-- A priority section above the inbox, contextual expiration, deadline boxes under
-  the two/three-line text preview, and manual “Remind me” notifications.
-- Optional background synchronization/reminders after closing the window, optional
-  startup at login, explicit Quit, and visible degraded/offline/account error states.
-- Native Nix configuration usable directly by Home Manager; Nix and Flatpak builds.
-
-This is an email replacement target, not Thunderbird feature parity. Calendars,
-CardDAV, extensions, RSS, POP3, NNTP, Exchange EWS/Graph, JMAP, automatic generative
-summaries, HTML composition, S/MIME, and OpenPGP are outside v0.1. Show unsupported
-encrypted messages honestly and offer saving/opening the original. Never send or
-classify ciphertext as if it were readable. If an account requires Graph/EWS
-because IMAP is disabled, report that limitation; do not claim support for it.
-Importing an existing Thunderbird profile is also outside v0.1; IMAP accounts can
-resynchronize. Explain that local-only Thunderbird folders require a later import
-tool before a user retires the old client.
+Native Nix configuration and direct Home Manager use are first-class. Models,
+queries, messages and analysis remain local. No hidden TOML adapter, plaintext
+secret fallback, automatic model download or telemetry service is introduced.
+Calendar/contacts, HTML composition, remote drafts and cryptographic mail support
+are deferred unless explicitly added to the roadmap.
 
 ## 2. Small workspace, explicit ownership
 
-Use the root `Cargo.toml`, `members = ["crates/*"]`, workspace package metadata,
-workspace dependencies and inherited lints, following the inspected CFI layout.
-Start with the buildable `mailstronaut` scaffold; create these other crates only
-when their first milestone starts. Do not create an empty crate per abstraction.
+The root Cargo.toml owns metadata, dependencies, profiles and lint policy with
+`members = ["crates/*"]`. Add crates only when implemented.
 
-| Crate | Owns | Must not own |
-| --- | --- | --- |
-| `mailstronaut` | Binary, libcosmic application/update/view/subscriptions, compose UI, CLI, desktop activation, portal integration | SQL, IMAP commands, tensor inference, HTML security policy |
-| `mailstronaut-core` | Domain IDs, SQLite store/migrations, cached MIME projection, conversation projection, priority/reminder policy, engine command/event orchestration | GUI types, Servo, authentication browser, provider SDKs |
-| `mailstronaut-mail` | Tokio IMAP/SMTP sessions, provider/auth configuration, OAuth2 token refresh, secret lookup, MIME input/output | Widget state, classifier decisions, database schema |
-| `mailstronaut-render` | Servo adapter, sanitized message document/resource map, native theme propagation, input/render lifecycle and privacy enforcement | Account credentials, account network sessions, message persistence |
-| `mailstronaut-classify` | Bounded text preprocessing, Candle model/tokenizer, deterministic deadline candidate normalization, typed analysis results | Mail transport, networking during inference, mutable UI state |
-| `mailstronaut-config` | Versioned Rust configuration, pure Nix evaluation/deserialization, validation, native Nix output for app-owned configuration | Mail cache, credential contents, Home Manager option translation |
+| Component | Responsibility |
+| --- | --- |
+| `mailstronaut` | GPUI Kit views/actions, CLI entry points, native portals and application lifetime |
+| `mailstronaut-config` | Pure native Nix evaluation/helper, schema, validation and last-valid source state |
+| `mailstronaut-core` | Canonical identities, SQLite/blob ownership, MIME projections, threads, drafts/operations/reminders |
+| `mailstronaut-mail` | Standard TLS/IMAP/lettre SMTP/OAuth/credential adapters |
+| `mailstronaut-render` | Sanitized Blitz document, bounded message resources and CPU raster output, no window/network capabilities |
 
-Dependency direction: binary → core/mail/render/classify/config; core →
-mail/classify/config; mail → config; render and classify do not depend on core.
-Core converts renderer/classifier inputs and output IDs at its boundary. Use
-owned domain data and concrete types, not a generic backend/plugin framework.
-Add a tiny shared types crate only if a demonstrated dependency cycle cannot be
-removed by passing values. Keep runtime state enums in their owning crate.
+Keep reusable backend behavior while replacing frontend-specific code directly;
+Git history preserves the old interface. Do not maintain two toolkits or a
+compatibility abstraction around old UI messages. A separate search/model crate
+is appropriate only when its verified implementation exists.
 
-One installed executable, one application process per profile, one Tokio engine,
-one database writer. Keep synchronization alive when the last window closes only
-if background mode is enabled. A separate service executable, local HTTP API,
-daemon/client RPC, notification server, or custom scheduler is unnecessary.
-The native user service runs the same executable with `--background`; activation
-opens a window in that existing process. Use zbus for a small well-known D-Bus
-activation object and keep the name owned for the entire headless/GUI lifetime.
-Do not assume a toolkit's window-level single-instance facility survives after
-all windows are gone. P01/P08 must prove this lifecycle.
+The GPUI UI thread owns entities, focus, layout and displayed immutable snapshots.
+Use the framework's tasks/executors; one retained Tokio runtime supports the
+existing async protocol/portal APIs. Blocking SQLite stays on its existing sole
+owner thread. HTML/layout/raster and inference must not block input/scrolling.
+Renderer documents and fonts remain on their owning worker; only bounded owned
+pixels/metadata cross into GPUI. Avoid per-message runtimes or daemon protocols.
 
-The first rendering spike must establish whether Servo must run on the UI thread.
-Do not send its `Rc`/thread-affine objects through Tokio. Accept only bounded work
-and event-driven redraws in the GUI. If crash isolation later proves necessary,
-that requires its own design review; it is not a reason to invent three services now.
+## 3. Commands, cancellation and resource budgets
 
-## 3. Engine interface and resource limits
+Reuse typed backend handles and immutable paged results. Changes notify views to
+query a new snapshot rather than broadcasting a whole mailbox. Account/folder,
+query, original-body, document, theme and size generations fence stale callbacks.
+Leaving a view cancels or retires its work; dropping a task must not interrupt
+already committed submission/flag/reminder bookkeeping.
 
-Use bounded Tokio `mpsc` commands and `watch`/bounded broadcast events. An initial
-concrete interface (refine names, preserve semantics):
+A selected row is not automatically opened. Only an explicit open action that
+successfully loads the selected original may mark it Seen; search, preview, list
+refresh, passive focus and restored selection never do so. Recheck the selected
+original/generation before applying the result. Opening one thread member does not
+mark other originals read. Model output never invokes mailbox actions.
 
-```text
-Command:
-  Sync(account_id), OpenMessage(message_id), SetSeen(message_id, bool),
-  SetStarred(message_id, bool), Move(message_id, folder_id),
-  SaveDraft(draft), SendDraft(draft_id),
-  SetReminder(message_id, due_at), CancelReminder(reminder_id),
-  DismissPriority(message_id), Reanalyze(message_id), ReloadConfig,
-  SetOnline(bool), Shutdown
-
-Event:
-  AccountStatus(account_id, Connecting|Online|Offline|NeedsLogin|Error),
-  InboxChanged(revision), MessageReady(message_id, body_revision),
-  DraftSaved(draft_id), OutboxChanged, ReminderDue(reminder_id),
-  ConfigRejected(field_errors), BackgroundUnavailable(reason)
-```
-
-Views query paginated immutable snapshots after `InboxChanged`; do not broadcast
-whole mailboxes. Revision numbers allow discarding stale view/analysis responses.
-Invalidate selected-message render work on navigation. A slow account must not
-block another account, scrolling, configuration errors, or reminders.
-
-Initial policy limits (measurable targets, tune from recorded evidence): at most
-two IMAP connections/account (one selected INBOX IDLE, one work connection), four
-active account workers, one classifier job, 256 queued engine commands, 100-row
-inbox pages. Additional accounts queue fairly. Bounded exponential reconnect backoff
-with jitter, cap five minutes; reset after a healthy session. On network restoration
-resync immediately. All sessions, DNS/TLS, and operations have cancellation and
-timeouts. Do not authenticate repeatedly on invalid credentials.
+Preserve bounded queues, 100-row pages and the existing blocking store owner
+(capacity 16). Initial account targets are four active accounts and at most two
+IMAP connections per account, one classification job and bounded reconnect backoff
+up to five minutes. Fairness, cancellation and idle costs need measurements.
+Render input/DOM/resource/frame budgets are specified in RENDERING.md. Never
+allocate a whole unbounded mailbox, HTML document image or analysis backlog in a
+UI event handler. Use standard components/libraries rather than new infrastructure.
 
 ## 4. Local persistence and mail identity
 
@@ -275,7 +234,7 @@ The model supplies evidence, never authority over the mailbox. It cannot mark re
 archive, delete, send, fetch a URL, or invoke tools. Analysis is local on CPU using
 Candle and a small multilingual NLI encoder; [CLASSIFIER.md](CLASSIFIER.md) defines
 the exact candidate, labels, bounded input, deadline parsing and validation gates.
-Show “Priority” as a separate highlighted grouping using COSMIC theme surfaces,
+Show “Priority” as a separate highlighted grouping using GPUI Kit semantic theme surfaces,
 an icon and text; the supplied iOS image is a behavior reference, not an asset or
 layout to copy. Retain normal inbox access and a control to dismiss priority.
 
@@ -370,38 +329,31 @@ systemd installation or `flatpak-spawn --host`. Explicit Quit terminates this
 process and suspends work until a subsequent activation/login. A user service
 uses `Restart=on-failure`, not `always`, so intentional Quit stays quit.
 
-When headless, release Servo, its surfaces/windows, and classifier weights after
+When headless, release Blitz, its surfaces/windows, and classifier weights after
 an idle timeout; synchronization/reminders do not require a browser. Do not keep
 a GPU context merely to poll mail. Disable-background means no hidden work after
 last-window-close. No notification is possible while the machine is off, the user
 session is absent, or background execution has been refused; show that operational
 limit next to the setting. Do not enable user lingering or wake the machine.
 
-## 8. Native rendering and dark mode
+## 8. Native rendering and light/dark mode
 
-libcosmic owns the application theme. Forward the effective light/dark theme to
-Servo using `WebView::notify_theme_change(servo::Theme::Dark/Light)` at creation and
-on every live theme change. Use Servo's native color-scheme behavior. No color
-inversion, dark CSS rewrite, Dark Reader, injected JavaScript, or duplicate HTML
-darkening implementation. A sender's explicitly fixed light colors may remain
-light; do not claim the native theme API automatically recolors every email.
+Use the published GPUI Kit facade and matching GPUI family, its styled components,
+assets and semantic theme tokens. Native Wayland is mandatory. Verify both actual
+window creation with DISPLAY unset and ordinary HTML displayed inside that window;
+a compiled Wayland feature or headless component test alone does not establish it.
 
-The main rendering gate is described in [RENDERING.md](RENDERING.md). First attempt
-reuse of `iced_webview_v2` with its defaults off and Servo only, aligned with the
-libcosmic Iced fork. It is a candidate, not a compatible component already proven.
-The upstream wrapper targets another Iced source/version and does not expose all
-the required security/theme hooks. Prefer small upstreamable adapter changes;
-otherwise a thin direct Servo adapter confined to this crate. Never switch to
-WebKit/Chromium or implement a browser engine without changing the architecture.
+Blitz supplies layout and its viewport color-scheme/media handling. AnyRender's
+Vello CPU backend supplies rasterization; GPUI displays the owned image. Start
+with that public integration, not custom GPU resource sharing. RENDERING.md defines
+resource denial, bounded message-local images, lifetime, input, accessibility and
+measurement requirements. System fonts are an explicit rendering input; email URLs
+are not filesystem authority. Include no JS runtime or built-in networking loader.
 
-Mail rendering is untrusted input. Sanitize with Ammonia and enforce an email
-resource/navigation policy in Servo, covering CSS imports, fonts, SVG and redirects,
-not just `<img>`. Script elements/handlers, forms, frames, active embeds, base tags,
-refresh and service workers are forbidden. CSP is defense in depth. Loading an
-email must cause zero remote resource requests by default. Local CID data is
-provided only through an opaque per-message resource map; no `file://` or access
-to mailbox/database/keyring paths. External links go to the default browser via
-the portal after explicit activation. OAuth always uses that external browser.
+The application theme is a GPUI Kit theme, selected from validated appearance
+configuration/native window appearance. Pass light/dark to Blitz without global
+image inversion or desktop-specific configuration. Fixed-light email styles may
+remain light. Verify themed controls and message content separately.
 
 ## 9. Configuration and delivery
 
@@ -422,7 +374,7 @@ are optional, hashed, pinned and installed/downloaded with informed user action.
 No feature is done because an API exists or compilation succeeds. A milestone is
 done only with its listed tests/artifacts and checked acceptance rows in PLAN.md.
 Keep small evidence notes with command, revision, environment, result and limits.
-Pin and compile risky libraries before building the rest around them. If Servo
+Pin and compile risky libraries before building the rest around them. If Blitz
 cannot meet the privacy/accessibility/composition gate, or a required institutional
 account cannot authorize standard IMAP/SMTP, record the blocker honestly and keep
 dependent checklist items open. Do independent work; do not hide the failure behind

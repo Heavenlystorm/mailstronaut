@@ -242,7 +242,7 @@ in
 
 The service is installed only when the user's configuration chooses it. Desktop
 environment variables must be imported into the user manager; document/debug that
-with COSMIC, do not set fake WAYLAND_DISPLAY values. Native service-managed startup
+with native Wayland, do not set fake WAYLAND_DISPLAY values. Native service-managed startup
 and portal autostart are mutually exclusive to avoid duplicate launches. The
 `autostart` field expresses intent for app-managed portal startup; in HM-managed
 native service mode show “managed by Home Manager” and do not write an autostart
@@ -301,7 +301,7 @@ prompt or downgrade to plaintext.
 OAuth is an external-browser operation. Bind an ephemeral loopback port before
 opening the URL, use random state and S256 PKCE via the oauth2 library, enforce
 callback path/state, one-use code and a timeout, then close the listener. Handle
-malformed/duplicate/denied callbacks safely. Never render a login form in Servo or
+malformed/duplicate/denied callbacks safely. Never render a login form in Blitz or
 log the URL's code/token/state. Google desktop registrations can include a
 non-confidential client-secret field required by their token endpoint; treat it as
 public application metadata, never as a secure secret embedded in a binary. Do not

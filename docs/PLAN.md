@@ -1,519 +1,347 @@
 # Implementation checklist
 
-This is the authoritative handoff. `[x]` means completed **and verified**, `[ ]`
-means work whose acceptance checks remain open. P00 is complete; P01–P04 have
-partial implementations recorded in their milestone evidence files.
-Do not mark planned features complete because an interface, mock or upstream API
-exists. Update only the acceptance rows actually proven, citing a small evidence
-file with revision, commands, results and limitations. Every implementation change
-uses `nix develop` and inherits the root lints/dependencies. Work in small commits.
+This is the **single source of truth** for the current direction and progress.
+The application uses **GPUI Kit + Blitz**, with **native Wayland required**.
+`[x]` records verified work at the stated scope; `[ ]` records unfinished
+implementation or acceptance. Backend evidence remains useful where the code is
+retained. Previous UI/browser screenshots, tests and package results do not prove
+acceptance of the new stack. See [historical evidence](evidence/README.md).
+
+Use `nix develop`, centralized workspace dependencies/lints and focused commits.
+Keep mail, MIME, TLS, OAuth, Nix evaluation, threading, inference and rendering in
+existing libraries. Do not implement a second toolkit, browser or search engine.
 
 ## Milestone map
 
-| ID | Outcome | Depends on | Release blocker |
-| --- | --- | --- | --- |
-| P00 | Research, contracts, buildable workspace and Nix CI scaffold | — | Yes |
-| P01 | libcosmic + Servo integration/privacy/theme proof | P00 | Yes |
-| P02 | Native Nix config and standard credential storage | P00; packaging feedback from P01 | Yes |
-| P03 | Durable local store, MIME projection and fixtures | P00/P02 schema | Yes |
-| P04 | Reliable IMAP sync and offline operation | P02/P03 | Yes |
-| P05 | Google/iCloud/institutional authentication | P02/P04 | Yes |
-| P06 | Unified inbox, conversations and strong local search | P01/P03/P04 | Yes |
-| P07 | Draft/compose/send and safe mailbox actions | P04/P05/P06 | Yes |
-| P08 | Remind me, notifications and optional background lifetime | P03/P06; P01 lifecycle | Yes |
-| P09 | Local classifier, contextual expiry and deadline boxes | P03/P06/P08 | Yes |
-| P10 | Complete Nix/Flatpak delivery and container integration CI | Working pins from P01/P02; P04–P09 | Yes |
-| P11 | Release hardening and five-provider acceptance | P01–P10 | Yes |
+| ID | Outcome | Dependencies |
+| --- | --- | --- |
+| P00 | Current architecture and reproducible workspace | — |
+| P01 | GPUI Kit + Blitz foundation, native Wayland and HTML safety | P00 |
+| P02 | Native Nix configuration, credentials and GPUI settings | P00/P01 |
+| P03 | Durable store, canonical identity and MIME projections | P02 schema |
+| P04 | Reliable IMAP synchronization and offline operation | P02/P03 |
+| P05 | Google, iCloud and institutional onboarding | P02/P04 |
+| P06 | Native mailbox workspace, conversations and strong local search | P01/P03/P04 |
+| P07 | Compose, drafts, attachments, submission and mailbox actions | P04/P05/P06 |
+| P08 | Remind me, notifications and optional background operation | P03/P06 |
+| P09 | Local priority classification, contextual expiry and deadlines | P03/P06/P08 |
+| P10 | Nix/Home Manager, Flatpak and minimal-container CI | P01–P09 |
+| P11 | Release and five-provider acceptance | P01–P10 |
 
-P02/P03 can proceed during a documented P01 upstream blocker, but do not build a
-large UI around a renderer assumption. No deadline estimate replaces acceptance.
+All milestones block a complete v0.1 release. Start with the new P01 foundation,
+then connect the retained backend and restore mail workflows through GPUI Kit.
+Model research must not indefinitely postpone the usable mailbox/compose UI.
 
-## P00 — Planning and reproducible foundation
+## P00 — Architecture and reproducible foundation
 
-- [x] Inspect the repository and CFI's root workspace/dependency/lint conventions.
-- [x] Research Hylki, libcosmic, Servo embedding/theme/resource APIs and the existing
-  Iced/Servo wrapper; document source/version incompatibilities.
-- [x] Research Google/iCloud/academic auth and local classifier options, including
-  the JevBench JSON feed; distinguish provider documentation from login proof.
-- [x] Specify architecture, ownership, native Nix configuration, data identity,
-  rendering policy, priority/deadline/read behavior and reminder lifecycle.
-- [x] Create root `members = ["crates/*"]`, centralized dependency location,
-  inherited metadata/lints and locked Rust scaffold. The current strict, practical
-  Clippy policy is defined in DELIVERY.md.
-- [x] Create a flake with pinned Nixpkgs, `nix develop`, Nix package and checks.
-- [x] Verify scaffold format/Clippy/Cargo checks inside `nix develop`, package build,
-  Nix format check and installed binary smoke; record `docs/evidence/P00.md`.
-- [x] Add and statically validate minimal Nix-container CI; distinguish local
-  checks from the first remote workflow run.
-- [x] Commit the architecture/scaffold baseline on main after final audit.
+- [x] Retain `members = ["crates/*"]`, centralized dependencies, inherited metadata
+  and strict practical Clippy policy.
+- [x] Retain the Nixpkgs/Rust/Crane/flake foundation and minimal Nix-container CI.
+  A previous-stack build is not acceptance of the new GUI package.
+- [x] Record the current GPUI Kit, GPUI, Blitz and CPU-raster APIs, exact dependency
+  choices, native Wayland route and upstream limitations in DEPENDENCIES/RENDERING.
+- [x] Resolve/lock the new graph and native inputs; remove obsolete dependencies
+  and build hooks. Avoid duplicate GPUI versions and untracked build downloads.
+- [ ] Pass current-stack format, strict Clippy, tests, Nix package and installed
+  CLI/config smoke. Record exact commands, revision and remaining limits.
 
-## P01 — Prove the hard rendering boundary first
+## P01 — Native GPUI Kit and Blitz foundation
 
-Read RENDERING.md and DEPENDENCIES.md. Scope: minimal window + synthetic fixture,
-not accounts or a complete inbox. Deliver `docs/evidence/P01.md` and working pins.
+Read RENDERING.md and DEPENDENCIES.md. Record evidence in
+`evidence/P01-gpui-blitz.md`. Earlier renderer evidence is historical.
 
-- [ ] Pin libcosmic and its submodules, the chosen Servo release commit/toolchain,
-  actual native libraries/resources and exact Cargo/Nix dependency hashes.
-- [ ] Build a normal libcosmic Application using `cosmic::iced` reexports; verify
-  Wayland, live native theme, basic keyboard navigation and accessibility.
-- [ ] Compile/evaluate reuse of iced_webview_v2 with Servo only; inspect duplicate
-  Iced/Stylo/wgpu/links dependencies, adapter theme/security hook exposure and
-  size. Record a yes/no decision with concrete compile/API evidence.
-- [ ] Adopt the existing adapter with a small maintained patch, or implement the
-  smallest direct offscreen Servo adapter; no browser/toolkit rewrite or alternate
-  engine. Record every carried upstream patch and a path to remove it.
-- [x] Implement and exercise the bounded synthetic-only software viewport,
-  coalesced async wakes, owned RGBA frames, native theme notification and resize.
-  P01 evidence records three renderer tests; complete mail privacy acceptance
-  remains in the separate unchecked rows.
-- [x] Compose the fixed synthetic viewport in the native COSMIC window using
-  event-driven wakes on the UI thread. Save light/dark captures on isolated X11
-  and Weston/Wayland, and exercise native page navigation and bounded resize.
-  See P01 evidence; this does not complete mail input, privacy or lifecycle.
-- [x] Exercise bounded synthetic wheel scrolling and initial X11 scale at
-  100/150/200%, with pixel-displacement tests and uncropped before/after captures.
-  See P01 evidence; dynamic Wayland scale changes and other input remain open.
-- [x] Recreate disposable synthetic WebViews on one retained engine/context;
-  verify 100 cycles, delegate release, native theme after reopening, and idle
-  measurements. The retained graphics context is explicit; full release remains open.
-- [ ] Wire waker/spin/frame-ready/redraw, input, scroll, selection/copy, HiDPI,
-  resizing, focus, links and webview teardown; one message viewport at a time.
-- [ ] Forward effective COSMIC dark/light theme through Servo's native method.
-  Save light/dark screenshots including dark-aware and fixed-light emails.
-- [x] Exercise the synthetic resource interceptor with isolated allow controls:
-  loopback images, backgrounds, stylesheets/imports and font fetches, plus file
-  and data rasters. See P01 evidence for the seven cancellations and proof limits.
-- [x] Bind a bounded synthetic document/known PNG table to a fresh generation and
-  concrete WebView; exercise initial request association, visible local raster,
-  A-to-B retirement and unknown resource denial under the production CSP.
-  Wrong-view/destination checks are registry tests; generic CID/origin privacy
-  and concurrent in-flight retirement remain open. See P01 evidence.
-- [ ] Enforce sanitizer + CSP + scheme/navigation/resource/permission policy;
-  prove **zero remote requests** on load, including CSS/font/SVG/import/redirect
-  and non-HTTP attempts. Test CID isolation and no local-file access.
-- [x] Exercise synthetic inline-script and image-load-handler denial with separate
-  script-permissive positive and sanitizer-only controls. Observe the permitted
-  local image trigger, distinct script pixels and loopback execution markers.
-  This does not close external-script, forms/frames or comprehensive privacy tests.
-- [ ] Verify external browser links and blocked scripts/forms/frames; ensure email
-  content cannot reach credentials or invoke native commands.
-- [ ] Measure idle CPU, viewport memory, long-email scrolling and 100 message swaps;
-  stop redraw work when hidden and release browser/graphics resources headless.
-- [ ] Verify HTML accessibility bridge or document/test the native accessible text
-  reader mode; a texture alone is not an accessibility tree.
-- [x] Add a fixed synthetic native Text mode using COSMIC selection/copy and
-  standard focus/scroll operations; verify keyboard/mouse copy, theme, resize and
-  initial X11 100/150/200% scale. Actual AT-SPI publication is blocked and remains
-  in the separate unchecked accessibility row. See `evidence/P01-text-reader.md`.
-- [x] Inventory a project-local x86_64 Flatpak SDK with pinned Rust/LLVM extensions;
-  exercise frozen offline workspace fetch and all five nested mozjs metadata
-  calls in the SDK and metadata-only builder. This does not establish compilation.
-- [x] Build the x86_64 Nix package with strict release Clippy and all workspace
-  tests; exercise the installed CLI/native Nix helper with an empty environment.
-  See P01 evidence; installed graphical and cross-architecture acceptance stay open.
-- [x] Compile the workspace offline in the pinned x86_64 Flatpak SDK and exercise
-  its installed probe binary/native config helper in the Platform runtime. See P01
-  evidence; production Flatpak delivery and graphical acceptance stay open.
+- [x] Pin matching GPUI Kit/GPUI and Blitz/AnyRender/Vello CPU releases. Use the
+  published component ecosystem; carry no large forks or reference-app patches
+  without a demonstrated, documented need and an upstream removal path.
+- [ ] Build a normal GPUI Kit window with standard assets/components, semantic
+  light/dark themes, focus, keyboard bindings and responsive layout.
+- [ ] Run on native Wayland with `DISPLAY` unset and no XWayland. Verify the actual
+  platform connection and packaged window, not merely a compiled backend feature.
+- [x] Embed actual Blitz HTML/CSS layout through AnyRender's Vello CPU backend and
+  GPUI's standard image API. No child browser window, foreign X surface, alternate
+  HTML engine or unnecessary GPU-sharing layer.
+- [ ] Bound HTML/DOM/resource/frame dimensions and memory; keep layout/raster work
+  off the UI thread and fence message/resize/theme generations against stale frames.
+- [ ] Render synthetic ordinary and nested email tables, inline CSS, malformed
+  HTML and Unicode; record unsupported layout/font/image behavior honestly.
+- [ ] Enforce parser-based sanitization and default-deny resource, navigation and
+  shell providers. Include no JS runtime, form submission, native commands,
+  credential access or automatic external links. Do not assume browser CSP support.
+- [ ] Prove no remote/DNS/localhost/file/redirect/CSS/font/SVG/tracking loads on
+  open, using working positive controls and independent observations.
+- [ ] Support bounded immutable message-local CID/raster resources; test ambiguous
+  IDs, encoding/traversal, missing parts, wrong types, retirement and isolation.
+- [x] Forward the app's selected color scheme through Blitz's viewport/media API.
+  Respect fixed-light emails; do not invert images or reproduce desktop themes.
+- [ ] Implement scrolling, resize, HiDPI, explicit portal links, selection/copy and
+  a native accessible text reader. A raster alone is not text accessibility.
+- [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
+- [ ] Measure long-email responsiveness, repeated message switches, frame memory
+  and hidden idle CPU; drop obsolete documents and stop hidden rendering.
+- [ ] Pass current-stack Nix packaging and an early offline Flatpak SDK/runtime
+  check, preserving native Wayland and no dependency on a host Nix executable.
 
-Stop condition: if composition, theme/resource hooks, build closure or required
-lifecycle cannot be implemented narrowly, keep P01 open and record the upstream
-blocker. Do not “solve” it with an insecure renderer or hidden engine substitution.
+An upstream limitation leaves its row open. Investigate practical options within
+this stack; do not restore the previous architecture or fabricate a reader.
 
-## P02 — Native configuration and secrets
+## P02 — Native Nix configuration and encrypted secrets
 
-Read CONFIGURATION.md. Create `mailstronaut-config`; no HM module or TOML parser.
+Reuse `mailstronaut-config`; read CONFIGURATION.md. The input remains a native
+`.nix` expression. Home Manager links/copies that same source directly; no HM
+adapter, hidden TOML file, imported Nixpkgs or host Nix daemon is required.
 
-- [ ] Pin snix-serde/eval and Serde, audit default features, GPL notices, build
-  closure and memory; use the existing pure strict evaluator.
-- [ ] Implement schemaVersion=1 structs/tagged enums, camelCase, unknown-field
-  rejection, defaults and full cross-field validation. Account IDs are stable and
-  unique; endpoint/port/TLS/auth/CA fields and optional distinct SMTP auth work.
-- [x] Implement bounded same-binary evaluation helper, limits, cancellation/reap,
-  typed result/error IPC; no I/O builtins, imported Nixpkgs, shell or host Nix.
-- [ ] Test native Nix let/references/lists/conditionals, invalid types/unknown keys,
-  unsupported schema, attempted IO and nontermination; verify limits empirically.
-- [x] Implement `config init/check`, explicit config path, missing/invalid startup
-  state and atomic last-valid reload; no partially applied account changes.
-  See `evidence/P02-accounts.md`; account worker reconfiguration remains P04.
-- [ ] Detect managed/store-backed/read-only files; preserve source expressions,
-  do not rewrite HM files; app-owned unmanaged writes use native Nix serializer
-  and atomic validation. No hidden SQLite preference overrides.
-- [ ] Implement oo7 credential store, attributes, foreground unlock/redacted errors,
-  no plaintext fallback; test native Secret Service and Flatpak Secret portal.
-- [x] Implement and test the scoped oo7 adapter against a disposable native Secret
-  Service: persistence, rotation, account/purpose isolation, ambiguity, lock and
-  unavailable behavior; exercise installed GUI masked save/readback with managed
-  source preservation. Flatpak portal and real desktop unlock acceptance remain
-  in the separate unchecked credential row. See `evidence/P02-accounts.md`.
-- [ ] Link the same .nix source via a disposable Home Manager test configuration;
-  test Flatpak regular-file copy/direct-link caveat. Do not activate user dotfiles.
-- [ ] Confirm no password/token can enter config/store paths, Debug output, tracing
-  or a failed validation diagnostic. Test account disable vs explicit data purge.
+- [x] Retain typed schema/defaults/unknown-field rejection and the bounded pure
+  Snix same-binary helper, resource limits, cancellation/reaping and redacted IPC.
+- [x] Retain `config init/check`, explicit paths, no-overwrite/permissions checks
+  and last-valid configuration state. [Backend evidence](evidence/P02-accounts.md).
+- [x] Retain scoped oo7 storage, encrypted persistence, rotation, account/purpose
+  isolation, lock and unavailable behavior against a private native Secret Service.
+  Existing protocol evidence does not prove new UI or Flatpak portal acceptance.
+- [ ] Build GPUI Kit settings/onboarding with managed/read-only source handling,
+  reload/error states, masked secret fields and foreground keyring/OAuth actions.
+- [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
+  configuration cannot replace the last valid account state or expose secrets.
+- [ ] Verify the same `.nix` source through disposable Home Manager integration,
+  native package and Flatpak regular-file/document access. Never activate user dotfiles.
+- [ ] Prove no password/token appears in config, Nix store, Debug, tracing or failed
+  diagnostics; test disabled accounts separately from explicit data purge.
+- [ ] Verify real desktop unlock and Flatpak Secret portal behavior, without a
+  plaintext credential fallback or an externally executed password command.
 
-Deliver schema docs/examples, evaluator/secret tests, HM link proof, exact pins and
-`docs/evidence/P02.md`. App and Flatpak must work without a host Nix executable.
+## P03 — Local store and canonical message projections
 
-## P03 — Store and canonical message projections
+Reuse `mailstronaut-core`, rusqlite/migrations, mail-parser and mail-threading.
+Existing synthetic backend tests/evidence remain relevant; rerun them with the
+new dependency graph before claiming current-package acceptance.
 
-Create `mailstronaut-core`. Use rusqlite, numbered migrations, mail-parser and
-mail-threading; no ORM/custom MIME/threading engine. Add only current dependencies.
+- [ ] Verify private XDG paths, one blocking store owner/profile lock, bounded
+  commands, WAL/foreign keys/busy timeout, migration backup/rollback and corrupt DB UX.
+- [ ] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
+  clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
+- [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
+  attachment/CID descriptors and source/body revisions. No generated summaries.
+- [ ] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
+  deduplication and duplicate Message-ID tests; never merge different accounts.
+- [x] Retain account-local RFC5256/JWZ grouping with subject merging disabled,
+  revision-fenced stable conversations and the 37-case upstream conformance corpus.
+- [ ] Complete missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior
+  at measured mailbox scale; sequence numbers never become persistent identity.
+- [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
+  partial-cache states and bounded 100k-message behavior. See P06 for strong search.
 
-- [ ] Implement XDG data/cache/config paths, permissions, dedicated blocking store
-  owner, bounded commands, WAL/foreign keys/busy timeout and transaction boundaries.
-- [ ] Add tables/constraints in ARCHITECTURE.md and migration backup/upgrade policy.
-  Test fresh DB, old schema upgrade, failed migration rollback and corrupt DB UX.
-- [ ] Add atomic SHA-256 blob writes, dedup/reference counting and orphan cleanup;
-  drafts/reminders/outbox must survive “clear cache” and interrupted processes.
-- [ ] Parse synthetic RFC5322/MIME fixtures with current 1.0 parser; non-UTF8,
-  multipart alternative, nested messages, malformed parts and bounded attachments.
-- [ ] Produce original body, deterministic preview with source/body revision,
-  address/header fields, attachments/CID map; no model summary or remote fetching.
-- [ ] Implement account/folder/UIDVALIDITY/UID identity and multiple memberships;
-  canonicalize Gmail provider IDs, preserve duplicate Message-ID distinct bodies,
-  never merge accounts or persist sequence numbers as IDs.
-- [ ] Use existing RFC5256/JWZ grouping with subject merging off; test missing
-  ancestors/cycles/references/late parents/duplicate IDs/Sent ancestors and stable
-  conversation IDs through merges. Inspect the upstream conformance corpus.
-- [ ] Implement paginated unified-inbox/search projections and FTS5 indexing/purge;
-  verify empty/partial-cache/offline behavior and bounded 100k-message fixture cost.
+## P04 — IMAP synchronization and offline operation
 
-Deliver migrations and synthetic fixtures with no real email; record crash/recovery
-tests and measured scale limits in `docs/evidence/P03.md`.
+- [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
+  expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.
+  [Protocol evidence](evidence/P04.md); earlier frontend acceptance is historical.
+- [ ] Connect this backend to GPUI with explicit sync, cancellable progress/errors,
+  independent account state, configuration generations and useful offline reading.
+- [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
+  capability discovery, account cancellation/backoff and fair connection/work budgets.
+- [ ] Complete SPECIAL-USE discovery, explicit folder overrides and verified
+  UTF-7/UTF-8 names, without lossy folder identity.
+- [ ] Complete bounded recent sync, older paging, partial-cache status, on-demand
+  bodies/attachments and safe UIDVALIDITY/gap/reset reconciliation.
+- [ ] Implement IDLE/DONE/renew/reselect with polling fallback, non-INBOX flags,
+  reconnect, offline/resume recovery and changes made by other clients.
+- [ ] Preserve local reminder/dismiss/analysis state across moves/reconciliation.
+  Neither background fetching, previews nor analysis sets Seen.
+- [ ] Exercise disposable protocol servers, drops and authentication failures in
+  Nix/container CI; measure idle CPU, cancellation, paging and failure isolation.
 
-## P04 — IMAP synchronization
+Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
-Create `mailstronaut-mail`; the engine owns scheduling/persistence. Use local
-protocol fixtures, not real accounts, for deterministic integration tests.
+## P05 — Required account onboarding and authentication
 
-- [x] Implement and test a bounded read-only UID page from validated TLS through
-  the blocking store worker to offline native reading, with expunge/flag updates,
-  UIDVALIDITY-bound paging and private dark/light GUI fixtures. This is the
-  receiving prototype in [P04 evidence](evidence/P04.md), not complete sync.
+- [x] Retain public-client OAuth S256/CSRF/code exchange, external portal browser,
+  scoped encrypted refresh/rotation and shared IMAP/SMTP sessions. The mock IdP,
+  keyring and callback backend tests remain valid. [Evidence](evidence/P05.md).
+- [ ] Port onboarding/account status to GPUI Kit; isolate account errors, token
+  refresh and cancellation. Never render a provider login form inside email HTML.
+- [ ] Verify Google public desktop-client ownership, consent/scopes, OAuth IMAP/SMTP,
+  revoked/expired tokens and actual login/sync/controlled send with authorization.
+- [ ] Verify iCloud account/app-specific password flows and provider endpoints.
+- [ ] Support manual IMAP/SMTP/TLS/CA/auth configuration for INRIA, Politecnico di
+  Torino and Université de Pau et des Pays de l'Adour; verify each actual supported
+  route, differing login names, aliases and authentication restrictions.
+- [ ] Test locked/unavailable keyring, denied/cancelled browser, invalid callback,
+  refresh races and logout/purge. Complete native Wayland and Flatpak portal flows.
+- [ ] Keep live-provider outcomes separate from local mock/compile evidence.
 
-- [ ] Implement validated TLS/required STARTTLS stream setup with native roots and
-  optional extra CAs; test wrong host/expired cert/missing STARTTLS/revoked trust.
-- [ ] Add account runtime/cancellation/backoff states and capability discovery.
-  Connection/work budgets and failure isolation match ARCHITECTURE.md.
-- [ ] Discover folders/SPECIAL-USE and allow explicit overrides; handle UTF-7/UTF-8
-  mailbox names through verified library/server capabilities without lossy IDs.
-- [ ] Implement batched initial recent sync, partial-cache indication, older paging,
-  body preview/analysis PEEK fetch, attachment-on-demand and transactional cursors.
-- [ ] Implement UIDVALIDITY rescan/reconciliation, UID gaps/expunges/flags and
-  pending-operation invalidation. No blind cursor reuse or sequence-ID mutation.
-- [ ] Implement IDLE when advertised, DONE/renew/reselect correctly and five-minute
-  polling fallback; periodic non-INBOX flags and online/offline/resume recovery.
-- [ ] Preserve read/dismiss/reminder state while messages move/duplicate/reconcile.
-  Process changes from another client, including read flags, without re-highlighting.
-- [ ] Integrate disposable Dovecot and mock SMTP fixtures started from Nix (minimal
-  container-compatible harness), network drops and authentication failures; assert
-  no preview/classification fetch sets Seen and no secrets appear in logs.
-- [ ] Measure cancellation, fair account scheduling, large-folder paging, offline
-  startup and idle CPU; cap bodies/connections/queues as documented.
+## P06 — GPUI mailbox workspace and strong local search
 
-Do not enable optional CONDSTORE/QRESYNC until a separate verified extension test
-shows it reduces work without changing correctness. Deliver P04 evidence.
+- [x] Retain scoped cached-folder queries, literal FTS5 and account-local
+  conversation projections. [Backend evidence](evidence/P06-browse.md).
+- [ ] Deliver a coherent GPUI Kit sidebar, resizable mailbox/list/reader panes,
+  virtualized rows, account badges, metadata/preview hierarchy, unread/star states,
+  keyboard commands and responsive empty/offline/error/partial-cache states.
+- [ ] Preserve stable selection/scroll through updates; cancel stale account,
+  folder, query, body and render work. Measure large-list responsiveness.
+- [ ] Display each account-local thread once, include cached Sent ancestry, open
+  the matching original and allow per-message selection/actions.
+- [ ] Mark Seen only after an **explicit open action loads that original's content**.
+  Passive focus/selection/restoration/search/previews/refresh never mark read;
+  opening one member does not mark its whole thread. Preserve explicit unread.
+- [ ] Display extracted two/three-line previews, safe HTML/CID and accessible text
+  modes; verify actual Wayland keyboard/copy/link behavior.
+- [x] Research maintained fuzzy/hybrid libraries and local encoders, with exact
+  source/API and isolated engine/resource probes. [Research](SEARCH.md).
+- [ ] Finish model/library adoption gates and choose the smallest maintained
+  integration meeting quality/resource budgets. Existing E5 and Model2Vec candidates
+  fail their fixed relevance screen; Potion also exceeds its memory screen.
+- [ ] Provide typo-tolerant fuzzy subject/address/body search, accent/partial terms,
+  useful ranking, deliberate exact/filter queries and bounded expansion, using a
+  maintained library rather than a custom matcher or index.
+- [ ] Add multilingual retrieval by meaning: **"reminder about doctoral school
+  re-enrollment" finds the French doctoral registration notice without matching
+  query words**. Test EN/FR/IT paraphrases, cross-language and near-topic negatives.
+- [ ] Keep queries/text/embeddings/inference local. Models are small CPU encoders,
+  pinned/hashed/licensed and explicitly installed; no startup downloads or remote
+  fallback. Semantic search is independent of enabling the priority classifier.
+- [ ] Use one native search field with library ranking, scoped account/folder/date/
+  sender filters, honest snippets and conversation deduplication. Search never sets Seen.
+- [ ] Maintain a private rebuildable index keyed by canonical original/source/model
+  revision; bounded incremental indexing, restart/model change, deletion/purge and
+  disabled accounts must not retain stale results or touch user-owned state.
+- [ ] Show partial-cache/index coverage and unavailable/disabled models. Local
+  lexical/fuzzy search remains usable, but this does not complete semantic acceptance.
+- [ ] Pass fixed and held-out relevance, filter/isolation/restart/deletion tests,
+  the user's French example, and measured 10k/100k CPU/RAM/index/build budgets.
 
-## P05 — Required account onboarding/authentication
+## P07 — Composition, submission and mailbox actions
 
-Standard OAuth2 library, external browser and oo7; no login UI inside Servo.
+- [x] Retain revisioned transactional drafts, lettre MIME/Unicode/Bcc handling,
+  immutable originals/Message-ID, fenced SMTP attempts and delivery uncertainty.
+  [Backend evidence](evidence/P07.md); previous UI evidence is historical.
+- [x] Retain reply/reply-all/text-forward account/alias/ancestry preparation and
+  self-recipient exclusion. [Evidence](evidence/P07-reply.md).
+- [x] Retain bounded owned attachment snapshots, independent account copies,
+  rejection recovery and freeze/hash integrity. [Evidence](evidence/P07-attachments.md).
+- [x] Retain read/unread/star/unstar intentions, unsent-only undo, TLS application
+  and exact UID/configuration fences. [Evidence](evidence/P07-actions.md).
+- [ ] Build the GPUI Kit composer from standard inputs/editor/identity controls,
+  To/Cc/Bcc, portal Attach/Remove, signature, reply/forward and validation.
+- [ ] Verify autosave, draft switching, source-file access loss, close/restart and
+  failure recovery on Wayland. A selected file becomes a private owned snapshot.
+- [ ] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
+  Preserve fixed frozen bytes and Message-ID; no automatic ambiguous-delivery retry.
+- [ ] Complete accepted-DATA/drop reconciliation, provider Sent auto-save and
+  separately retriable Sent APPEND. Sent-copy failure must never trigger SMTP resend.
+- [ ] Port native flag/undo controls and implement safe archive/trash/move with
+  pending operations, UID MOVE/UIDPLUS fallbacks and no unrelated global EXPUNGE.
+- [ ] Recover interrupted operations and reconcile real server state, retaining
+  local reminder/analysis identity and visible permanent failure/undo behavior.
+- [ ] Verify native composition/attachments/actions on Wayland and Flatpak, plus
+  authorized controlled send/reply flows on all required providers.
 
-- [x] Deliver the bounded public-client prototype: native portal authorization,
-  library S256/CSRF/code exchange, bound encrypted refresh storage, serialized
-  rotation and IMAP/SMTP credential sharing. Local protocol/keyring/native mock-
-  portal evidence: [P05](evidence/P05.md). Live providers and full auth acceptance
-  below remain pending.
+HTML composition, remote draft sync, signing and permanent purge remain deferred.
 
-- [ ] Implement shared authorization-code + S256 PKCE + CSRF state/loopback flow,
-  secure callback lifecycle and redacted errors; timeout/duplicate/cancel/denial tests.
-- [ ] Implement serialized refresh/rotation, expiry and invalid_grant behavior,
-  token persistence and SASL XOAUTH2/OAUTHBEARER only as supported by the server.
-- [ ] Add Google preset, correct scope, desktop client registration/test-user
-  instructions, Gmail folder/label/provider-ID behavior and quota-aware backoff.
-- [ ] Add iCloud preset, app-password guidance, independent incoming/outgoing login
-  fields and strict TLS; never collect the Apple web account password.
-- [ ] Add generic manual IMAP/SMTP/password/custom OAuth/CA/folder configuration,
-  optional distinct SMTP credentials and a test-connection action that sends no mail.
-- [ ] Add Microsoft public-client OAuth preset sufficient for enabled Exchange
-  IMAP/SMTP; document tenant admin consent/SMTP AUTH/IMAP restrictions and no Graph.
-- [ ] Validate Google and iCloud using authorized accounts; reconnect after restart,
-  revoked credentials, keyring locked and offline; test both Nix and Flatpak callbacks.
-- [ ] Obtain current Inria settings and validate actual account login/sync; keep
-  guessed endpoints out of presets and public fixtures.
-- [ ] Validate the user's PoliTO account path (student IMAP or EOL+MFA); distinguish
-  blocked tenant policy from an application bug and from a passed login.
-- [ ] Validate UPPA Partage with its actual login/address distinction and current
-  security policy. No institutional account support claim before this test.
-- [ ] Track production Google/Entra client ownership/verification separately from
-  developer/test-user success; no borrowed client IDs or shipped confidential secret.
+## P08 — Remind me and background lifetime
 
-Live sign-in is a user-operated acceptance step. No agent sends/deletes mail or
-submits app-provider verification forms without authorization. Record only
-redacted status/versions, never auth codes, tokens, passwords or mail contents.
+- [x] Retain durable reminder generations/claims/receipts and store transitions.
+  [Backend/historical evidence](evidence/P08.md). The old UI/scheduler walkthrough
+  does not establish GPUI acceptance.
+- [ ] Add GPUI Kit presets/date/time controls, original timezone and UTC instants,
+  reschedule/cancel and per-message routing independent of priority/read labels.
+- [ ] Reconnect notification delivery and action handling; generation fences,
+  earliest-due wake, overdue coalescing and restart/resume/clock changes must be safe.
+- [ ] Verify stable replacement, both crash windows, Open/Remind again/Dismiss,
+  denied/disabled notifications, DST/ambiguous times and deleted-message cases.
+- [ ] Implement single-instance D-Bus activation/window reopening and `--background`
+  without a second DB writer. Explicit Quit must stop work.
+- [ ] Implement independent background/autostart/notification settings and zero
+  hidden work when disabled; unload renderer/models while headless when enabled.
+- [ ] Use the standard Background portal for Flatpak permission/revocation and
+  Home Manager-managed native service semantics, without host-unit installation
+  from the sandbox. Test close, suspend, login/restart and missing display.
 
-## P06 — Unified inbox and conversations
+No delivery guarantee is made while powered off or logged out.
 
-Extend the working libcosmic app with native widgets and synthetic/offline fixtures
-first. Core provides pagination and stable IDs; UI performs no SQL/network work.
+## P09 — On-device priority and contextual deadlines
 
-- [x] Deliver the bounded account-local conversation prototype with cached Sent
-  ancestors, revision-fenced stable IDs, per-message native selection/reply/flags,
-  upstream corpus and private offline restart evidence. See [P06 evidence](evidence/P06.md).
-- [x] Add bounded native account/cached-folder selection and local FTS5 search,
-  exact-name authenticated discovery and context-fenced per-folder paging.
-  Synthetic TLS/native/offline evidence: [P06 browsing](evidence/P06-browse.md).
-  This is literal lexical search only; fuzzy and semantic search below are still required.
-- [ ] Add account/folder navigation, unified inbox, conversation list, reader pane,
-  account badges, unread/star states and visible account/sync/partial-cache status.
-- [ ] Load immutable paged view models; preserve selection and scroll across updates,
-  discard stale body/render results and provide large-list measurement evidence.
-- [x] Mark Seen only after an explicit message-open action loads its content;
-  passive focus/page restoration, list refresh and previews never mark mail read.
-  Preserve explicit unread and stable native reader focus. Server application stays explicit.
-  Evidence: [explicit opening](evidence/P06-explicit-open.md).
-- [ ] Display each account-local conversation once; opening expands message members,
-  sent ancestors included. Reading a visible message does not mark the whole thread.
-- [ ] Add extracted two/three-line previews and safe attachments/CID handling;
-  native accessible text mode, keyboard navigation, copy and error/empty/offline UX.
-- [ ] Add local search/folder controls and identity-safe actions through engine
-  commands; search never uploads text. Integrate sender URLs through portals only.
-- [x] Research existing fuzzy/hybrid search engines and local embedding APIs;
-  published source/checksum audit and tradeoffs: [SEARCH.md](SEARCH.md).
-- [ ] Before implementing stronger search, finish the pinned library/model probe
-  and choose the smallest maintained integration meeting quality/resource budgets.
-  Start with the unified LanceDB candidate; compare Tantivy and an existing vector
-  backend if needed. No hand-written fuzzy engine, ANN index, transformer, search
-  daemon or library fork. Reuse the planned local model connector where suitable.
-  The isolated engine screen passed, but the first E5 model screen failed its
-  predeclared ranking targets despite reference-correct embeddings; see
-  [model feasibility evidence](evidence/P06-model-probe.md). Do not treat this
-  preliminary result as production search or whole-P06 acceptance.
-- [ ] Make typo-tolerant fuzzy search a first-class feature across subject, sender,
-  recipients and cached readable body: handle misspellings, missing accents and
-  approximate/partial terms, with useful ranking rather than exact substring-only
-  matching. Preserve deliberate exact/filter queries; test punctuation, Unicode,
-  accents, short queries and bounded expansion without opening every email body.
-- [ ] Add multilingual semantic retrieval by meaning, including an English query
-  retrieving a relevant French message with no matching query words. Required
-  acceptance example: "reminder about doctoral school re-enrollment" finds a
-  French notice about renewing a doctoral registration. Test paraphrases and
-  cross-language English/French/Italian pairs with distracting unrelated messages;
-  do not treat translation, fuzzy matching or lexical FTS alone as semantic search.
-- [ ] Keep queries, email text, embeddings, indexing and retrieval on device; use a
-  lightweight CPU encoder with a pinned, hashed, licensed artifact and explicit
-  installation. Research/compile the exact Rust encoder and existing fuzzy/vector
-  components before adoption; benchmark memory, index size, cold/warm query latency
-  and indexing costs. Semantic search is independent of enabling priority mail.
-  Missing/disabled model state must be explicit, with local lexical/fuzzy search
-  still usable and no automatic/remote model fallback or untracked download.
-- [ ] Combine lexical/fuzzy and semantic candidates behind one native search field;
-  preserve account/folder/date/sender filters, deduplicate conversations while
-  opening the matching original, and show an honest matching snippet/relevance
-  cue. Cancellation and config/index generations must fence stale results. Make
-  partial-cache and semantic-index coverage visible; search never marks mail Seen.
-- [ ] Persist a versioned, rebuildable local semantic index keyed by original
-  account/message identity and source/model revision. Support bounded incremental
-  indexing, restart, model change, disabled/removed accounts, message edits/deletion
-  and purge without retaining stale snippets/vectors or touching reminders/drafts.
-  Index only permitted readable text; report encrypted/unsupported/uncached gaps.
-- [ ] Add deterministic synthetic fuzzy and multilingual meaning-search relevance
-  fixtures, with top-k/reciprocal-rank targets fixed before tuning on a held-out
-  corpus. Include the doctoral re-enrollment example, near-topic negative controls,
-  typo variants and offline restart/deletion/filter isolation. Record retrieval
-  quality and reference-laptop CPU/resource measurements separately from compile,
-  native UI, CI and Nix/Flatpak runtime proof; literal FTS success does not close
-  this search gate.
-- [ ] Establish the priority group/deadline-box view model with synthetic data,
-  COSMIC themed highlight/text/icon and overflow control; model integration is P09.
-- [ ] Verify live theme, narrow/wide window behavior, 100/150/200% scale, keyboard
-  and screen-reader use on COSMIC; no custom application theme/darkening framework.
+Read CLASSIFIER.md. Use existing small CPU inference/date libraries, not a custom
+transformer, hosted model or summarization service.
 
-Deliver screenshots/interaction checklist and measurements in P06 evidence.
+- [ ] Implement versioned evidence/result types, pure eligibility/expiry and
+  user-dismissed/read-cleared state that late analysis cannot override.
+- [ ] Run bounded local analysis for newly received readable inbox mail independently
+  of opening; explicit opt-in backlog, CPU/memory budgets and unload/cancellation.
+- [ ] Select a pinned/hashed/licensed lightweight EN/FR/IT model after reference
+  logits, held-out quality, confidence and resource measurements. Abstain on
+  unreadable/encrypted/unsupported/ambiguous input; treat model text as untrusted.
+- [ ] Extract actionable date evidence using existing date parsing and exact spans;
+  distinguish deadlines from quoted dates, meetings, negation and marketing.
+- [ ] Expire date-only deadlines at exclusive next **local calendar midnight**;
+  explicit times expire at their instant. "Due tomorrow" remains today/tomorrow,
+  never the following day. Past obligations are never newly prioritized.
+- [ ] Choose bounded contextual 24h/3d/7d TTLs without accepted deadlines, anchored
+  to receipt and never sliding on restart/resync; persist reason/time/version.
+- [ ] Remove a priority original immediately on read/dismiss, and do not resurrect
+  it via unread toggling or stale inference. A newly eligible thread member may
+  reprioritize that conversation; reading one member does not read all members.
+- [ ] Present a GPUI Kit themed priority group, icon/text/highlight and overflow,
+  stable ordering and normal inbox access. Show a deadline box beneath extracted
+  previews, source quote/timezone/assumptions in the reader and user correction.
+- [ ] Test INTERNALDATE vs Date, delayed delivery, DST, multiple dates, quote tails,
+  unsupported languages, stale read races, malicious prompts and missing models.
+- [ ] Keep previews extracted with source/body revision; support a future generated
+  summary type without implementing or implying summarization now.
 
-## P07 — Compose, drafts, submission and mailbox actions
+## P10 — Nix/Home Manager, Flatpak and CI
 
-- [x] Deliver the bounded plain-text/password-account prototype: native To/Cc/Bcc,
-  configured identity selection, local transactional autosave and close/restart
-  recovery, frozen originals, fenced SMTP attempts and durable delivery uncertainty.
-  Synthetic localhost TLS and private Xvfb/keyring evidence: [P07](evidence/P07.md).
-  This covers neither full composer/action acceptance nor provider/distribution gates.
+- [ ] Keep one maintainable flake, shared native inputs and standard Crane caching;
+  prove dependency reuse after a source-only edit. Debug/test use Cranelift/Wild;
+  release uses LLVM/thin LTO/one codegen unit. Retire obsolete native-browser hooks.
+- [ ] Build/install through `nix develop`, `nix flake check`, `nix build`, `nix run`
+  and direct Home Manager package/config composition. No custom HM format adapter.
+- [ ] Verify actual native Wayland launch, assets/fonts/icons, TLS roots, portals,
+  keyring, notifications and GPU loader behavior on NixOS.
+- [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native
+  Wayland access. No X11/XWayland requirement, broad home access, host Nix daemon,
+  plaintext secrets or uncontrolled model downloads.
+- [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
+  portals, read-only managed configuration and packaged HTML resources.
+- [ ] Run format/strict Clippy/backend/MIME/privacy/fixture tests in the official
+  minimal Nix container; add headless native Wayland current-stack acceptance.
+- [ ] Confirm hosted CI on the actual release source and distinguish local package,
+  GUI, security, accessibility, live-provider and distribution evidence.
+- [ ] Include licenses/notices/reproducible sources and explicit optional model
+  provisioning. Do not publish/sign or submit provider/Flathub forms without consent.
 
-- [x] Add bounded reply/reply-all and explicit text-only forwarding to the native
-  cached reader, with receiving-account/alias selection, self/recipient exclusion,
-  thread headers, safe draft switching and offline recovery. Synthetic development
-  and native GUI acceptance: [reply evidence](evidence/P07-reply.md). Attachments,
-  real-provider reply delivery and release/distribution checks remain open.
+## P11 — v0.1 completion audit
 
-- [x] Deliver bounded owned draft attachments through the native file portal,
-  with durable snapshots, account-copy/rejection recovery, frozen MIME integrity,
-  private portal/native restart controls and the Nix release gate.
-  [Attachment evidence](evidence/P07-attachments.md). Real portal/Flatpak grants,
-  received attachment export and provider attachment delivery remain separate.
+- [ ] Every mandatory P00–P10 row has current, scope-matched evidence.
+- [ ] All five account configurations work through their supported auth routes,
+  actual login/sync/reconnect/flags and authorized controlled sends.
+- [ ] Unified inbox, threads, offline browsing, strong search, drafts, attachments,
+  outbox, reminders and background behavior survive expected errors/restarts.
+- [ ] The GPUI Kit interface is visually consistent, keyboard/accessibility tested,
+  responsive at measured mailbox scale and genuinely native Wayland.
+- [ ] Ordinary HTML emails render reliably within documented Blitz limitations,
+  remain network-silent by default and cannot execute active/native content or
+  access local resources/other messages/credentials.
+- [ ] Local priority/read/deadline/expiry and contextual reminder cases pass;
+  model limits, accuracy/languages, cache coverage and unsupported crypto are clear.
+- [ ] Nix/Home Manager and Flatpak installation/runtime pass; hosted CI is green.
+- [ ] Document backup/upgrade/downgrade, data/cache purge, local Thunderbird import
+  caveats, privacy and operational limits. Obtain publishing/signing authorization.
 
-- [ ] Implement native plain-text composer, account/alias identity selection,
-  To/Cc/Bcc, attachments via portals, signature, reply/reply-all/forward and validation.
-- [ ] Use lettre's typed MIME builder for headers, References/In-Reply-To, UTF8,
-  quoted text and attachments; avoid Bcc leakage/header injection/self reply loops.
-- [ ] Persist drafts transactionally with autosave/restart recovery; original
-  attachment source access loss must give a recoverable error, not silent omission.
-- [ ] Implement frozen-MIME outbox phases, cancellation before submission, explicit
-  send command, offline queue, fixed Message-ID and SMTP/TLS/error reporting.
-- [ ] Test accepted-DATA/drop ambiguity, delivery_unknown, manual reconciliation,
-  provider Sent auto-save and separately retriable Sent APPEND. Never resend merely
-  because the Sent copy failed; no exactly-once SMTP claim.
-- [x] Deliver bounded read/unread/star/unstar intentions, offline overlays,
-  unsent-only undo, explicit TLS application, exact UID/configuration fencing and
-  restart recovery. Synthetic storage/TLS/native GUI acceptance:
-  [flag evidence](evidence/P07-actions.md). Archive/trash/move, automatic application,
-  live-provider and release/distribution acceptance remain open.
+## Implementation sequence and traceability
 
-- [ ] Implement read/unread/star/archive/trash with pending-ops/undo UX, safe UID
-  MOVE/UIDPLUS fallbacks, Gmail labels and no global EXPUNGE of unrelated mail.
-- [ ] Recover interrupted operations/moves and reconcile actual server state;
-  preserve local reminders/analysis and show permanent failures.
-- [ ] Exercise controlled send/reply/attachment flows with explicit authorization
-  on required providers; protocol fixtures run on every relevant change.
+Finish P01 first, then reconnect P02/P06 to the retained backend, restore P07/P08
+interfaces and complete sync/auth/search/classifier/delivery acceptance. Read this
+file before choosing the next slice; do not infer progress from old screenshots.
 
-HTML composition, remote draft sync, crypto signing and permanent purge remain
-outside this slice. Deliver P07 evidence and explicit known limitations.
-
-## P08 — Remind me and background behavior
-
-- [x] First foreground slice: generation-fenced storage, DST-aware civil presets,
-  native calendar/time controls and private portal delivery/action tests; native
-  scheduling/Open/Cancel and offline restart tested on X11. See [evidence](evidence/P08.md).
-  Full desktop/background acceptance below remains open.
-
-- [ ] Persist reminder creation/reschedule/cancel generations; native presets/custom
-  picker, UTC instant plus original timezone; independent of read/priority labels.
-- [ ] Wake for the earliest due reminder and requery after restart/resume/clock
-  changes; coalesce overdue backlog without losing per-message reminder records.
-- [ ] Deliver stable replaceable notifications via portal/native fallback, with
-  Open/Remind again/Dismiss; resolve stable IDs and deleted-message cases safely.
-- [ ] Test both crash windows around DB transition/notification, permission denial,
-  disabled notifications, clock jumps and DST presets; document delivery guarantees.
-- [ ] Implement lifetime D-Bus single-instance/activation across window closes and
-  --background starts; app commands open/reopen correct windows without a second
-  DB writer. Test native service plus desktop activation races.
-- [ ] Implement independent background/autostart/notification settings; explicit
-  Quit, zero hidden work when disabled, idle renderer/model unload when enabled.
-- [ ] Implement Flatpak Background request/denial/revocation through ASHPD and
-  HM-managed native service semantics; never install host units from Flatpak.
-- [ ] Verify after last-window-close, suspend/resume, restart/login, missing display
-  environment and manual Quit. No claims of delivery while logged out/powered off.
-
-Deliver P08 evidence with real COSMIC portal and notification-action tests.
-
-## P09 — Lightweight local priority and deadlines
-
-Read CLASSIFIER.md before coding. Preserve rules-only/no-model operation and the
-extracted preview boundary. This milestone includes measurement, not just inference.
-
-- [ ] Create versioned analysis/result/evidence types and pure eligibility/expiry
-  policy; read-cleared/dismissed is authoritative, stored and never overwritten.
-- [ ] Implement the rules-only baseline and fixed/contextual TTLs anchored to mail
-  receipt; query-time expiry, priority thread aggregation and ordinary inbox fallback.
-- [ ] Implement bounded candidate matching/normalization and existing date parser;
-  EN/FR/IT supported forms, action association, original spans and visible assumptions.
-- [ ] Test tomorrow/next-midnight behavior, explicit times/zones, delayed delivery,
-  Date vs INTERNALDATE, no-year dates, negation, quote tails, multiple dates and
-  expired obligations. DST/ambiguous/unsupported cases abstain rather than guess.
-- [ ] Pin/hash/license the approved MiniLM safetensors/config/tokenizer artifact set;
-  optional Nix model package and explicit Flatpak import/download; no automatic
-  startup download, pickle, remote code or network dependency inside classifier.
-- [ ] Load Candle's existing XLM-R classifier, correct pair tokenization/masks/label
-  ordering; compare reference logits before trusting scores. Retain CPU F32 baseline.
-- [ ] Add bounded local analysis worker, hash/revision cache, single-job scheduling,
-  lazy load/60s idle unload and prompt disable/shutdown. Record actual CPU threading.
-- [ ] Analyze all newly fetched inbox messages within configured limits; skip/status
-  encrypted/oversized/malformed input honestly and handle body-fetch later safely.
-- [ ] Connect typed results to highlighted priority rows and deadline boxes under
-  deterministic previews, plus evidence/edit/dismiss controls; no generated summaries.
-- [ ] Prove local/remote read immediately clears, stale inference cannot resurrect,
-  mark-unread does not revive old priority, new thread member can qualify, expired
-  priority never survives restart/time changes, and reminders remain independent.
-- [ ] Build the >=180-message EN/FR/IT split fixture benchmark, compare rules/model,
-  freeze thresholds and record precision/recall/coverage/deadline false positives.
-- [ ] Measure cold/warm CPU latency, total peak memory, bundle size, background idle
-  and no network/GPU use on the user's laptop; meet documented budgets or keep the
-  failing feature/language unclaimed with concrete follow-up. Do not swap in a huge LLM.
-
-Deliver `docs/evidence/P09.md`, model manifest and reproducible benchmark artifacts;
-never commit personal mail. General JevBench scores are not this gate's evidence.
-
-## P10 — Complete packaging and CI
-
-Read DELIVERY.md. Both Nix and Flatpak must install/run the same completed feature
-set; distinct data/secret namespaces and supported architectures are documented.
-
-- [ ] Finalize Nix native library/resource wrappers, package icons/desktop/metainfo/
-  translations/activation and model optional output; offline reproducible builds.
-- [ ] Select/verify a supported Freedesktop SDK/runtime/Rust extension, pin sources,
-  generate Cargo source manifest and explicitly hash all Servo/SpiderMonkey inputs.
-- [ ] Add production Flatpak manifest and bundle build, least permissions, Secret/
-  Background/file/browser/notification portals and application ID consistency.
-- [ ] Prove regular-file native Nix config in Flatpak and documented HM linking/copy
-  route without a format converter or host Nix executable.
-- [ ] Run full protocol/store/classifier checks in minimal Nix container CI; add
-  GUI network-privacy/headless rendering checks and artifact retention.
-- [ ] Run Flatpak builds in the Nix container on a runner with verified user
-  namespaces/bubblewrap capability; no unrecorded host package/privilege dependency.
-- [ ] Add sandbox-enabled Nix build proof, exact-lock drift checks, dependency/license
-  audit and offline-source verification. Separate live provider tests from CI.
-- [ ] Test clean Nix and Flatpak installs on COSMIC, portal denial, headless reopening,
-  software GL and actual GPU; collect logs/screenshots with secrets/mail redacted.
-- [ ] Verify aarch64 on real matching CI/runtime before publishing that architecture;
-  flake evaluation/export is not an architecture support test.
-
-Deliver exact-head CI links, Nix derivation paths, Flatpak install/run artifacts and
-P10 evidence. Do not call manifest validation or local compilation distribution proof.
-
-## P11 — v0.1 release acceptance
-
-- [ ] Every mandatory P01–P10 gate has evidence; review the exact final commit.
-- [ ] Five requested accounts work through their actual supported auth routes;
-  login/sync/flags/reconnect/controlled send differences documented separately.
-- [ ] Unified inbox/threading/offline/search/draft/outbox behavior survives restarts,
-  account failure, invalid config reload and server UIDVALIDITY resets.
-- [ ] Strong search passes typo-tolerant and multilingual semantic retrieval
-  acceptance, including an English meaning query finding the relevant French
-  doctoral re-enrollment email without shared query words. Local-only operation,
-  ranking, index lifecycle, partial coverage and resource budgets have evidence.
-- [ ] Read/expiry/deadline/reminder acceptance cases pass; model is optional, local,
-  bounded, and reports supported-language/accuracy limitations honestly.
-- [ ] Default email open is network-silent; no exposed scripts/local files, unprompted
-  downloads/telemetry, credentials in Nix/DB/logs, or permission bypasses.
-- [ ] Backup/upgrade/downgrade policy, cache/data distinction, local-only Thunderbird
-  migration caveat, encrypted-mail limitations and background operational limits
-  appear in user docs and release notes.
-- [ ] CI green on release head; both install channels and desktop integration pass;
-  license/notices/source artifacts, app-client ownership and privacy policy ready.
-- [ ] Obtain explicit authorization before publishing/signing a release, submitting
-  provider verification/Flathub forms or editing/activating the user's Home Manager.
-
-## How the next implementer should start
-
-Read AGENTS.md → ARCHITECTURE.md → DEPENDENCIES.md → RENDERING.md, then implement
-**P01 only** in the first feature change. Use synthetic mail. Record pins/results
-and blockers before moving on. Do not implement every unchecked phase in one large
-patch. Ask the architect/user only for an actual product tradeoff or missing live
-account detail after completing independent work; routine coding choices use these
-contracts. Main may receive commits; no push/publication is implied by that permission.
-
-## Requirement traceability
-
-| User requirement | Contract and completion gate |
+| Requirement | Current contract/gate |
 | --- | --- |
-| Rust throughout application, simple component reuse, CFI-style workspace | ARCHITECTURE sections 1–3; DEPENDENCIES; P00/P01/P03 |
-| COSMIC/libcosmic, Servo, native dark mode | RENDERING; P01/P06 |
-| Google, iCloud, Inria, PoliTO and UPPA | CONFIGURATION provider matrix; individual live gates in P05/P11 |
-| First-class Home Manager without TOML conversion | CONFIGURATION pure native Nix input/direct link; P02/P10 |
-| nix develop, flake, minimal Nix-container CI | DELIVERY; flake/workflow scaffold P00, integration checks P10 |
-| Nix and Flatpak distribution | Early native/SDK spike P01, complete packages and installed acceptance P10/P11 |
-| Unified inbox and grouped threads | ARCHITECTURE sections 4–5; P03/P06 |
-| Remind me notifications and optional work after close | ARCHITECTURE section 7; P08 |
-| Lightweight on-device priority model | CLASSIFIER; P09 CPU/quality/privacy acceptance |
-| Priority always clears on read, context controls lifetime | ARCHITECTURE section 6; P04 external flags/P09 expiry and read-race tests |
-| Deadline box below extracted two/three-line preview | ARCHITECTURE section 6; CLASSIFIER; P06/P09 |
-| Future generated summaries without implementing them now | Preview source/body-revision contract in ARCHITECTURE section 6; P03 |
-| Strong fuzzy and multilingual meaning-based search | ARCHITECTURE section 4.1; P03/P06/P11 |
-| Local behavior/privacy wherever possible | Renderer default-deny P01, credentials P02, local FTS P03, offline P04, classifier P09 |
+| Rust, simple existing components, workspace | ARCHITECTURE/DEPENDENCIES; P00/P01/P03 |
+| GPUI Kit + Blitz, native Wayland, polished UI | RENDERING; P01/P06/P07 |
+| Native Nix config and direct Home Manager | CONFIGURATION; P02/P10 |
+| Five providers | P04/P05/P11 |
+| Unified inbox and threads | P03/P06 |
+| Explicit-open-only Seen | P06/P07/P09 |
+| Fuzzy and multilingual meaning search | SEARCH; P06/P11 |
+| Durable compose/attachments/outbox | P03/P07 |
+| Remind me and optional work after close | P08 |
+| Local priority, contextual expiry, deadline boxes | CLASSIFIER; P09 |
+| Nix/Flatpak, minimal Nix-container CI | DELIVERY; P10/P11 |

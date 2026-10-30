@@ -1,30 +1,34 @@
-# Development only: nix develop enables Cargo's unstable codegen-backend option.
-# The stable Nix release package deliberately excludes this configuration.
-# These four crates emit SpiderMonkey references with LLVM's \01 link-name
-# marker, unsupported by the pinned Cranelift backend. Keep the exception narrow
-# until https://github.com/rust-lang/rustc_codegen_cranelift/issues/1689 is fixed.
-# All other debug/test crates keep the shell's Cranelift default; Wild still links.
+# Development backends and linker are selected by nix develop.
+# The former browser's four LLVM exceptions were retired with that dependency.
+# Release packaging excludes development configuration and uses stable LLVM.
 
-[profile.dev.package."servo-script"]
+# Pulp 0.22.3 uses exact assembly link names with the LLVM '\x01' marker.
+# Cranelift leaves its SIMD store symbols unresolved when linking Vello CPU.
+# Keep this single demonstrated exception until Cranelift supports that marker.
+[profile.dev.package.pulp]
 codegen-backend = "llvm"
 
-[profile.dev.package."servo-script-bindings"]
+[profile.test.package.pulp]
 codegen-backend = "llvm"
 
-[profile.dev.package.mozjs]
+# Vello's AVX2 conversion uses an intrinsic not implemented by pinned Cranelift.
+# The renderer test's backtrace identifies fearless_simd::Avx2::cvt_u32_f32x8.
+[profile.dev.package.fearless_simd]
 codegen-backend = "llvm"
 
-[profile.dev.package.mozjs_sys]
+[profile.test.package.fearless_simd]
 codegen-backend = "llvm"
 
-[profile.test.package."servo-script"]
+# These two crates instantiate fearless_simd's inline AVX2 raster kernels.
+# Changing only fearless_simd still aborts in vello_common::strip::render_impl.
+[profile.dev.package.vello_common]
 codegen-backend = "llvm"
 
-[profile.test.package."servo-script-bindings"]
+[profile.test.package.vello_common]
 codegen-backend = "llvm"
 
-[profile.test.package.mozjs]
+[profile.dev.package.vello_cpu]
 codegen-backend = "llvm"
 
-[profile.test.package.mozjs_sys]
+[profile.test.package.vello_cpu]
 codegen-backend = "llvm"

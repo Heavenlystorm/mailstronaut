@@ -1,265 +1,118 @@
 # Development, CI and distribution
 
-The workspace contains a libcosmic window, a synthetic-only Servo viewport, and
-initial configuration/storage components. It is not a usable mail client. Consult
-the milestone evidence for the current package/runtime checks; model delivery,
-live email and Flatpak acceptance remain planned.
+The active stack is GPUI Kit + Blitz. Existing mail/storage/configuration code is
+retained; old toolkit/browser runtime evidence does not establish acceptance of
+this package. The current checklist is [PLAN.md](PLAN.md).
 
-## Nix is the development environment
+## Nix development and package
 
 ```sh
 nix develop
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked --offline -- -D warnings
-cargo test --workspace --all-features --locked --offline
+cargo fetch --locked                 # explicit initial dependency download
+bash ci/check.sh                      # format, shell/CI lint, strict Clippy, tests
 nix flake check --no-update-lock-file --print-build-logs
 nix build --no-update-lock-file
-nix run
+nix run -- --demo
 ```
 
-Before dependencies have been prefetched, Cargo `--offline` can fail; in development
-use `nix develop --command cargo fetch --locked` once, explicitly online, then the
-commands above. Nix builds must use fixed-output dependency fetches and a locked
-offline compilation phase, never uncontrolled build-script downloads. Commit
-Cargo.lock and flake.lock together when changing dependency/toolchain pins. Nix
-uses git-tracked files for a local git flake; stage new source files before testing
-`nix build .` or use an explicit `path:` flake during uncommitted bootstrap work.
+The flake pins Nixpkgs, rust-overlay and Crane. Development uses matching nightly
+Rust tools with Cranelift and Wild for debug/test. Release uses the pinned stable
+LLVM compiler, thin LTO and one codegen unit; `.cargo/config.toml` development
+settings are excluded from package sources. The old browser's LLVM exceptions,
+assembler overrides, hardening changes and nested metadata hooks are retired.
+Scoped Pulp 0.22.3 and fearless_simd 0.4.1 LLVM debug/test overrides handle
+exact assembly link names and an unsupported AVX2 conversion intrinsic respectively.
+Vello Common/CPU also need LLVM because they instantiate those inline SIMD kernels;
+changing only fearless_simd still aborts at runtime.
+Other crates retain Cranelift and all debug/test linking uses Wild. Remove each
+exception when pinned Cranelift supports the demonstrated operation.
 
-The scaffold exports `packages.{x86_64-linux,aarch64-linux}.{default,mailstronaut}`,
-`devShells.*.default`, `formatter.*` and flake checks. The development shell uses
-rust-overlay's pinned nightly with the Cranelift component, aligned Rust tools
-and Wild linking for debug/test. Four SpiderMonkey FFI crates use scoped LLVM
-overrides until Cranelift supports their symbol-name marker. The stable Nix
-package excludes the nightly-only `.cargo/config.toml` and builds with LLVM,
-thin LTO and one codegen unit. Keep that exclusion in future Flatpak builds too.
-No rustup installation, separate shell.nix, FHS environment or unpinned tool
-download is needed. `rust-version = 1.98` follows mail-parser's requirement; the
-x86_64 SDK release compile now passes with Rust 1.98.0. Minimum-version tests,
-Clippy and other architectures remain unverified. Exact compilers and limitations
-are in P01 evidence.
+The shell defaults Cargo/CMake/Make jobs to `nproc`; explicitly set
+`CARGO_BUILD_JOBS` to override. Coordinate one full release build and one shared
+project-local target rather than duplicate caches. Retain line-table debug data
+and incremental builds. Only clean inactive outputs inside this project; never
+clean unrelated projects, external shared caches or Nix store/build directories.
 
-Debug/test builds use line-only debug information to reduce artifact size while
-retaining source locations in backtraces. Incremental compilation stays enabled.
-For a session that needs debugger variable/type inspection, set
-`CARGO_PROFILE_DEV_DEBUG=full CARGO_PROFILE_TEST_DEBUG=full` before `nix develop`;
-changing these settings rebuilds affected artifacts. Release retains LLVM,
-thin LTO and one codegen unit.
+Crane uses the standard Nix vendor source mappings in a writable timestamp-
+preserving copy. Its dependency source is lock-only; both dependency and package
+passes use identical toolchain, native inputs, target and profile. Final strict
+Clippy and actual tests remain mandatory. Revalidate source-only artifact reuse
+for the new graph; old cache results do not transfer automatically.
 
-Coordinate one `CARGO_TARGET_DIR` across agents working on this project, using
-the main checkout's `target` directory rather than a new cache per worktree.
-Use every available CPU for that build. The development shell defaults Cargo,
-CMake and Make to `nproc`; an explicit `CARGO_BUILD_JOBS` overrides that default.
-The long-build runners and CI pass the detected CPU count to Nix/SDK builds.
-Keep one full package build at a time to avoid competing copies of the graph.
-Delete only inactive, untracked build outputs inside the current project when
-cleaning up. Do not remove other projects' caches, external shared targets or Nix
-store/build directories. A deleted target requires rebuilding its dependencies.
+The immutable Snix source archive under `third-party` preserves the exact pinned
+upstream Git commit/tree when its forge is unavailable. Cargo revision and fixed
+vendor hash remain authoritative. This is a source cache, not an evaluator fork.
+Compilation is locked/offline, with no build-script downloads. Stage new files
+before package checks because local Git flakes exclude untracked files.
 
-The release package uses pinned Crane `buildDepsOnly`/`buildPackage` artifacts
-for third-party dependencies. This Crane pin requires Nix 2.31.2 or later; the
-minimal CI image uses 2.34.9. Cargo manifests, the lockfile, toolchain, native
-inputs, target and release flags determine the dependency build. The vendor
-fetch itself consumes a lock-only source, so an ordinary Rust source edit does
-not invalidate it. The final package still runs strict release Clippy and the
-actual workspace tests. No remote binary cache or signing credentials are needed.
+Native inputs include pkg-config, Clang/libclang, CMake/Ninja as needed by actual
+dependencies, Wayland/libxkbcommon, fontconfig/freetype, Vulkan/GL loaders, OpenSSL,
+zstd and the XCB libraries required by GPUI's published compiled platform graph.
+Application startup selects only Wayland. There is no embedded X11 surface or
+XWayland fallback. Use normal Nix search paths/wrappers rather than an FHS root.
+Embedded GPUI Kit assets avoid icon downloads at runtime.
 
-The Nix release derivations set SpiderMonkey's supported `MOZ_DEBUG_FLAGS=-g0`.
-Its native configure defaults otherwise generate full C++ DWARF even when Cargo's
-release debug information is disabled. Avoiding those large objects/archives
-reduces build-disk demand; Rust still uses LLVM, thin LTO and one codegen unit.
-Development debug settings and the four scoped Cranelift exceptions are separate.
+`devShells.*.gui-test` adds Sway, Grim and private-session tools; it does not launch
+XWayland. GUI tests redirect all XDG paths into a project-local/private profile.
+Use a nested/headless Wayland compositor and explicitly unset `DISPLAY`. Capture
+actual window screenshots, compositor/client protocol and failures; a successful
+compile is not native Wayland or accessibility proof. Do not modify the user's
+desktop theme/configuration to test synthetic fixtures.
 
-Keep the writable vendor copy's timestamps and executable modes intact. Crane
-normalizes archived artifacts to epoch 1; giving unchanged vendor sources fresh
-timestamps makes Cargo rebuild them. Both passes use the same vendor preparation,
-including source mappings and the five nested mozjs lockfiles. The nightly
-development configuration remains excluded from release sources.
+## Home Manager
 
-After the normal gate, exercise a real source-only rebuild with:
+The application directly evaluates `$XDG_CONFIG_HOME/mailstronaut/config.nix` in
+a bounded helper using Snix/Serde. Home Manager places that exact `.nix` file:
 
-```sh
-nix develop --command bash experiments/p01-nix/cache-reuse.sh
+```nix
+home.packages = [ inputs.mailstronaut.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+xdg.configFile."mailstronaut/config.nix".source = ./config.nix;
 ```
 
-The helper holds the shared build slot, creates a project-local disposable
-fixture, compares exact dependency identities, builds it, rejects third-party
-recompilation in the log, and checks installed CLI/configuration behavior. Its
-logs and fixture remain under `target`. It also checks that build artifacts are
-absent from the installed runtime closure. Caching does not remove the cost of
-compiling/linking workspace crates with thin LTO and one codegen unit. Recorded
-acceptance and limitations are in [P01 cache evidence](evidence/P01-cache.md).
+There is no module converting a declarative schema into another file format.
+See CONFIGURATION.md for managed/read-only handling, evaluation limits and secret
+references. Never put passwords/tokens in Nix configuration or activate a user's
+Home Manager profile as a build test.
 
-The `servo-probe` shell is an alias of the default environment. The optional
-`gui-test` shell preserves that environment and adds private-display tools plus
-the pinned stock COSMIC theme assets. GUI probes must redirect XDG configuration
-and use a private display; never modify the user's theme to test a fixture.
+## Lints and CI
 
-P01 extends the shell/package with the **actual** Servo/libcosmic requirements.
-Inspect the chosen Servo release's build configuration and `mach print-env` rather
-than running an uncontrolled bootstrap installer in a derivation. Initial expected
-native set to verify: pkg-config, CMake, Ninja/Make, Clang/libclang/LLVM/lld, NASM,
-Python for upstream build scripts, fontconfig/freetype/harfbuzz, Wayland/libxkbcommon,
-X11 libraries where enabled, libGL/EGL/Mesa loader, system certificates, fonts and
-DBus tooling for tests. Python/native tools may be build-time dependencies; they
-are not application code or runtime ML services. Do not add GStreamer/media codecs,
-WebXR, WebGPU-in-mail, Bluetooth, devtools or JIT functionality for an email reader
-unless a required upstream feature genuinely needs them and it is documented.
+Root Clippy policy is `all`, `pedantic`, `nursery`, `dbg_macro`, `todo`,
+`unimplemented`, `unwrap_used`; members inherit it and CI applies `-D warnings`.
+Unsafe workspace code is forbidden. No blanket restriction/cargo lint group.
+Use reasoned scoped expectations for demonstrated exceptions, not broad disables.
 
-Package application resources, native font/graphics loader paths, desktop entry,
-icons, metainfo and translations; do not rely on an ambient host LD_LIBRARY_PATH.
-Use normal Nix wrappers/search paths rather than a broadly emulated distro root.
-Keep one authoritative source for app version/ID; remove bootstrap version
-duplication once packaging gains generated metadata. Run `nix build` and `nix run`
-on actual COSMIC/Wayland as well as isolated DBus/headless checks. Evaluation alone
-does not prove runtime graphics, activation, portals or accounts.
+CI uses the official minimal `nixos/nix:2.34.9` container pinned by digest. It
+fetches the event's exact source with read-only contents access, then invokes
+`ci/nix-check.sh`: bounded dependency-fetch retries, one flake gate and installed
+CLI/config smoke. Build tools/dependencies come from Nix; no host package-manager
+bootstrap or Node checkout action is needed. A minimal container does not guarantee
+a small build: track disk pressure, lock graph size and dependency artifacts.
+Never delete unrelated host files to make CI pass.
 
-## Strict, practical Clippy defaults
+Record local development, release/package, hosted CI, private credential fixture,
+Wayland GUI, accessibility, live-account and Flatpak evidence separately. Retain
+behavior tests for canonical storage, MIME, threading, TLS, authentication,
+delivery uncertainty and explicit seen semantics as frontend code changes.
 
-The root manifest enables `all`, `pedantic` and `nursery`, plus `dbg_macro`, `todo`,
-`unimplemented` and `unwrap_used`. `all` covers correctness, style, performance,
-suspicious code and complexity. Every member inherits `[lints] workspace = true`;
-Rust `unsafe_code = forbid` and `missing_docs = warn` remain enabled. CI and local
-gates use `-D warnings` for the workspace.
+## Flatpak
 
-The user revised the initial all-lints request to favor strict checks without
-unnecessary annotation churn. Blanket `restriction` is disabled: its conflicting
-return/semicolon conventions, alphabetical item ordering and one-call-function
-rules do not improve this application's behavior. Blanket `cargo` is also disabled;
-the pinned Servo/libcosmic graph legitimately contains multiple dependency versions.
-No dependency versions or security checks are relaxed by this choice.
+Flatpak remains required but is not currently accepted for the replacement stack.
+Select a supported Freedesktop runtime/Rust SDK branch, pin the exact SDK and use
+locked generated offline Cargo sources, including the exact Snix source. Build
+our application entirely in Rust; native upstream build tools remain build tools.
+Do not turn an obsolete browser SDK probe into a distributed manifest.
 
-Use a targeted `#[expect(clippy::..., reason = "...")]` for a concrete exception
-to an enabled check, and remove obsolete expectations. Dependency code is outside
-our lint policy; do not fork upstreams to fix their style. Tests remain subject to
-Clippy; an intentional test unwrap can have a scoped, reasoned expectation.
-See [Clippy's own guidance](https://doc.rust-lang.org/clippy/usage.html).
+Start with `--socket=wayland`, `--device=dri`, `--share=ipc` and `--share=network`
+(the last is needed for mail protocols, never automatic HTML resources). Do not
+add X11/fallback-X11, home/host filesystem access, unrestricted session/system bus,
+or expose the user's Nix installation. Use app-private data and portals for
+files, external links, encrypted secret storage, notifications and optional
+background/autostart. Verify actual portal permissions/lifecycle and account TLS
+inside the sandbox, plus native Wayland with no XWayland. If an upstream component
+requires an extra permission, demonstrate and document the narrow need first.
 
-## Minimal Nix container CI
-
-`.github/workflows/ci.yml` starts from the official minimal `nixos/nix:2.34.9` image
-pinned by manifest-list digest, verified against Docker Registry during bootstrap.
-It fetches the exact event commit through the GitHub archive API, using the job's
-read-only contents token. No Node-based checkout action or Ubuntu package install
-is needed inside the Nix container. TLS certificates are verified. All compilers
-and dependencies come from the flake. Do not dump the job token or use shell xtrace.
-
-The default job runs `ci/nix-check.sh`. It first fetches the immutable
-`mailstronaut.cargoDeps` output with at most three attempts, then runs
-`nix flake check --no-update-lock-file --print-build-logs`, which
-builds/tests/lints the workspace and checks Nix formatting, then runs the packaged
-scaffold as an install smoke check. Minimal image does not mean the full Servo
-build closure will be small. Cache pinned dependencies after correctness is proven;
-do not require a third-party cache or signing secret to run PR checks.
-Only source fetching is retried; a compile, lint or test failure stops the job.
-The script reports available disk space and never deletes preinstalled host tools
-or other projects' files. Persistent upstream outages still fail explicitly;
-retries do not bypass fixed-output hashes, locked dependencies or TLS validation.
-
-Nix's build sandbox may be unavailable inside a GitHub-hosted Docker job without
-extra namespace privileges. The initial job sets `sandbox = false` **inside this
-ephemeral container only**; it never changes the developer's Nix configuration.
-This still uses pinned derivations, offline Cargo compile and the outer container,
-but is not proof of Nix sandbox isolation. P10 adds a sandbox-enabled build on a
-runner that supports it. Do not solve this by adding `--privileged` casually.
-
-Future jobs, still with minimal Nix outer containers and tools from the flake:
-
-| Gate | Execution |
-| --- | --- |
-| Formatting/lint/unit/store/migrations | Every push/PR; `nix flake check`, offline deterministic fixtures |
-| Protocol integration | Disposable local Dovecot/SMTP fixture processes in a private test environment; fixed test cert/credentials; exercise TLS/UID/IDLE/SMTP failures, no external accounts |
-| GUI/Servo/privacy | DBus session + headless compositor/software GL from Nix, synthetic mail/resource traps; save screenshots/logs; separate real COSMIC hardware acceptance |
-| Classifier | Small committed reference tensors/fixtures on each change; model-artifact CPU experiment when model/policy changes, cache by exact artifact hashes |
-| Nix package | x86_64 native initially; aarch64 on a matching runner before declaring that release architecture supported |
-| Flatpak | Minimal Nix container supplies flatpak/flatpak-builder/appstream validation; Flatpak SDK is the controlled inner build environment, not a second CI base image |
-
-Flatpak/bubblewrap often needs user namespaces not available in hosted job containers.
-P10 must probe this on the actual CI runner and use a configured dedicated runner
-with documented minimal capabilities if necessary. If no such runner is available,
-leave full Flatpak CI unchecked; JSON/schema validation alone is not a Flatpak build.
-Do not claim a generated bundle is installable without an install/start/portal test.
-Upload artifacts through a supported Nix-supplied tool or a separately justified
-action runtime; adding Node solely for artifact upload is optional infrastructure,
-not part of the client. Do not execute arbitrary untrusted code with release secrets.
-
-## Flatpak package target
-
-Application ID: `io.github.eduardz1.Mailstronaut`; binary: `mailstronaut`. Keep the
-same ID for desktop entry, icon, metainfo, portal identity and activation. A future
-unstable channel must have an explicit separate data/secret migration policy;
-do not silently share destructive migrations across stable/beta installs.
-
-Use `flatpak-builder` with a Freedesktop runtime/SDK (no GTK/GNOME dependency just
-for libcosmic). P10 must select and pin a supported branch (evaluate 26.08 first,
-then 25.08 if dependency compatibility requires it), SDK commit and Rust extension
-matching at least the selected MSRV. The P01 experiment now verifies a
-project-local x86_64 SDK 26.08 installation with Rust 1.98.0 and the LLVM 22
-extension. Offline workspace release compilation and the probe binary's CLI/native
-Nix helper pass in the Platform runtime. Production Flatpak installation, graphics
-and portals remain **unverified**.
-See [the experiment](../experiments/p01-flatpak/README.md) and its SDK commit lock;
-it is not the production release manifest. Pin upstream git sources including
-submodules and source checksums. Generate Cargo source manifests from Cargo.lock
-using standard tools, and lock generated output. The early spike reuses Nix's
-hashed, source-separated vendor output because plain Cargo vendor rejects the
-two same-version `dpi` packages from different sources. Validate any replacement
-generator against this graph, including submodules and nested mozjs metadata.
-All builds use `cargo --frozen --offline`; no network access in build commands.
-Provide upstream-generated/prebuilt SpiderMonkey artifacts as explicit hashed
-sources if required; never let a build.rs download an untracked binary.
-
-Initial finish permissions to test, no broader:
-
-```text
---share=network             IMAP/SMTP/OAuth and explicitly requested resources
---socket=wayland            COSMIC native display
---socket=fallback-x11       optional X11 fallback
---share=ipc                 only if required for that X11 fallback
---device=dri                Servo/libcosmic graphics
-```
-
-Portals handle file chooser/document access, external browser, notification,
-background and Secret storage via ASHPD/oo7. Let Flatpak's own application bus name
-ownership work normally; no unrestricted session/system bus. If a missing COSMIC
-portal requires an additional narrow D-Bus permission, document/test it explicitly;
-do not preemptively grant `org.freedesktop.secrets`, whole-session access,
-home/host filesystem, microphone/camera, host spawning or all-device access.
-Network permission applies to the process, so the renderer's default-deny policy
-remains essential; Flatpak alone does not stop an email from requesting a URL.
-
-The app owns only its sandbox's XDG directories and portal-granted files. HM direct
-Nix-store symlinks are handled as documented in CONFIGURATION.md, without a broad
-filesystem permission in the normal package. Native Nix and Flatpak data/credential
-namespaces differ; an explicit future migration can copy selected mail/settings,
-but do not promise automatic shared data or simultaneous writers.
-
-Required packaging outputs in P10: desktop entry with mailto handler and
-DBusActivatable consistent with the implemented activation service, icon at standard
-sizes, AppStream metainfo with accurate features/license/privacy/URLs, translations,
-exact source archive, Nix closure/checks and `.flatpak` bundle/repository. Define
-desktop/portal activation and headless lifetime before enabling DBusActivatable;
-setting that key without a working service makes launches disappear.
-
-The repository currently has **no production Flatpak manifest or release bundle**.
-Adding a guessed manifest before the Servo/native dependency graph is proven
-would give a false sense of distributability. P10 provides the concrete recipe,
-build validation and installed-runtime acceptance for both channels before v0.1.
-
-## Release evidence
-
-Before tagging: exact-head CI green; clean native Nix and Flatpak builds; compiler,
-Cargo/Nix locks/native sources/model manifest recorded; dependency/license audit;
-DB migration backup/recovery tested; no secrets/real mail in artifacts; source and
-notice availability. Check software-only graphics and reference hardware.
-
-On COSMIC exercise theme switching, keyring unlock, default browser callbacks,
-attachments via portal, mailto handler, single-instance window reopen, notifications
-after last-window-close, permission refusal, suspend/resume, time jumps and two
-simultaneously installed distributions. Live test each of the five requested
-providers/account types with the user's authorized test accounts; use controlled
-mail for sending/deleting and never send mail merely to prove login.
-
-Local compilation is not CI success, account login, Google/Entra application
-verification, portal support, Flathub acceptance, or a released package. Record
-each separately in PLAN.md and evidence. Publishing to registries/Flathub or
-changing the user's Home Manager configuration is outside this planning task.
+P10 must produce a real manifest, metainfo/icons/desktop entry and installed
+bundle, then exercise offline/online mail, font/HTML rendering, configuration,
+OAuth browser callback, keyring, attachments, notifications and clean shutdown.
+A package build does not prove these runtime workflows. No live credentials,
+private mail or model downloads belong in CI artifacts.

@@ -51,6 +51,9 @@
           libxcursor
           libxi
           libxrandr
+          libxcb
+          openssl
+          zstd
         ];
       packageFor =
         pkgs:
@@ -73,13 +76,11 @@
               ./examples
               ./docs/CONFIGURATION.md
               ./experiments/p02-accounts/credentials.sh
-              ./experiments/p08-reminders/portal.sh
-              ./experiments/p07-compose/attachments-portal.sh
             ];
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-eIivbnNQKwFov66fqyAhldHpum6lxlwpDn/hXcKDzoc=";
+          cargoHash = "sha256-PXnTvEdJNkiiS90fut+vj577epblGk1ltiKkcnRauog=";
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit pname version;
             hash = cargoHash;
@@ -132,19 +133,16 @@
               wayland
               fontconfig
               freetype
+              openssl
+              zstd
+              libxcb
             ];
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
             CARGO_NET_OFFLINE = "true";
             CARGO_CACHE_AUTO_CLEAN_FREQUENCY = "never";
-            # SpiderMonkey defaults to full C++ DWARF even in Cargo release.
-            # Its supported configure environment avoids multi-GiB objects and
-            # duplicate debug archives on the small GitHub-hosted build disk.
-            MOZ_DEBUG_FLAGS = "-g0";
-            # SpiderMonkey xsum disables format warnings; retain other hardening.
-            hardeningDisable = [ "format" ];
             postPatch = ''
-              # Nested mozjs metadata requires writable vendor sources. Retain
-              # source timestamps: Crane normalizes restored artifacts to epoch 1.
+              # Prepare standard Nix source mappings for Crane. Retain source
+              # timestamps so restored dependency artifacts stay reusable.
               cp -r --preserve=timestamps "$cargoVendorDir" "$NIX_BUILD_TOP/vendor"
               chmod -R u+w "$NIX_BUILD_TOP/vendor"
               export cargoVendorDir="$NIX_BUILD_TOP/vendor"
@@ -152,13 +150,6 @@
                 --subst-var-by vendor "$cargoVendorDir"
               # Crane consumes root config.toml; nested Cargo uses .cargo/config.toml.
               cp --preserve=timestamps "$cargoVendorDir/.cargo/config.toml" "$cargoVendorDir/config.toml"
-              for crate in "$cargoVendorDir"/source-registry-0/mozjs_{locale,properties,collator,normalizer}_glue-* \
-                "$cargoVendorDir"/source-registry-0/mozjs_unicode_bidi_ffi-*; do
-                cp --preserve=timestamps Cargo.lock "$crate/Cargo.lock"
-              done
-            '';
-            preBuild = ''
-              export AS="$CC"
             '';
           };
           cargoArtifacts = craneLib.buildDepsOnly common;
@@ -172,7 +163,7 @@
               pkgs.dbus
               pkgs.gnome-keyring
             ];
-            preBuild = common.preBuild + ''
+            preBuild = ''
               # Reject source/lint failures before linking the large executable.
               cargo fmt --all -- --check
               cargo clippy --jobs "$NIX_BUILD_CORES" --release \
@@ -196,13 +187,8 @@
               export XDG_CACHE_HOME="$NIX_BUILD_TOP/renderer-cache"
               mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CACHE_HOME"
               chmod 700 "$XDG_RUNTIME_DIR"
-              # Servo initializes its verifier even for memory-backed documents.
               export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:''${LD_LIBRARY_PATH:-}"
-              export LIBGL_ALWAYS_SOFTWARE=1
-              export EGL_PLATFORM=surfaceless
-              export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
-              export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri"
               export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
             '';
             postCheck = ''
@@ -223,9 +209,6 @@
               }
               credential_fixture="$(fixture_path credentials)"
               oauth_fixture="$(fixture_path oauth)"
-              reminder_fixture="$(fixture_path mailstronaut)"
-              bash experiments/p08-reminders/portal.sh "$reminder_fixture"
-              bash experiments/p07-compose/attachments-portal.sh "$reminder_fixture"
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
                 bash experiments/p02-accounts/credentials.sh
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
@@ -233,7 +216,7 @@
                 bash experiments/p02-accounts/credentials.sh
             '';
             meta = {
-              description = "Local email client for COSMIC; development prototype";
+              description = "Native Wayland email client built with GPUI Kit and Blitz; development prototype";
               homepage = "https://github.com/eduardz1/mailstronaut";
               license = pkgs.lib.licenses.gpl3Only;
               mainProgram = "mailstronaut";
@@ -276,15 +259,8 @@
               ''
                 actionlint ${self}/.github/workflows/ci.yml
                 shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh \
+                  ${self}/experiments/p01-gpui/wayland.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
-                  ${self}/experiments/p02-accounts/gui.sh \
-                  ${self}/experiments/p04-inbox/gui.sh \
-                  ${self}/experiments/p07-compose/gui.sh \
-                  ${self}/experiments/p07-compose/attachments-portal.sh \
-                  ${self}/experiments/p07-compose/attachments-gui.sh \
-                  ${self}/experiments/p06-conversations/gui.sh \
-                  ${self}/experiments/p08-reminders/portal.sh \
-                  ${self}/experiments/p08-reminders/gui.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"
@@ -298,8 +274,6 @@
           pkgs = pkgsFor system;
         in
         {
-          # Retain the experiment's entry point without a second environment.
-          servo-probe = self.devShells.${system}.default;
           # Lance/Prost generates protocol bindings during the isolated search probe.
           search-probe = self.devShells.${system}.default.overrideAttrs (old: {
             nativeBuildInputs = old.nativeBuildInputs ++ [
@@ -321,22 +295,16 @@
           # Optional isolated-window acceptance tools; retain every development
           # toolchain/environment setting without relying on inputsFrom.
           gui-test = self.devShells.${system}.default.overrideAttrs (old: {
-            MAILSTRONAUT_TEST_THEME_DATA = "${pkgs.cosmic-settings}/share";
-            MAILSTRONAUT_TEST_AT_SPI_BUS = "${pkgs.at-spi2-core}/libexec/at-spi-bus-launcher";
-            GI_TYPELIB_PATH = "${pkgs.at-spi2-core}/lib/girepository-1.0:${pkgs.glib.out}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0";
-            MAILSTRONAUT_TEST_AT_SPI_PYTHON = "${
-              pkgs.python3.withPackages (python: [
-                python.pyatspi
-                python.pygobject3
-              ])
-            }/bin/python3";
+            LIBGL_DRIVERS_PATH = "${pkgs.mesa}/lib/dri";
+            __EGL_VENDOR_LIBRARY_FILENAMES = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
+            MAILSTRONAUT_TEST_VULKAN_ICD = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.${pkgs.stdenv.hostPlatform.parsed.cpu.name}.json";
+            FONTCONFIG_FILE = "${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}";
             nativeBuildInputs = old.nativeBuildInputs ++ [
-              pkgs.weston
-              pkgs.xorg-server
-              pkgs.xdotool
+              pkgs.sway-unwrapped
+              pkgs.grim
+              pkgs.wtype
               pkgs.imagemagick
               pkgs.dbus
-              pkgs.xclip
               pkgs.zenity
               pkgs.gnome-keyring
               pkgs.libsecret
@@ -345,14 +313,12 @@
           default = pkgs.mkShell {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (runtimeLibraries pkgs);
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+            SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             shellHook = ''
               export CARGO_BUILD_JOBS="''${CARGO_BUILD_JOBS:-$(nproc)}"
               export CMAKE_BUILD_PARALLEL_LEVEL="$CARGO_BUILD_JOBS"
               export MAKEFLAGS="-j$CARGO_BUILD_JOBS"
-              export AS="$CC"
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (runtimeLibraries pkgs)}:$LD_LIBRARY_PATH"
-              NIX_HARDENING_ENABLE=" ''${NIX_HARDENING_ENABLE:-} "
-              export NIX_HARDENING_ENABLE=''${NIX_HARDENING_ENABLE// format / }
             '';
             CARGO_UNSTABLE_CODEGEN_BACKEND = "true";
             CARGO_UNSTABLE_PROFILE_RUSTFLAGS = "true";
@@ -376,6 +342,9 @@
               wayland
               fontconfig
               freetype
+              openssl
+              zstd
+              libxcb
               nixfmt
               git
               actionlint

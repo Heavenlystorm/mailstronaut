@@ -5,8 +5,8 @@ not a working email client. The user asked for architecture first. The next feat
 task starts with docs/PLAN.md P01 unless the user explicitly changes that order.
 
 Read docs/ARCHITECTURE.md, docs/DEPENDENCIES.md and the document for your milestone
-before editing. Preserve the user's requirements: Rust application code, libcosmic,
-Servo native dark mode, local-only lightweight classifier, native Nix configuration,
+before editing. Preserve the user's requirements: Rust application code, GPUI Kit + Blitz,
+native Wayland and component light/dark themes, local-only lightweight classifier, native Nix configuration,
 Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
 
 - Develop and run checks through `nix develop`; do not use ambient Cargo/Rust as
@@ -14,9 +14,8 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
 - The development shell selects pinned nightly Rust with Cranelift for debug/test
   builds and Wild for linking. Release uses LLVM, thin LTO and one codegen unit.
   Coordinate full Nix release builds instead of duplicating them across agents.
-- Preserve the four scoped LLVM development overrides in `.cargo/config.toml`
-  until Cranelift supports SpiderMonkey's symbol-name marker. Other debug/test
-  crates use Cranelift and Wild; the stable Nix package excludes that config.
+- Remove obsolete browser/toolkit build hooks when their dependencies are retired.
+  New compiler/backend exceptions require a concrete diagnostic and narrow scope.
 - Root Cargo.toml owns workspace metadata, dependencies and all lint groups.
   Members use `workspace = true` for dependencies/metadata/lints. Keep
   `members = ["crates/*"]`. Create planned crates only when implemented.

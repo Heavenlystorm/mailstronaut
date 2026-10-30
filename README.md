@@ -1,99 +1,53 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
-
 # Mailstronaut
 
-A planned local-first email client for the COSMIC desktop, written in Rust with
-libcosmic and Servo. This repository contains the architecture, a native COSMIC
-preview window, native Nix account setup, secured IMAP fetching and a native
-offline unified inbox with grouped conversations, account/folder browsing and local
-search, native plain-text drafts/outbox and a foreground reminder prototype.
-**It is not yet a usable email client.** The preview displays a fixed synthetic
-Servo document with native theme forwarding. Untrusted mail rendering, input,
-accessibility and background lifecycle remain feasibility gates.
+A local-first Rust email client built with **GPUI Kit + Blitz**, for **native
+Wayland**. The project is under development; it is not ready to replace a daily
+email client. The current roadmap is [docs/PLAN.md](docs/PLAN.md).
 
-Start with the [implementation checklist](docs/PLAN.md). It defines dependency-
-ordered milestones, precise acceptance checks and the evidence required to mark
-each step complete. The first feature milestone proves Servo/libcosmic integration.
+The UI is being rebuilt with GPUI Kit's components, assets and light/dark themes.
+Blitz lays out passive HTML and AnyRender/Vello CPU paints bounded images for the
+native window. HTML resource/privacy and accessibility acceptance are explicit
+P01 gates; previous toolkit screenshots are historical evidence.
 
-| Document | Purpose |
-| --- | --- |
-| [Architecture](docs/ARCHITECTURE.md) | Product scope, crate ownership, mail identity, sync, threads and feature contracts |
-| [Dependencies](docs/DEPENDENCIES.md) | Selected Rust libraries, versions, usage and compatibility gates |
-| [Rendering](docs/RENDERING.md) | Servo integration, native dark mode, HTML privacy and input/accessibility proof |
-| [Configuration](docs/CONFIGURATION.md) | Native config.nix, direct Home Manager integration, secrets and five-provider auth |
-| [Search](docs/SEARCH.md) | Existing library comparison, fuzzy/multilingual retrieval and adoption gates |
-| [Classifier](docs/CLASSIFIER.md) | CPU-only model candidate, priority expiry, deadline extraction and local evaluation |
-| [Delivery](docs/DELIVERY.md) | Nix development, minimal Nix-container CI, Nix/Flatpak packaging and release gates |
-| [Research](docs/RESEARCH.md) | Primary sources, inspected pins and unresolved assumptions |
-
-Planned essentials: unified inbox, grouped conversations, offline mail, draft/send,
-typo-tolerant fuzzy search and local multilingual search by meaning,
-Remind me notifications, optional background operation and a highlighted priority
-section that clears on read or contextual expiry. Previews use extracted text;
-deadline evidence appears below them. Classification stays on device, with no
-automatic model download. Home Manager installs the client's native `.nix` file
-directly; there is no separate TOML configuration or conversion module.
+The retained backend provides native Nix configuration, encrypted credentials,
+TLS IMAP/SMTP, offline SQLite/MIME storage, account-local conversations, durable
+drafts/attachments, submission state and reminders. Their new GPUI workflows are
+tracked separately in the plan. Strong fuzzy and multilingual semantic search,
+local priority/deadline inference and optional background operation remain goals.
 
 ```sh
 nix develop
+cargo run -- --demo           # synthetic UI/Blitz preview, no accounts or network
+cargo run                    # configured local mail cache
+cargo run -- config init
+cargo run -- config check
 bash ci/check.sh
 nix flake check --no-update-lock-file --print-build-logs
-nix build
-nix run
-nix run -- --version # display-independent package smoke check
+nix build --no-update-lock-file
 ```
 
-`nix develop` supplies a pinned nightly compiler with Cranelift and Wild for
-debug/test builds. Release builds use LLVM with thin LTO and one codegen unit;
-the Nix release package keeps the pinned stable compiler.
-Four SpiderMonkey FFI crates use LLVM in debug/test because the pinned Cranelift
-cannot handle their symbol-name marker. Wild still links those builds; see the
-narrow overrides and removal condition in [.cargo/config.toml](.cargo/config.toml).
+A Wayland session is required for the window; CLI configuration commands also work
+without a display. `--demo` never opens the real account store. Cached message
+content becomes read only through an explicit successful open, never list/search
+refresh or focus. Currently the replacement UI is a foundation: account setup,
+network sync, compose and notification workflows are being restored.
 
-`nix run` opens native account setup; Preview and Text retain the synthetic
-rendering probes. `nix run -- --config /path/to/config.nix` selects an explicit
-native source. Password accounts can save credentials through an explicitly
-unlocked encrypted keyring. Select Inbox and Sync inboxes to fetch a bounded page
-from each configured account; cached messages open in the native text reader.
-The selector browses unified inboxes, individual accounts and known folders; search
-uses the local subject/address/body index and opens a matching conversation member.
-Folder sync is explicit and Fetch older page continues that folder's partial cache.
-Only explicitly clicking a message to open its content marks that message read.
-Returning to Inbox, restoring focus and refreshing previews do not mark mail read;
-explicit Mark unread remains in effect until another explicit open. Read and Star/Unstar changes save local intentions. Apply flags
-submits a bounded batch after keyring unlock; Undo unsent flags works before any
-network attempt. Changed server identities require a new sync. Compose supports local autosaved drafts, account/alias identities,
-To/Cc/Bcc and explicit password/XOAUTH2 SMTP with required TLS.
-OAuth accounts can Connect in browser after keyring unlock; refresh tokens stay in
-the encrypted keyring and access tokens stay in memory. Google needs your own
-registered public desktop client ID; live sign-in acceptance remains open. Closing the
-window saves the final edit. Delivery uncertainty remains visible and requires an
-explicit possible-duplicate retry; accepted mail cannot be resent to repair a Sent
-copy. The cached reader can prepare reply/reply-all drafts and explicit text-only
-forwards; routing uses Reply-To, the receiving account/alias and bounded ancestry.
-Remind schedules the selected original locally with presets or a native calendar.
-The Reminders page keeps schedules across restart and supports Open/Cancel/Retry.
-Keep the app open for delivery: this first slice uses the notification portal,
-hides previews by default and reports failures. Background lifetime, native
-notification fallback and activation after exit remain unimplemented.
-Sent APPEND, attachments and automatic/background sync remain unimplemented. The Servo preview still accepts only its fixed synthetic document.
-Current implementation evidence
-and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
-[P02](docs/evidence/P02.md), [P03](docs/evidence/P03.md), and
-[P04 receiving/inbox](docs/evidence/P04.md),
-[P05 OAuth](docs/evidence/P05.md), [P06 conversations](docs/evidence/P06.md),
-[P06 browsing/search](docs/evidence/P06-browse.md),
-[P06 explicit-open read handling](docs/evidence/P06-explicit-open.md),
-[P07 compose/outbox](docs/evidence/P07.md), and
-[P08 foreground reminders](docs/evidence/P08.md). The flake exports
-x86_64-linux and aarch64-linux outputs; runtime verification and release support
-for each architecture are separate checklist gates. Flatpak production packaging
-is planned in P10 after Servo's build dependencies are established.
+Development uses pinned nightly Rust, Cranelift and Wild; release uses stable
+LLVM, thin LTO and one codegen unit. See [delivery](docs/DELIVERY.md) for native
+inputs, checks and distribution limitations. All application code is Rust.
 
-Root `Cargo.toml` uses `members = ["crates/*"]`, centralized dependencies and all
-Clippy policy: all, pedantic and nursery, plus selected unfinished-code and
-unguarded-unwrap checks. See
-[AGENTS.md](AGENTS.md) before implementing a milestone. GPL-3.0-only; third-party
-code/model licenses and notices remain separate.
+Configuration is a directly evaluated `.nix` file, without a TOML conversion or
+Home Manager module. See [configuration](docs/CONFIGURATION.md),
+[example](examples/config.nix) and [Home Manager composition](examples/home-manager.nix).
+Secrets belong in encrypted storage and must never be put in the Nix store.
 
-Created in [T3 Code](https://t3.codes).
+Architecture and decisions: [architecture](docs/ARCHITECTURE.md),
+[dependencies](docs/DEPENDENCIES.md), [rendering](docs/RENDERING.md),
+[search](docs/SEARCH.md), [classifier](docs/CLASSIFIER.md).
+
+Nix and Flatpak are release targets. A new-stack Nix package and actual Flatpak
+runtime/portal/Wayland acceptance must pass before distribution is claimed.
+Historical evidence is indexed in [docs/evidence](docs/evidence/README.md).
+
+Project-authored code is GPL-3.0-only; dependencies and bundled assets retain
+their respective licenses. See [LICENSE](LICENSE).

@@ -30,7 +30,7 @@ pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
         }
         [flag] if flag == OsStr::new("--help") => {
             println!(
-                "Usage: mailstronaut [--config FILE | --version | config <init|check> [--path FILE]]"
+                "Usage: mailstronaut [--demo | --config FILE | --version | config <init|check> [--path FILE]]"
             );
             Some(ExitCode::SUCCESS)
         }
