@@ -35,6 +35,18 @@ regression and private keyring checks passed as well.
 - [Explicit unread](artifacts/p06-explicit-open/explicit-unread.png)
 - [Offline restart](artifacts/p06-explicit-open/offline-inbox.png)
 
-This is local development/native evidence, not a new release, CI, Flatpak, live
-provider or COSMIC/Wayland/screen-reader acceptance. The ongoing reminder work is
-separate. Other P06, privacy and distribution requirements remain open.
+The coordinated x86_64 release gate for **8ed4f45** passed with all checks,
+release Clippy, workspace tests, renderer children and private credential fixtures.
+Its service is inactive/dead with `ExecMainStatus=0`; the fresh numeric receipt is
+`0`. The full log is retained at
+`target/p06-conversations/explicit-open-release-gate.log`.
+[Release excerpt](artifacts/p06-explicit-open/release-gate-excerpt.log).
+A cached build of that exact Git revision produced
+`/nix/store/9l4d6ic295jgsdi4p703x2x2nkp5ckrm-mailstronaut-0.1.0`, and the installed
+CLI/configuration smoke passed.
+[Installed smoke](artifacts/p06-explicit-open/installed-smoke.log).
+
+This establishes local development, native X11 fixture and x86_64 Nix package
+acceptance for explicit opening. CI, aarch64, Flatpak, live provider,
+COSMIC/Wayland and screen-reader acceptance remain unverified. The ongoing
+reminder work is separate; other P06 and privacy requirements remain open.
