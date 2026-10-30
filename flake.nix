@@ -119,6 +119,10 @@
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
             CARGO_NET_OFFLINE = "true";
             CARGO_CACHE_AUTO_CLEAN_FREQUENCY = "never";
+            # SpiderMonkey defaults to full C++ DWARF even in Cargo release.
+            # Its supported configure environment avoids multi-GiB objects and
+            # duplicate debug archives on the small GitHub-hosted build disk.
+            MOZ_DEBUG_FLAGS = "-g0";
             # SpiderMonkey xsum disables format warnings; retain other hardening.
             hardeningDisable = [ "format" ];
             postPatch = ''
@@ -253,7 +257,7 @@
               }
               ''
                 actionlint ${self}/.github/workflows/ci.yml
-                shellcheck ${self}/ci/check.sh \
+                shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
                   ${self}/experiments/p04-inbox/gui.sh \

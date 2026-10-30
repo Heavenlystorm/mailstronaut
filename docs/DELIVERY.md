@@ -63,6 +63,12 @@ fetch itself consumes a lock-only source, so an ordinary Rust source edit does
 not invalidate it. The final package still runs strict release Clippy and the
 actual workspace tests. No remote binary cache or signing credentials are needed.
 
+The Nix release derivations set SpiderMonkey's supported `MOZ_DEBUG_FLAGS=-g0`.
+Its native configure defaults otherwise generate full C++ DWARF even when Cargo's
+release debug information is disabled. Avoiding those large objects/archives
+reduces build-disk demand; Rust still uses LLVM, thin LTO and one codegen unit.
+Development debug settings and the four scoped Cranelift exceptions are separate.
+
 Keep the writable vendor copy's timestamps and executable modes intact. Crane
 normalizes archived artifacts to epoch 1; giving unchanged vendor sources fresh
 timestamps makes Cargo rebuild them. Both passes use the same vendor preparation,
@@ -137,11 +143,17 @@ read-only contents token. No Node-based checkout action or Ubuntu package instal
 is needed inside the Nix container. TLS certificates are verified. All compilers
 and dependencies come from the flake. Do not dump the job token or use shell xtrace.
 
-The default job runs `nix flake check --no-update-lock-file --print-build-logs`, which
+The default job runs `ci/nix-check.sh`. It first fetches the immutable
+`mailstronaut.cargoDeps` output with at most three attempts, then runs
+`nix flake check --no-update-lock-file --print-build-logs`, which
 builds/tests/lints the workspace and checks Nix formatting, then runs the packaged
 scaffold as an install smoke check. Minimal image does not mean the full Servo
 build closure will be small. Cache pinned dependencies after correctness is proven;
 do not require a third-party cache or signing secret to run PR checks.
+Only source fetching is retried; a compile, lint or test failure stops the job.
+The script reports available disk space and never deletes preinstalled host tools
+or other projects' files. Persistent upstream outages still fail explicitly;
+retries do not bypass fixed-output hashes, locked dependencies or TLS validation.
 
 Nix's build sandbox may be unavailable inside a GitHub-hosted Docker job without
 extra namespace privileges. The initial job sets `sandbox = false` **inside this

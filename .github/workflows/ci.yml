@@ -45,6 +45,6 @@ jobs:
           tar --extract --gzip --file /tmp/mailstronaut-source.tar.gz --strip-components=1
           rm /tmp/mailstronaut-source.tar.gz
       - name: Build, format, lint and test through Nix
-        run: nix flake check --no-update-lock-file --print-build-logs --cores "$(nproc)" --max-jobs 1
+        run: bash ci/nix-check.sh
       - name: Installed package smoke check
         run: nix run --no-update-lock-file -- --version

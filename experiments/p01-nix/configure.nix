@@ -8,6 +8,11 @@ package.overrideAttrs (_old: {
   # These source-only probes do not need the compiled dependency archive.
   cargoArtifacts = null;
   doNotPostBuildInstallCargoBinaries = true;
+  # The real package preBuild also compiles Clippy targets. This probe deliberately
+  # configures the native dependency only; the complete package gate is separate.
+  preBuild = ''
+    export AS="$CC"
+  '';
   buildPhase = ''
     runHook preBuild
     crate="$cargoVendorDir/source-registry-0/mozjs_sys-153.3.0-1"
