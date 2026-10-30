@@ -265,6 +265,9 @@ first. Core provides pagination and stable IDs; UI performs no SQL/network work.
   account badges, unread/star states and visible account/sync/partial-cache status.
 - [ ] Load immutable paged view models; preserve selection and scroll across updates,
   discard stale body/render results and provide large-list measurement evidence.
+- [x] Add focused per-message read dwell, selection/visibility fencing, explicit
+  unread/undo suppression and stable native reader focus. Private native/offline
+  evidence: [P06 read handling](evidence/P06-read.md). Server application stays explicit.
 - [ ] Display each account-local conversation once; opening expands message members,
   sent ancestors included. Reading a visible message does not mark the whole thread.
 - [ ] Add extracted two/three-line previews and safe attachments/CID handling;

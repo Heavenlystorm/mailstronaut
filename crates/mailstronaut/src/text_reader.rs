@@ -45,13 +45,21 @@ pub fn open<Message>() -> Task<Message>
 where
     Message: Send + 'static,
 {
-    let focus = operate(tree_operation::focusable::unfocus()).chain(operate(
-        tree_operation::scoped(BODY_SCOPE.into(), tree_operation::focusable::focus_next()),
-    ));
     Task::batch([
-        focus,
+        focus(),
         operation::snap_to(SCROLL_ID, operation::RelativeOffset::START),
     ])
+}
+
+/// Restore paragraph focus after a structural selector update, preserving scroll.
+pub fn focus<Message>() -> Task<Message>
+where
+    Message: Send + 'static,
+{
+    operate(tree_operation::focusable::unfocus()).chain(operate(tree_operation::scoped(
+        BODY_SCOPE.into(),
+        tree_operation::focusable::focus_next(),
+    )))
 }
 
 /// Use the toolkit's scroll state and bounds rather than keeping a second offset.

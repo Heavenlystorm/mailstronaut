@@ -1,0 +1,26 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Leaving Inbox before its dwell did not mark hidden content read.
+An unfocused reader did not mark its selected message read.
+Returning focus completed a fresh dwell and marked only the selected message read.
+Visible reading cleared only its selected conversation member, not its sibling.
+Explicit Mark unread remained unread beyond another dwell; read-cleared history stayed monotonic.
+Sent-only ancestor reading remained read-only and reply used its own message/account.
+Offline restart preserved explicit unread; a rapid selection change did not let its retired dwell mark it read.
+Other-account reply identity and quoted body remained correct after focused read handling.
+Native focused-read GUI artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.hsHZdgJQ/conversations-gui
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.12s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.hsHZdgJQ

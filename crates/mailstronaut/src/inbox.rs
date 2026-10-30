@@ -34,17 +34,19 @@ use mailstronaut_mail::{
 use tokio_util::sync::CancellationToken;
 
 use crate::private::Private as Payload;
+mod read;
 #[derive(Clone, Debug)]
 pub enum Message {
     Started(Payload<Result<Arc<Worker>, worker::Error>>),
     Refresh,
+    ReadVisible(u64, u64, u64),
     Scope(u64, Scope),
     SearchChanged(Payload<String>),
     Search,
     Next,
     Rows(u64, u64, Payload<Result<Listing, worker::Error>>),
     Open(String, i64),
-    Body(u64, u64, Payload<Result<Arc<Body>, worker::Error>>),
+    Body(u64, u64, Payload<Result<Loaded, worker::Error>>),
     Members(u64, u64, Payload<Result<Vec<Summary>, worker::Error>>),
     Grouped(u64, Payload<Vec<String>>),
     SetFlag(u64, String, i64, FlagChange, bool),
@@ -71,13 +73,21 @@ pub struct AccountResult {
     status: String,
 }
 
+#[derive(Clone)]
+pub struct Loaded {
+    body: Arc<Body>,
+    members: Vec<Summary>,
+}
+
 pub struct Body {
     projection: Projection,
     text: String,
+    readable: bool,
 }
 
 #[derive(Default)]
 pub struct Inbox {
+    read_gate: read::Gate,
     owner: Option<Arc<Worker>>,
     config: Option<Arc<Config>>,
     generation: u64,
@@ -106,6 +116,33 @@ pub struct Inbox {
     status: Vec<String>,
 }
 impl Inbox {
+    pub const fn visible(&mut self, visible: bool) {
+        self.read_gate.visibility(visible);
+    }
+    fn read_eligible(&self) -> bool {
+        self.edits == 0
+            && self.body.as_ref().is_some_and(|body| body.readable)
+            && self.selected.as_ref().is_some_and(|(account, id)| {
+                self.members.iter().any(|message| {
+                    message.account == *account
+                        && message.id == *id
+                        && message.inbox
+                        && !message.seen
+                })
+            })
+    }
+    pub fn read_task(&mut self) -> Task<super::Message> {
+        let eligible = self.read_eligible();
+        let Some((generation, reading, visibility)) =
+            self.read_gate.arm(self.generation, self.reading, eligible)
+        else {
+            return Task::none();
+        };
+        Task::perform(
+            async { tokio::time::sleep(core::time::Duration::from_millis(750)).await },
+            move |()| event(Message::ReadVisible(generation, reading, visibility)),
+        )
+    }
     pub fn store(&self) -> Option<worker::Handle> {
         self.owner.as_ref().map(|owner| owner.handle())
     }
@@ -230,8 +267,9 @@ impl Inbox {
                 if generation == self.generation && reading == self.reading =>
             {
                 match result {
-                    Ok(body) => {
-                        self.body = Some(body);
+                    Ok(loaded) => {
+                        self.member_snapshot(loaded.members);
+                        self.body = Some(loaded.body);
                         return crate::text_reader::open();
                     }
                     Err(error) => self.status = vec![error.to_string()],
@@ -242,20 +280,11 @@ impl Inbox {
             {
                 match result {
                     Ok(members) => {
-                        self.member_labels = members
-                            .iter()
-                            .enumerate()
-                            .map(|(index, message)| {
-                                format!(
-                                    "{} · {}{} · {}",
-                                    index + 1,
-                                    if message.seen { "" } else { "● " },
-                                    message.sender.chars().take(60).collect::<String>(),
-                                    message.subject.chars().take(80).collect::<String>()
-                                )
-                            })
-                            .collect();
-                        self.members = members;
+                        let changed_shape = (self.members.len() > 1) != (members.len() > 1);
+                        self.member_snapshot(members);
+                        if changed_shape && self.body.is_some() {
+                            return crate::text_reader::focus();
+                        }
                     }
                     Err(error) => self.status = vec![error.to_string()],
                 }
@@ -267,11 +296,23 @@ impl Inbox {
                 }
                 return self.query(false);
             }
+            Message::ReadVisible(generation, reading, visibility) => {
+                let eligible = self.read_eligible();
+                if self.read_gate.consume(
+                    (generation, reading, visibility),
+                    self.generation,
+                    self.reading,
+                    eligible,
+                ) {
+                    return self.set_flag(FlagChange::Seen, true);
+                }
+            }
             Message::UndoFlags(generation, account, id)
                 if !self.busy()
                     && generation == self.generation
                     && self.selected.as_ref() == Some(&(account.clone(), id)) =>
             {
+                self.read_gate.suppress(self.generation, self.reading);
                 return self.undo_flags();
             }
             Message::SetFlag(generation, account, id, flag, desired)
@@ -279,6 +320,9 @@ impl Inbox {
                     && generation == self.generation
                     && self.selected.as_ref() == Some(&(account.clone(), id)) =>
             {
+                if flag == FlagChange::Seen {
+                    self.read_gate.suppress(self.generation, self.reading);
+                }
                 return self.set_flag(flag, desired);
             }
             Message::FlagQueued(generation, result) => {
@@ -330,6 +374,22 @@ impl Inbox {
         Task::none()
     }
 
+    fn member_snapshot(&mut self, members: Vec<Summary>) {
+        self.member_labels = members
+            .iter()
+            .enumerate()
+            .map(|(index, message)| {
+                format!(
+                    "{} · {}{} · {}",
+                    index + 1,
+                    if message.seen { "" } else { "● " },
+                    message.sender.chars().take(60).collect::<String>(),
+                    message.subject.chars().take(80).collect::<String>()
+                )
+            })
+            .collect();
+        self.members = members;
+    }
     fn reset_selection(&mut self) {
         self.reading = self.reading.saturating_add(1);
         self.selected = None;
@@ -390,19 +450,27 @@ impl Inbox {
         self.reading = self.reading.saturating_add(1);
         let (generation, reading) = (self.generation, self.reading);
         let store = owner.handle();
-        let body = Task::perform(
+        Task::perform(
             async move {
-                store.message(account, id).await.map(|projection| {
-                    let text = projection.readable_text().map_or_else(
-                        || "No readable body. Encrypted messages are not supported yet.".into(),
-                        std::borrow::Cow::into_owned,
-                    );
-                    Arc::new(Body { projection, text })
+                let projection = store.message(account.clone(), id).await?;
+                let members = store.conversation_messages(account, id).await?;
+                let readable = projection.readable_text();
+                let can_mark_read = readable.is_some();
+                let text = readable.map_or_else(
+                    || "No readable body. Encrypted messages are not supported yet.".into(),
+                    std::borrow::Cow::into_owned,
+                );
+                Ok(Loaded {
+                    body: Arc::new(Body {
+                        projection,
+                        text,
+                        readable: can_mark_read,
+                    }),
+                    members,
                 })
             },
             move |result| event(Message::Body(generation, reading, Payload(result))),
-        );
-        Task::batch([body, self.load_members()])
+        )
     }
 
     fn query(&mut self, next: bool) -> Task<super::Message> {
@@ -771,14 +839,14 @@ impl Inbox {
             .into()
     }
 
-    pub fn view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
+    fn heading(&self) -> Element<'_, super::Message> {
         let generation = self.generation;
         let navigation = self.navigation.clone();
         let selected = self
             .navigation
             .iter()
             .position(|scope| *scope == self.scope);
-        let heading = row![
+        row![
             widget::text::title1("Mail"),
             widget::dropdown(&self.navigation_labels, selected, move |index| {
                 super::Message::Inbox(Message::Scope(
@@ -793,21 +861,26 @@ impl Inbox {
                 .width(Length::Fill),
             widget::button::text("Search").on_press(super::Message::Inbox(Message::Search))
         ]
-        .spacing(12);
-        let mut content=column![heading,
+        .spacing(12)
+        .into()
+    }
+
+    pub fn view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
+        let mut content=column![self.heading(),
             row![widget::button::text(match self.scope{Scope::Inbox=>"Sync inboxes",Scope::Account(_)=>"Sync account inbox",Scope::Folder{..}=>"Sync folder"}).on_press_maybe((!self.busy()).then_some(super::Message::Inbox(Message::Sync(false)))),
                 widget::button::text("Fetch older page").on_press_maybe((!self.busy()&&self.config.as_ref().is_some_and(|config|!self.sync_targets(config,true).is_empty())).then_some(super::Message::Inbox(Message::Sync(true)))),
                 widget::button::text("Cancel").on_press_maybe(self.busy().then_some(super::Message::Inbox(Message::Cancel))),
                 widget::button::text(format!("Apply flags ({})",self.flags.pending+self.flags.failed)).on_press_maybe((!self.busy()&&(self.flags.pending>0||self.flags.failed>0)).then_some(super::Message::Inbox(Message::ApplyFlags)))].spacing(8),
-            widget::text("Partial offline cache · opening a message currently leaves its read flag unchanged.")].spacing(12).padding(20);
+            widget::text("Partial offline cache · focused reading marks only the selected Inbox message read after a short delay.")].spacing(12).padding(20);
+        let mut notices = column![].spacing(12);
         for status in &self.status {
-            content = content.push(widget::text(status));
+            notices = notices.push(widget::text(status));
         }
         if self.loading {
-            content = content.push(widget::text("Loading cached inbox…"));
+            notices = notices.push(widget::text("Loading cached inbox…"));
         }
         if self.rows.is_empty() && !self.loading {
-            content=content.push(widget::text("No matching cached messages on this page. Search is local; clear the query or sync this selection."));
+            notices=notices.push(widget::text("No matching cached messages on this page. Search is local; clear the query or sync this selection."));
         }
         let mut list = column![].spacing(8);
         for conversation in &self.rows {
@@ -847,8 +920,11 @@ impl Inbox {
             );
         }
         if self.flags.conflicts > 0 {
-            content=content.push(widget::text(format!("{} flag operations retired because their server identity changed. Sync to reconcile.",self.flags.conflicts)));
+            notices=notices.push(widget::text(format!("{} flag operations retired because their server identity changed. Sync to reconcile.",self.flags.conflicts)));
         }
+        // Keep the reader's widget-tree position stable when status/loading/empty
+        // notices change, so an automatic Seen commit cannot discard text focus.
+        content = content.push(notices);
         let reader = self.reader_view(width, height);
         content = content.push(
             row![
@@ -1177,10 +1253,14 @@ mod tests {
         let message = Message::Body(
             1,
             1,
-            Payload(Ok(Arc::new(Body {
-                projection,
-                text: MARKER.into(),
-            }))),
+            Payload(Ok(Loaded {
+                body: Arc::new(Body {
+                    projection,
+                    text: MARKER.into(),
+                    readable: true,
+                }),
+                members: Vec::new(),
+            })),
         );
         assert!(!format!("{message:?}").contains(MARKER));
         let mut inbox = Inbox {

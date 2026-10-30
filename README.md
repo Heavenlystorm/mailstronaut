@@ -5,7 +5,8 @@
 A planned local-first email client for the COSMIC desktop, written in Rust with
 libcosmic and Servo. This repository contains the architecture, a native COSMIC
 preview window, native Nix account setup, secured IMAP fetching and a native
-offline unified inbox, and a native plain-text draft/outbox prototype.
+offline unified inbox with grouped conversations, account/folder browsing and local
+search, and a native plain-text draft/outbox prototype.
 **It is not yet a usable email client.** The preview displays a fixed synthetic
 Servo document with native theme forwarding. Untrusted mail rendering, input,
 accessibility and background lifecycle remain feasibility gates.
@@ -52,8 +53,12 @@ rendering probes. `nix run -- --config /path/to/config.nix` selects an explicit
 native source. Password accounts can save credentials through an explicitly
 unlocked encrypted keyring. Select Inbox and Sync inboxes to fetch a bounded page
 from each configured account; cached messages open in the native text reader.
-Fetch older page continues the partial cache. Opening currently leaves read flags
-unchanged; Mark read/unread and Star/Unstar save local intentions. Apply flags
+The selector browses unified inboxes, individual accounts and known folders; search
+uses the local subject/address/body index and opens a matching conversation member.
+Folder sync is explicit and Fetch older page continues that folder's partial cache.
+Focused reading marks only the selected Inbox message read after a 750 ms dwell;
+navigation/focus loss cancels it, and explicit Mark unread remains in effect until
+another open. Read and Star/Unstar changes save local intentions. Apply flags
 submits a bounded batch after keyring unlock; Undo unsent flags works before any
 network attempt. Changed server identities require a new sync. Compose supports local autosaved drafts, account/alias identities,
 To/Cc/Bcc and explicit password/XOAUTH2 SMTP with required TLS.
@@ -69,7 +74,9 @@ Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P02](docs/evidence/P02.md), [P03](docs/evidence/P03.md), and
 [P04 receiving/inbox](docs/evidence/P04.md),
-[P05 OAuth](docs/evidence/P05.md), and
+[P05 OAuth](docs/evidence/P05.md), [P06 conversations](docs/evidence/P06.md),
+[P06 browsing/search](docs/evidence/P06-browse.md),
+[P06 read handling](docs/evidence/P06-read.md), and
 [P07 compose/outbox](docs/evidence/P07.md). The flake exports
 x86_64-linux and aarch64-linux outputs; runtime verification and release support
 for each architecture are separate checklist gates. Flatpak production packaging

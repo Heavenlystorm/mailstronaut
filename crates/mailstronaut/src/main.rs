@@ -17,10 +17,15 @@ use cosmic::{Action, Element, cosmic_theme, executor, theme, widget};
 use mailstronaut_render::{Renderer, Viewport};
 
 /// Toolkit-owned application state.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Quit progress, window focus and native theme are independent toolkit states, not mutually exclusive modes."
+)]
 struct App {
     composer: composer::Composer,
     quitting: bool,
     quit_flushing: bool,
+    focused: bool,
     /// Durable unified inbox and native cached-message reader.
     inbox: inbox::Inbox,
     /// Validated account configuration and foreground credential setup.
@@ -118,6 +123,7 @@ impl cosmic::Application for App {
                 composer: composer::Composer::default(),
                 quitting: false,
                 quit_flushing: false,
+                focused: false,
                 inbox,
                 accounts,
                 core,
@@ -160,7 +166,9 @@ impl cosmic::Application for App {
                 }
                 | window::Event::Rescaled(_)
                 | window::Event::Resized(_)
-                | window::Event::Moved(_)),
+                | window::Event::Moved(_)
+                | window::Event::Focused
+                | window::Event::Unfocused),
             ) => Some(Message::Window(id, event)),
             _ => None,
         });
@@ -271,6 +279,15 @@ impl cosmic::Application for App {
             Message::Pointer(point) => self.pointer = point,
             Message::Wheel(delta) => self.wheel(delta),
             Message::Window(id, event) => {
+                if Some(id) == self.core.main_window_id()
+                    && matches!(event, window::Event::Focused | window::Event::Unfocused)
+                {
+                    self.focused = matches!(event, window::Event::Focused);
+                    self.inbox.visible(
+                        !self.quitting && self.focused && matches!(self.page, Page::Inbox),
+                    );
+                    return self.inbox.read_task();
+                }
                 if Some(id) == self.core.main_window_id()
                     && let window::Event::Opened { size, position: _ } = event
                 {
@@ -434,11 +451,28 @@ impl App {
                     | inbox::Message::Open(..)
                     | inbox::Message::Refresh
                     | inbox::Message::Next
+                    | inbox::Message::ReadVisible(..)
             )
         {
             return Task::none();
         }
+        self.inbox
+            .visible(!self.quitting && self.focused && matches!(self.page, Page::Inbox));
+        let reader_result = matches!(
+            message,
+            inbox::Message::Body(..) | inbox::Message::Members(..)
+        );
         let task = self.inbox.update(message, self.accounts.authentication());
+        let task = if reader_result && !matches!(self.page, Page::Inbox) {
+            Task::none()
+        } else {
+            task
+        };
+        let read = if self.quitting {
+            Task::none()
+        } else {
+            self.inbox.read_task()
+        };
         let maintenance = if self.quitting {
             Task::none()
         } else {
@@ -449,6 +483,7 @@ impl App {
             self.composer.attach(self.inbox.store()),
             self.maybe_quit(),
             maintenance,
+            read,
         ])
     }
     fn reply(
@@ -474,6 +509,7 @@ impl App {
         match mailstronaut_core::reply::prepare(account, projection, kind) {
             Ok(draft) => {
                 self.page = Page::Compose;
+                self.inbox.visible(false);
                 self.accounts.clear_input();
                 self.composer.prepared(draft)
             }
@@ -517,6 +553,7 @@ impl App {
     }
     fn request_quit(&mut self) -> Task<Message> {
         self.quitting = true;
+        self.inbox.visible(false);
         self.inbox.cancel();
         self.composer.cancel();
         self.accounts.cancel_authorization();
@@ -598,6 +635,9 @@ impl App {
             self.accounts.clear_input();
         }
         self.page = page;
+        self.inbox
+            .visible(!self.quitting && self.focused && matches!(page, Page::Inbox));
+        let read = self.inbox.read_task();
         if matches!(
             page,
             Page::About | Page::Text | Page::Accounts | Page::Inbox | Page::Compose
@@ -607,11 +647,16 @@ impl App {
             if let Some(Ok(renderer)) = &self.renderer {
                 renderer.spin();
             }
-            return if matches!(page, Page::Text) {
-                text_reader::open()
-            } else {
-                Task::none()
-            };
+            return Task::batch([
+                read,
+                if matches!(page, Page::Text) {
+                    text_reader::open()
+                } else if matches!(page, Page::Inbox) && self.inbox.reading() {
+                    text_reader::focus()
+                } else {
+                    Task::none()
+                },
+            ]);
         }
         if self.viewport.is_none() {
             self.size = physical_size(self.logical, self.scale);
