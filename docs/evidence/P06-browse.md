@@ -110,3 +110,21 @@ message still leaves Seen unchanged until explicit Mark read; flag controls outs
 Inbox remain limited. Attachments, move/archive/trash, Sent APPEND, reminders,
 background lifetime, priority/deadline UI and P01 untrusted-HTML privacy remain
 open. Search covers the partial bounded index, not every server original.
+
+## Completed Nix release acceptance for browsing
+
+The coordinated release gate at **071000e** (browsing implementation `6687ced`,
+plus grouping evidence) passed on x86_64-linux. Invocation
+`ddaba6df228f473fbcf6b7d35586843f` was collected/inactive with ExecMainStatus 0;
+the receipt was 0 and complete log reported all checks passed. It used 16 cores,
+one Nix job, stable Rust 1.99, LLVM thin LTO and one codegen unit. Strict release
+Clippy, 123 workspace tests, seven isolated renderer children and four private
+credential/OAuth checks passed; aarch64-linux was omitted. The gate reused the
+existing third-party dependency artifact and compiled application workspace crates.
+
+The exact-revision subsequent Nix build and installed CLI/native-Nix configuration
+smoke passed for `/nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0`.
+See [release excerpt](artifacts/p06-browse/release-gate-excerpt.log) and
+[installed smoke](artifacts/p06-browse/installed-smoke.log); full logs remain in
+`target/p06-conversations/browse-release-*`. This precedes focused automatic-read
+handling and adds no new GUI, live-account, privacy, Flatpak or CI acceptance.

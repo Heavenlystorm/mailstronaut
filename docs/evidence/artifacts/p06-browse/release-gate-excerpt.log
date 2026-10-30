@@ -1,0 +1,58 @@
+Validated revision: 071000e (browsing source 6687ced plus grouping evidence)
+Service invocation: ddaba6df228f473fbcf6b7d35586843f
+Numeric receipt: 0; service inactive/dead, ExecMainStatus=0
+mailstronaut>     Checking mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>     Checking mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>     Checking mailstronaut-mail v0.1.0 (/build/source/crates/mailstronaut-mail)
+mailstronaut>     Checking mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>     Checking mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 3.79s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 7m 27s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 7m 01s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.08s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+mailstronaut> test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+mailstronaut> test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.07s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.61s
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.06s
+mailstronaut> test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.23s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.08s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.29s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.23s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 0.38s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.03s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.06s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> checkPhase completed in 7 minutes 28 seconds
+mailstronaut> actually installing contents of postBuildInstallFromCargoBuildLogOutTempP7v to /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0
+mailstronaut> /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0/share/applications/io.github.eduardz1.Mailstronaut.desktop
+mailstronaut> shrinking RPATHs of ELF executables and libraries in /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0
+mailstronaut> shrinking /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> checking for references to /build/ in /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0...
+mailstronaut> patching script interpreter paths in /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0
+mailstronaut> stripping (with command strip and flags -S -p) in /nix/store/bhjs74j32zlfhdm0x72dni7i5j9gkl38-mailstronaut-0.1.0/bin
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
