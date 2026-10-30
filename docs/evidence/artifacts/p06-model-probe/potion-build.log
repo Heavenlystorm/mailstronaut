@@ -1,0 +1,46 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+    Updating crates.io index
+     Locking 581 packages to highest Rust 1.98 compatible versions
+      Adding arrow-array v58.4.1 (available: v60.1.0)
+      Adding arrow-schema v58.4.1 (available: v60.1.0)
+      Adding generic-array v0.14.7 (available: v0.14.9)
+      Adding serde v1.0.228 (available: v1.0.229)
+      Adding serde_core v1.0.228 (available: v1.0.229)
+      Adding serde_derive v1.0.228 (available: v1.0.229)
+      Adding sha2 v0.10.9 (available: v0.11.1)
+      Adding tokenizers v0.22.2 (available: v0.23.2)
+ Downloading crates ...
+  Downloaded model2vec-rs v0.3.0
+  Downloaded safetensors v0.5.3
+  Downloaded ndarray v0.15.6
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling esaxx-rs v0.1.10
+   Compiling console v0.15.11
+   Compiling number_prefix v0.4.0
+   Compiling ndarray v0.15.6
+   Compiling safetensors v0.5.3
+   Compiling indicatif v0.17.11
+   Compiling tokenizers v0.22.2
+   Compiling tokenizers v0.21.4
+   Compiling model2vec-rs v0.3.0
+   Compiling candle-core v0.11.0
+   Compiling candle-nn v0.11.0
+   Compiling candle-transformers v0.11.0
+   Compiling mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.71s
+    Checking esaxx-rs v0.1.10
+    Checking console v0.15.11
+    Checking number_prefix v0.4.0
+    Checking ndarray v0.15.6
+    Checking safetensors v0.5.3
+    Checking tokenizers v0.22.2
+    Checking indicatif v0.17.11
+    Checking tokenizers v0.21.4
+    Checking candle-core v0.11.0
+    Checking model2vec-rs v0.3.0
+    Checking candle-nn v0.11.0
+    Checking candle-transformers v0.11.0
+    Checking mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.00s

@@ -1,0 +1,17 @@
+verified_model_load_ms=26995.353
+query_first_measured_ms=520.013 warm_query_p95_ms=854.959
+query=user-example expected=1 semantic=[2, 1, 8] hybrid=[2, 1, 8]
+query=english-french-registration expected=1 semantic=[2, 1, 8] hybrid=[2, 8, 1]
+query=italian-french-registration expected=1 semantic=[1, 2, 6] hybrid=[6, 1, 5]
+query=english-italian-refund expected=5 semantic=[7, 2, 8] hybrid=[8, 2, 7]
+query=french-italian-refund expected=5 semantic=[1, 4, 3] hybrid=[1, 4, 9]
+query=french-english-repair expected=7 semantic=[7, 4, 10] hybrid=[7, 6, 4]
+query=italian-english-password expected=8 semantic=[8, 4, 7] hybrid=[8, 7, 4]
+query=english-french-parcel expected=4 semantic=[4, 7, 10] hybrid=[4, 9, 7]
+query=english-french-supervision expected=9 semantic=[9, 2, 7] hybrid=[2, 7, 9]
+query=italian-french-electricity expected=10 semantic=[10, 6, 5] hybrid=[5, 10, 6]
+semantic_top1=6/10 semantic_top3=8/10
+
+thread 'main' (3214770) panicked at crates/embedding-probe/src/main.rs:267:5:
+fixed multilingual relevance screen failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -18,6 +18,7 @@ use lancedb::{
     query::{ExecutableQuery as _, QueryBase as _, QueryExecutionOptions},
     rerankers::rrf::RRFReranker,
 };
+use model2vec_rs::model::StaticModel;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
@@ -106,11 +107,11 @@ fn verify_file(root: &Path, artifact: &Artifact) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-struct Encoder {
+struct E5Encoder {
     model: BertModel,
     tokenizer: Tokenizer,
 }
-impl Encoder {
+impl E5Encoder {
     fn load(root: &Path) -> Result<Self> {
         let manifest: Manifest = serde_json::from_str(include_str!("model-manifest.json"))?;
         let mut weights = None;
@@ -145,9 +146,6 @@ impl Encoder {
     }
 
     fn encode(&self, prefix: &str, text: &str) -> Result<Vec<f32>> {
-        if text.trim().is_empty() || text.len() > 64 * 1024 {
-            return Err(invalid("bounded nonempty text required").into());
-        }
         let encoding = self.tokenizer.encode(format!("{prefix}{text}"), true)?;
         let input = Tensor::new(encoding.get_ids(), &Device::Cpu)?.unsqueeze(0)?;
         let types = Tensor::new(encoding.get_type_ids(), &Device::Cpu)?.unsqueeze(0)?;
@@ -159,8 +157,47 @@ impl Encoder {
             .sum(1)?
             .broadcast_div(&mask.sum(1)?)?;
         let normalized = pooled.broadcast_div(&pooled.sqr()?.sum_keepdim(1)?.sqrt()?)?;
-        let vector = normalized.squeeze(0)?.to_vec1::<f32>()?;
-        if vector.len() != DIMENSIONS || !vector.iter().all(|value| value.is_finite()) {
+        Ok(normalized.squeeze(0)?.to_vec1::<f32>()?)
+    }
+}
+
+enum Encoder {
+    E5(Box<E5Encoder>),
+    Potion(StaticModel),
+}
+impl Encoder {
+    fn load(root: &Path, potion: bool) -> Result<Self> {
+        if !potion {
+            return Ok(Self::E5(Box::new(E5Encoder::load(root)?)));
+        }
+        let manifest: Manifest = serde_json::from_str(include_str!("potion-model-manifest.json"))?;
+        let mut files = std::collections::BTreeMap::new();
+        for artifact in &manifest.files {
+            files.insert(artifact.name.clone(), verify_file(root, artifact)?);
+        }
+        let model = StaticModel::from_bytes(
+            files
+                .get("tokenizer.json")
+                .ok_or_else(|| invalid("missing tokenizer"))?,
+            files
+                .get("model.safetensors")
+                .ok_or_else(|| invalid("missing weights"))?,
+            files
+                .get("config.json")
+                .ok_or_else(|| invalid("missing config"))?,
+            Some(true),
+        )?;
+        Ok(Self::Potion(model))
+    }
+    fn encode(&self, prefix: &str, text: &str) -> Result<Vec<f32>> {
+        if text.trim().is_empty() || text.len() > 64 * 1024 {
+            return Err(invalid("bounded nonempty text required").into());
+        }
+        let (vector, dimensions) = match self {
+            Self::E5(model) => (model.encode(prefix, text)?, DIMENSIONS),
+            Self::Potion(model) => (model.encode_single(text), 256),
+        };
+        if vector.len() != dimensions || !vector.iter().all(|value| value.is_finite()) {
             return Err(invalid("invalid embedding").into());
         }
         let norm = vector.iter().map(|value| value * value).sum::<f32>();
@@ -170,11 +207,15 @@ impl Encoder {
 }
 
 fn batch(documents: &[Document], vectors: &[Vec<f32>]) -> Result<RecordBatch> {
+    let dimensions = vectors
+        .first()
+        .ok_or_else(|| invalid("missing vectors"))?
+        .len();
     let vector = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         vectors
             .iter()
             .map(|row| Some(row.iter().copied().map(Some))),
-        i32::try_from(DIMENSIONS)?,
+        i32::try_from(dimensions)?,
     );
     let schema = Arc::new(Schema::new(vec![
         Field::new("id", DataType::UInt64, false),
@@ -310,9 +351,16 @@ fn measure_queries(encoder: &Encoder, query: &str) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let arguments = env::args().skip(1).collect::<Vec<_>>();
+    let mut arguments = env::args().skip(1).collect::<Vec<_>>();
+    let potion = arguments.last().is_some_and(|value| value == "--potion");
+    if potion {
+        arguments.pop();
+    }
     let [model, data, output] = arguments.as_slice() else {
-        return Err(invalid("usage: embedding-probe MODEL_DIR NEW_DATA_PATH OUTPUT_JSON").into());
+        return Err(invalid(
+            "usage: embedding-probe MODEL_DIR NEW_DATA_PATH OUTPUT_JSON [--potion]",
+        )
+        .into());
     };
     for path in [model, data, output] {
         local_path(Path::new(path))?;
@@ -322,7 +370,7 @@ async fn main() -> Result<()> {
     }
     let fixtures: Fixtures = serde_json::from_str(include_str!("relevance.json"))?;
     let load = Instant::now();
-    let encoder = Encoder::load(Path::new(model))?;
+    let encoder = Encoder::load(Path::new(model), potion)?;
     println!(
         "verified_model_load_ms={:.3}",
         load.elapsed().as_secs_f64() * 1000.0

@@ -37,6 +37,9 @@ LanceDB's exact `lance-index =14.0.2` source was inspected as well. No search de
 were added to the application Cargo.toml/Cargo.lock. A later isolated API probe
 built and ran successfully; see [probe evidence](evidence/P06-search-probe.md).
 Model and adoption/resource acceptance remain open.
+The first E5 inference/reference probe passed numerical parity but failed the
+fixed multilingual ranking screen. [Results](evidence/P06-model-probe.md).
+LanceDB remains the leading backend candidate; an encoder is not adopted yet.
 
 | Candidate | Existing functionality and fit | Decision for the probe |
 | --- | --- | --- |

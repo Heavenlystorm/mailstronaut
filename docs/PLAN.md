@@ -283,6 +283,10 @@ first. Core provides pagination and stable IDs; UI performs no SQL/network work.
   Start with the unified LanceDB candidate; compare Tantivy and an existing vector
   backend if needed. No hand-written fuzzy engine, ANN index, transformer, search
   daemon or library fork. Reuse the planned local model connector where suitable.
+  The isolated engine screen passed, but the first E5 model screen failed its
+  predeclared ranking targets despite reference-correct embeddings; see
+  [model feasibility evidence](evidence/P06-model-probe.md). Do not treat this
+  preliminary result as production search or whole-P06 acceptance.
 - [ ] Make typo-tolerant fuzzy search a first-class feature across subject, sender,
   recipients and cached readable body: handle misspellings, missing accents and
   approximate/partial terms, with useful ranking rather than exact substring-only

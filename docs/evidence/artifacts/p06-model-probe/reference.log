@@ -1,0 +1,4 @@
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 3532.71it/s]
+torch=2.14.1 transformers=5.17.0 device=cpu
+documents: max_abs_error=1.2665987e-07 min_cosine=0.99999982
+queries: max_abs_error=2.0302832e-07 min_cosine=0.99999976

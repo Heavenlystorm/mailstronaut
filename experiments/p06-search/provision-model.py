@@ -4,17 +4,23 @@ import hashlib
 import json
 import os
 import pathlib
+import sys
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MANIFEST = json.loads((ROOT / "experiments/p06-search/model-manifest.json").read_text())
-DESTINATION = ROOT / "target/p06-search/model"
+assert sys.argv[1:] in [[], ["--potion"]], "Usage: provision-model.py [--potion]"
+POTION = sys.argv[1:] == ["--potion"]
+MANIFEST = json.loads((ROOT / "experiments/p06-search" /
+                       ("potion-model-manifest.json" if POTION else "model-manifest.json")).read_text())
+DESTINATION = ROOT / "target/p06-search" / ("model-potion" if POTION else "model")
 DESTINATION.mkdir(mode=0o700, parents=True, exist_ok=True)
 assert DESTINATION.resolve().is_relative_to((ROOT / "target").resolve())
 PREFIX = (f"https://huggingface.co/{MANIFEST['modelId']}/resolve/"
           f"{MANIFEST['revision']}/")
 EXPECTED = {"model.safetensors", "tokenizer.json", "config.json",
             "tokenizer_config.json", "special_tokens_map.json"}
+if POTION:
+    EXPECTED = {"model.safetensors", "tokenizer.json", "config.json"}
 assert {entry["name"] for entry in MANIFEST["files"]} == EXPECTED
 
 

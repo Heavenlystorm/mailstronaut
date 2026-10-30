@@ -20,7 +20,7 @@ nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh be
 changes, not normal reproduction. The first version required Arrow 58.4.1:
 DataFusion 54's Arrow minimum conflicts with an exact 58.0.0 pin. The lock fixes all
 524 entries in the initial standalone lock. The expanded model experiment locks
-574 entries including its two local crates. Dependency fetching is separate from
+the selected dependency graph including its two local crates. Dependency fetching is separate from
 the explicit model artifact provisioning below.
 
 `build` uses the default pinned nightly Cranelift/Wild setup. `release` uses LLVM,
@@ -89,3 +89,11 @@ This test-only CPU PyTorch/Transformers environment uses the same local safetens
 and tokenizer, with offline mode, no remote code and no GPU. Its fixed acceptance
 is maximum absolute component error <= 1e-4 and minimum paired cosine >= 0.99999.
 It is not a Python application dependency or an inference service.
+
+`potion-fetch` explicitly provisions the second committed manifest to
+`target/p06-search/model-potion`. After `embedding-build`, `potion-smoke` uses the
+**debug/Cranelift** executable and the published Model2Vec 0.3 local-only byte
+loader and `encode_single`, with no E5 task prefixes. It reuses the identical ten
+queries, filters, LanceDB ranking and fixed relevance thresholds. Those timings
+are debug/traced screening only. The released model loader keeps F32 storage;
+no unverified main-branch quantization API or custom static encoder is used.

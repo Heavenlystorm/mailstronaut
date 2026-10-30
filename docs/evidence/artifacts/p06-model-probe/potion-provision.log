@@ -1,0 +1,4 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Provisioned and verified model.safetensors: 512361560 bytes
+Provisioned and verified tokenizer.json: 18616131 bytes
+Provisioned and verified config.json: 271 bytes

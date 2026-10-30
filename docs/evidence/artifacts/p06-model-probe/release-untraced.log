@@ -1,0 +1,9 @@
+verified_model_load_ms=1145.338
+query_first_measured_ms=55.188 warm_query_p95_ms=54.679
+query=user-example expected=1 semantic=[2, 1, 8] hybrid=[2, 1, 8]
+
+thread 'main' (3228447) panicked at crates/embedding-probe/src/main.rs:256:13:
+assertion `left == right` failed: user's cross-language example must rank first without lexical ranking
+  left: Some(2)
+ right: Some(1)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
