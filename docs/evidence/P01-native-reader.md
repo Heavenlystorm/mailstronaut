@@ -54,5 +54,32 @@ inspected. Font/glyph coverage depends on installed fonts; the test's restricted
 font set does not establish complete CJK rendering, despite exact Unicode copy.
 
 Actual AT-SPI/tree/screen-reader behavior, mouse selection, every keyboard motion,
-large-mailbox/HiDPI performance, installed-package and Flatpak acceptance remain
-separate. An accessibility label is supplied but does not prove accessibility.
+large-mailbox/HiDPI performance and Flatpak acceptance remain separate. An
+accessibility label is supplied but does not prove accessibility.
+
+## Stable package and installed Wayland acceptance
+
+Implementation: `291a728cccbb7ffc17594d4b2585fd99bbc8e4cd`.
+The coordinated `ci/nix-check.sh` service invocation
+`85352bf228b544e3af18927632d090eb` completed with a fresh numeric receipt `0`,
+an inactive/collected service, `ExecMainStatus=0` and a full `all checks passed`
+log. Release strict Clippy, all 132 normal workspace tests and four private
+credential/OAuth fixture invocations passed. Only the five workspace crates
+compiled/checked in the real package after dependency artifact restoration.
+The x86_64 gate omitted aarch64-linux.
+
+The subsequent cached `nix build --no-update-lock-file`, installed CLI/config
+smoke in an empty environment, and the complete private Wayland script all passed
+against `/nix/store/lxxzxm11nyddpyj03zskh3b1jy68vz8p-mailstronaut-0.1.0`.
+The installed script verifies the Blitz preview, search/theme keyboard input,
+X11-only rejection, exact Unicode clipboard contents, rejected edits, end-of-body
+navigation and preserved selection after theme changes. Its private session is
+`target/gpui-wayland.4sMmdC`; installed smoke is
+`target/p01-installed-smoke.zg9Mpf`. No live account was used.
+The installed reader screenshot was also visually inspected.
+
+- [Installed native reader](artifacts/p01-gpui-blitz/installed-native-reader.png)
+- [Installed smoke output](artifacts/p01-gpui-blitz/native-reader-installed.log)
+
+The separate hosted CI repair run remains pending. These local package checks
+do not close hosted CI, accessibility, HTML privacy or distribution acceptance.
