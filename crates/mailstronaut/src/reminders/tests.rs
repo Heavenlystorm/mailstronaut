@@ -323,3 +323,68 @@ async fn private_portal_reminders_replace_after_crash_and_honor_actions_privacy_
         "Private reminder portal: stable replacement across both crash windows, scoped actions, generic previews, mute, denial, explicit retry and withdrawal passed."
     );
 }
+
+#[tokio::test]
+async fn in_app_open_uses_the_original_even_without_a_desktop_receipt() {
+    let root = tempfile::tempdir().expect("profile");
+    let mut store = Store::open(root.path()).expect("store");
+    store.ensure_account("a").expect("account");
+    let message = store
+        .ingest_message("a", b"Subject: Synthetic reminder\r\n\r\nLocal original.")
+        .expect("message");
+    drop(store);
+    let owner = Worker::open(root.path().into()).await.expect("owner");
+    let handle = owner.handle();
+    let mut record = handle
+        .schedule_reminder(Schedule {
+            account: "a".into(),
+            message,
+            due_at: 200,
+            time_zone: "UTC".into(),
+            now: 100,
+            expected: None,
+        })
+        .await
+        .expect("schedule");
+    record.notification.clear();
+    assert_eq!(
+        resolve_original(handle.clone(), vec!["a".into()], record.clone())
+            .await
+            .expect("resolve")
+            .expect("original")
+            .message,
+        message
+    );
+    assert!(
+        resolve_original(handle.clone(), vec!["b".into()], record.clone())
+            .await
+            .expect("foreign scope")
+            .is_none()
+    );
+    let current_generation = record.generation;
+    record.generation += 1;
+    assert!(
+        resolve_original(handle.clone(), vec!["a".into()], record.clone())
+            .await
+            .expect("stale generation")
+            .is_none()
+    );
+    record.generation = current_generation;
+    record.id = "another-reminder".into();
+    assert!(
+        resolve_original(handle.clone(), vec!["a".into()], record)
+            .await
+            .expect("foreign ID")
+            .is_none()
+    );
+    assert_eq!(
+        handle
+            .reminder_for("a".into(), message)
+            .await
+            .expect("unchanged")
+            .expect("record")
+            .state,
+        State::Pending
+    );
+    owner.shutdown().await.expect("shutdown");
+}

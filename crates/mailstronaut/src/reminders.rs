@@ -298,11 +298,7 @@ impl Model {
                 }
             }
             Message::Open(Payload(record)) if !self.busy => {
-                return self.action(desktop::Action {
-                    notification: record.notification,
-                    generation: record.generation,
-                    kind: desktop::Kind::Open,
-                });
+                return self.open_record(record);
             }
             Message::Resolved(generation, Payload(result), kind) => {
                 return self.resolved(generation, result, kind);
@@ -362,6 +358,21 @@ impl Model {
             },
             move |result| event(Message::Resolved(generation, Payload(result), action.kind)),
         )
+    }
+    fn open_record(&mut self, record: Reminder) -> Task<super::Message> {
+        let Some(store) = self.store.clone() else {
+            return Task::none();
+        };
+        self.busy = true;
+        let generation = self.generation;
+        let accounts = self.accounts();
+        Task::perform(resolve_original(store, accounts, record), move |result| {
+            event(Message::Resolved(
+                generation,
+                Payload(result),
+                desktop::Kind::Open,
+            ))
+        })
     }
     fn schedule(&mut self, when: &When) -> Task<super::Message> {
         let (Some(store), Some(config), Some(target)) = (
@@ -545,6 +556,23 @@ impl Model {
             .height(Length::Fill)
             .into()
     }
+}
+async fn resolve_original(
+    store: worker::Handle,
+    accounts: Vec<String>,
+    record: Reminder,
+) -> Result<Option<Reminder>, worker::Error> {
+    if !accounts
+        .into_iter()
+        .any(|account| account == record.account)
+    {
+        return Ok(None);
+    }
+    let current = store.reminder_for(record.account, record.message).await?;
+    Ok(
+        current
+            .filter(|current| current.id == record.id && current.generation == record.generation),
+    )
 }
 fn button(label: &str, message: Message, enabled: bool) -> Element<'_, super::Message> {
     widget::button::text(label)
