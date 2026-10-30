@@ -1,0 +1,5 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+   Compiling mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.32s
+    Checking mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.76s

@@ -1,0 +1,16 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+    Updating crates.io index
+     Locking 572 packages to highest Rust 1.98 compatible versions
+      Adding arrow-array v58.4.1 (available: v60.1.0)
+      Adding arrow-schema v58.4.1 (available: v60.1.0)
+      Adding generic-array v0.14.7 (available: v0.14.9)
+      Adding serde v1.0.228 (available: v1.0.229)
+      Adding serde_core v1.0.228 (available: v1.0.229)
+      Adding serde_derive v1.0.228 (available: v1.0.229)
+      Adding sha2 v0.10.9 (available: v0.11.1)
+      Adding tokenizers v0.22.2 (available: v0.23.2)
+    Blocking waiting for file lock on package cache
+   Compiling mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.76s
+    Checking mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.60s

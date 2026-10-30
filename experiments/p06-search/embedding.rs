@@ -219,6 +219,7 @@ async fn retrieve(table: &Table, queries: &[Query], vectors: &[Vec<f32>]) -> Res
         .and(col("folder").eq(lit("INBOX")));
     let mut top1 = 0_u32;
     let mut top3 = 0_u32;
+    let mut user_first = false;
     for (query, vector) in queries.iter().zip(vectors) {
         let semantic = table
             .query()
@@ -253,11 +254,7 @@ async fn retrieve(table: &Table, queries: &[Query], vectors: &[Vec<f32>]) -> Res
             query.id, query.expected
         );
         if query.id == "user-example" {
-            assert_eq!(
-                semantic.first(),
-                Some(&query.expected),
-                "user's cross-language example must rank first without lexical ranking"
-            );
+            user_first = semantic.first() == Some(&query.expected);
         }
     }
     println!(
@@ -266,7 +263,7 @@ async fn retrieve(table: &Table, queries: &[Query], vectors: &[Vec<f32>]) -> Res
         queries.len()
     );
     assert!(
-        top1 >= 8 && usize::try_from(top3)? == queries.len(),
+        user_first && top1 >= 8 && usize::try_from(top3)? == queries.len(),
         "fixed multilingual relevance screen failed"
     );
     Ok(())
@@ -360,11 +357,18 @@ async fn main() -> Result<()> {
         )
         .execute()
         .await?;
-    retrieve(&table, &fixtures.queries, &queries).await?;
     let file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(output)?;
-    serde_json::to_writer(file, &Output { documents, queries })?;
+    serde_json::to_writer(
+        file,
+        &Output {
+            documents,
+            queries: queries.clone(),
+        },
+    )?;
+    // Persist diagnostic vectors and exercise every fixture even if relevance fails.
+    retrieve(&table, &fixtures.queries, &queries).await?;
     Ok(())
 }

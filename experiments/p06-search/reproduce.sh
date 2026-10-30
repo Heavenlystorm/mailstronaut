@@ -86,16 +86,22 @@ case ${1:-smoke} in
     cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
     command time -v -o "$root/target/p06-search/embedding-build-resources.txt" cargo build --release -p mailstronaut-embedding-probe --locked --offline
     ;;
-  embedding-smoke)
+  embedding-smoke|embedding-bench)
     run=$(mktemp -d "$root/target/p06-search/embedding.XXXXXXXX")
     binary="$CARGO_TARGET_DIR/release/mailstronaut-embedding-probe"
-    command time -v -o "$run/resources.txt" strace -f -qq -e trace=network -o "$run/network.trace" "$binary" "$root/target/p06-search/model" "$run/data" "$run/embeddings.json" | tee "$run/metrics.txt"
-    python3 - "$run/network.trace" <<'PYNETWORK'
+    result=0
+    if [[ $1 == embedding-smoke ]]; then
+      command time -v -o "$run/resources.txt" strace -f -qq -e trace=network -o "$run/network.trace" "$binary" "$root/target/p06-search/model" "$run/data" "$run/embeddings.json" | tee "$run/metrics.txt" || result=$?
+      python3 - "$run/network.trace" <<'PYNETWORK'
 import pathlib,sys
 assert 'AF_INET' not in pathlib.Path(sys.argv[1]).read_text(), 'inference attempted IP networking'
 print('The bounded local model/search process made no IP socket calls.')
 PYNETWORK
+    else
+      command time -v -o "$run/resources.txt" "$binary" "$root/target/p06-search/model" "$run/data" "$run/embeddings.json" | tee "$run/metrics.txt" || result=$?
+    fi
     printf 'Embedding artifacts: %s\n' "$run"
+    exit "$result"
     ;;
   build)
     cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
@@ -142,5 +148,5 @@ print('Both bounded search runs made no IP socket calls; the observer detected t
 PYTRACE
     printf 'Probe runtime data: %s\n' "$run"
     ;;
-  *) printf 'Usage: %s {lock|fetch|build|release|bench|smoke|model-fetch|embedding-build|embedding-release|embedding-smoke}\n' "$0" >&2; exit 2 ;;
+  *) printf 'Usage: %s {lock|fetch|build|release|bench|smoke|model-fetch|embedding-build|embedding-release|embedding-smoke|embedding-bench}\n' "$0" >&2; exit 2 ;;
 esac
