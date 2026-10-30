@@ -82,3 +82,26 @@ The local source-fetch pass used the existing hash-verified vendor cache. Retrie
 handle intermittent outages but cannot make a persistently unavailable upstream
 service healthy. An exact-head passing GitHub run and hosted-runner disk evidence
 remain required before marking the CI requirement complete.
+
+## Follow-up: make the pinned Snix source available to clean runners
+
+The authorized push triggered [run 41067274743](https://github.com/eduardz1/mailstronaut/actions/runs/41067274743)
+at `b801a4a`. All three source-fetch attempts failed before compilation. Retries
+alone therefore did not repair clean-runner source availability.
+
+The Nix fetch now uses an in-repository 3.3 MiB, single-commit shallow Git cache
+for this exact Snix URL. It retains the original commit
+`f393b22aa9b8e0e74c9e8d67f15454409299e510` and tree
+`45d3546fc8de18b759530d4d324812fc6e3272de`; both are checked before the standard
+Nixpkgs Git fetch. Git's URL rewrite supplies the cache; other sources are fetched
+normally. This is unchanged upstream source, with its licenses, not a patch or
+revision substitution. [Provenance and refresh procedure](../../third-party/README.md).
+
+Local validation: `git fsck --full` passed. An actual forced rebuild,
+`nix build --rebuild --no-link --no-update-lock-file .#mailstronaut.cargoDeps.vendorStaging`,
+passed with exit 0 and the **unchanged** recursive vendor hash
+`sha256-eIivbnNQKwFov66fqyAhldHpum6lxlwpDn/hXcKDzoc=`. This checks the complete
+fresh source-fetch result rather than reusing the previously cached output. Log:
+`target/attachments-vendor-rebuild.log`, derivation
+`/nix/store/hyrahm5852analnj7nwa4hv8dl92bkpf-mailstronaut-0.1.0-vendor-staging.drv`.
+A new hosted CI pass remains pending.

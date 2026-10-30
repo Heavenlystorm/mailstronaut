@@ -82,6 +82,22 @@
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit pname version;
             hash = cargoHash;
+            # Immutable upstream source cache; avoid requiring the Snix forge
+            # during every clean CI build. Cargo's revision remains unchanged.
+            nativeBuildInputs = [
+              pkgs.gitMinimal
+              pkgs.xz
+            ];
+            preBuild = ''
+              mkdir -p "$TMPDIR/snix-source"
+              tar -xJf ${./third-party/snix-f393b22.git.tar.xz} -C "$TMPDIR/snix-source"
+              snix_repo="$TMPDIR/snix-source/repository"
+              test "$(git --git-dir="$snix_repo" rev-parse HEAD)" = f393b22aa9b8e0e74c9e8d67f15454409299e510
+              test "$(git --git-dir="$snix_repo" rev-parse HEAD^{tree})" = 45d3546fc8de18b759530d4d324812fc6e3272de
+              export GIT_CONFIG_GLOBAL="$TMPDIR/mailstronaut-gitconfig"
+              git config --file "$GIT_CONFIG_GLOBAL" protocol.file.allow always
+              git config --file "$GIT_CONFIG_GLOBAL" "url.file://$snix_repo.insteadOf" https://git.snix.dev/snix/snix.git
+            '';
             src = pkgs.lib.fileset.toSource {
               root = ./.;
               fileset = ./Cargo.lock;
