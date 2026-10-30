@@ -1,0 +1,24 @@
+{
+  "old": {
+    "artifact": "/nix/store/japnq7w39cpbddibx114b8dj64lmxm7h-mailstronaut-deps-0.1.0",
+    "compressedArtifactBytes": 2411838979,
+    "nativeRetainedBytes": 2304273754,
+    "staticLibraries": [
+      {
+        "path": "./x86_64-unknown-linux-gnu/release/build/mozjs_sys-4ddf483305ffe71a/out/build/js/src/build/libjs_static.a",
+        "bytes": 1120107302
+      }
+    ]
+  },
+  "new": {
+    "artifact": "/nix/store/j2k9b80y20cfcldzd9qc83v4xy90ysc3-mailstronaut-deps-0.1.0",
+    "compressedArtifactBytes": 1287437056,
+    "nativeRetainedBytes": 197805460,
+    "staticLibraries": [
+      {
+        "path": "./x86_64-unknown-linux-gnu/release/build/mozjs_sys-4ddf483305ffe71a/out/build/js/src/build/libjs_static.a",
+        "bytes": 66877326
+      }
+    ]
+  }
+}

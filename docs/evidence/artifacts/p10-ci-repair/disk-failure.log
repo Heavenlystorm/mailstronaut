@@ -1,0 +1,4 @@
+checks	UNKNOWN STEP	2026-10-30T09:48:30.1829959Z mailstronaut-deps>   /nix/store/i52d7j6ma8bh4ggg4r2hl4af7bychdpa-clang-wrapper-21.1.8/bin/ar: libjs_static.a: error reading /nix/var/nix/builds/nix-25-152080335/source/target/x86_64-unknown-linux-gnu/release/build/mozjs_sys-4ddf483305ffe71a/out/build/js/src/builtin/temporal/Unified_cpp_builtin_temporal2.o: No space left on device
+checks	UNKNOWN STEP	2026-10-30T09:48:30.1830722Z mailstronaut-deps>   make[4]: *** [/nix/var/nix/builds/nix-25-152080335/vendor/source-registry-0/mozjs_sys-153.3.0-1/mozjs/config/rules.mk:490: libjs_static.a] Error 1
+checks	UNKNOWN STEP	2026-10-30T09:48:30.1830906Z mailstronaut-deps>   make[4]: *** Deleting file 'libjs_static.a'
+checks	UNKNOWN STEP	2026-10-30T09:48:44.0208526Z        Reason: builder failed with exit code 101.
