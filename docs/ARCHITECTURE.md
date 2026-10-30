@@ -206,6 +206,8 @@ original message and source/model revision. Incremental bounded indexing, invali
 purge and rebuild must preserve user-owned drafts/reminders and exclude unavailable
 or encrypted text. Record held-out retrieval relevance and CPU/memory/index costs;
 implementation and acceptance steps are in P06 of [PLAN.md](PLAN.md).
+Use the library comparison and pre-implementation adoption gate in [SEARCH.md](SEARCH.md);
+research and measure existing components before writing search integration.
 
 ## 5. Synchronization and sending
 

@@ -68,8 +68,14 @@ compiler. Revisit the lower bound when the complete graph is known.
   host Nix/does not solve Flatpak; second parses syntax without Nix evaluation;
   third is another explicitly incomplete preview. Prefer the existing Snix bridge
   behind one boundary, subject to its size/compatibility gate.
-- **Tantivy, SQLx, SeaORM, external mail indexers, separate daemons**: SQLite FTS5,
-  a blocking connection owner and a single process meet the current requirements.
+- **Search engines**: the original literal-search FTS5-only decision is superseded
+  by the user's fuzzy/multilingual semantic requirements. [SEARCH.md](SEARCH.md)
+  compares existing engines and model APIs; LanceDB is the first unified probe,
+  with Tantivy plus a vector library as the lean comparison. No candidate has been
+  adopted or benchmarked yet. SQLite remains canonical; do not implement a search
+  engine or add a separate search daemon.
+- **SQLx, SeaORM and external mail indexers**: the blocking SQLite owner and single
+  application process remain sufficient for canonical mail/state persistence.
 
 ## License and supply-chain rules
 

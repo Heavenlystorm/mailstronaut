@@ -18,7 +18,7 @@ uses `nix develop` and inherits the root lints/dependencies. Work in small commi
 | P03 | Durable local store, MIME projection and fixtures | P00/P02 schema | Yes |
 | P04 | Reliable IMAP sync and offline operation | P02/P03 | Yes |
 | P05 | Google/iCloud/institutional authentication | P02/P04 | Yes |
-| P06 | Unified inbox and conversation UI | P01/P03/P04 | Yes |
+| P06 | Unified inbox, conversations and strong local search | P01/P03/P04 | Yes |
 | P07 | Draft/compose/send and safe mailbox actions | P04/P05/P06 | Yes |
 | P08 | Remind me, notifications and optional background lifetime | P03/P06; P01 lifecycle | Yes |
 | P09 | Local classifier, contextual expiry and deadline boxes | P03/P06/P08 | Yes |
@@ -276,6 +276,13 @@ first. Core provides pagination and stable IDs; UI performs no SQL/network work.
   native accessible text mode, keyboard navigation, copy and error/empty/offline UX.
 - [ ] Add local search/folder controls and identity-safe actions through engine
   commands; search never uploads text. Integrate sender URLs through portals only.
+- [x] Research existing fuzzy/hybrid search engines and local embedding APIs;
+  published source/checksum audit and tradeoffs: [SEARCH.md](SEARCH.md).
+- [ ] Before implementing stronger search, finish the pinned library/model probe
+  and choose the smallest maintained integration meeting quality/resource budgets.
+  Start with the unified LanceDB candidate; compare Tantivy and an existing vector
+  backend if needed. No hand-written fuzzy engine, ANN index, transformer, search
+  daemon or library fork. Reuse the planned local model connector where suitable.
 - [ ] Make typo-tolerant fuzzy search a first-class feature across subject, sender,
   recipients and cached readable body: handle misspellings, missing accents and
   approximate/partial terms, with useful ranking rather than exact substring-only

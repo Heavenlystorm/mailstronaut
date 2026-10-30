@@ -21,6 +21,7 @@ each step complete. The first feature milestone proves Servo/libcosmic integrati
 | [Dependencies](docs/DEPENDENCIES.md) | Selected Rust libraries, versions, usage and compatibility gates |
 | [Rendering](docs/RENDERING.md) | Servo integration, native dark mode, HTML privacy and input/accessibility proof |
 | [Configuration](docs/CONFIGURATION.md) | Native config.nix, direct Home Manager integration, secrets and five-provider auth |
+| [Search](docs/SEARCH.md) | Existing library comparison, fuzzy/multilingual retrieval and adoption gates |
 | [Classifier](docs/CLASSIFIER.md) | CPU-only model candidate, priority expiry, deadline extraction and local evaluation |
 | [Delivery](docs/DELIVERY.md) | Nix development, minimal Nix-container CI, Nix/Flatpak packaging and release gates |
 | [Research](docs/RESEARCH.md) | Primary sources, inspected pins and unresolved assumptions |

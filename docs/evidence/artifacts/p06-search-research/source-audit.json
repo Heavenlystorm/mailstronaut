@@ -1,0 +1,384 @@
+{
+  "checkedAt": "2026-10-30T08:37:05.375674+00:00",
+  "repositories": {
+    "quickwit-oss/tantivy": "360a5ebbbb6fa493d06b777a3c6890fbb1afbe7b",
+    "lancedb/lancedb": "f74a7d38cae4ee92b00e80f720f3e90e388931f4",
+    "MinishLab/model2vec-rs": "1e56ee247d9c693b3f78c76e3ee8cd0b2484cb93",
+    "unum-cloud/USearch": "a985f77553d2d58d5ef1516eafaae81480bb3c30"
+  },
+  "crates": {
+    "tantivy": {
+      "stableVersion": "0.27.0",
+      "checksum": "ad1ebacf6bc124b741ffbfb088f9835cb55e1e2ff57e182e9219e3efa1377b97",
+      "rustVersion": "1.88",
+      "features": {
+        "columnar-zstd-compression": [
+          "columnar/zstd-compression"
+        ],
+        "compare_hash_only": [
+          "stacker/compare_hash_only"
+        ],
+        "default": [
+          "mmap",
+          "stopwords",
+          "lz4-compression",
+          "columnar-zstd-compression",
+          "stemmer"
+        ],
+        "failpoints": [
+          "fail",
+          "fail/failpoints"
+        ],
+        "jitexpr": [
+          "dep:jitexpr",
+          "dep:hashbrown"
+        ],
+        "lz4-compression": [
+          "lz4_flex"
+        ],
+        "mmap": [
+          "fs4",
+          "tempfile",
+          "memmap2"
+        ],
+        "quickwit": [
+          "sstable",
+          "futures-util",
+          "futures-channel"
+        ],
+        "stemmer": [
+          "frostem"
+        ],
+        "stopwords": [],
+        "unstable": [],
+        "zstd-compression": [
+          "zstd"
+        ]
+      }
+    },
+    "lancedb": {
+      "stableVersion": "0.41.0",
+      "checksum": "fe258f6ae86d8986057b794e17912ad15f203f6e40fb441499735910714858a7",
+      "rustVersion": "1.94.0",
+      "features": {
+        "aws": [
+          "dep:aws-smithy-types",
+          "lance/aws",
+          "lance-io/aws",
+          "lance-namespace-impls/dir-aws",
+          "object_store/aws"
+        ],
+        "azure": [
+          "lance/azure",
+          "lance-io/azure",
+          "lance-namespace-impls/dir-azure",
+          "lance-namespace-impls/credential-vendor-azure"
+        ],
+        "bedrock": [
+          "dep:aws-sdk-bedrockruntime",
+          "dep:aws-smithy-types"
+        ],
+        "cos": [
+          "lance/tencent",
+          "lance-io/tencent"
+        ],
+        "default": [],
+        "dynamodb": [
+          "lance/dynamodb",
+          "aws"
+        ],
+        "experimental-functions": [],
+        "fp16kernels": [
+          "lance-linalg/fp16kernels"
+        ],
+        "gcs": [
+          "lance/gcp",
+          "lance-io/gcp",
+          "lance-namespace-impls/dir-gcp"
+        ],
+        "geo": [
+          "lance/geo"
+        ],
+        "goosefs": [
+          "lance/goosefs",
+          "lance-io/goosefs",
+          "lance-namespace-impls/dir-goosefs"
+        ],
+        "huggingface": [
+          "lance/huggingface",
+          "lance-io/huggingface",
+          "lance-namespace-impls/dir-huggingface"
+        ],
+        "metrics": [
+          "dep:metrics",
+          "lance/metrics",
+          "lance-io/metrics"
+        ],
+        "metrics-otel": [
+          "metrics",
+          "dep:metrics-util"
+        ],
+        "openai": [
+          "dep:async-openai",
+          "dep:reqwest"
+        ],
+        "oss": [
+          "lance/oss",
+          "lance-io/oss",
+          "lance-namespace-impls/dir-oss"
+        ],
+        "polars": [
+          "dep:polars-arrow",
+          "dep:polars"
+        ],
+        "remote": [
+          "dep:arrow-flight",
+          "dep:prost",
+          "dep:reqwest",
+          "dep:http",
+          "dep:oauth2",
+          "dep:tonic",
+          "dep:urlencoding",
+          "dep:base64",
+          "dep:webbrowser",
+          "dep:fs4",
+          "lance-namespace-impls/rest"
+        ],
+        "s3-test": [],
+        "sentence-transformers": [
+          "dep:hf-hub",
+          "dep:candle-core",
+          "dep:candle-transformers",
+          "dep:candle-nn",
+          "dep:tokenizers"
+        ]
+      }
+    },
+    "usearch": {
+      "stableVersion": "2.26.6",
+      "checksum": "b0b5eeb9d30a9be03057a1fa6b0096b6d02a42169fb300e096501aa48ee03ce5",
+      "rustVersion": null,
+      "features": {
+        "default": [
+          "numkong"
+        ],
+        "numkong": [
+          "dep:numkong"
+        ],
+        "openmp": [],
+        "simsimd": [
+          "numkong"
+        ]
+      }
+    },
+    "model2vec-rs": {
+      "stableVersion": "0.3.0",
+      "checksum": "3ca11a52a52721b3305bd03ee42d66d8026f54f00235b81746662f2b25a743f1",
+      "rustVersion": "1.88",
+      "features": {
+        "cli": [
+          "dep:clap"
+        ],
+        "default": [
+          "onig",
+          "hf-hub"
+        ],
+        "fancy-regex": [
+          "tokenizers/fancy-regex",
+          "tokenizers/progressbar",
+          "tokenizers/esaxx_fast"
+        ],
+        "hf-hub": [
+          "dep:hf-hub",
+          "dep:ureq"
+        ],
+        "local-only": [],
+        "onig": [
+          "tokenizers/onig",
+          "tokenizers/progressbar",
+          "tokenizers/esaxx_fast"
+        ],
+        "wasm": [
+          "local-only",
+          "tokenizers/unstable_wasm"
+        ]
+      }
+    },
+    "fastembed": {
+      "stableVersion": "7.5.0",
+      "checksum": "b65a7054d36362ab4c234d7b4b58f3f453e9ec73643283223f0b170554481906",
+      "rustVersion": "1.88",
+      "features": {
+        "accelerate": [
+          "qwen3",
+          "nomic-v2-moe",
+          "dep:accelerate-src",
+          "candle-core/accelerate",
+          "candle-nn/accelerate"
+        ],
+        "cuda": [
+          "qwen3",
+          "nomic-v2-moe",
+          "candle-core/cuda",
+          "candle-nn/cuda"
+        ],
+        "cudnn": [
+          "qwen3",
+          "nomic-v2-moe",
+          "candle-core/cudnn",
+          "candle-nn/cudnn",
+          "cuda"
+        ],
+        "default": [
+          "onnx",
+          "ort-download-binaries-native-tls",
+          "hf-hub-native-tls",
+          "image-models"
+        ],
+        "directml": [
+          "onnx",
+          "ort/directml"
+        ],
+        "hf-hub": [
+          "dep:hf-hub",
+          "hf-hub?/ureq"
+        ],
+        "hf-hub-native-tls": [
+          "hf-hub",
+          "hf-hub?/native-tls"
+        ],
+        "hf-hub-rustls-tls": [
+          "hf-hub",
+          "hf-hub?/rustls-tls"
+        ],
+        "image-models": [
+          "onnx",
+          "dep:image"
+        ],
+        "metal": [
+          "qwen3",
+          "nomic-v2-moe",
+          "candle-core/metal",
+          "candle-nn/metal",
+          "dep:candle-metal-kernels"
+        ],
+        "mkl": [
+          "qwen3",
+          "nomic-v2-moe",
+          "dep:intel-mkl-src",
+          "candle-nn/mkl",
+          "candle-core/mkl"
+        ],
+        "nomic-v2-moe": [
+          "dep:candle-core",
+          "dep:candle-nn",
+          "hf-hub"
+        ],
+        "online": [
+          "hf-hub-native-tls"
+        ],
+        "onnx": [
+          "dep:ort",
+          "dep:ndarray",
+          "dep:safetensors"
+        ],
+        "optimum-cli": [],
+        "ort-download-binaries": [
+          "ort-download-binaries-native-tls"
+        ],
+        "ort-download-binaries-native-tls": [
+          "onnx",
+          "ort/download-binaries",
+          "ort/tls-native"
+        ],
+        "ort-download-binaries-rustls-tls": [
+          "onnx",
+          "ort/download-binaries",
+          "ort/tls-rustls"
+        ],
+        "ort-load-dynamic": [
+          "onnx",
+          "ort/load-dynamic"
+        ],
+        "qwen3": [
+          "qwen3-text",
+          "qwen3-vl",
+          "hf-hub"
+        ],
+        "qwen3-text": [
+          "dep:candle-core",
+          "dep:candle-nn"
+        ],
+        "qwen3-vl": [
+          "qwen3-text",
+          "dep:image",
+          "hf-hub"
+        ],
+        "webgpu": [
+          "onnx",
+          "ort/webgpu"
+        ]
+      }
+    },
+    "lance-index": {
+      "auditedVersion": "14.0.2",
+      "checksum": "df56fde7e5e34b1d6cf67de22fdfed3a9f6f2875fc5a5d452ae8ab5a1cef150b",
+      "rustVersion": "1.94.0"
+    }
+  },
+  "models": {
+    "intfloat/multilingual-e5-small": {
+      "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+      "safetensors": {
+        "parameters": {
+          "I64": 512,
+          "F32": 117653760
+        },
+        "total": 117654272
+      }
+    },
+    "minishlab/potion-multilingual-128M": {
+      "revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+      "config": {
+        "model_type": "model2vec",
+        "architectures": [
+          "StaticModel"
+        ],
+        "tokenizer_config": {
+          "bos_token": "<s>",
+          "cls_token": "<s>",
+          "eos_token": "</s>",
+          "mask_token": "<mask>",
+          "pad_token": "<pad>",
+          "sep_token": "</s>",
+          "unk_token": "<unk>"
+        }
+      },
+      "files": [
+        {
+          "name": "config.json",
+          "size": 271,
+          "lfs": null
+        },
+        {
+          "name": "model.safetensors",
+          "size": 512361560,
+          "lfs": {
+            "sha256": "14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397",
+            "size": 512361560,
+            "pointerSize": 134
+          }
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 18616131,
+          "lfs": {
+            "sha256": "19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1",
+            "size": 18616131,
+            "pointerSize": 133
+          }
+        }
+      ]
+    }
+  }
+}
