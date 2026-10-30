@@ -4,7 +4,9 @@ Status: isolated LanceDB API checks passed; adoption and semantic search remain 
 The application dependency graph and its literal FTS behavior are unchanged.
 
 The reproducible [probe](../../experiments/p06-search/README.md) uses LanceDB 0.41.0,
-Arrow 58.4.1 and a separate checksum-locked workspace with 524 selected packages.
+Arrow 58.4.1 and a separate checksum-locked workspace. Its initial standalone lock
+had 524 entries; the later two-model comparison extends it to 583 entries including
+two local probe crates. The original release screen below used the initial graph.
 The application root owns its original dependencies; the generated experiment
 workspace centralizes its own versions and inherits the root lint policy. The new
 `search-probe` development shell adds standard Protobuf and strace tools.

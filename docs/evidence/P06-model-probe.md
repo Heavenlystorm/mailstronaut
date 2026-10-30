@@ -77,7 +77,45 @@ completed every query and the independent parity check, retaining its failing
 quality status. No app package, CI, live-provider, GUI or Flatpak acceptance was
 run for these isolated experiments.
 
-The already researched Model2Vec static multilingual alternative is the next
-bounded comparison against the same fixtures and thresholds. Its published Rust
-release expands even loaded I8 values to F32; do not assume a quantized memory
-benefit from a different repository API. No additional model is adopted here.
+## Existing static-embedding library comparison
+
+At `b874b84`, Model2Vec 0.3.0's local-only byte loader and `encode_single` ran with
+the separately pinned multilingual Potion model, using no E5 prefixes. All three
+artifact sizes/hashes passed. No model architecture, pooling implementation or
+new ranking algorithm was written. Both candidates used the exact unchanged
+corpus, account/folder prefilters, LanceDB queries and relevance thresholds.
+
+| Encoder | Semantic top-one | Semantic top-three | User example rank |
+| --- | --- | --- | --- |
+| Multilingual E5-small | 6/10 | 8/10 | 2 |
+| Potion multilingual 128M | 6/10 | 10/10 | 2 |
+
+The [static-model log](artifacts/p06-model-probe/potion-relevance.log) also retained
+exit **101**: the original rank-first/top-one criteria failed. This small fixture
+suggests useful cross-language retrieval and low warm inference cost, but is not
+a held-out mailbox evaluation or model acceptance. Numerical parity was checked
+independently for E5; a separate static-model reference remains unrun.
+
+The static-model run used **debug/Cranelift and strace**, not release. Warm query
+p95 was 0.11 ms in that run; process-start load took 33.2 s and peak RSS was
+1.72 GiB. See [resources](artifacts/p06-model-probe/potion-debug-resources.txt).
+Do not compare its timings/memory directly with E5's untraced release numbers or
+claim a measured release speedup. The released library expands even loaded I8
+values to F32, so a different repository quantization API does not establish a
+memory reduction here. A paired release/steady-memory comparison is still needed.
+No IP socket calls were observed during the bounded static-model/search run.
+
+After adding the second library, the combined experimental workspace passed
+formatting, build and strict all-target/all-feature Clippy in `nix develop`.
+The fuzzy/filter/vector/hybrid control, independent-process reopen, logical
+deletion and network-observer smoke were repeated successfully on this graph.
+Nix formatting passed too. [Final focused check](artifacts/p06-model-probe/final-workspace-check.log).
+This does not replace the failed model quality receipts or the application's
+package, GUI, CI and distribution gates.
+
+LanceDB remains the leading existing backend candidate because its actual Rust
+fuzzy/filter/vector/hybrid APIs worked and independent numerical ranking agreed.
+Neither encoder passed the complete predeclared quality screen. Keep semantic
+model adoption and the broader P06 rows open. Production work should reuse this
+library functionality with bounded SQLite projection/identity/lifecycle glue;
+it must not introduce a custom fuzzy, vector or neural engine to hide these misses.

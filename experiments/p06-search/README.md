@@ -18,10 +18,10 @@ nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh be
 
 `lock` deliberately refreshes the tracked experiment lock and is for dependency
 changes, not normal reproduction. The first version required Arrow 58.4.1:
-DataFusion 54's Arrow minimum conflicts with an exact 58.0.0 pin. The lock fixes all
-524 entries in the initial standalone lock. The expanded model experiment locks
-the selected dependency graph including its two local crates. Dependency fetching is separate from
-the explicit model artifact provisioning below.
+DataFusion 54's Arrow minimum conflicts with an exact 58.0.0 pin. The initial
+standalone lock had 524 entries. The expanded model experiment locks 583 entries
+including its two local crates. Dependency fetching is separate from the explicit
+model artifact provisioning below.
 
 `build` uses the default pinned nightly Cranelift/Wild setup. `release` uses LLVM,
 thin LTO and one codegen unit, as required for the application. Native protocol

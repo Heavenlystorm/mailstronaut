@@ -1,0 +1,19 @@
+verified_model_load_ms=33155.515
+query_first_measured_ms=3.019 warm_query_p95_ms=0.110
+query=user-example expected=1 semantic=[2, 1, 6] hybrid=[2, 1, 6]
+query=english-french-registration expected=1 semantic=[2, 1, 8] hybrid=[2, 8, 1]
+query=italian-french-registration expected=1 semantic=[1, 6, 8] hybrid=[6, 1, 5]
+query=english-italian-refund expected=5 semantic=[5, 6, 10] hybrid=[5, 8, 6]
+query=french-italian-refund expected=5 semantic=[6, 5, 10] hybrid=[6, 9, 5]
+query=french-english-repair expected=7 semantic=[7, 10, 8] hybrid=[7, 6, 10]
+query=italian-english-password expected=8 semantic=[8, 7, 1] hybrid=[8, 7, 1]
+query=english-french-parcel expected=4 semantic=[4, 7, 10] hybrid=[4, 9, 7]
+query=english-french-supervision expected=9 semantic=[2, 9, 7] hybrid=[2, 7, 9]
+query=italian-french-electricity expected=10 semantic=[10, 9, 4] hybrid=[10, 5, 9]
+semantic_top1=6/10 semantic_top3=10/10
+
+thread 'main' (3245861) panicked at crates/embedding-probe/src/main.rs:308:5:
+fixed multilingual relevance screen failed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+The bounded local model/search process made no IP socket calls.
+Embedding artifacts: /home/eduard/.t3/projects/mailstronaut/target/p06-search/embedding.bNjDgvQb

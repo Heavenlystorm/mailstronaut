@@ -1,0 +1,11 @@
+   Compiling mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+   Compiling mailstronaut-search-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/search-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.98s
+    Checking mailstronaut-search-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/search-probe)
+    Checking mailstronaut-embedding-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/embedding-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.57s
+Loopback network observer positive control passed.
+Synthetic fuzzy, filtered vector and library hybrid queries passed.
+Fresh-process reopen and logical deletion passed; no semantic-model or physical-purge proof.
+Both bounded search runs made no IP socket calls; the observer detected the loopback control.
+Probe runtime data: /home/eduard/.t3/projects/mailstronaut/target/p06-search/run.rSYKyBSI

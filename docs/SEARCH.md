@@ -39,7 +39,10 @@ built and ran successfully; see [probe evidence](evidence/P06-search-probe.md).
 Model and adoption/resource acceptance remain open.
 The first E5 inference/reference probe passed numerical parity but failed the
 fixed multilingual ranking screen. [Results](evidence/P06-model-probe.md).
-LanceDB remains the leading backend candidate; an encoder is not adopted yet.
+The existing static Model2Vec library then retrieved all ten expected items in the
+top three, but also missed the fixed rank-first/top-one criteria; its debug load
+memory needs paired release profiling. LanceDB remains the leading backend
+candidate; neither encoder is adopted yet. These findings do not close P06.
 
 | Candidate | Existing functionality and fit | Decision for the probe |
 | --- | --- | --- |
