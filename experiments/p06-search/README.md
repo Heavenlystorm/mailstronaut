@@ -97,3 +97,12 @@ loader and `encode_single`, with no E5 task prefixes. It reuses the identical te
 queries, filters, LanceDB ranking and fixed relevance thresholds. Those timings
 are debug/traced screening only. The released model loader keeps F32 storage;
 no unverified main-branch quantization API or custom static encoder is used.
+
+For comparable untraced release measurements, first run `embedding-release` once,
+then run `embedding-bench` and `potion-bench` sequentially through the same pinned
+search-probe shell. Both use the same release executable and corpus; only the
+verified model changes. These modes preserve the relevance assertion and exit
+nonzero if it fails. Record completed timing/resource output separately from the
+quality result. Query timing measures the encoder only, not end-to-end retrieval;
+GNU time reports process peak RSS, not idle memory. OS page caches are uncontrolled.
+[Paired results](../../docs/evidence/P06-encoder-comparison.md).

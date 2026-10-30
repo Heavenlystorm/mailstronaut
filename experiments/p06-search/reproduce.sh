@@ -90,18 +90,18 @@ case ${1:-smoke} in
     cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
     command time -v -o "$root/target/p06-search/embedding-build-resources.txt" cargo build --release -p mailstronaut-embedding-probe --locked --offline
     ;;
-  embedding-smoke|embedding-bench|potion-smoke)
+  embedding-smoke|embedding-bench|potion-smoke|potion-bench)
     run=$(mktemp -d "$root/target/p06-search/embedding.XXXXXXXX")
     binary="$CARGO_TARGET_DIR/release/mailstronaut-embedding-probe"
     model="$root/target/p06-search/model"
     arguments=()
-    if [[ $1 == potion-smoke ]]; then
-      binary="$CARGO_TARGET_DIR/debug/mailstronaut-embedding-probe"
+    if [[ $1 == potion-smoke || $1 == potion-bench ]]; then
+      if [[ $1 == potion-smoke ]]; then binary="$CARGO_TARGET_DIR/debug/mailstronaut-embedding-probe"; fi
       model="$root/target/p06-search/model-potion"
       arguments=(--potion)
     fi
     result=0
-    if [[ $1 != embedding-bench ]]; then
+    if [[ $1 != embedding-bench && $1 != potion-bench ]]; then
       command time -v -o "$run/resources.txt" strace -f -qq -e trace=network -o "$run/network.trace" "$binary" "$model" "$run/data" "$run/embeddings.json" "${arguments[@]}" | tee "$run/metrics.txt" || result=$?
       python3 - "$run/network.trace" <<'PYNETWORK'
 import pathlib,sys
@@ -109,7 +109,7 @@ assert 'AF_INET' not in pathlib.Path(sys.argv[1]).read_text(), 'inference attemp
 print('The bounded local model/search process made no IP socket calls.')
 PYNETWORK
     else
-      command time -v -o "$run/resources.txt" "$binary" "$root/target/p06-search/model" "$run/data" "$run/embeddings.json" | tee "$run/metrics.txt" || result=$?
+      command time -v -o "$run/resources.txt" "$binary" "$model" "$run/data" "$run/embeddings.json" "${arguments[@]}" | tee "$run/metrics.txt" || result=$?
     fi
     printf 'Embedding artifacts: %s\n' "$run"
     exit "$result"
@@ -159,5 +159,5 @@ print('Both bounded search runs made no IP socket calls; the observer detected t
 PYTRACE
     printf 'Probe runtime data: %s\n' "$run"
     ;;
-  *) printf 'Usage: %s {lock|fetch|build|release|bench|smoke|model-fetch|embedding-build|embedding-release|embedding-smoke|embedding-bench|potion-fetch|potion-smoke}\n' "$0" >&2; exit 2 ;;
+  *) printf 'Usage: %s {lock|fetch|build|release|bench|smoke|model-fetch|embedding-build|embedding-release|embedding-smoke|embedding-bench|potion-fetch|potion-smoke|potion-bench}\n' "$0" >&2; exit 2 ;;
 esac

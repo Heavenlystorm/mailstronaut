@@ -41,8 +41,11 @@ The first E5 inference/reference probe passed numerical parity but failed the
 fixed multilingual ranking screen. [Results](evidence/P06-model-probe.md).
 The existing static Model2Vec library then retrieved all ten expected items in the
 top three, but also missed the fixed rank-first/top-one criteria; its debug load
-memory needs paired release profiling. LanceDB remains the leading backend
-candidate; neither encoder is adopted yet. These findings do not close P06.
+memory initially needed paired release profiling. LanceDB remains the leading backend
+candidate; neither encoder is adopted yet. These findings do not close P06. The subsequent
+[paired release comparison](evidence/P06-encoder-comparison.md) found that static
+encoding is fast, but its 1.66 GiB process peak exceeds the existing memory screen.
+Both candidates still fail the fixed relevance screen.
 
 | Candidate | Existing functionality and fit | Decision for the probe |
 | --- | --- | --- |
@@ -107,6 +110,14 @@ universal support for small BERT models: the inspected manifest scopes them to
 other model families. Keep this as a measured alternative if it substantially
 reduces glue or resource use; no second runtime is selected now.
 [Feature manifest](https://github.com/Anush008/fastembed-rs/blob/main/Cargo.toml).
+Its published 7.5.0 source already includes the quantized multilingual MiniLM
+variant `ParaphraseMLMiniLML12V2Q`, making it a concrete next candidate if a smaller
+memory envelope is required. Probe the existing local user-defined-model loader,
+explicitly provisioned artifacts, ONNX Runtime/Nix/Flatpak packaging and the same
+unchanged quality screen before adopting it; no runtime or model is selected here.
+[Published model list](https://docs.rs/crate/fastembed/7.5.0/source/src/models/text_embedding.rs),
+[published embedding tests](https://docs.rs/crate/fastembed/7.5.0/source/tests/text-embeddings.rs).
+
 
 The separate opt-in experiment now has a checksum-pinned E5 manifest. Explicit
 provisioning and subsequent measurements are recorded in its evidence; metadata

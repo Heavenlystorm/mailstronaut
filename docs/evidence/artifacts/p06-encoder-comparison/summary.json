@@ -1,0 +1,16 @@
+{
+  "e5": {
+    "fixture_directory": "/home/eduard/.t3/projects/mailstronaut/target/p06-search/embedding.pY6YekTc",
+    "load_ms": 1016.575,
+    "query_encoding_p95_ms": 51.965,
+    "peak_rss_kib": 1263240,
+    "quality_exit_status": 101
+  },
+  "potion": {
+    "fixture_directory": "/home/eduard/.t3/projects/mailstronaut/target/p06-search/embedding.WLEGvYOe",
+    "load_ms": 3413.726,
+    "query_encoding_p95_ms": 0.017,
+    "peak_rss_kib": 1735900,
+    "quality_exit_status": 101
+  }
+}
