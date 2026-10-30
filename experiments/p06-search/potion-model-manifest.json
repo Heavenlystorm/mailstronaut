@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "modelId": "minishlab/potion-multilingual-128M",
+  "revision": "73908c3438cf03b6a01bcb9611d62b23d0726f08",
+  "license": "MIT",
+  "encoder": "model2vec",
+  "dimensions": 256,
+  "maxTokens": 512,
+  "pooling": "model2vec-library",
+  "normalize": "l2",
+  "prefixes": {
+    "query": "",
+    "passage": ""
+  },
+  "files": [
+    {
+      "name": "model.safetensors",
+      "url": "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/73908c3438cf03b6a01bcb9611d62b23d0726f08/model.safetensors",
+      "sizeBytes": 512361560,
+      "sha256": "14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397",
+      "hash": "sha256-FLXrOctM5WZtqK0fPca+Q0bpstYBwHMwL6CjG/eUM5c="
+    },
+    {
+      "name": "tokenizer.json",
+      "url": "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/73908c3438cf03b6a01bcb9611d62b23d0726f08/tokenizer.json",
+      "sizeBytes": 18616131,
+      "sha256": "19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1",
+      "hash": "sha256-GfGQkGPaPP472Dp4I4HwQNzOpHX0gW3hERZESnPhtqE="
+    },
+    {
+      "name": "config.json",
+      "url": "https://huggingface.co/minishlab/potion-multilingual-128M/resolve/73908c3438cf03b6a01bcb9611d62b23d0726f08/config.json",
+      "sizeBytes": 271,
+      "sha256": "595e4cab2093732efd5dbe084fd5c1826b5eea693b73b4c1fd971672867d2e54",
+      "hash": "sha256-WV5MqyCTcy79Xb4IT9XBgmte6mk7c7TB/ZcWcoZ9LlQ="
+    }
+  ]
+}
