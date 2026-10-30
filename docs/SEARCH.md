@@ -99,8 +99,11 @@ other model families. Keep this as a measured alternative if it substantially
 reduces glue or resource use; no second runtime is selected now.
 [Feature manifest](https://github.com/Anush008/fastembed-rs/blob/main/Cargo.toml).
 
-No model weights were downloaded. Configuration/metadata alone does not establish
-model correctness or adequacy for English/French/Italian email retrieval.
+The separate opt-in experiment now has a checksum-pinned E5 manifest. Explicit
+provisioning and subsequent measurements are recorded in its evidence; metadata
+alone does not establish model correctness or email retrieval adequacy. The
+published Candle core 0.11 manifest also pulls in tokenizers 0.22/Oniguruma on
+native targets, so the probe reuses that tokenizer instead of keeping 0.23.1 too.
 
 ## Required steps before application integration
 

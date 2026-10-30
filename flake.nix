@@ -283,6 +283,17 @@
               pkgs.strace
             ];
           });
+          # Test-only independent model oracle; never part of the Rust application.
+          search-reference = self.devShells.${system}.search-probe.overrideAttrs (_old: {
+            MAILSTRONAUT_REFERENCE_PYTHON = "${
+              pkgs.python3.withPackages (python: [
+                python.torch
+                python.transformers
+                python.numpy
+                python.safetensors
+              ])
+            }/bin/python3";
+          });
           # Optional isolated-window acceptance tools; retain every development
           # toolchain/environment setting without relying on inputsFrom.
           gui-test = self.devShells.${system}.default.overrideAttrs (old: {

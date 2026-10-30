@@ -5,6 +5,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$root"
 probe="$root/target/p06-search/probe"
 mkdir -p "$probe/crates/search-probe/src" "$root/target/p06-search/runtime"
+mkdir -p "$probe/crates/embedding-probe/src"
 chmod 700 "$root/target/p06-search/runtime"
 cp experiments/p06-search/workspace.toml.in "$probe/Cargo.toml"
 python3 - "$root" "$probe" <<'PY'
@@ -31,6 +32,31 @@ tokio.workspace = true
 workspace = true
 TOML
 cp experiments/p06-search/probe.rs "$probe/crates/search-probe/src/main.rs"
+cat > "$probe/crates/embedding-probe/Cargo.toml" <<'TOML'
+[package]
+name = "mailstronaut-embedding-probe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+[dependencies]
+candle-core.workspace = true
+candle-nn.workspace = true
+candle-transformers.workspace = true
+tokenizers.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+lancedb.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+futures-util.workspace = true
+tokio.workspace = true
+[lints]
+workspace = true
+TOML
+cp experiments/p06-search/embedding.rs "$probe/crates/embedding-probe/src/main.rs"
+cp experiments/p06-search/model-manifest.json experiments/p06-search/relevance.json "$probe/crates/embedding-probe/src/"
 export CARGO_TARGET_DIR="$root/target/p06-search/target"
 export CARGO_CACHE_AUTO_CLEAN_FREQUENCY=never
 export XDG_CACHE_HOME="$root/target/nix-cache"
@@ -46,6 +72,30 @@ case ${1:-smoke} in
   fetch)
     cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
     cargo fetch --locked
+    ;;
+  model-fetch)
+    python3 "$root/experiments/p06-search/provision-model.py"
+    ;;
+  embedding-build)
+    cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
+    cargo fmt --all -- --check
+    cargo build -p mailstronaut-embedding-probe --locked --offline
+    cargo clippy -p mailstronaut-embedding-probe --all-targets --locked --offline -- -D warnings
+    ;;
+  embedding-release)
+    cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
+    command time -v -o "$root/target/p06-search/embedding-build-resources.txt" cargo build --release -p mailstronaut-embedding-probe --locked --offline
+    ;;
+  embedding-smoke)
+    run=$(mktemp -d "$root/target/p06-search/embedding.XXXXXXXX")
+    binary="$CARGO_TARGET_DIR/release/mailstronaut-embedding-probe"
+    command time -v -o "$run/resources.txt" strace -f -qq -e trace=network -o "$run/network.trace" "$binary" "$root/target/p06-search/model" "$run/data" "$run/embeddings.json" | tee "$run/metrics.txt"
+    python3 - "$run/network.trace" <<'PYNETWORK'
+import pathlib,sys
+assert 'AF_INET' not in pathlib.Path(sys.argv[1]).read_text(), 'inference attempted IP networking'
+print('The bounded local model/search process made no IP socket calls.')
+PYNETWORK
+    printf 'Embedding artifacts: %s\n' "$run"
     ;;
   build)
     cp "$root/experiments/p06-search/Cargo.lock" Cargo.lock
@@ -92,5 +142,5 @@ print('Both bounded search runs made no IP socket calls; the observer detected t
 PYTRACE
     printf 'Probe runtime data: %s\n' "$run"
     ;;
-  *) printf 'Usage: %s {lock|fetch|build|release|bench|smoke}\n' "$0" >&2; exit 2 ;;
+  *) printf 'Usage: %s {lock|fetch|build|release|bench|smoke|model-fetch|embedding-build|embedding-release|embedding-smoke}\n' "$0" >&2; exit 2 ;;
 esac

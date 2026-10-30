@@ -19,7 +19,9 @@ nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh be
 `lock` deliberately refreshes the tracked experiment lock and is for dependency
 changes, not normal reproduction. The first version required Arrow 58.4.1:
 DataFusion 54's Arrow minimum conflicts with an exact 58.0.0 pin. The lock fixes all
-524 selected packages; no candidate model weights or embedding runtime are fetched.
+524 entries in the initial standalone lock. The expanded model experiment locks
+574 entries including its two local crates. Dependency fetching is separate from
+the explicit model artifact provisioning below.
 
 `build` uses the default pinned nightly Cranelift/Wild setup. `release` uses LLVM,
 thin LTO and one codegen unit, as required for the application. Native protocol
@@ -47,3 +49,40 @@ derived index bytes <= 1 GiB for 100k records. These are screening targets, not
 claims about real-message indexing, semantic-model memory, recall or UI latency.
 Actual source/model/chunk coverage and held-out retrieval remain required by
 `docs/SEARCH.md`; do not adopt the library from this smoke test alone.
+
+## Explicit multilingual model experiment
+
+`model-fetch` explicitly provisions only the committed E5 model manifest to
+`target/p06-search/model`; it verifies sizes and SHA-256 hashes before publication.
+No application startup or inference code downloads anything. This is about 465 MiB
+including the tokenizer. `embedding-build` checks the existing Candle 0.11 CPU
+BERT and tokenizers 0.22.2 APIs with default accelerator/network features off.
+This reuses Candle core's existing tokenizer version and Oniguruma backend;
+the preliminary 0.23.1/fancy-regex choice otherwise duplicates that stack.
+`embedding-release` builds the release executable; `embedding-smoke` runs the
+synthetic relevance corpus, library vector/hybrid retrieval and network tracing.
+All commands use the same `nix develop .#search-probe` prefix as above.
+
+Before running the model, the fixed ten-query English/French/Italian screen in
+`relevance.json` requires semantic-only top-1 >= 8/10 and top-3 = 10/10. The user's
+English doctoral re-enrollment example must rank the French notice first despite
+the English near-topic distractor. Other-account and Archive duplicates must
+never appear. These are small synthetic feasibility fixtures, not a representative
+held-out mailbox evaluation or numerical reference-parity proof.
+
+Preliminary CPU-model screening budgets: hash-verified load <= 5 s, short-query
+warm p95 <= 300 ms, model/search process peak RSS <= 1.5 GiB. Record failures
+honestly rather than changing these thresholds after observing results. The
+combined 100k-message model/GUI footprint is a separate acceptance requirement.
+The safe owned-buffer safetensors loader avoids workspace unsafe code but may
+temporarily duplicate weight storage. E5 task prefixes, attention-mask mean
+pooling and L2 normalization follow the publisher; no transformer is implemented
+here. Output embeddings are retained for a later independent local reference.
+
+Run `reference.py OUTPUT_EMBEDDINGS_JSON` through
+`nix develop .#search-reference --command bash -c
+'"$MAILSTRONAUT_REFERENCE_PYTHON" experiments/p06-search/reference.py "$1"' -- PATH`.
+This test-only CPU PyTorch/Transformers environment uses the same local safetensors
+and tokenizer, with offline mode, no remote code and no GPU. Its fixed acceptance
+is maximum absolute component error <= 1e-4 and minimum paired cosine >= 0.99999.
+It is not a Python application dependency or an inference service.

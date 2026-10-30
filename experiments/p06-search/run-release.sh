@@ -11,13 +11,18 @@ if ! flock --nonblock "$gate_lock"; then
 fi
 export XDG_CACHE_HOME="$root/target/nix-cache"
 export CARGO_CACHE_AUTO_CLEAN_FREQUENCY=never
-printf 'running\n' > target/p06-search/release.status
-git rev-parse HEAD > target/p06-search/release-revision.txt
+case ${1:-library} in
+  library) prefix=release; build=release; runtime=bench ;;
+  embedding) prefix=embedding-release; build=embedding-release; runtime=embedding-smoke ;;
+  *) printf 'Usage: %s [library|embedding]\n' "$0" >&2; exit 2 ;;
+esac
+printf 'running\n' > "target/p06-search/$prefix.status"
+git rev-parse HEAD > "target/p06-search/$prefix-revision.txt"
 result=0
-nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh release > target/p06-search/release.log 2>&1 || result=$?
+nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh "$build" > "target/p06-search/$prefix.log" 2>&1 || result=$?
 if [[ $result == 0 ]]; then
-  nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh bench > target/p06-search/benchmark.log 2>&1 || result=$?
+  nix develop .#search-probe --command bash experiments/p06-search/reproduce.sh "$runtime" > "target/p06-search/$prefix-runtime.log" 2>&1 || result=$?
 fi
-printf '%s\n' "$result" > target/p06-search/release.status.tmp
-mv target/p06-search/release.status.tmp target/p06-search/release.status
+printf '%s\n' "$result" > "target/p06-search/$prefix.status.tmp"
+mv "target/p06-search/$prefix.status.tmp" "target/p06-search/$prefix.status"
 exit "$result"
