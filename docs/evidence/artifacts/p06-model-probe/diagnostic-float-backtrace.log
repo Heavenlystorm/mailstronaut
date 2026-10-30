@@ -1,0 +1,110 @@
+verified_model_load_ms=27838.844
+query_first_measured_ms=398.080 warm_query_p95_ms=706.598
+
+thread 'main' (3203319) panicked at /rustc/16d1ffac17ad8b739e32483ac2e65fe7e1804977/library/core/src/panicking.rs:225:5:
+llvm.x86.sse2.pmulhu.w is not yet supported.
+See https://github.com/rust-lang/rustc_codegen_cranelift/issues/171
+Please open an issue at https://github.com/rust-lang/rustc_codegen_cranelift/issues
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/16d1ffac17ad8b739e32483ac2e65fe7e1804977/library/std/src/panicking.rs:676:5
+   1: core::panicking::panic_nounwind_fmt::runtime
+             at /rustc/16d1ffac17ad8b739e32483ac2e65fe7e1804977/library/core/src/panicking.rs:122:22
+   2: core::panicking::panic_nounwind_fmt
+             at /rustc/16d1ffac17ad8b739e32483ac2e65fe7e1804977/library/core/src/intrinsics/mod.rs:2543:9
+   3: core::panicking::panic_nounwind
+             at /rustc/16d1ffac17ad8b739e32483ac2e65fe7e1804977/library/core/src/panicking.rs:225:5
+   4: core::core_arch::x86::sse2::_mm_mulhi_epu16
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/../../stdarch/crates/core_arch/src/x86/sse2.rs:299:1
+   5: zmij::to_bcd_4x4
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:1063:53
+   6: zmij::to_bcd8
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:1122:26
+   7: zmij::to_digits_32
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:1295:22
+   8: <f32 as zmij::FloatTraits>::to_digits
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:291:9
+   9: zmij::write::<f32>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:1581:15
+  10: <f32 as zmij::private::Sealed>::write_to_zmij_buffer
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:1817:22
+  11: <zmij::Buffer>::format_finite::<f32>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zmij-1.0.23/src/lib.rs:1766:23
+  12: <serde_json::ser::CompactFormatter as serde_json::ser::Formatter>::write_f32::<std::fs::File>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:1696:17
+  13: <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::serialize_f32
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:161:18
+  14: <f32 as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<std::fs::File>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/impls.rs:15:17
+  15: <&f32 as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<std::fs::File>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/impls.rs:472:17
+  16: <serde_json::ser::Compound<std::fs::File, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeSeq>::serialize_element::<&f32>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:502:22
+  17: <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq::<&alloc::vec::Vec<f32>>::{closure#0}
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs:1303:39
+  18: core::iter::traits::iterator::Iterator::try_for_each::call::<&f32, core::result::Result<(), serde_json::error::Error>, <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq<&alloc::vec::Vec<f32>>::{closure#0}>::{closure#0}
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:2563:26
+  19: <core::slice::iter::Iter<f32> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&f32, core::result::Result<(), serde_json::error::Error>, <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq<&alloc::vec::Vec<f32>>::{closure#0}>::{closure#0}, core::result::Result<(), serde_json::error::Error>>
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:2504:21
+  20: <core::slice::iter::Iter<f32> as core::iter::traits::iterator::Iterator>::try_for_each::<<&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq<&alloc::vec::Vec<f32>>::{closure#0}, core::result::Result<(), serde_json::error::Error>>
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:2566:9
+  21: <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq::<&alloc::vec::Vec<f32>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs:1303:14
+  22: <alloc::vec::Vec<f32> as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<std::fs::File>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/impls.rs:203:17
+  23: <&alloc::vec::Vec<f32> as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<std::fs::File>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/impls.rs:472:17
+  24: <serde_json::ser::Compound<std::fs::File, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeSeq>::serialize_element::<&alloc::vec::Vec<f32>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:502:22
+  25: <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq::<&alloc::vec::Vec<alloc::vec::Vec<f32>>>::{closure#0}
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs:1303:39
+  26: core::iter::traits::iterator::Iterator::try_for_each::call::<&alloc::vec::Vec<f32>, core::result::Result<(), serde_json::error::Error>, <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq<&alloc::vec::Vec<alloc::vec::Vec<f32>>>::{closure#0}>::{closure#0}
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:2563:26
+  27: <core::slice::iter::Iter<alloc::vec::Vec<f32>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&alloc::vec::Vec<f32>, core::result::Result<(), serde_json::error::Error>, <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq<&alloc::vec::Vec<alloc::vec::Vec<f32>>>::{closure#0}>::{closure#0}, core::result::Result<(), serde_json::error::Error>>
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:2504:21
+  28: <core::slice::iter::Iter<alloc::vec::Vec<f32>> as core::iter::traits::iterator::Iterator>::try_for_each::<<&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq<&alloc::vec::Vec<alloc::vec::Vec<f32>>>::{closure#0}, core::result::Result<(), serde_json::error::Error>>
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:2566:9
+  29: <&mut serde_json::ser::Serializer<std::fs::File> as serde_core::ser::Serializer>::collect_seq::<&alloc::vec::Vec<alloc::vec::Vec<f32>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs:1303:14
+  30: <alloc::vec::Vec<alloc::vec::Vec<f32>> as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<std::fs::File>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/impls.rs:203:17
+  31: <serde_json::ser::Compound<std::fs::File, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeMap>::serialize_value::<alloc::vec::Vec<alloc::vec::Vec<f32>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:656:22
+  32: <serde_json::ser::Compound<std::fs::File, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeMap>::serialize_entry::<str, alloc::vec::Vec<alloc::vec::Vec<f32>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_core-1.0.228/src/ser/mod.rs:1861:9
+  33: <serde_json::ser::Compound<std::fs::File, serde_json::ser::CompactFormatter> as serde_core::ser::SerializeStruct>::serialize_field::<alloc::vec::Vec<alloc::vec::Vec<f32>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:697:37
+  34: <mailstronaut_embedding_probe::Output as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<std::fs::File>>
+             at ./target/p06-search/probe/crates/embedding-probe/src/main.rs:66:10
+  35: serde_json::ser::to_writer::<std::fs::File, mailstronaut_embedding_probe::Output>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.154/src/ser.rs:2183:5
+  36: mailstronaut_embedding_probe::main::{closure#0}
+             at ./target/p06-search/probe/crates/embedding-probe/src/main.rs:364:5
+  37: <core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>> as core::future::future::Future>::poll
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/future/future.rs:133:9
+  38: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>::{closure#0}
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/park.rs:376:60
+  39: tokio::task::coop::with_budget::<core::task::poll::Poll<core::result::Result<(), alloc::boxed::Box<dyn core::error::Error + core::marker::Sync + core::marker::Send>>>, <tokio::runtime::park::CachedParkThread>::block_on<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>::{closure#0}>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/task/coop/mod.rs:167:5
+  40: tokio::task::coop::budget::<core::task::poll::Poll<core::result::Result<(), alloc::boxed::Box<dyn core::error::Error + core::marker::Sync + core::marker::Send>>>, <tokio::runtime::park::CachedParkThread>::block_on<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>::{closure#0}>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/task/coop/mod.rs:133:5
+  41: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/park.rs:376:31
+  42: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context/blocking.rs:66:9
+  43: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>::{closure#0}
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/multi_thread/mod.rs:90:13
+  44: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>::{closure#0}, core::result::Result<(), alloc::boxed::Box<dyn core::error::Error + core::marker::Sync + core::marker::Send>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context/runtime.rs:65:16
+  45: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/multi_thread/mod.rs:89:9
+  46: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<alloc::boxed::Box<mailstronaut_embedding_probe::main::{closure#0}>>>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/runtime.rs:381:45
+  47: <tokio::runtime::runtime::Runtime>::block_on::<mailstronaut_embedding_probe::main::{closure#0}>
+             at /home/eduard/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/runtime.rs:346:13
+  48: mailstronaut_embedding_probe::main
+             at ./target/p06-search/probe/crates/embedding-probe/src/main.rs:373:5
+  49: <fn() -> core::result::Result<(), alloc::boxed::Box<dyn core::error::Error + core::marker::Sync + core::marker::Send>> as core::ops::function::FnOnce<()>>::call_once
+             at /nix/store/wwwd5hvcd0a07blqy22myyxrsg8s0cjp-rust-default-1.101.0-nightly-2026-10-27/lib/rustlib/src/rust/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+thread caused non-unwinding panic. aborting.

@@ -65,8 +65,10 @@ struct Query {
 }
 #[derive(Serialize)]
 struct Output {
-    documents: Vec<Vec<f32>>,
-    queries: Vec<Vec<f32>>,
+    // Exact IEEE-754 bits avoid the diagnostic JSON float formatter's unsupported
+    // Cranelift SIMD path. This does not change inference or ranking precision.
+    documents: Vec<Vec<u32>>,
+    queries: Vec<Vec<u32>>,
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -364,8 +366,14 @@ async fn main() -> Result<()> {
     serde_json::to_writer(
         file,
         &Output {
-            documents,
-            queries: queries.clone(),
+            documents: documents
+                .iter()
+                .map(|row| row.iter().map(|value| value.to_bits()).collect())
+                .collect(),
+            queries: queries
+                .iter()
+                .map(|row| row.iter().map(|value| value.to_bits()).collect())
+                .collect(),
         },
     )?;
     // Persist diagnostic vectors and exercise every fixture even if relevance fails.

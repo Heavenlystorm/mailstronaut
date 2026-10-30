@@ -82,14 +82,17 @@ relevance, cold load and CPU/RAM costs before adoption.
 [existing Candle BERT](https://github.com/huggingface/candle/blob/0.11.0/candle-transformers/src/models/bert.rs).
 
 **Model2Vec 0.3.0 is the lower-compute challenger.** The official Rust implementation
-provides local-only loading and library-owned int8 quantization. Its multilingual
-Potion model is 128M parameters, not the much smaller English-only 8M variant.
-The audited multilingual artifact is about 489 MiB before quantization; peak load,
-steady memory and mail retrieval quality still need measurement. A shared model
-manifest/lifecycle can be reused without requiring the same tensor runtime.
+provides local-only loading and static embeddings. Its multilingual Potion model
+is 128M parameters, not the much smaller English-only 8M variant. The audited
+artifact is about 489 MiB. A subsequent checksum-verified inspection of the
+published 0.3.0 source found that its I8 loader expands values to F32 storage;
+the newer repository quantization API must not be treated as a proven released
+memory reduction. Peak load, steady memory and mail retrieval quality still need
+measurement. A shared model manifest/lifecycle can be reused without requiring
+the same tensor runtime.
 [Official Rust implementation](https://github.com/MinishLab/model2vec-rs),
 [model card](https://huggingface.co/minishlab/potion-multilingual-128M),
-[quantization API](https://github.com/MinishLab/model2vec-rs/blob/1e56ee247d9c693b3f78c76e3ee8cd0b2484cb93/src/model.rs).
+[published source](https://docs.rs/crate/model2vec-rs/0.3.0/source/src/model.rs).
 
 FastEmbed 7.5.0 is a credible ready-made embedding API, but its small ONNX model
 path adds ONNX Runtime. Its default features also download runtime binaries/models;
@@ -120,8 +123,9 @@ native targets, so the probe reuses that tokenizer instead of keeping 0.23.1 too
   search compilation graphs at once. The lean comparison remains available if
   combined model/resource costs require it. Application feature unification and
   Nix/Flatpak packaging remain unproven.
-- [ ] Demonstrate local fuzzy queries and library-provided hybrid ranking on the
-  exact Rust API, including filters/deletion/restart and no network access. No
+- [x] Demonstrate bounded synthetic local fuzzy queries and library-provided hybrid
+  ranking on the exact Rust API, including filters/logical deletion/process restart
+  and controlled network observation. [Evidence](evidence/P06-search-probe.md). No
   custom ANN, spelling engine, neural architecture, rank-fusion engine or daemon.
 - [ ] Benchmark actual cold/warm latency, indexing throughput, idle/peak RSS, index
   size and incremental build/closure cost at 10k and 100k synthetic messages.

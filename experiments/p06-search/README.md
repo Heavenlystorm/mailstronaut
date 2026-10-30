@@ -78,6 +78,9 @@ The safe owned-buffer safetensors loader avoids workspace unsafe code but may
 temporarily duplicate weight storage. E5 task prefixes, attention-mask mean
 pooling and L2 normalization follow the publisher; no transformer is implemented
 here. Output embeddings are retained for a later independent local reference.
+Their JSON stores exact IEEE-754 bit patterns as integers: the pinned Cranelift
+backend aborts in the JSON dependency's SIMD float formatter. Integer interchange
+avoids that diagnostic-only path without a compiler override or precision loss.
 
 Run `reference.py OUTPUT_EMBEDDINGS_JSON` through
 `nix develop .#search-reference --command bash -c

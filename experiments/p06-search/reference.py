@@ -47,7 +47,7 @@ for name, prefix in [("documents", "passage: "), ("queries", "query: ")]:
             vector = torch.nn.functional.normalize(pooled, p=2, dim=1)[0].numpy()
             references.append(vector)
     reference = np.stack(references)
-    actual = np.array(observed[name], dtype=np.float32)
+    actual = np.array(observed[name], dtype=np.uint32).view(np.float32)
     assert reference.shape == actual.shape and np.isfinite(actual).all()
     error = np.max(np.abs(reference - actual))
     cosine = np.min(np.sum(reference * actual, axis=1))
