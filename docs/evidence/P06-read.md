@@ -100,3 +100,21 @@ page visibility are the implemented dwell criterion; full window-occlusion track
 is not provided. Automatic server application, archive/trash/move, attachments,
 Sent APPEND, reminders/background, priority/deadline UI and P01's untrusted-HTML
 privacy gate remain open. The preceding browsing release gate excludes this slice.
+
+## Completed Nix release acceptance
+
+The coordinated `nix flake check --no-update-lock-file --print-build-logs --cores 16
+--max-jobs 1` passed at **62e4236cba8986677b8d11763713f33ce4ae280f**. Invocation
+`e1e75e30067843f3b0d36b7791e8f4a4` was collected/inactive with ExecMainStatus 0;
+the numeric receipt was 0 and complete log reported all checks passed. Stable Rust
+1.99 release Clippy, LLVM thin-LTO/single-codegen-unit builds, 125 workspace tests,
+seven isolated renderer children and four private credential/OAuth checks passed
+on x86_64-linux. Aarch64-linux was omitted.
+
+The exact-revision subsequent Nix build and installed CLI/native-Nix configuration
+smoke passed for `/nix/store/hjwiw7za4s9426j7r4zjaparnk6450np-mailstronaut-0.1.0`.
+See [release excerpt](artifacts/p06-read/release-gate-excerpt.log) and
+[installed smoke](artifacts/p06-read/installed-smoke.log); full logs remain in
+`target/p06-conversations/read-release-*`. This gate predates the cross-account
+reply-identity follow-up `347fe26`. It adds local release evidence only and does
+not complete the remaining P06/privacy/distribution/user-session acceptance.
