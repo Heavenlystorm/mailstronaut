@@ -39,13 +39,12 @@ mod read;
 pub enum Message {
     Started(Payload<Result<Arc<Worker>, worker::Error>>),
     Refresh,
-    ReadVisible(u64, u64, u64),
     Scope(u64, Scope),
     SearchChanged(Payload<String>),
     Search,
     Next,
     Rows(u64, u64, Payload<Result<Listing, worker::Error>>),
-    Open(String, i64),
+    OpenClicked(String, i64),
     Body(u64, u64, Payload<Result<Loaded, worker::Error>>),
     Members(u64, u64, Payload<Result<Vec<Summary>, worker::Error>>),
     Grouped(u64, Payload<Vec<String>>),
@@ -133,16 +132,13 @@ impl Inbox {
     }
     pub fn read_task(&mut self) -> Task<super::Message> {
         let eligible = self.read_eligible();
-        let Some((generation, reading, visibility)) =
-            self.read_gate.arm(self.generation, self.reading, eligible)
-        else {
-            return Task::none();
-        };
-        Task::perform(
-            async { tokio::time::sleep(core::time::Duration::from_millis(750)).await },
-            move |()| event(Message::ReadVisible(generation, reading, visibility)),
-        )
+        if self.read_gate.take(self.generation, self.reading, eligible) {
+            self.set_flag(FlagChange::Seen, true)
+        } else {
+            Task::none()
+        }
     }
+
     pub fn store(&self) -> Option<worker::Handle> {
         self.owner.as_ref().map(|owner| owner.handle())
     }
@@ -262,7 +258,7 @@ impl Inbox {
                 }
                 return self.load_members();
             }
-            Message::Open(account, id) => return self.open(account, id),
+            Message::OpenClicked(account, id) => return self.open_clicked(account, id),
             Message::Body(generation, reading, Payload(result))
                 if generation == self.generation && reading == self.reading =>
             {
@@ -295,17 +291,6 @@ impl Inbox {
                     self.status.extend(errors);
                 }
                 return self.query(false);
-            }
-            Message::ReadVisible(generation, reading, visibility) => {
-                let eligible = self.read_eligible();
-                if self.read_gate.consume(
-                    (generation, reading, visibility),
-                    self.generation,
-                    self.reading,
-                    eligible,
-                ) {
-                    return self.set_flag(FlagChange::Seen, true);
-                }
             }
             Message::UndoFlags(generation, account, id)
                 if !self.busy()
@@ -428,7 +413,7 @@ impl Inbox {
         }
     }
 
-    fn open(&mut self, account: String, id: i64) -> Task<super::Message> {
+    fn open_clicked(&mut self, account: String, id: i64) -> Task<super::Message> {
         let Some(owner) = &self.owner else {
             return Task::none();
         };
@@ -448,6 +433,7 @@ impl Inbox {
         self.members.clear();
         self.member_labels.clear();
         self.reading = self.reading.saturating_add(1);
+        self.read_gate.clicked(self.generation, self.reading);
         let (generation, reading) = (self.generation, self.reading);
         let store = owner.handle();
         Task::perform(
@@ -756,10 +742,12 @@ impl Inbox {
                 &self.member_labels,
                 selected,
                 move |index| {
-                    ids.get(index)
-                        .map_or(super::Message::Inbox(Message::Refresh), |(account, id)| {
-                            super::Message::Inbox(Message::Open(account.clone(), *id))
-                        })
+                    ids.get(index).map_or(
+                        super::Message::Inbox(Message::Refresh),
+                        |(account, id)| {
+                            super::Message::Inbox(Message::OpenClicked(account.clone(), *id))
+                        },
+                    )
                 },
             ));
             if self.members.len() == 200 {
@@ -865,13 +853,50 @@ impl Inbox {
         .into()
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep the fixed pane/notice widget-tree order visible; that ordering preserves reader focus across asynchronous updates."
+    )]
     pub fn view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
-        let mut content=column![self.heading(),
-            row![widget::button::text(match self.scope{Scope::Inbox=>"Sync inboxes",Scope::Account(_)=>"Sync account inbox",Scope::Folder{..}=>"Sync folder"}).on_press_maybe((!self.busy()).then_some(super::Message::Inbox(Message::Sync(false)))),
-                widget::button::text("Fetch older page").on_press_maybe((!self.busy()&&self.config.as_ref().is_some_and(|config|!self.sync_targets(config,true).is_empty())).then_some(super::Message::Inbox(Message::Sync(true)))),
-                widget::button::text("Cancel").on_press_maybe(self.busy().then_some(super::Message::Inbox(Message::Cancel))),
-                widget::button::text(format!("Apply flags ({})",self.flags.pending+self.flags.failed)).on_press_maybe((!self.busy()&&(self.flags.pending>0||self.flags.failed>0)).then_some(super::Message::Inbox(Message::ApplyFlags)))].spacing(8),
-            widget::text("Partial offline cache · focused reading marks only the selected Inbox message read after a short delay.")].spacing(12).padding(20);
+        let mut content = column![
+            self.heading(),
+            row![
+                widget::button::text(match self.scope {
+                    Scope::Inbox => "Sync inboxes",
+                    Scope::Account(_) => "Sync account inbox",
+                    Scope::Folder { .. } => "Sync folder",
+                })
+                .on_press_maybe(
+                    (!self.busy()).then_some(super::Message::Inbox(Message::Sync(false)))
+                ),
+                widget::button::text("Fetch older page").on_press_maybe(
+                    (!self.busy()
+                        && self
+                            .config
+                            .as_ref()
+                            .is_some_and(|config| !self.sync_targets(config, true).is_empty()))
+                    .then_some(super::Message::Inbox(Message::Sync(true)))
+                ),
+                widget::button::text("Cancel").on_press_maybe(
+                    self.busy()
+                        .then_some(super::Message::Inbox(Message::Cancel))
+                ),
+                widget::button::text(format!(
+                    "Apply flags ({})",
+                    self.flags.pending + self.flags.failed
+                ))
+                .on_press_maybe(
+                    (!self.busy() && (self.flags.pending > 0 || self.flags.failed > 0))
+                        .then_some(super::Message::Inbox(Message::ApplyFlags))
+                )
+            ]
+            .spacing(8),
+            widget::text(
+                "Partial offline cache · only explicitly opening a message marks it read."
+            )
+        ]
+        .spacing(12)
+        .padding(20);
         let mut notices = column![].spacing(12);
         for status in &self.status {
             notices = notices.push(widget::text(status));
@@ -912,7 +937,7 @@ impl Inbox {
                     ]
                     .spacing(4),
                 )
-                .on_press(super::Message::Inbox(Message::Open(
+                .on_press(super::Message::Inbox(Message::OpenClicked(
                     message.account.clone(),
                     message.id,
                 )))

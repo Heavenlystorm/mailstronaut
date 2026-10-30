@@ -56,9 +56,9 @@ from each configured account; cached messages open in the native text reader.
 The selector browses unified inboxes, individual accounts and known folders; search
 uses the local subject/address/body index and opens a matching conversation member.
 Folder sync is explicit and Fetch older page continues that folder's partial cache.
-Focused reading marks only the selected Inbox message read after a 750 ms dwell;
-navigation/focus loss cancels it, and explicit Mark unread remains in effect until
-another open. Read and Star/Unstar changes save local intentions. Apply flags
+Only explicitly clicking a message to open its content marks that message read.
+Returning to Inbox, restoring focus and refreshing previews do not mark mail read;
+explicit Mark unread remains in effect until another explicit open. Read and Star/Unstar changes save local intentions. Apply flags
 submits a bounded batch after keyring unlock; Undo unsent flags works before any
 network attempt. Changed server identities require a new sync. Compose supports local autosaved drafts, account/alias identities,
 To/Cc/Bcc and explicit password/XOAUTH2 SMTP with required TLS.

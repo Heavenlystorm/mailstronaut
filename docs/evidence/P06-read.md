@@ -1,5 +1,7 @@
 # P06 — Focused per-message read handling
 
+**Historical policy:** the focus/dwell behavior below is superseded by the explicit-open policy in [P06 explicit opening](P06-explicit-open.md).
+
 Status: implemented native prototype; **P06 and the full client remain incomplete**.
 Builds on [browsing/search](P06-browse.md) and [durable flag intentions](P07-actions.md).
 

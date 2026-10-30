@@ -150,44 +150,56 @@ PYBROWSE
   printf 'Native local browsing artifacts: %s/conversations-gui\n' "$root"
   exit 0
 fi
-# Opening then immediately leaving Inbox must never mark an unseen body read.
-click 300 415
+# Listing, page restoration and desktop focus do not authorize Seen.
+sleep .8
 click 55 262
-sleep 1.2
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYHIDDEN'
+click 55 310
+sleep .8
+python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYLIST'
 import sqlite3,sys
 assert sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM pending_operations').fetchone()[0]==0
-print('Leaving Inbox before its dwell did not mark hidden content read.')
-PYHIDDEN
-capture hidden-reader
-# Prepare the focus target before opening another message, avoiding dialog-startup
-# latency being mistaken for time spent in an unfocused reader.
+print('Inbox listing and page restoration left all messages unread.')
+PYLIST
+click 300 245
+sleep .6
+copy_body clicked-unrelated 'Synthetic unrelated same-subject message.'
+python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/conversation-ids.json" <<'PYCLICK'
+import json,sqlite3,sys
+c=sqlite3.connect(sys.argv[1]);ids=json.load(open(sys.argv[2]))
+assert c.execute('SELECT message_id,kind,desired FROM pending_operations').fetchall()==[(ids['unrelated'],'seen',1)]
+print('Explicitly clicking a message marked only that message read after content loaded.')
+PYCLICK
+capture explicit-click-read
+click 575 339
+sleep .5
+click 55 262
+click 55 310
+sleep .5
 GDK_BACKEND=x11 zenity --info --title='Synthetic read focus fixture' --text='Synthetic focus fixture only' > "$root/conversations-gui/focus.log" 2>&1 & prompt=$!
 other_window=''
 for _ in {1..100}; do other_window=$(xdotool search --onlyvisible --pid "$prompt" 2>/dev/null | head -n1 || true); [[ -n "$other_window" ]] && break; sleep .05; done
 [[ -n "$other_window" ]]
-xdotool windowfocus "$window"
-click 55 310
-sleep .1
-click 300 245
 xdotool windowfocus "$other_window"
-sleep 1.2
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYFOCUS'
-import sqlite3,sys
-assert sqlite3.connect(sys.argv[1]).execute('SELECT count(*) FROM pending_operations').fetchone()[0]==0
-print('An unfocused reader did not mark its selected message read.')
-PYFOCUS
+sleep .8
 capture unfocused-reader
 kill "$prompt"; wait "$prompt" 2>/dev/null || true; prompt=''
 xdotool windowfocus "$window"
-sleep 1.2
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/conversation-ids.json" <<'PYREAD'
+sleep .8
+python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/conversation-ids.json" <<'PYPASSIVE'
 import json,sqlite3,sys
 c=sqlite3.connect(sys.argv[1]);ids=json.load(open(sys.argv[2]))
-assert c.execute('SELECT message_id,kind,desired FROM pending_operations').fetchall()==[(ids['unrelated'],'seen',1)]
-print('Returning focus completed a fresh dwell and marked only the selected message read.')
-PYREAD
-capture focused-read
+assert c.execute('SELECT message_id,desired FROM pending_operations').fetchall()==[(ids['unrelated'],0)]
+print('Explicit unread survived page restoration and focus loss/return without another message click.')
+PYPASSIVE
+capture passive-return-unread
+click 300 277
+sleep .6
+python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/conversation-ids.json" <<'PYREOPEN'
+import json,sqlite3,sys
+c=sqlite3.connect(sys.argv[1]);ids=json.load(open(sys.argv[2]))
+assert c.execute('SELECT message_id,desired FROM pending_operations').fetchall()==[(ids['unrelated'],1)]
+print('Another explicit click on the unread message authorized Seen again.')
+PYREOPEN
 click 300 447
 sleep 1.2
 capture before-second-copy
@@ -197,7 +209,7 @@ import json,sqlite3,sys
 c=sqlite3.connect(sys.argv[1]);ids=json.load(open(sys.argv[2]))
 assert set(c.execute('SELECT message_id,desired FROM pending_operations'))=={(ids['unrelated'],1),(ids['second'],1)}
 assert c.execute('SELECT count(*) FROM pending_operations WHERE message_id=?',(ids['first'],)).fetchone()[0]==0
-print('Visible reading cleared only its selected conversation member, not its sibling.')
+print('Explicit member opening marked only that message read, not its sibling.')
 PYTHREADREAD
 capture automatic-member-read
 click 575 380
@@ -207,7 +219,7 @@ import json,sqlite3,sys
 c=sqlite3.connect(sys.argv[1]);ids=json.load(open(sys.argv[2]))
 assert c.execute('SELECT desired FROM pending_operations WHERE message_id=?',(ids['second'],)).fetchone()[0]==0
 assert c.execute('SELECT read_cleared FROM messages WHERE id=?',(ids['second'],)).fetchone()[0]==1
-print('Explicit Mark unread remained unread beyond another dwell; read-cleared history stayed monotonic.')
+print('Explicit Mark unread remained unread during passive viewing; read-cleared history stayed monotonic.')
 PYUNREAD
 capture explicit-unread
 click 700 300
@@ -235,8 +247,7 @@ sleep .5
 click 55 310
 sleep .3
 capture offline-inbox
-# Rapid message changes retire the second member's new dwell before reading it.
-click 300 415
+# No restored or default reader selection may change the explicitly unread reply.
 click 300 330
 sleep 1.2
 copy_body other-account 'Synthetic other-account reply.'
@@ -244,7 +255,7 @@ python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/conversation-ids.jso
 import json,sqlite3,sys
 c=sqlite3.connect(sys.argv[1]);ids=json.load(open(sys.argv[2]))
 assert set(c.execute('SELECT message_id,desired FROM pending_operations'))=={(ids['unrelated'],1),(ids['second'],0),(ids['other'],1)}
-print('Offline restart preserved explicit unread; a rapid selection change did not let its retired dwell mark it read.')
+print('Offline restart and opening another account preserved the reply that was not clicked.')
 PYRESTART
 capture other-account
 click 565 300
@@ -262,4 +273,4 @@ print('Other-account reply identity and quoted body remained correct after focus
 PYOTHER
 capture other-account-reply
 stop
-printf 'Native focused-read GUI artifacts: %s/conversations-gui\n' "$root"
+printf 'Native explicit-open GUI artifacts: %s/conversations-gui\n' "$root"

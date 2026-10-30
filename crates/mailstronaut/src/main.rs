@@ -448,10 +448,9 @@ impl App {
                     | inbox::Message::SetFlag(..)
                     | inbox::Message::UndoFlags(..)
                     | inbox::Message::ApplyFlags
-                    | inbox::Message::Open(..)
+                    | inbox::Message::OpenClicked(..)
                     | inbox::Message::Refresh
                     | inbox::Message::Next
-                    | inbox::Message::ReadVisible(..)
             )
         {
             return Task::none();

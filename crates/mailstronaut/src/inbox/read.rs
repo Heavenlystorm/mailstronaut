@@ -1,102 +1,77 @@
-//! Visibility/selection fencing for a short native-reader dwell, without a daemon.
+//! Seen authorization comes only from an explicit message-open action.
 
 #[derive(Default)]
 pub(super) struct Gate {
     visible: bool,
-    epoch: u64,
-    armed: Option<(u64, u64, u64)>,
-    consumed: Option<(u64, u64)>,
+    clicked: Option<(u64, u64)>,
 }
 impl Gate {
     pub const fn visibility(&mut self, visible: bool) {
-        if self.visible != visible {
-            self.visible = visible;
-            self.epoch = self.epoch.saturating_add(1);
-            self.armed = None;
+        self.visible = visible;
+        if !visible {
+            self.clicked = None;
         }
     }
-    pub fn arm(
-        &mut self,
-        generation: u64,
-        reading: u64,
-        eligible: bool,
-    ) -> Option<(u64, u64, u64)> {
-        if !self.visible || !eligible || self.consumed == Some((generation, reading)) {
-            return None;
-        }
-        let stamp = (generation, reading, self.epoch);
-        if self.armed == Some(stamp) {
-            return None;
-        }
-        self.armed = Some(stamp);
-        Some(stamp)
+    pub const fn clicked(&mut self, generation: u64, reading: u64) {
+        self.clicked = Some((generation, reading));
     }
-    pub const fn suppress(&mut self, generation: u64, reading: u64) {
-        self.consumed = Some((generation, reading));
-        self.armed = None;
+    pub fn take(&mut self, generation: u64, reading: u64, eligible: bool) -> bool {
+        if self.visible && eligible && self.clicked == Some((generation, reading)) {
+            self.clicked = None;
+            true
+        } else {
+            false
+        }
     }
-    pub fn consume(
-        &mut self,
-        stamp: (u64, u64, u64),
-        generation: u64,
-        reading: u64,
-        eligible: bool,
-    ) -> bool {
-        if self.armed != Some(stamp) {
-            return false;
-        }
-        self.armed = None;
-        if !eligible
-            || !self.visible
-            || stamp != (generation, reading, self.epoch)
-            || self.consumed == Some((generation, reading))
-        {
-            return false;
-        }
-        self.suppress(generation, reading);
-        true
+    pub const fn suppress(&mut self, _generation: u64, _reading: u64) {
+        self.clicked = None;
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn focus_body_readiness_and_navigation_fence_every_timer() {
+    fn only_an_explicit_open_authorizes_seen_once_its_body_is_ready() {
         let mut gate = Gate::default();
-        assert_eq!(gate.arm(1, 1, true), None);
         gate.visibility(true);
-        assert_eq!(gate.arm(1, 1, false), None);
-        let old = gate.arm(1, 1, true).expect("first dwell");
-        assert_eq!(gate.arm(1, 1, true), None);
-        gate.visibility(false);
-        assert!(!gate.consume(old, 1, 1, true));
-        gate.visibility(true);
-        let fresh = gate.arm(1, 1, true).expect("new focus dwell");
-        assert_ne!(old, fresh);
-        assert!(!gate.consume(old, 1, 1, true));
-        assert!(gate.consume(fresh, 1, 1, true));
-        assert_eq!(gate.arm(1, 1, true), None);
-        let next = gate.arm(1, 2, true).expect("next message");
-        assert!(!gate.consume(next, 1, 3, true));
-        let retired = gate.arm(1, 3, true).expect("retired configuration");
-        assert!(!gate.consume(retired, 2, 3, true));
-        let not_ready = gate.arm(2, 3, true).expect("readiness may change");
-        assert!(!gate.consume(not_ready, 2, 3, false));
         assert!(
-            gate.arm(2, 3, true).is_some(),
-            "a temporary edit in flight does not lose the opportunity forever"
+            !gate.take(1, 1, true),
+            "visibility, previews and restored selection never authorize Seen"
+        );
+        gate.clicked(1, 1);
+        assert!(!gate.take(1, 1, false), "body must actually be available");
+        assert!(gate.take(1, 1, true));
+        assert!(!gate.take(1, 1, true), "refresh cannot repeat an open");
+        gate.clicked(1, 2);
+        assert!(
+            !gate.take(1, 1, true),
+            "old body cannot consume a newer click"
+        );
+        assert!(gate.take(1, 2, true));
+        gate.clicked(1, 3);
+        assert!(
+            !gate.take(2, 3, true),
+            "retired configuration cannot authorize another account"
         );
     }
     #[test]
-    fn explicit_unread_or_undo_is_not_overridden_until_another_open() {
+    fn focus_or_page_return_and_explicit_unread_require_another_click() {
         let mut gate = Gate::default();
         gate.visibility(true);
-        let timer = gate.arm(1, 1, true).expect("dwell");
-        gate.suppress(1, 1);
-        assert!(!gate.consume(timer, 1, 1, true));
+        gate.clicked(1, 1);
         gate.visibility(false);
         gate.visibility(true);
-        assert_eq!(gate.arm(1, 1, true), None);
-        assert!(gate.arm(1, 2, true).is_some());
+        assert!(!gate.take(1, 1, true));
+        gate.clicked(1, 2);
+        gate.suppress(1, 2);
+        assert!(!gate.take(1, 2, true));
+        gate.visibility(false);
+        gate.visibility(true);
+        assert!(!gate.take(1, 2, true));
+        gate.clicked(1, 3);
+        assert!(
+            gate.take(1, 3, true),
+            "another explicit open can mark unread mail seen"
+        );
     }
 }

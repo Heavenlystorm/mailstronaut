@@ -188,6 +188,12 @@ local analysis within the configured body-size budget, even if no row is opened.
 Never use an opening/read API that sets `\\Seen` during preview/classification;
 fetch with `BODY.PEEK`. Fetch attachments on explicit request.
 
+Mark a message Seen locally only after an explicit user activation (click or
+keyboard activation) opens that message and its content is available. Listing,
+preview loading, restored selection, page entry and focus changes do not count as
+opening it. Preserve explicit Mark unread until another explicit open. An open
+marks only the selected message, never every member of its conversation.
+
 Record a cursor only in the transaction that commits the fetched batch. On
 UIDVALIDITY change invalidate that folder's UID mapping and pending UID operations,
 rescan, and retain user-owned state until messages are reconciled. Flags seen on
