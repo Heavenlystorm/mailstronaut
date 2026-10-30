@@ -33,11 +33,18 @@ project-local target rather than duplicate caches. Retain line-table debug data
 and incremental builds. Only clean inactive outputs inside this project; never
 clean unrelated projects, external shared caches or Nix store/build directories.
 
-Crane uses the standard Nix vendor source mappings in a writable timestamp-
-preserving copy. Its dependency source is lock-only; both dependency and package
+Crane reads source mappings from the immutable Nix vendor output. Its standard
+assembly exposes a resolved root `config.toml`; both passes use the same store
+source paths. Do not copy sources into temporary build directories: unsandboxed
+CI uses different directories for each derivation and invalidates Cargo artifacts. Its dependency source is lock-only; both dependency and package
 passes use identical toolchain, native inputs, target and profile. Final strict
 Clippy and actual tests remain mandatory. Revalidate source-only artifact reuse
-for the new graph; old cache results do not transfer automatically.
+for changes to the graph or builder. The project-local probe
+`nix develop --command bash experiments/p01-nix/cache-reuse.sh` builds with
+sandboxing disabled, changes observable CLI behavior in a disposable source-only
+fixture, rejects third-party recompilation in either real package build, and checks
+tests, installed configuration and runtime closure. Old cache results do not
+transfer automatically.
 
 The immutable Snix source archive under `third-party` preserves the exact pinned
 upstream Git commit/tree when its forge is unavailable. Cargo revision and fixed

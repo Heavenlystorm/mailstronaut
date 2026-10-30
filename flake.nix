@@ -81,30 +81,39 @@
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
           cargoHash = "sha256-PXnTvEdJNkiiS90fut+vj577epblGk1ltiKkcnRauog=";
-          cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
-            inherit pname version;
-            hash = cargoHash;
-            # Immutable upstream source cache; avoid requiring the Snix forge
-            # during every clean CI build. Cargo's revision remains unchanged.
-            nativeBuildInputs = [
-              pkgs.gitMinimal
-              pkgs.xz
-            ];
-            preBuild = ''
-              mkdir -p "$TMPDIR/snix-source"
-              tar -xJf ${./third-party/snix-f393b22.git.tar.xz} -C "$TMPDIR/snix-source"
-              snix_repo="$TMPDIR/snix-source/repository"
-              test "$(git --git-dir="$snix_repo" rev-parse HEAD)" = f393b22aa9b8e0e74c9e8d67f15454409299e510
-              test "$(git --git-dir="$snix_repo" rev-parse HEAD^{tree})" = 45d3546fc8de18b759530d4d324812fc6e3272de
-              export GIT_CONFIG_GLOBAL="$TMPDIR/mailstronaut-gitconfig"
-              git config --file "$GIT_CONFIG_GLOBAL" protocol.file.allow always
-              git config --file "$GIT_CONFIG_GLOBAL" "url.file://$snix_repo.insteadOf" https://git.snix.dev/snix/snix.git
-            '';
-            src = pkgs.lib.fileset.toSource {
-              root = ./.;
-              fileset = ./Cargo.lock;
-            };
-          };
+          cargoDeps =
+            (pkgs.rustPlatform.fetchCargoVendor {
+              inherit pname version;
+              hash = cargoHash;
+              # Immutable upstream source cache; avoid requiring the Snix forge
+              # during every clean CI build. Cargo's revision remains unchanged.
+              nativeBuildInputs = [
+                pkgs.gitMinimal
+                pkgs.xz
+              ];
+              preBuild = ''
+                mkdir -p "$TMPDIR/snix-source"
+                tar -xJf ${./third-party/snix-f393b22.git.tar.xz} -C "$TMPDIR/snix-source"
+                snix_repo="$TMPDIR/snix-source/repository"
+                test "$(git --git-dir="$snix_repo" rev-parse HEAD)" = f393b22aa9b8e0e74c9e8d67f15454409299e510
+                test "$(git --git-dir="$snix_repo" rev-parse HEAD^{tree})" = 45d3546fc8de18b759530d4d324812fc6e3272de
+                export GIT_CONFIG_GLOBAL="$TMPDIR/mailstronaut-gitconfig"
+                git config --file "$GIT_CONFIG_GLOBAL" protocol.file.allow always
+                git config --file "$GIT_CONFIG_GLOBAL" "url.file://$snix_repo.insteadOf" https://git.snix.dev/snix/snix.git
+              '';
+              src = pkgs.lib.fileset.toSource {
+                root = ./.;
+                fileset = ./Cargo.lock;
+              };
+            }).overrideAttrs
+              (old: {
+                # Crane reads root config.toml. Keep sources at one immutable store
+                # path across builders: CI's unsandboxed temporary paths differ.
+                buildCommand = old.buildCommand + ''
+                  substitute "$out/.cargo/config.toml" "$out/config.toml" \
+                    --subst-var-by vendor "$out"
+                '';
+              });
           common = {
             inherit pname version src;
             cargoVendorDir = cargoDeps;
@@ -140,17 +149,6 @@
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
             CARGO_NET_OFFLINE = "true";
             CARGO_CACHE_AUTO_CLEAN_FREQUENCY = "never";
-            postPatch = ''
-              # Prepare standard Nix source mappings for Crane. Retain source
-              # timestamps so restored dependency artifacts stay reusable.
-              cp -r --preserve=timestamps "$cargoVendorDir" "$NIX_BUILD_TOP/vendor"
-              chmod -R u+w "$NIX_BUILD_TOP/vendor"
-              export cargoVendorDir="$NIX_BUILD_TOP/vendor"
-              substituteInPlace "$cargoVendorDir/.cargo/config.toml" \
-                --subst-var-by vendor "$cargoVendorDir"
-              # Crane consumes root config.toml; nested Cargo uses .cargo/config.toml.
-              cp --preserve=timestamps "$cargoVendorDir/.cargo/config.toml" "$cargoVendorDir/config.toml"
-            '';
           };
           cargoArtifacts = craneLib.buildDepsOnly common;
         in
