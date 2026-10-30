@@ -1,0 +1,6 @@
+rows=10000 dimensions=384 index_ms=91.384 first_fuzzy_ms=7.385 fuzzy_p95_ms=3.156 vector_p95_ms=22.796 hybrid_p95_ms=26.033
+index_bytes=16345735
+Benchmark artifacts: /home/eduard/.t3/projects/mailstronaut/target/p06-search/bench-10000.Wsx7pg1H
+rows=100000 dimensions=384 index_ms=762.506 first_fuzzy_ms=9.333 fuzzy_p95_ms=7.125 vector_p95_ms=224.895 hybrid_p95_ms=208.522
+index_bytes=164823462
+Benchmark artifacts: /home/eduard/.t3/projects/mailstronaut/target/p06-search/bench-100000.LvFCikBT

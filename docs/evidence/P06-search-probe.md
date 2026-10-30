@@ -33,13 +33,39 @@ production network paths. The four-record debug runs peaked around 214 MiB RSS;
 traced/unoptimized timings are not release performance. Complete runtime artifacts
 remain in `target/p06-search/run.QbzSNIdG`.
 
-Release benchmarking is pending. Its targets and limitations were recorded before
-running it in the experiment README: 10k/100k synthetic records, 384-component
-dense vectors, no model, library flat vector retrieval, three warmups and 30 timed
-queries. A dedicated sequential runner shares the existing release-gate lock and
-records a numeric terminal receipt. Do not duplicate that build.
+The coordinated release probe at `2a1a044` completed with numeric receipt `0`;
+`mailstronaut-p06-search-release-probe.service` was verified inactive/dead with
+`ExecMainStatus=0`. Its invocation was `70fb4b5171a44e6cbef7ea59bcd6e4b2`.
+The pinned development shell built with LLVM, thin LTO and one codegen unit in
+13m20s, using all 16 CPUs. The executable is 176 MiB. This is an experimental
+release build, not the application's Nix package gate or installed acceptance.
 
-Still required: release/resource evidence, representative multilingual model and
+| Synthetic records | Fuzzy p95 | Vector p95 | Hybrid p95 | Process peak RSS | Index bytes |
+| --- | --- | --- | --- | --- | --- |
+| 10,000 | 3.2 ms | 22.8 ms | 26.0 ms | 505 MiB | 16,345,735 |
+| 100,000 | 7.1 ms | 224.9 ms | 208.5 ms | 876 MiB | 164,823,462 |
+
+[Metrics](artifacts/p06-search-probe/release-benchmark.log),
+[10k resources](artifacts/p06-search-probe/release-10000-resources.txt),
+[100k resources](artifacts/p06-search-probe/release-100000-resources.txt) and
+[build resources](artifacts/p06-search-probe/release-build-resources.txt) preserve
+the measurements. The provisional screening budgets were fixed in the README
+before running: fuzzy p95 <= 200 ms, vector/hybrid <= 500 ms, peak RSS and derived
+index <= 1 GiB. All passed, but memory leaves limited headroom for a model and GUI.
+
+These are 384-component dense synthetic vectors, flat retrieval without an ANN
+index or model, three warmups and 30 timed queries per operation. Account/folder
+prefiltering selects about one third of the corpus. Queries run sequentially with
+warm OS caches after insertion; neither cold-storage latency nor an advantage of
+hybrid over vector retrieval is established. Repeated short synthetic bodies also
+do not establish representative mailbox indexing throughput or relevance.
+
+The next bounded experiment uses the explicitly pinned
+[E5 artifact manifest](../../experiments/p06-search/model-manifest.json).
+Weights have not been downloaded as part of the search-library probe. Measure
+actual multilingual retrieval and model load/query memory before adoption.
+
+Still required: representative multilingual model and
 relevance proof, indexing/purge lifecycle, actual application graph/packaging,
 native UI integration and all remaining P06 acceptance. Logical deletion alone
 does not establish physical removal from historical files. No search candidate

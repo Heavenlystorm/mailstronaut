@@ -1,6 +1,6 @@
 # Strong search: library research and adoption gate
 
-Research date: 2026-10-30. **Source audit, not an implementation or benchmark.**
+Research date: 2026-10-30. **Source audit and isolated library probe; no production integration.**
 The current application provides local literal SQLite FTS search. The user requires
 both typo tolerance and multilingual search by meaning, and explicitly wants
 pre-existing components. Do not write a fuzzy matcher, inverted index, vector
@@ -110,11 +110,13 @@ model correctness or adequacy for English/French/Italian email retrieval.
   pinned Nix development toolchain: fuzzy/filter/vector/hybrid queries, independent
   process reopen, logical deletion and controlled network observation passed.
   [Evidence](evidence/P06-search-probe.md). This is not model/relevance/adoption proof.
-- [ ] After the active coordinated release gate finishes, run one bounded pinned
-  `nix develop` probe for LanceDB, then the lean comparison if needed. Keep probe
+- [x] Run one bounded pinned `nix develop` release probe for LanceDB. It passed the
+  provisional 10k/100k latency, memory and disk screening targets; see
+  [measurements and limits](evidence/P06-search-probe.md). Keep probe
   artifacts in the project and coordinate builds; do not start several model/
-  search compilation graphs at once. Pin all native/transitive inputs and inspect
-  feature unification, compiler compatibility and Nix/Flatpak packaging implications.
+  search compilation graphs at once. The lean comparison remains available if
+  combined model/resource costs require it. Application feature unification and
+  Nix/Flatpak packaging remain unproven.
 - [ ] Demonstrate local fuzzy queries and library-provided hybrid ranking on the
   exact Rust API, including filters/deletion/restart and no network access. No
   custom ANN, spelling engine, neural architecture, rank-fusion engine or daemon.
