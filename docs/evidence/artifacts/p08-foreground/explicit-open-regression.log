@@ -1,0 +1,27 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Inbox listing and page restoration left all messages unread.
+Explicitly clicking a message marked only that message read after content loaded.
+Explicit unread survived page restoration and focus loss/return without another message click.
+Another explicit click on the unread message authorized Seen again.
+Explicit member opening marked only that message read, not its sibling.
+Explicit Mark unread remained unread during passive viewing; read-cleared history stayed monotonic.
+Sent-only ancestor reading remained read-only and reply used its own message/account.
+Offline restart and opening another account preserved the reply that was not clicked.
+Other-account reply identity and quoted body remained correct after focused read handling.
+Native explicit-open GUI artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.2SUkDeRz/conversations-gui
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.09s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.2SUkDeRz

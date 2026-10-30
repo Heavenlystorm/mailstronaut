@@ -12,6 +12,7 @@ cat > "$MAILSTRONAUT_THREADS_CONFIG" <<'NIX'
   schemaVersion = 1;
   managed = true;
   appearance = "dark";
+  timeZone = "Europe/Paris";
   accounts = map (identity: {
     id = identity.id;
     provider = "manual";
@@ -90,6 +91,11 @@ import pathlib,sys
 assert sys.argv[2] in pathlib.Path(sys.argv[1]).read_text(), f"Wrong synthetic body: {sys.argv[1]}"
 PYCOPY
 }
+if [[ ${MAILSTRONAUT_REMINDERS_GUI:-0} == 1 ]]; then
+  # shellcheck source=/dev/null
+  source experiments/p08-reminders/gui.sh
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_THREADS_BROWSE_GUI:-0} == 1 ]]; then
   search() { click 650 85; xdotool key --clearmodifiers ctrl+a BackSpace; xdotool type --clearmodifiers --delay 0 "$1"; xdotool key Return; sleep .5; }
   scope() { click 350 85; click 350 "$((126+36*$1))"; sleep .5; }

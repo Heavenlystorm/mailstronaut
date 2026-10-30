@@ -325,6 +325,11 @@ outside this slice. Deliver P07 evidence and explicit known limitations.
 
 ## P08 — Remind me and background behavior
 
+- [x] First foreground slice: generation-fenced storage, DST-aware civil presets,
+  native calendar/time controls and private portal delivery/action tests; native
+  scheduling/Open/Cancel and offline restart tested on X11. See [evidence](evidence/P08.md).
+  Full desktop/background acceptance below remains open.
+
 - [ ] Persist reminder creation/reschedule/cancel generations; native presets/custom
   picker, UTC instant plus original timezone; independent of read/priority labels.
 - [ ] Wake for the earliest due reminder and requery after restart/resume/clock

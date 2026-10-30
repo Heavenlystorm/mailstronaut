@@ -73,11 +73,12 @@
               ./examples
               ./docs/CONFIGURATION.md
               ./experiments/p02-accounts/credentials.sh
+              ./experiments/p08-reminders/portal.sh
             ];
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-yWoRKPEaiu+krKYthugMigeb7Q2kil+/zTmJ+jyrGDU=";
+          cargoHash = "sha256-eIivbnNQKwFov66fqyAhldHpum6lxlwpDn/hXcKDzoc=";
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             inherit pname version;
             hash = cargoHash;
@@ -194,13 +195,15 @@
                 python3 -c '
               import json, sys
               records = [json.loads(line) for line in open(sys.argv[1])]
-              paths = [r["executable"] for r in records if r.get("target", {}).get("name") == sys.argv[2] and r.get("executable")]
-              assert len(paths) == 1, "expected one compiled credential fixture"
+              paths = [r["executable"] for r in records if r.get("target", {}).get("name") == sys.argv[2] and r.get("executable") and r.get("profile", {}).get("test")]
+              assert len(paths) == 1, "expected one compiled test fixture"
               print(paths[0])
               ' "$NIX_BUILD_TOP/private-fixtures.json" "$1"
               }
               credential_fixture="$(fixture_path credentials)"
               oauth_fixture="$(fixture_path oauth)"
+              reminder_fixture="$(fixture_path mailstronaut)"
+              bash experiments/p08-reminders/portal.sh "$reminder_fixture"
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
                 bash experiments/p02-accounts/credentials.sh
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
@@ -253,7 +256,11 @@
                 shellcheck ${self}/ci/check.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
-                  ${self}/experiments/p04-inbox/gui.sh
+                  ${self}/experiments/p04-inbox/gui.sh \
+                  ${self}/experiments/p07-compose/gui.sh \
+                  ${self}/experiments/p06-conversations/gui.sh \
+                  ${self}/experiments/p08-reminders/portal.sh \
+                  ${self}/experiments/p08-reminders/gui.sh
                 touch "$out"
               '';
         }

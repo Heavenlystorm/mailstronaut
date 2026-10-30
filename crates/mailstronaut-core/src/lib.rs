@@ -17,3 +17,6 @@ pub mod actions;
 
 /// Bounded account-local RFC conversation projection.
 pub mod threads;
+
+/// Durable reminder time policy.
+pub mod reminders;

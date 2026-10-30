@@ -18,8 +18,9 @@ pub mod flags;
 pub mod mailbox;
 /// Durable drafts and immutable, explicitly submitted outbox records.
 pub mod outbox;
+pub mod reminders;
 
-const SCHEMA_VERSION: u32 = 5;
+const SCHEMA_VERSION: u32 = 6;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -172,6 +173,7 @@ impl Store {
             M::up(outbox::SCHEMA).foreign_key_check(),
             M::up(flags::SCHEMA).foreign_key_check(),
             M::up(conversations::SCHEMA).foreign_key_check(),
+            M::up(reminders::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -394,7 +396,7 @@ mod tests {
         let orphan = super::write_blob(&store.blobs, b"unreferenced synthetic blob").unwrap();
         store.connection.execute_batch("INSERT INTO accounts(id) VALUES ('a'); INSERT INTO folders VALUES (7, 'a', 'INBOX', 42, 1); INSERT INTO drafts(id,content) VALUES ('d', x'01'); INSERT INTO outbox(id,content,phase) VALUES ('o', x'02', 'pending');").unwrap();
         store.connection.execute("INSERT INTO messages (id, account_id, message_id, subject, preview, blob_hash) VALUES (11, 'a', '<synthetic>', 'subject', 'preview', ?1)", params![hash]).unwrap();
-        store.connection.execute_batch("INSERT INTO memberships (account_id, folder_id, uidvalidity, uid, message_id, seen) VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
+        store.connection.execute_batch("INSERT INTO memberships (account_id, folder_id, uidvalidity, uid, message_id, seen) VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders(id,message_id,due_at,state) VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
         store.clear_rebuildable_indexes().unwrap();
         drop(store);
         let mut reopened = Store::open(dir.path()).unwrap();

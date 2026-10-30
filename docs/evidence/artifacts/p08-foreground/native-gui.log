@@ -1,0 +1,24 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Native one-hour preset saved the exact clicked message without changing other read flags.
+Native tomorrow preset rescheduled the same reminder using the configured calendar day.
+Native calendar and HH:MM field saved a custom civil reminder.
+Opening the reminder resolved its exact original; marking it unread left the schedule intact.
+Explicitly opening the persisted reminder after restart marked only its original message read.
+Native cancellation persisted its generation and pending withdrawal without creating outgoing mail.
+Native reminder acceptance artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.So5xWkc9/conversations-gui
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.12s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.So5xWkc9

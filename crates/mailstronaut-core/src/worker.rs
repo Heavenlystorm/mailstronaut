@@ -85,6 +85,25 @@ use mailstronaut_mail::imap::{FlagChange, Metadata};
 type Reply<T> = oneshot::Sender<Result<T, Error>>;
 
 enum Command {
+    ReminderAction(
+        Vec<String>,
+        String,
+        i64,
+        Reply<Option<store::reminders::Reminder>>,
+    ),
+    Reminders(Vec<String>, Reply<Vec<store::reminders::Reminder>>),
+    ReminderFor(String, i64, Reply<Option<store::reminders::Reminder>>),
+    NextReminder(Vec<String>, Reply<Option<i64>>),
+    ScheduleReminder(
+        store::reminders::Schedule,
+        Reply<store::reminders::Reminder>,
+    ),
+    EditReminder(String, String, i64, bool, Reply<()>),
+    ClaimReminder(Vec<String>, i64, Reply<Option<store::reminders::Attempt>>),
+    FinishReminder(store::reminders::Attempt, bool, i64, Reply<()>),
+    ReminderWithdrawals(Vec<String>, Reply<Vec<store::reminders::Reminder>>),
+    WithdrewReminder(store::reminders::Reminder, Reply<()>),
+
     ConversationSnapshot(String, Reply<Option<store::conversations::Snapshot>>),
     CommitConversations(
         store::conversations::Snapshot,
@@ -142,6 +161,111 @@ enum Command {
 #[derive(Clone)]
 pub struct Handle(mpsc::Sender<Command>);
 impl Handle {
+    /// Resolve only a current notification action in enabled accounts.
+    /// # Errors
+    /// Rejects invalid scope and storage failures.
+    pub async fn reminder_action(
+        &self,
+        accounts: Vec<String>,
+        notification: String,
+        generation: i64,
+    ) -> Result<Option<store::reminders::Reminder>, Error> {
+        self.request(|reply| Command::ReminderAction(accounts, notification, generation, reply))
+            .await
+    }
+
+    /// List at most 100 reminder records for enabled accounts.
+    /// # Errors
+    /// Returns request/storage failures.
+    pub async fn reminders(
+        &self,
+        accounts: Vec<String>,
+    ) -> Result<Vec<store::reminders::Reminder>, Error> {
+        self.request(|reply| Command::Reminders(accounts, reply))
+            .await
+    }
+    /// Resolve one exact original's reminder, including cancelled entries.
+    /// # Errors
+    /// Returns request/storage failures.
+    pub async fn reminder_for(
+        &self,
+        account: String,
+        message: i64,
+    ) -> Result<Option<store::reminders::Reminder>, Error> {
+        self.request(|reply| Command::ReminderFor(account, message, reply))
+            .await
+    }
+    /// Read the earliest pending instant independently of the visible page.
+    /// # Errors
+    /// Returns request/storage failures.
+    pub async fn next_reminder(&self, accounts: Vec<String>) -> Result<Option<i64>, Error> {
+        self.request(|reply| Command::NextReminder(accounts, reply))
+            .await
+    }
+    /// Durably create/reschedule with exact generation comparison.
+    /// # Errors
+    /// Rejects stale edits, invalid times and unavailable targets.
+    pub async fn schedule_reminder(
+        &self,
+        request: store::reminders::Schedule,
+    ) -> Result<store::reminders::Reminder, Error> {
+        self.request(|reply| Command::ScheduleReminder(request, reply))
+            .await
+    }
+    /// Cancel or explicitly retry the exact current reminder revision.
+    /// # Errors
+    /// Rejects stale/foreign edits and storage failures.
+    pub async fn edit_reminder(
+        &self,
+        account: String,
+        id: String,
+        generation: i64,
+        retry: bool,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::EditReminder(account, id, generation, retry, reply))
+            .await
+    }
+    /// Commit a fenced due notification claim before desktop I/O.
+    /// # Errors
+    /// Returns request/storage failures.
+    pub async fn claim_reminder(
+        &self,
+        accounts: Vec<String>,
+        now: i64,
+    ) -> Result<Option<store::reminders::Attempt>, Error> {
+        self.request(|reply| Command::ClaimReminder(accounts, now, reply))
+            .await
+    }
+    /// Commit the exact desktop attempt's outcome.
+    /// # Errors
+    /// Rejects stale callbacks and storage failures.
+    pub async fn finish_reminder(
+        &self,
+        attempt: store::reminders::Attempt,
+        accepted: bool,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::FinishReminder(attempt, accepted, now, reply))
+            .await
+    }
+    /// Read bounded crash-safe withdrawal work, including cancelled records.
+    /// # Errors
+    /// Returns request/storage failures.
+    pub async fn reminder_withdrawals(
+        &self,
+        accounts: Vec<String>,
+    ) -> Result<Vec<store::reminders::Reminder>, Error> {
+        self.request(|reply| Command::ReminderWithdrawals(accounts, reply))
+            .await
+    }
+    /// Commit a completed withdrawal for exactly this generation.
+    /// # Errors
+    /// Rejects stale callbacks and storage failures.
+    pub async fn withdrew_reminder(&self, record: store::reminders::Reminder) -> Result<(), Error> {
+        self.request(|reply| Command::WithdrewReminder(record, reply))
+            .await
+    }
+
     /// Read stale account metadata for an isolated RFC projection, without bodies.
     /// # Errors
     /// Rejects metadata budgets, corrupt indexes or unavailable storage.
@@ -628,6 +752,7 @@ fn open_profile(root: &Path) -> Result<(fs::File, Store), Error> {
     let store = Store::open(root).map_err(Error::from)?;
     store.recover_submissions().map_err(Error::from)?;
     store.recover_flags().map_err(Error::from)?;
+    store.recover_reminders().map_err(Error::from)?;
     Ok((lock, store))
 }
 
@@ -674,6 +799,41 @@ fn claim_flag(store: &mut Store, account: &str, context: &str, reply: Reply<Opti
 fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
     while let Some(command) = receiver.blocking_recv() {
         match command {
+            Command::ReminderAction(accounts, notification, generation, reply) => {
+                respond(reply, || {
+                    store.reminder_action(&accounts, &notification, generation)
+                });
+            }
+            Command::Reminders(accounts, reply) => respond(reply, || store.reminders(&accounts)),
+            Command::ReminderFor(account, message, reply) => {
+                respond(reply, || store.reminder_for(&account, message));
+            }
+            Command::NextReminder(accounts, reply) => {
+                respond(reply, || store.next_reminder(&accounts));
+            }
+            Command::ScheduleReminder(request, reply) => {
+                commit(reply, || store.schedule_reminder(&request));
+            }
+            Command::EditReminder(account, id, generation, retry, reply) => commit(reply, || {
+                store.edit_reminder(&account, &id, generation, retry)
+            }),
+            Command::ClaimReminder(accounts, now, reply) => {
+                if !reply.is_closed() {
+                    let result = store.claim_reminder(&accounts, now).map_err(Error::from);
+                    if let Err(Ok(Some(attempt))) = reply.send(result) {
+                        let _released = store.release_reminder(&attempt);
+                    }
+                }
+            }
+            Command::FinishReminder(attempt, accepted, now, reply) => {
+                commit(reply, || store.finish_reminder(&attempt, accepted, now));
+            }
+            Command::ReminderWithdrawals(accounts, reply) => {
+                respond(reply, || store.reminder_withdrawals(&accounts));
+            }
+            Command::WithdrewReminder(record, reply) => {
+                commit(reply, || store.withdrew_reminder(&record));
+            }
             Command::ConversationSnapshot(account, reply) => {
                 respond(reply, || store.conversation_snapshot(&account));
             }

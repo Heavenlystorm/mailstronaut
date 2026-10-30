@@ -5282,8 +5282,10 @@ version = "0.1.0"
 dependencies = [
  "ashpd 0.12.3",
  "async-channel 2.5.0",
+ "chrono",
  "directories",
  "futures-util",
+ "jiff",
  "libcosmic",
  "mailstronaut-config",
  "mailstronaut-core",
@@ -5295,6 +5297,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "wait-timeout",
+ "zbus",
 ]
 
 [[package]]
@@ -5316,6 +5319,7 @@ name = "mailstronaut-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "chrono-tz",
  "mail-parser",
  "mail-threading",
  "mailstronaut-config",

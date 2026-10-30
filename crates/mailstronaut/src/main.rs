@@ -5,6 +5,7 @@ mod composer;
 mod config_cli;
 mod inbox;
 mod private;
+mod reminders;
 mod text_reader;
 
 use core::hash::{Hash, Hasher};
@@ -23,6 +24,7 @@ use mailstronaut_render::{Renderer, Viewport};
 )]
 struct App {
     composer: composer::Composer,
+    reminders: reminders::Model,
     quitting: bool,
     quit_flushing: bool,
     focused: bool,
@@ -59,6 +61,7 @@ struct App {
 /// Synthetic navigation targets.
 #[derive(Clone, Copy, Debug)]
 enum Page {
+    Reminders,
     Compose,
     /// Real, locally cached messages.
     Inbox,
@@ -75,6 +78,9 @@ enum Page {
 /// Actions from the native navigation.
 #[derive(Clone, Debug)]
 enum Message {
+    Reminder(reminders::Message),
+    Remind(u64, u64),
+    OpenReminder(private::Private<reminders::Target>),
     Composer(composer::Message),
     Reply(u64, u64, mailstronaut_core::reply::Kind),
     Quit,
@@ -121,6 +127,7 @@ impl cosmic::Application for App {
         (
             Self {
                 composer: composer::Composer::default(),
+                reminders: reminders::Model::default(),
                 quitting: false,
                 quit_flushing: false,
                 focused: false,
@@ -172,6 +179,7 @@ impl cosmic::Application for App {
             ) => Some(Message::Window(id, event)),
             _ => None,
         });
+        let reminder_events = self.reminders.subscription();
         let reader = if matches!(self.page, Page::Text)
             || (matches!(self.page, Page::Inbox) && self.inbox.reading())
         {
@@ -204,9 +212,9 @@ impl cosmic::Application for App {
                         .map(|()| (Message::Wake, receiver))
                 })
             });
-            return Subscription::batch([windows, reader, wakes]);
+            return Subscription::batch([windows, reader, wakes, reminder_events]);
         }
-        Subscription::batch([windows, reader])
+        Subscription::batch([windows, reader, reminder_events])
     }
 
     fn system_theme_mode_update(
@@ -236,12 +244,26 @@ impl cosmic::Application for App {
         Task::none()
     }
 
-    #[expect(
-        clippy::float_cmp,
-        reason = "Viewport dimensions are bounded and scale changes require exact event values."
-    )]
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Reminder(message) => return self.reminder_message(message),
+            Message::Remind(generation, reading) => {
+                if self.quitting || self.reminders.busy() || self.accounts.loading() {
+                    return Task::none();
+                }
+                if let Some(target) = self.inbox.reminder_target(generation, reading) {
+                    self.page = Page::Reminders;
+                    self.inbox.visible(false);
+                    return self.reminders.edit(target);
+                }
+            }
+            Message::OpenReminder(private::Private(target)) => {
+                if !self.quitting {
+                    self.page = Page::Inbox;
+                    self.inbox.visible(self.focused);
+                    return self.inbox.open_reminder_clicked(target);
+                }
+            }
             Message::Quit => return self.request_quit(),
             Message::CloseRequested(id) => {
                 if Some(id) == self.core.main_window_id() {
@@ -309,24 +331,7 @@ impl cosmic::Application for App {
                         .map(Action::App);
                 }
             }
-            Message::Scale(native) => {
-                let effective = native * self.core.scale_factor();
-                if effective.is_finite()
-                    && (1.0 / 2048.0..=2048.0).contains(&effective)
-                    && effective != self.scale
-                {
-                    self.scale = effective;
-                    if let Some(Ok(viewport)) = self.viewport.as_ref()
-                        && viewport.set_scale(effective).is_err()
-                    {
-                        return Task::none();
-                    }
-                    self.logical =
-                        logical_preview_size(self.window_size.0, self.window_size.1, effective);
-                    self.frame = None;
-                    self.resize_viewport();
-                }
-            }
+            Message::Scale(native) => return self.rescale(native),
             Message::Wake => {
                 if let Some(Ok(viewport)) = self.viewport.as_ref() {
                     if let Some(pixels) = viewport.paint() {
@@ -346,6 +351,7 @@ impl cosmic::Application for App {
             return widget::text("Saving drafts and closing mail operations…").into();
         }
         let content: Element<'_, Message> = match self.page {
+            Page::Reminders => self.reminders.view(),
             Page::Compose => self
                 .composer
                 .view(self.logical.0, self.accounts.keyring().is_some()),
@@ -407,7 +413,8 @@ impl cosmic::Application for App {
                 widget::button::text("Text").on_press(Message::Select(Page::Text)),
                 widget::button::text("Accounts").on_press(Message::Select(Page::Accounts)),
                 widget::button::text("Inbox").on_press(Message::Select(Page::Inbox)),
-                widget::button::text("Compose").on_press(Message::Select(Page::Compose))
+                widget::button::text("Compose").on_press(Message::Select(Page::Compose)),
+                widget::button::text("Reminders").on_press(Message::Select(Page::Reminders))
             ]
             .spacing(theme::spacing().space_s)
             .padding(20),
@@ -419,13 +426,62 @@ impl cosmic::Application for App {
 }
 
 impl App {
+    #[expect(
+        clippy::float_cmp,
+        reason = "Viewport dimensions are bounded and scale changes require exact event values."
+    )]
+    fn rescale(&mut self, native: f32) -> Task<Message> {
+        let effective = native * self.core.scale_factor();
+        if effective.is_finite()
+            && (1.0 / 2048.0..=2048.0).contains(&effective)
+            && effective != self.scale
+        {
+            self.scale = effective;
+            if let Some(Ok(viewport)) = self.viewport.as_ref()
+                && viewport.set_scale(effective).is_err()
+            {
+                return Task::none();
+            }
+            self.logical = logical_preview_size(self.window_size.0, self.window_size.1, effective);
+            self.frame = None;
+            self.resize_viewport();
+        }
+        Task::none()
+    }
+
+    fn reminder_message(&mut self, message: reminders::Message) -> Task<Message> {
+        let completed = matches!(
+            message,
+            reminders::Message::Result(..)
+                | reminders::Message::Saved(..)
+                | reminders::Message::Resolved(..)
+        );
+        if self.quitting && !completed {
+            return Task::none();
+        }
+        if self.accounts.loading() && !completed {
+            return if matches!(
+                message,
+                reminders::Message::Tick(..) | reminders::Message::Refresh
+            ) {
+                self.reminders.defer()
+            } else {
+                Task::none()
+            };
+        }
+        let task = self.reminders.update(message);
+        Task::batch([task, self.maybe_quit()])
+    }
+
     fn account_message(&mut self, message: accounts::Message) -> Task<Message> {
         if self.quitting && !matches!(message, accounts::Message::Authorized(..)) {
             return Task::none();
         }
-        if matches!(message, accounts::Message::Reload) && self.composer.busy() {
+        if matches!(message, accounts::Message::Reload)
+            && (self.composer.busy() || self.reminders.busy())
+        {
             self.accounts.status(
-                "Finish or cancel the current compose operation before reloading accounts.",
+                "Finish or cancel the current compose or reminder operation before reloading accounts.",
             );
             return Task::none();
         }
@@ -438,6 +494,7 @@ impl App {
             task,
             self.inbox.configure(self.accounts.active()),
             self.composer.configure(self.accounts.active()),
+            self.reminders.configure(self.accounts.active()),
         ])
     }
     fn inbox_message(&mut self, message: inbox::Message) -> Task<Message> {
@@ -480,6 +537,7 @@ impl App {
         Task::batch([
             task,
             self.composer.attach(self.inbox.store()),
+            self.reminders.attach(self.inbox.store()),
             self.maybe_quit(),
             maintenance,
             read,
@@ -554,6 +612,7 @@ impl App {
         self.quitting = true;
         self.inbox.visible(false);
         self.inbox.cancel();
+        self.reminders.cancel();
         self.composer.cancel();
         self.accounts.cancel_authorization();
         self.accounts.clear_input();
@@ -563,6 +622,7 @@ impl App {
         if self.quitting
             && !self.quit_flushing
             && !self.inbox.busy()
+            && !self.reminders.busy()
             && !self.composer.busy()
             && !self.accounts.authenticating()
         {
@@ -588,7 +648,7 @@ impl App {
                 self.page = Page::Compose;
                 self.composer
                     .status(format!("Unable to save before closing: {error}"));
-                Task::none()
+                self.reminders.resume()
             }
         }
     }
@@ -639,7 +699,12 @@ impl App {
         let read = self.inbox.read_task();
         if matches!(
             page,
-            Page::About | Page::Text | Page::Accounts | Page::Inbox | Page::Compose
+            Page::About
+                | Page::Text
+                | Page::Accounts
+                | Page::Inbox
+                | Page::Compose
+                | Page::Reminders
         ) {
             self.viewport = None;
             self.frame = None;

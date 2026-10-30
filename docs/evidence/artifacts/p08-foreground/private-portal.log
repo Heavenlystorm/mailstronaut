@@ -1,0 +1,10 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+error (ignored): SQLite database '/home/eduard/.t3/projects/mailstronaut/target/nix-cache/nix/eval-cache-v6/f458d35fcecd9928a5487d66054f68f571b777ae01b4d8ee59bd054430160062.sqlite' is busy
+
+running 1 test
+Private reminder portal: stable replacement across both crash windows, scoped actions, generic previews, mute, denial, explicit retry and withdrawal passed.
+test reminders::tests::private_portal_reminders_replace_after_crash_and_honor_actions_privacy_and_mute ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.22s
+
+Private reminder portal artifacts: /home/eduard/.t3/projects/mailstronaut/target/p08-reminders/portal.vk8j1ZdX

@@ -6,7 +6,7 @@ A planned local-first email client for the COSMIC desktop, written in Rust with
 libcosmic and Servo. This repository contains the architecture, a native COSMIC
 preview window, native Nix account setup, secured IMAP fetching and a native
 offline unified inbox with grouped conversations, account/folder browsing and local
-search, and a native plain-text draft/outbox prototype.
+search, native plain-text drafts/outbox and a foreground reminder prototype.
 **It is not yet a usable email client.** The preview displays a fixed synthetic
 Servo document with native theme forwarding. Untrusted mail rendering, input,
 accessibility and background lifecycle remain feasibility gates.
@@ -69,6 +69,11 @@ window saves the final edit. Delivery uncertainty remains visible and requires a
 explicit possible-duplicate retry; accepted mail cannot be resent to repair a Sent
 copy. The cached reader can prepare reply/reply-all drafts and explicit text-only
 forwards; routing uses Reply-To, the receiving account/alias and bounded ancestry.
+Remind schedules the selected original locally with presets or a native calendar.
+The Reminders page keeps schedules across restart and supports Open/Cancel/Retry.
+Keep the app open for delivery: this first slice uses the notification portal,
+hides previews by default and reports failures. Background lifetime, native
+notification fallback and activation after exit remain unimplemented.
 Sent APPEND, attachments and automatic/background sync remain unimplemented. The Servo preview still accepts only its fixed synthetic document.
 Current implementation evidence
 and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
@@ -76,8 +81,9 @@ and unverified acceptance checks are recorded in [P01](docs/evidence/P01.md),
 [P04 receiving/inbox](docs/evidence/P04.md),
 [P05 OAuth](docs/evidence/P05.md), [P06 conversations](docs/evidence/P06.md),
 [P06 browsing/search](docs/evidence/P06-browse.md),
-[P06 read handling](docs/evidence/P06-read.md), and
-[P07 compose/outbox](docs/evidence/P07.md). The flake exports
+[P06 explicit-open read handling](docs/evidence/P06-explicit-open.md),
+[P07 compose/outbox](docs/evidence/P07.md), and
+[P08 foreground reminders](docs/evidence/P08.md). The flake exports
 x86_64-linux and aarch64-linux outputs; runtime verification and release support
 for each architecture are separate checklist gates. Flatpak production packaging
 is planned in P10 after Servo's build dependencies are established.

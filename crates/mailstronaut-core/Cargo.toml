@@ -12,6 +12,7 @@ readme.workspace = true
 
 [dependencies]
 chrono.workspace = true
+chrono-tz.workspace = true
 mailstronaut-config.workspace = true
 mail-parser.workspace = true
 mail-threading.workspace = true

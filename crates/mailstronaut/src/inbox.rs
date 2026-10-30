@@ -139,6 +139,41 @@ impl Inbox {
         }
     }
 
+    pub fn reminder_target(
+        &self,
+        generation: u64,
+        reading: u64,
+    ) -> Option<super::reminders::Target> {
+        if generation != self.generation || reading != self.reading {
+            return None;
+        }
+        let (account, message) = self.selected.as_ref()?;
+        let body = self.body.as_ref()?;
+        Some(super::reminders::Target {
+            account: account.clone(),
+            message: *message,
+            title: body
+                .projection
+                .headers
+                .subject
+                .clone()
+                .unwrap_or_else(|| "(no subject)".into()),
+        })
+    }
+    pub fn open_reminder_clicked(
+        &mut self,
+        target: super::reminders::Target,
+    ) -> Task<super::Message> {
+        if !self.config.as_ref().is_some_and(|config| {
+            config
+                .accounts
+                .iter()
+                .any(|account| account.id == target.account)
+        }) {
+            return Task::none();
+        }
+        self.load_clicked(target.account, target.message)
+    }
     pub fn store(&self) -> Option<worker::Handle> {
         self.owner.as_ref().map(|owner| owner.handle())
     }
@@ -414,7 +449,7 @@ impl Inbox {
     }
 
     fn open_clicked(&mut self, account: String, id: i64) -> Task<super::Message> {
-        let Some(owner) = &self.owner else {
+        let Some(_) = &self.owner else {
             return Task::none();
         };
         if !self
@@ -428,6 +463,12 @@ impl Inbox {
         {
             return Task::none();
         }
+        self.load_clicked(account, id)
+    }
+    fn load_clicked(&mut self, account: String, id: i64) -> Task<super::Message> {
+        let Some(owner) = &self.owner else {
+            return Task::none();
+        };
         self.selected = Some((account.clone(), id));
         self.body = None;
         self.members.clear();
@@ -992,7 +1033,8 @@ fn reply_actions(generation: u64, reading: u64) -> Element<'static, super::Messa
             generation,
             reading,
             mailstronaut_core::reply::Kind::ForwardText
-        ))
+        )),
+        widget::button::text("Remind").on_press(super::Message::Remind(generation, reading))
     ]
     .spacing(8)
     .into()

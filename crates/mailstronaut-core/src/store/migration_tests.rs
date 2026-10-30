@@ -14,7 +14,7 @@ fn legacy(root: &Path) -> Connection {
         )
         .expect("WAL");
     connection.execute_batch(SCHEMA).expect("schema one");
-    connection.execute_batch("PRAGMA user_version=1; INSERT INTO accounts VALUES('a'); INSERT INTO folders VALUES(7,'a','INBOX',42,1); INSERT INTO messages(id,account_id,message_id,subject,preview,blob_hash) VALUES(11,'a','old@example.test','old subject','old preview','old-hash'); INSERT INTO memberships VALUES('a',7,42,3,11,1); INSERT INTO provider_ids VALUES('a','provider',11); INSERT INTO analysis VALUES(11,x'01'); INSERT INTO reminders VALUES('reminder',11,123,'pending'); INSERT INTO drafts VALUES('draft',x'02'); INSERT INTO outbox VALUES('outbox',x'03','pending');").expect("legacy data");
+    connection.execute_batch("PRAGMA user_version=1; INSERT INTO accounts VALUES('a'); INSERT INTO folders VALUES(7,'a','INBOX',42,1); INSERT INTO messages(id,account_id,message_id,subject,preview,blob_hash) VALUES(11,'a','old@example.test','old subject','old preview','old-hash'); INSERT INTO memberships VALUES('a',7,42,3,11,1); INSERT INTO provider_ids VALUES('a','provider',11); INSERT INTO analysis VALUES(11,x'01'); INSERT INTO reminders(id,message_id,due_at,state) VALUES('reminder',11,123,'pending'); INSERT INTO drafts VALUES('draft',x'02'); INSERT INTO outbox VALUES('outbox',x'03','pending');").expect("legacy data");
     connection
 }
 
@@ -170,7 +170,7 @@ fn removed_messages_never_reuse_an_old_reminder_identity_even_after_restart() {
     store
         .connection
         .execute(
-            "INSERT INTO reminders VALUES('old',?1,123,'pending')",
+            "INSERT INTO reminders(id,message_id,due_at,state) VALUES('old',?1,123,'pending')",
             params![first],
         )
         .expect("old reminder");
@@ -277,4 +277,36 @@ fn schema_three_upgrade_keeps_originals_and_requires_verified_server_provenance_
         ),
         3
     );
+}
+
+#[test]
+fn reminder_upgrade_binds_one_legacy_record_and_preserves_ambiguous_or_missing_targets() {
+    let root = tempfile::tempdir().expect("legacy profile");
+    let old = legacy(root.path());
+    old.execute_batch("INSERT INTO reminders(id,message_id,due_at,state) VALUES('duplicate',11,456,'pending'),('missing',999,123,'pending');").expect("ambiguous legacy rows");
+    let store = Store::open(root.path()).expect("upgrade");
+    assert_eq!(
+        scalar(&store.connection, "SELECT count(*) FROM reminders"),
+        3
+    );
+    assert_eq!(
+        scalar(
+            &store.connection,
+            "SELECT count(*) FROM reminders WHERE account_id='a'"
+        ),
+        1
+    );
+    assert_eq!(
+        scalar(
+            &store.connection,
+            "SELECT count(*) FROM reminders WHERE account_id IS NULL"
+        ),
+        2
+    );
+    let records = store.reminders(&["a".into()]).expect("unambiguous records");
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].id, "reminder");
+    assert_eq!(records[0].time_zone, "UTC");
+    assert_eq!(records[0].generation, 1);
+    assert_eq!(scalar(&old, "SELECT count(*) FROM drafts"), 1);
 }
