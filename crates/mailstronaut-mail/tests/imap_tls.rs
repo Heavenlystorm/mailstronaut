@@ -504,6 +504,24 @@ async fn sync_pages_commit_once_and_remain_readable_after_network_and_worker_res
         earliest: 0,
         max_original: 2 * 1024 * 1024,
     };
+    sync::discover(
+        &store,
+        &mut connection,
+        request.account,
+        request.context,
+        "INBOX",
+        &cancel,
+    )
+    .await
+    .expect("authenticated discovery");
+    let folders = store
+        .folders(vec!["synthetic".into()])
+        .await
+        .expect("persisted folders");
+    assert_eq!(folders.len(), 2);
+    assert!(folders.iter().any(|folder| folder.name == "&AMk-tudes"
+        && !folder.inbox
+        && folder.uid_validity.is_none()));
     let first = sync::page(&store, &mut connection, &request, &cancel)
         .await
         .expect("first sync page");
@@ -555,7 +573,7 @@ async fn sync_pages_commit_once_and_remain_readable_after_network_and_worker_res
 }
 
 #[tokio::test]
-async fn paging_cursors_from_an_old_uid_generation_restart_at_the_newest_mail() {
+async fn paging_cursors_from_old_uid_or_account_context_restart_at_the_newest_mail() {
     use mailstronaut_core::{sync, worker::Worker};
     let root = tempfile::tempdir().expect("disposable mailbox");
     let worker = Worker::open(root.path().to_owned())
@@ -597,6 +615,35 @@ async fn paging_cursors_from_an_old_uid_generation_restart_at_the_newest_mail() 
         .expect("restart after generation change");
     assert_eq!(recovered.refreshed, 2);
     assert_eq!(recovered.next_before, first.next_before);
+    let mut old_context = first.next_before.expect("prior context cursor");
+    old_context.before = core::num::NonZeroU32::new(2).expect("old cursor");
+    let changed = sync::Request {
+        context: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        before: Some(old_context),
+        ..request
+    };
+    sync::discover(
+        &worker.handle(),
+        &mut connection,
+        changed.account,
+        changed.context,
+        "INBOX",
+        &cancel,
+    )
+    .await
+    .expect("discovery binds changed public context first");
+    let reset = sync::page(&worker.handle(), &mut connection, &changed, &cancel)
+        .await
+        .expect("old context cursor rejected after discovery");
+    assert_eq!(reset.downloaded, 2);
+    assert_eq!(
+        reset.next_before.expect("new cursor").before,
+        first.next_before.expect("old cursor").before
+    );
+    assert_ne!(
+        reset.next_before.expect("new cursor").context,
+        old_context.context
+    );
     drop(connection);
     let commands = server.await.expect("server");
     assert_eq!(
@@ -604,7 +651,7 @@ async fn paging_cursors_from_an_old_uid_generation_restart_at_the_newest_mail() 
             .iter()
             .filter(|command| command.contains("UID SEARCH UID 876:1003"))
             .count(),
-        2,
+        3,
         "stale UID cursor must not constrain the new namespace"
     );
     worker.shutdown().await.expect("shutdown");

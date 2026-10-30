@@ -3,6 +3,7 @@
 use core::{error::Error as StdError, fmt, num::NonZeroU32};
 
 use mailstronaut_mail::imap::{self, Connection, Metadata};
+use sha2::{Digest as _, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -16,6 +17,9 @@ const BODY_BUDGET: u32 = 16 * 1024 * 1024;
 /// A paging cursor is meaningful only inside its exact mailbox UID namespace.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Position {
+    /// Hash of the authenticated public configuration; discovery cannot make a
+    /// prior server/principal's cursor valid merely by rebinding the account.
+    pub context: [u8; 32],
     /// Local folder identity, scoped to the owning database.
     pub folder: i64,
     /// SELECT generation when this cursor was committed.
@@ -85,6 +89,34 @@ impl From<worker::Error> for Error {
     }
 }
 
+/// Discover selectable folders over an already authenticated connection. Persist
+/// exact wire identities without translating paths or silently syncing their mail.
+/// # Errors
+/// Returns redacted transport/storage errors; incomplete LIST results are not saved.
+pub async fn discover(
+    store: &worker::Handle,
+    connection: &mut Connection,
+    account: &str,
+    context: &str,
+    inbox: &str,
+    cancel: &CancellationToken,
+) -> Result<(), Error> {
+    let folders = connection.folders(cancel).await?;
+    store.ensure_account(account.into()).await?;
+    store
+        .bind_mailbox_context(account.into(), context.into())
+        .await?;
+    let names = folders
+        .into_iter()
+        .filter(|folder| folder.selectable)
+        .map(|folder| folder.wire_name)
+        .collect();
+    store
+        .remember_folders(account.into(), names, inbox.into())
+        .await?;
+    Ok(())
+}
+
 /// Reconcile one closed UID window and fetch bounded PEEK originals serially.
 ///
 /// No local/network transaction spans an await. A disconnected/cancelled page
@@ -124,6 +156,7 @@ pub async fn page(
         .await?;
     let mut page = Page {
         next_before: (first.get() > 1).then_some(Position {
+            context: Sha256::digest(request.context.as_bytes()).into(),
             folder: folder.id,
             uid_validity: validity,
             before: first,
@@ -164,6 +197,7 @@ pub async fn page(
                     .checked_add(1)
                     .and_then(NonZeroU32::new)
                     .map(|before| Position {
+                        context: Sha256::digest(request.context.as_bytes()).into(),
                         folder: folder.id,
                         uid_validity: validity,
                         before,
@@ -221,7 +255,10 @@ async fn prepare(
     let upper = request
         .before
         .filter(|position| {
-            !changed && position.folder == folder.id && position.uid_validity == validity
+            !changed
+                && position.context == <[u8; 32]>::from(Sha256::digest(request.context.as_bytes()))
+                && position.folder == folder.id
+                && position.uid_validity == validity
         })
         .map_or_else(
             || next.get(),

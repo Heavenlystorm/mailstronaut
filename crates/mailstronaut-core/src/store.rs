@@ -12,6 +12,7 @@ use rusqlite::{Connection, TransactionBehavior, params};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
+pub mod browse;
 pub mod conversations;
 pub mod flags;
 pub mod mailbox;

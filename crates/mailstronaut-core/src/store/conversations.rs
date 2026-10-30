@@ -317,52 +317,7 @@ impl Store {
         after: Option<super::mailbox::Cursor>,
         limit: u32,
     ) -> Result<Vec<Summary>, Error> {
-        if accounts.len() > 256 || !(1..=100).contains(&limit) {
-            return Err(Error::InvalidInput);
-        }
-        let selected = serde_json::to_string(accounts)?;
-        let mut statement=self.connection.prepare_cached("
-WITH inbox AS (
- SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen) AS seen,MAX(s.starred) AS starred
- FROM messages m JOIN effective_memberships s ON s.message_id=m.id AND s.account_id=m.account_id
- JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
- WHERE f.is_inbox=1 AND m.account_id IN (SELECT value FROM json_each(?1)) GROUP BY m.id
-), tagged AS (
- SELECT i.*,CASE WHEN a.projected_thread_revision=a.thread_revision THEN cm.conversation_id ELSE NULL END AS conversation,
- CASE WHEN a.projected_thread_revision=a.thread_revision AND cm.conversation_id IS NOT NULL THEN cm.conversation_id ELSE -i.id END AS group_key
- FROM inbox i JOIN accounts a ON a.id=i.account_id LEFT JOIN conversation_members cm ON cm.account_id=i.account_id AND cm.message_id=i.id
-), ranked AS (
- SELECT *,SUM(NOT seen) OVER(PARTITION BY account_id,group_key) AS unread_count,
- MAX(starred) OVER(PARTITION BY account_id,group_key) AS thread_starred,
- ROW_NUMBER() OVER(PARTITION BY account_id,group_key ORDER BY received_at DESC,id DESC) AS position FROM tagged
-)
-SELECT id,account_id,subject,sender,preview,received_at,seen,starred,conversation,
- CASE WHEN conversation IS NULL THEN 1 ELSE (
- SELECT COUNT(*) FROM conversation_members cm WHERE cm.account_id=r.account_id AND cm.conversation_id=r.conversation
- AND EXISTS(SELECT 1 FROM memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity WHERE s.account_id=cm.account_id AND s.message_id=cm.message_id)) END,
- unread_count,thread_starred FROM ranked r
-WHERE position=1 AND (?2 IS NULL OR received_at<?2 OR (received_at=?2 AND id<?3))
-ORDER BY received_at DESC,id DESC LIMIT ?4")?;
-        statement
-            .query_map(
-                params![
-                    selected,
-                    after.map(|cursor| cursor.received_at),
-                    after.map(|cursor| cursor.message_id),
-                    limit
-                ],
-                |row| {
-                    Ok(Summary {
-                        latest: super::mailbox::read_summary(row)?,
-                        conversation: row.get(8)?,
-                        cached_messages: row.get(9)?,
-                        unread: row.get(10)?,
-                        starred: row.get(11)?,
-                    })
-                },
-            )?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(Error::from)
+        self.conversation_page(accounts, &super::browse::Scope::Inbox, "", after, limit)
     }
 
     /// Read up to 200 cached members for one selected message's current grouping.

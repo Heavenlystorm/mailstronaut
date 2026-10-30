@@ -91,12 +91,16 @@ enum Command {
         crate::threads::Groups,
         Reply<()>,
     ),
-    ConversationInbox(
+    ConversationPage(
         Vec<String>,
+        store::browse::Scope,
+        String,
         Option<Cursor>,
         u32,
         Reply<Vec<store::conversations::Summary>>,
     ),
+    Folders(Vec<String>, Reply<Vec<Folder>>),
+    RememberFolders(String, Vec<String>, String, Reply<()>),
     ConversationMessages(String, i64, Reply<Vec<Summary>>),
     BindContext(String, String, Reply<bool>),
     UndoFlags(String, i64, Reply<()>),
@@ -168,7 +172,46 @@ impl Handle {
         after: Option<Cursor>,
         limit: u32,
     ) -> Result<Vec<store::conversations::Summary>, Error> {
-        self.request(|reply| Command::ConversationInbox(accounts, after, limit, reply))
+        self.conversation_page(
+            accounts,
+            store::browse::Scope::Inbox,
+            String::new(),
+            after,
+            limit,
+        )
+        .await
+    }
+    /// Read a bounded local conversation page in an enabled account/folder scope.
+    /// # Errors
+    /// Rejects scope/query/page limits and storage failures.
+    pub async fn conversation_page(
+        &self,
+        accounts: Vec<String>,
+        scope: store::browse::Scope,
+        query: String,
+        after: Option<Cursor>,
+        limit: u32,
+    ) -> Result<Vec<store::conversations::Summary>, Error> {
+        self.request(|reply| Command::ConversationPage(accounts, scope, query, after, limit, reply))
+            .await
+    }
+    /// List known folders for enabled accounts without contacting a mail server.
+    /// # Errors
+    /// Rejects excessive results and storage failures.
+    pub async fn folders(&self, accounts: Vec<String>) -> Result<Vec<Folder>, Error> {
+        self.request(|reply| Command::Folders(accounts, reply))
+            .await
+    }
+    /// Persist a bounded authenticated LIST result while retaining offline folders.
+    /// # Errors
+    /// Rejects invalid names and failed durable writes.
+    pub async fn remember_folders(
+        &self,
+        account: String,
+        names: Vec<String>,
+        inbox: String,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::RememberFolders(account, names, inbox, reply))
             .await
     }
     /// Read bounded cached conversation members, including Sent/Archive ancestry.
@@ -624,6 +667,10 @@ fn claim_flag(store: &mut Store, account: &str, context: &str, reply: Reply<Opti
         let _failed = store.fail_flag(&attempt, false);
     }
 }
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep the single serialized command dispatch visible; individual operations live in store modules."
+)]
 fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
     while let Some(command) = receiver.blocking_recv() {
         match command {
@@ -633,8 +680,14 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::CommitConversations(snapshot, groups, reply) => {
                 commit(reply, || store.commit_conversations(&snapshot, &groups));
             }
-            Command::ConversationInbox(accounts, after, limit, reply) => {
-                respond(reply, || store.conversation_inbox(&accounts, after, limit));
+            Command::ConversationPage(accounts, scope, query, after, limit, reply) => {
+                respond(reply, || {
+                    store.conversation_page(&accounts, &scope, &query, after, limit)
+                });
+            }
+            Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
+            Command::RememberFolders(account, names, inbox, reply) => {
+                commit(reply, || store.remember_folders(&account, &names, &inbox));
             }
             Command::ConversationMessages(account, message, reply) => {
                 respond(reply, || store.conversation_messages(&account, message));

@@ -258,6 +258,9 @@ first. Core provides pagination and stable IDs; UI performs no SQL/network work.
 - [x] Deliver the bounded account-local conversation prototype with cached Sent
   ancestors, revision-fenced stable IDs, per-message native selection/reply/flags,
   upstream corpus and private offline restart evidence. See [P06 evidence](evidence/P06.md).
+- [x] Add bounded native account/cached-folder selection and local FTS5 search,
+  exact-name authenticated discovery and context-fenced per-folder paging.
+  Synthetic TLS/native/offline evidence: [P06 browsing](evidence/P06-browse.md).
 - [ ] Add account/folder navigation, unified inbox, conversation list, reader pane,
   account badges, unread/star states and visible account/sync/partial-cache status.
 - [ ] Load immutable paged view models; preserve selection and scroll across updates,

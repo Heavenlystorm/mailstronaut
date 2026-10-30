@@ -1,0 +1,19 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Native local search opened matching older members, scoped Sent/account data, kept accounts separate, and survived offline restart without flag or outgoing changes.
+Native local browsing artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.mONehUAO/conversations-gui
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.15s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02-accounts/keyring.mONehUAO

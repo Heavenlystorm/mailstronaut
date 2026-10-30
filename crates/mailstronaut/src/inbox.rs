@@ -20,9 +20,10 @@ use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
     actions,
     mime::Projection,
+    store::browse::Scope,
     store::conversations::Summary as Conversation,
     store::flags::{self, Counts},
-    store::mailbox::{Cursor, Summary},
+    store::mailbox::{Cursor, Folder, Summary},
     sync, threads,
     worker::{self, Worker},
 };
@@ -37,6 +38,9 @@ use crate::private::Private as Payload;
 pub enum Message {
     Started(Payload<Result<Arc<Worker>, worker::Error>>),
     Refresh,
+    Scope(u64, Scope),
+    SearchChanged(Payload<String>),
+    Search,
     Next,
     Rows(u64, u64, Payload<Result<Listing, worker::Error>>),
     Open(String, i64),
@@ -56,12 +60,14 @@ pub enum Message {
 pub struct Listing {
     rows: Vec<Conversation>,
     flags: Counts,
+    folders: Vec<Folder>,
 }
 
 #[derive(Clone)]
 pub struct AccountResult {
     account: String,
     next: Option<sync::Position>,
+    folder: String,
     status: String,
 }
 
@@ -78,6 +84,12 @@ pub struct Inbox {
     listing: u64,
     reading: u64,
     rows: Vec<Conversation>,
+    scope: Scope,
+    navigation: Vec<Scope>,
+    navigation_labels: Vec<String>,
+    folders: Vec<Folder>,
+    search: String,
+    active_search: String,
     after: Option<Cursor>,
     selected: Option<(String, i64)>,
     body: Option<Arc<Body>>,
@@ -90,7 +102,7 @@ pub struct Inbox {
     query_again: bool,
     flags: Counts,
     cancel: CancellationToken,
-    older: BTreeMap<String, sync::Position>,
+    older: BTreeMap<(String, String), sync::Position>,
     status: Vec<String>,
 }
 impl Inbox {
@@ -136,6 +148,12 @@ impl Inbox {
         self.generation = self.generation.saturating_add(1);
         self.config = config;
         self.rows.clear();
+        self.scope = Scope::Inbox;
+        self.navigation.clear();
+        self.navigation_labels.clear();
+        self.folders.clear();
+        self.search.clear();
+        self.active_search.clear();
         self.selected = None;
         self.body = None;
         self.members.clear();
@@ -171,6 +189,23 @@ impl Inbox {
                 self.group_again = true;
                 return self.query(false);
             }
+            Message::Scope(generation, scope)
+                if generation == self.generation && self.navigation.contains(&scope) =>
+            {
+                self.scope = scope;
+                self.reset_selection();
+                return self.query(false);
+            }
+            Message::SearchChanged(Payload(value)) => {
+                if value.len() <= 1024 {
+                    self.search = value;
+                }
+            }
+            Message::Search => {
+                self.active_search = self.search.clone();
+                self.reset_selection();
+                return self.query(false);
+            }
             Message::Next => return self.query(true),
             Message::Rows(generation, listing, Payload(result))
                 if generation == self.generation && listing == self.listing =>
@@ -180,6 +215,8 @@ impl Inbox {
                     Ok(listing) => {
                         self.rows = listing.rows;
                         self.flags = listing.flags;
+                        self.folders = listing.folders;
+                        self.navigation();
                     }
                     Err(error) => self.status = vec![error.to_string()],
                 }
@@ -276,18 +313,59 @@ impl Inbox {
                 }
                 self.status.clear();
                 for result in results {
-                    self.older.remove(&result.account);
+                    self.status.push(format!(
+                        "{} · {}: {}",
+                        result.account, result.folder, result.status
+                    ));
+                    let key = (result.account.clone(), result.folder);
+                    self.older.remove(&key);
                     if let Some(next) = result.next {
-                        self.older.insert(result.account.clone(), next);
+                        self.older.insert(key, next);
                     }
-                    self.status
-                        .push(format!("{}: {}", result.account, result.status));
                 }
                 return self.query(false);
             }
             _ => {}
         }
         Task::none()
+    }
+
+    fn reset_selection(&mut self) {
+        self.reading = self.reading.saturating_add(1);
+        self.selected = None;
+        self.body = None;
+        self.members.clear();
+        self.member_labels.clear();
+        self.rows.clear();
+        self.listing = self.listing.saturating_add(1);
+        self.loading = false;
+        self.query_again = false;
+    }
+    fn navigation(&mut self) {
+        self.navigation = vec![Scope::Inbox];
+        self.navigation_labels = vec!["Unified inbox".into()];
+        if let Some(config) = &self.config {
+            for account in &config.accounts {
+                self.navigation.push(Scope::Account(account.id.clone()));
+                self.navigation_labels
+                    .push(format!("{} · all cached", account.id));
+                for folder in self
+                    .folders
+                    .iter()
+                    .filter(|folder| folder.account == account.id)
+                {
+                    self.navigation.push(Scope::Folder {
+                        account: folder.account.clone(),
+                        folder: folder.id,
+                    });
+                    self.navigation_labels.push(format!(
+                        "{} · {}",
+                        account.id,
+                        folder.name.chars().take(80).collect::<String>()
+                    ));
+                }
+            }
+        }
     }
 
     fn open(&mut self, account: String, id: i64) -> Task<super::Message> {
@@ -349,16 +427,55 @@ impl Inbox {
             .map(|account| account.id.clone())
             .collect::<Vec<_>>();
         let store = owner.handle();
+        let (scope, search) = (self.scope.clone(), self.active_search.clone());
         Task::perform(
             async move {
                 let rows = store
-                    .conversation_inbox(accounts.clone(), after, 100)
+                    .conversation_page(accounts.clone(), scope, search, after, 100)
                     .await?;
+                let folders = store.folders(accounts.clone()).await?;
                 let flags = store.flag_counts(accounts).await?;
-                Ok(Listing { rows, flags })
+                Ok(Listing {
+                    rows,
+                    flags,
+                    folders,
+                })
             },
             move |result| event(Message::Rows(generation, listing, Payload(result))),
         )
+    }
+    fn sync_targets(&self, config: &Config, older: bool) -> Vec<(Account, String)> {
+        config
+            .accounts
+            .iter()
+            .filter(|account| match &self.scope {
+                Scope::Inbox => true,
+                Scope::Account(id) | Scope::Folder { account: id, .. } => account.id == *id,
+            })
+            .filter_map(|account| {
+                let folder = match &self.scope {
+                    Scope::Folder {
+                        account: id,
+                        folder,
+                    } => self
+                        .folders
+                        .iter()
+                        .find(|candidate| candidate.account == *id && candidate.id == *folder)?
+                        .name
+                        .clone(),
+                    _ => account
+                        .folders
+                        .inbox
+                        .clone()
+                        .unwrap_or_else(|| "INBOX".into()),
+                };
+                (!older
+                    || self
+                        .older
+                        .contains_key(&(account.id.clone(), folder.clone())))
+                .then(|| (account.clone(), folder))
+            })
+            .collect::<Vec<_>>()
     }
     fn synchronize(&mut self, keyring: Option<Session>, older: bool) -> Task<super::Message> {
         let (Some(owner), Some(config), Some(keyring)) = (&self.owner, &self.config, keyring)
@@ -369,9 +486,10 @@ impl Inbox {
             ];
             return Task::none();
         };
+        let targets = self.sync_targets(config, older);
         self.cancel = CancellationToken::new();
         self.jobs = self.jobs.saturating_add(1);
-        self.status = vec!["Fetching a bounded inbox page per account…".into()];
+        self.status = vec!["Fetching a bounded page in the selected accounts/folder…".into()];
         let (generation, config, cancel, store, cursors) = (
             self.generation,
             config.clone(),
@@ -381,45 +499,35 @@ impl Inbox {
         );
         Task::perform(
             async move {
-                stream::iter(
-                    config
-                        .accounts
-                        .clone()
-                        .into_iter()
-                        .filter(|account| !older || cursors.contains_key(&account.id))
-                        .map(|account| {
-                            let (keyring, store, cancel) =
-                                (keyring.clone(), store.clone(), cancel.clone());
-                            let before = if older {
-                                cursors.get(&account.id).copied()
-                            } else {
-                                None
-                            };
-                            let earliest = if older {
-                                0
-                            } else {
-                                SystemTime::now()
-                                    .duration_since(UNIX_EPOCH)
-                                    .map_or(0, |time| {
-                                        i64::try_from(time.as_secs()).unwrap_or(i64::MAX)
-                                    })
-                                    .saturating_sub(i64::from(config.sync.initial_days) * 86400)
-                            };
-                            let max_original = config.sync.max_body_bytes;
-                            async move {
-                                synchronize_account(
-                                    account,
-                                    keyring,
-                                    store,
-                                    before,
-                                    earliest,
-                                    max_original,
-                                    cancel,
-                                )
-                                .await
-                            }
-                        }),
-                )
+                stream::iter(targets.into_iter().map(|(account, folder)| {
+                    let (keyring, store, cancel) = (keyring.clone(), store.clone(), cancel.clone());
+                    let before = if older {
+                        cursors.get(&(account.id.clone(), folder.clone())).copied()
+                    } else {
+                        None
+                    };
+                    let earliest = if older {
+                        0
+                    } else {
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map_or(0, |time| i64::try_from(time.as_secs()).unwrap_or(i64::MAX))
+                            .saturating_sub(i64::from(config.sync.initial_days) * 86400)
+                    };
+                    let max_original = config.sync.max_body_bytes;
+                    async move {
+                        synchronize_account(
+                            account,
+                            folder,
+                            keyring,
+                            store,
+                            before,
+                            (earliest, max_original),
+                            cancel,
+                        )
+                        .await
+                    }
+                }))
                 .buffer_unordered(4)
                 .collect::<Vec<_>>()
                 .await
@@ -664,9 +772,31 @@ impl Inbox {
     }
 
     pub fn view(&self, width: f32, height: f32) -> Element<'_, super::Message> {
-        let mut content=column![widget::text::title1("Unified inbox"),
-            row![widget::button::text("Sync inboxes").on_press_maybe((!self.busy()).then_some(super::Message::Inbox(Message::Sync(false)))),
-                widget::button::text("Fetch older page").on_press_maybe((!self.busy()&&!self.older.is_empty()).then_some(super::Message::Inbox(Message::Sync(true)))),
+        let generation = self.generation;
+        let navigation = self.navigation.clone();
+        let selected = self
+            .navigation
+            .iter()
+            .position(|scope| *scope == self.scope);
+        let heading = row![
+            widget::text::title1("Mail"),
+            widget::dropdown(&self.navigation_labels, selected, move |index| {
+                super::Message::Inbox(Message::Scope(
+                    generation,
+                    navigation.get(index).cloned().unwrap_or_default(),
+                ))
+            })
+            .width(240),
+            widget::text_input("Search cached mail", &self.search)
+                .on_input(|value| super::Message::Inbox(Message::SearchChanged(Payload(value))))
+                .on_submit(|_| super::Message::Inbox(Message::Search))
+                .width(Length::Fill),
+            widget::button::text("Search").on_press(super::Message::Inbox(Message::Search))
+        ]
+        .spacing(12);
+        let mut content=column![heading,
+            row![widget::button::text(match self.scope{Scope::Inbox=>"Sync inboxes",Scope::Account(_)=>"Sync account inbox",Scope::Folder{..}=>"Sync folder"}).on_press_maybe((!self.busy()).then_some(super::Message::Inbox(Message::Sync(false)))),
+                widget::button::text("Fetch older page").on_press_maybe((!self.busy()&&self.config.as_ref().is_some_and(|config|!self.sync_targets(config,true).is_empty())).then_some(super::Message::Inbox(Message::Sync(true)))),
                 widget::button::text("Cancel").on_press_maybe(self.busy().then_some(super::Message::Inbox(Message::Cancel))),
                 widget::button::text(format!("Apply flags ({})",self.flags.pending+self.flags.failed)).on_press_maybe((!self.busy()&&(self.flags.pending>0||self.flags.failed>0)).then_some(super::Message::Inbox(Message::ApplyFlags)))].spacing(8),
             widget::text("Partial offline cache · opening a message currently leaves its read flag unchanged.")].spacing(12).padding(20);
@@ -677,7 +807,7 @@ impl Inbox {
             content = content.push(widget::text("Loading cached inbox…"));
         }
         if self.rows.is_empty() && !self.loading {
-            content=content.push(widget::text("No cached messages on this page. Configure accounts, unlock the keyring, then sync."));
+            content=content.push(widget::text("No matching cached messages on this page. Search is local; clear the query or sync this selection."));
         }
         let mut list = column![].spacing(8);
         for conversation in &self.rows {
@@ -773,27 +903,40 @@ const fn event(message: Message) -> Action<super::Message> {
 
 async fn synchronize_account(
     account: Account,
+    folder: String,
     keyring: Session,
     store: worker::Handle,
     before: Option<sync::Position>,
-    earliest: i64,
-    max_original: u32,
+    limits: (i64, u32),
     cancel: CancellationToken,
 ) -> AccountResult {
     let result = async {
         let mut connection = connect_account(&account, &keyring, &cancel).await?;
+        let context = flags::context(&account).map_err(|error| error.to_string())?;
+        let inbox = account.folders.inbox.as_deref().unwrap_or("INBOX");
+        sync::discover(
+            &store,
+            &mut connection,
+            &account.id,
+            &context,
+            inbox,
+            &cancel,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
         let page = sync::page(
             &store,
             &mut connection,
             &sync::Request {
                 account: &account.id,
-                context: &mailstronaut_core::store::flags::context(&account)
-                    .map_err(|error| error.to_string())?,
-                folder: account.folders.inbox.as_deref().unwrap_or("INBOX"),
-                inbox: true,
+                context: &context,
+                folder: &folder,
+                inbox: folder == inbox
+                    || (inbox.eq_ignore_ascii_case("INBOX")
+                        && folder.eq_ignore_ascii_case("INBOX")),
                 before,
-                earliest,
-                max_original,
+                earliest: limits.0,
+                max_original: limits.1,
             },
             &cancel,
         )
@@ -807,6 +950,7 @@ async fn synchronize_account(
     match result {
         Ok((page, warning)) => AccountResult {
             account: account.id,
+            folder,
             next: page.next_before,
             status: format!(
                 "{} downloaded · {} refreshed · {} omitted · partial cache{}",
@@ -818,6 +962,7 @@ async fn synchronize_account(
         },
         Err(status) => AccountResult {
             account: account.id,
+            folder,
             next: before,
             status,
         },
@@ -915,6 +1060,7 @@ async fn apply_account_flags(
     .await;
     AccountResult {
         account: account.id,
+        folder: String::new(),
         next: None,
         status: match result {
             Ok(count) => format!(
@@ -944,6 +1090,82 @@ mod tests {
             inbox.status.is_empty(),
             "retired errors never replace current UI status"
         );
+    }
+    #[test]
+    fn scope_targets_keep_account_folder_and_paging_identity_together() {
+        let account = |id: &str| serde_json::json!({"id":id,"provider":"icloud","address":format!("{id}@example.test"),"displayName":id,"userName":id,"auth":{"kind":"password","secretRef":"synthetic"}});
+        let config: Config = serde_json::from_value(
+            serde_json::json!({"schemaVersion":1,"accounts":[account("a"),account("b")]}),
+        )
+        .expect("synthetic accounts");
+        let mut inbox = Inbox {
+            scope: Scope::Folder {
+                account: "a".into(),
+                folder: 7,
+            },
+            folders: vec![Folder {
+                id: 7,
+                account: "a".into(),
+                name: "Sent".into(),
+                uid_validity: None,
+                inbox: false,
+            }],
+            ..Inbox::default()
+        };
+        let targets = inbox.sync_targets(&config, false);
+        assert_eq!(targets.len(), 1);
+        assert_eq!(
+            (&targets[0].0.id, &targets[0].1),
+            (&"a".to_owned(), &"Sent".to_owned())
+        );
+        let position = sync::Position {
+            context: [0; 32],
+            folder: 1,
+            uid_validity: core::num::NonZeroU32::new(42).expect("namespace"),
+            before: core::num::NonZeroU32::new(2).expect("cursor"),
+        };
+        inbox.older.insert(("a".into(), "INBOX".into()), position);
+        assert_eq!(
+            inbox.sync_targets(&config, true).len(),
+            0,
+            "INBOX's cursor is never borrowed by Sent"
+        );
+        inbox.older.insert(("a".into(), "Sent".into()), position);
+        assert_eq!(inbox.sync_targets(&config, true).len(), 1);
+        inbox.scope = Scope::Account("b".into());
+        let targets = inbox.sync_targets(&config, false);
+        assert_eq!(
+            (&targets[0].0.id, &targets[0].1),
+            (&"b".to_owned(), &"INBOX".to_owned())
+        );
+        inbox.scope = Scope::Folder {
+            account: "b".into(),
+            folder: 7,
+        };
+        assert_eq!(
+            inbox.sync_targets(&config, false).len(),
+            0,
+            "a foreign/missing folder never silently syncs INBOX instead"
+        );
+    }
+    #[test]
+    fn search_events_are_redacted_and_retired_scopes_cannot_replace_current_selection() {
+        assert!(
+            !format!(
+                "{:?}",
+                Message::SearchChanged(Payload("SYNTHETIC-PRIVATE-QUERY".into()))
+            )
+            .contains("SYNTHETIC-PRIVATE-QUERY")
+        );
+        let mut inbox = Inbox {
+            generation: 2,
+            navigation: vec![Scope::Inbox, Scope::Account("a".into())],
+            ..Inbox::default()
+        };
+        let _task = inbox.update(Message::Scope(1, Scope::Account("a".into())), None);
+        assert_eq!(inbox.scope, Scope::Inbox);
+        let _task = inbox.update(Message::Scope(2, Scope::Account("disabled".into())), None);
+        assert_eq!(inbox.scope, Scope::Inbox);
     }
     const MARKER: &str = "SYNTHETIC-BODY-MUST-NOT-ENTER-EVENT-LOGS";
     #[test]

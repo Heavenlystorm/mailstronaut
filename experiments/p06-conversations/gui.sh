@@ -74,6 +74,9 @@ if [[ ${MAILSTRONAUT_THREADS_INSPECT_ONLY:-0} == 1 ]]; then
   click 700 260
   sleep .2
   capture member-menu
+  xdotool key Escape
+  click 350 100
+  capture scope-menu
   printf 'Conversation inspection artifacts: %s/conversations-gui\n' "$root"
   exit 0
 fi
@@ -82,9 +85,67 @@ copy_body() {
   timeout 5 xclip -selection clipboard -out > "$root/conversations-gui/$1-body.txt"
   python3 - "$root/conversations-gui/$1-body.txt" "$2" <<'PYCOPY'
 import pathlib,sys
-assert sys.argv[2] in pathlib.Path(sys.argv[1]).read_text()
+assert sys.argv[2] in pathlib.Path(sys.argv[1]).read_text(), f"Wrong synthetic body: {sys.argv[1]}"
 PYCOPY
 }
+if [[ ${MAILSTRONAUT_THREADS_BROWSE_GUI:-0} == 1 ]]; then
+  search() { click 650 85; xdotool key --clearmodifiers ctrl+a BackSpace; xdotool type --clearmodifiers --delay 0 "$1"; xdotool key Return; sleep .5; }
+  scope() { click 350 85; click 350 "$((126+36*$1))"; sleep .5; }
+  search first
+  click 300 245
+  sleep .4
+  copy_body search-first 'Synthetic first reply.'
+  capture search-first
+  search 'sent parent'
+  capture inbox-excludes-sent
+  scope 1
+  click 300 245
+  sleep .4
+  copy_body account-parent 'Synthetic sent parent.'
+  capture account-search
+  scope 3
+  click 300 245
+  sleep .4
+  copy_body folder-parent 'Synthetic sent parent.'
+  capture sent-folder
+  search first
+  capture sent-excludes-inbox
+  search other-account
+  scope 4
+  click 300 245
+  sleep .4
+  copy_body searched-other-account 'Synthetic other-account reply.'
+  capture other-account-search
+  search 'reply OR questionnaire'
+  capture literal-operator-empty
+  search ''
+  scope 0
+  click 300 415
+  sleep .4
+  copy_body unified-again 'Synthetic second reply.'
+  stop
+  sed -i 's/appearance = "dark"/appearance = "light"/' "$MAILSTRONAUT_THREADS_CONFIG"
+  start offline-search
+  sleep .5
+  click 55 310
+  sleep .4
+  search first
+  click 300 245
+  sleep .4
+  copy_body offline-search-first 'Synthetic first reply.'
+  capture offline-search
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYBROWSE'
+import sqlite3,sys
+c=sqlite3.connect(sys.argv[1])
+for table in ['pending_operations','drafts','outbox']:
+ assert c.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0
+assert c.execute('SELECT count(*) FROM messages').fetchone()[0]==5
+print('Native local search opened matching older members, scoped Sent/account data, kept accounts separate, and survived offline restart without flag or outgoing changes.')
+PYBROWSE
+  stop
+  printf 'Native local browsing artifacts: %s/conversations-gui\n' "$root"
+  exit 0
+fi
 copy_body second 'Synthetic second reply.'
 click 575 348
 sleep .7

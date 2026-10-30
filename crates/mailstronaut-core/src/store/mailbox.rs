@@ -382,7 +382,7 @@ impl Store {
     }
 }
 
-fn read_folder(row: &rusqlite::Row<'_>) -> rusqlite::Result<Folder> {
+pub(super) fn read_folder(row: &rusqlite::Row<'_>) -> rusqlite::Result<Folder> {
     Ok(Folder {
         id: row.get(0)?,
         account: row.get(1)?,
