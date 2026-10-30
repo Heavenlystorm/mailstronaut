@@ -1,0 +1,61 @@
+Validated revision: b607ad9611f496c8f29c3893318e066eab72384b
+Service invocation: aa5e03d42d6b4facacd79f53a598c82a
+Numeric receipt: 0; service inactive/dead, ExecMainStatus=0
+mailstronaut-deps>     Finished `release` profile [optimized] target(s) in 9m 36s
+mailstronaut-deps>     Finished `release` profile [optimized] target(s) in 10m 06s
+mailstronaut-deps>     Finished `release` profile [optimized] target(s) in 9.54s
+mailstronaut>     Checking mailstronaut-config v0.1.0 (/build/source/crates/mailstronaut-config)
+mailstronaut>     Checking mailstronaut-render v0.1.0 (/build/source/crates/mailstronaut-render)
+mailstronaut>     Checking mailstronaut-mail v0.1.0 (/build/source/crates/mailstronaut-mail)
+mailstronaut>     Checking mailstronaut-core v0.1.0 (/build/source/crates/mailstronaut-core)
+mailstronaut>     Checking mailstronaut v0.1.0 (/build/source/crates/mailstronaut)
+mailstronaut>     Finished `release` profile [optimized] target(s) in 4.30s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 7m 12s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 6m 32s
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.09s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+mailstronaut> test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+mailstronaut> test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.08s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.67s
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.07s
+mailstronaut> test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.22s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.06s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.06s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 2.25s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 5.04s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.21s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 0.37s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> checkPhase completed in 6 minutes 58 seconds
+mailstronaut> actually installing contents of postBuildInstallFromCargoBuildLogOutTempwip to /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0
+mailstronaut> /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0/share/applications/io.github.eduardz1.Mailstronaut.desktop
+mailstronaut> shrinking RPATHs of ELF executables and libraries in /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0
+mailstronaut> shrinking /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0/bin/mailstronaut
+mailstronaut> checking for references to /build/ in /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0...
+mailstronaut> patching script interpreter paths in /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0
+mailstronaut> stripping (with command strip and flags -S -p) in /nix/store/1ing5m9s584hdg2mc5l4m9qsk4hpwj0x-mailstronaut-0.1.0/bin
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
