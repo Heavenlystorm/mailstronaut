@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run through nix develop. Match CI with sandboxing disabled and one package build at a time.
+# Run through nix develop, with one package build at a time.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -14,6 +14,20 @@ work=$(mktemp -d "$root/target/p01-cache-reuse.XXXXXXXX")
 printf 'Cache acceptance artifacts: %s\n' "$work"
 printf 'running\n' > "$work/status"
 trap 'printf "%s\n" "$?" > "$work/status"' EXIT
+sandbox=${CACHE_REUSE_SANDBOX:-true}
+case "$sandbox" in
+  true|false) ;;
+  *) printf '%s\n' 'CACHE_REUSE_SANDBOX must be true or false.' >&2; exit 2 ;;
+esac
+# Restricted daemon settings can be ignored with only a warning. Reject that
+# before compiling when an unsandboxed, CI-equivalent probe is requested.
+nix store info --option sandbox "$sandbox" > "$work/store-info.log" 2>&1
+if [[ $sandbox == false ]] && rg -q "ignoring the client-specified setting 'sandbox'" "$work/store-info.log"; then
+  cat "$work/store-info.log" >&2
+  printf '%s\n' 'Unsandboxed acceptance requires a store that permits disabling sandboxing.' >&2
+  exit 1
+fi
+printf 'Requested sandbox setting: %s\n' "$sandbox"
 system=$(nix eval --impure --raw --expr builtins.currentSystem)
 jobs=$(nproc)
 base_ref="git+file://$root"
@@ -64,14 +78,14 @@ assert base['package'] != variant['package'], 'fixture did not change package de
 print('Exact dependency/vendor identities are stable; package and source differ.')
 PY
 start=$(date +%s)
-nix build --option sandbox false --no-update-lock-file --print-build-logs --cores "$jobs" --max-jobs 1 \
+nix build --option sandbox "$sandbox" --no-update-lock-file --print-build-logs --cores "$jobs" --max-jobs 1 \
   --out-link "$work/baseline" "$base_ref#default" > "$work/baseline.log" 2>&1
 printf '%s\n' "$(( $(date +%s) - start ))" > "$work/baseline-seconds"
 start=$(date +%s)
-nix build --option sandbox false --no-update-lock-file --print-build-logs --cores "$jobs" --max-jobs 1 \
+nix build --option sandbox "$sandbox" --no-update-lock-file --print-build-logs --cores "$jobs" --max-jobs 1 \
   --out-link "$work/variant" "path:$fixture#default" > "$work/variant.log" 2>&1
 printf '%s\n' "$(( $(date +%s) - start ))" > "$work/variant-seconds"
-python3 - "$work" <<'PY'
+python3 - "$work" "$sandbox" <<'PY'
 from pathlib import Path
 import re
 import sys
@@ -90,11 +104,12 @@ for kind in ('baseline', 'variant'):
     assert built <= workspace, f'{kind}: third-party crates rebuilt: {built - workspace}'
     if kind == 'variant':
         assert 'mailstronaut' in built, 'changed application was not compiled'
-        roots = re.findall(r'Compiling mailstronaut v[^ ]+ \((.+)/crates/mailstronaut\)', '\n'.join(lines))
-        assert roots and all(root != '/build/source' for root in roots), 'unsandboxed build paths were not observed'
-        print('Actual unsandboxed package source:', roots[0])
+        if sys.argv[2] == 'false':
+            roots = re.findall(r'Compiling mailstronaut v[^ ]+ \((.+)/crates/mailstronaut\)', '\n'.join(lines))
+            assert roots and all(root != '/build/source' for root in roots), 'unsandboxed build paths were not observed'
+            print('Actual unsandboxed package source:', roots[0])
         assert any('test result: ok.' in line for line in lines), 'actual tests were not observed'
-print('Both real package builds reused third-party artifacts with sandboxing disabled.')
+print(f'Both real package builds reused third-party artifacts (requested sandbox={sys.argv[2]}).')
 PY
 for kind in baseline variant; do
   "$work/$kind/bin/mailstronaut" --version > "$work/$kind-version.txt"

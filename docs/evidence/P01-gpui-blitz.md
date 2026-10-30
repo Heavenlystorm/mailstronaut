@@ -129,3 +129,7 @@ results cover x86_64-linux only; Nix explicitly omitted aarch64-linux.
 Full logs and disposable private fixtures remain under project `target/`.
 This is local package/native-window acceptance, not full P01 privacy,
 accessibility, performance, hosted CI or Flatpak acceptance.
+
+The subsequent hosted build failed from disk exhaustion. See the separate
+[CI cache repair record](P01-ci-cache.md) for the immutable-vendor correction,
+local source-only reuse checks and their sandbox/hosted acceptance boundaries.

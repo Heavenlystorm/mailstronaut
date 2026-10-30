@@ -36,14 +36,18 @@ clean unrelated projects, external shared caches or Nix store/build directories.
 Crane reads source mappings from the immutable Nix vendor output. Its standard
 assembly exposes a resolved root `config.toml`; both passes use the same store
 source paths. Do not copy sources into temporary build directories: unsandboxed
-CI uses different directories for each derivation and invalidates Cargo artifacts. Its dependency source is lock-only; both dependency and package
+CI uses different directories for each derivation and invalidates Cargo artifacts.
+Its dependency source is lock-only; both dependency and package
 passes use identical toolchain, native inputs, target and profile. Final strict
 Clippy and actual tests remain mandatory. Revalidate source-only artifact reuse
 for changes to the graph or builder. The project-local probe
-`nix develop --command bash experiments/p01-nix/cache-reuse.sh` builds with
-sandboxing disabled, changes observable CLI behavior in a disposable source-only
+`nix develop --command bash experiments/p01-nix/cache-reuse.sh` changes observable
+CLI behavior in a disposable source-only
 fixture, rejects third-party recompilation in either real package build, and checks
-tests, installed configuration and runtime closure. Old cache results do not
+tests, installed configuration and runtime closure. For CI-equivalent validation,
+set `CACHE_REUSE_SANDBOX=false` with a store that permits disabling sandboxing.
+The probe rejects an ignored setting before compiling; sandboxed local results
+do not prove reuse across CI's different temporary paths. Old cache results do not
 transfer automatically.
 
 The immutable Snix source archive under `third-party` preserves the exact pinned
