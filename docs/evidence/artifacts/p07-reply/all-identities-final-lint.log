@@ -1,0 +1,5 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+    Checking mailstronaut-core v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-core)
+    Checking mailstronaut v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut)
+    Checking mailstronaut-mail v0.1.0 (/home/eduard/.t3/projects/mailstronaut/crates/mailstronaut-mail)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.92s

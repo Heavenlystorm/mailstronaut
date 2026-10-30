@@ -506,7 +506,7 @@ impl App {
         let Some(account) = config.accounts.iter().find(|account| account.id == id) else {
             return Task::none();
         };
-        match mailstronaut_core::reply::prepare(account, projection, kind) {
+        match mailstronaut_core::reply::prepare(account, &config.accounts, projection, kind) {
             Ok(draft) => {
                 self.page = Page::Compose;
                 self.inbox.visible(false);

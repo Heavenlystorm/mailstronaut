@@ -17,7 +17,7 @@ fn reply_prefers_reply_to_and_the_receiving_alias_and_preserves_thread_headers()
     let source = source(
         "From: Author <author@example.test>\r\nReply-To: \"Desk, Team\" <desk@example.test>\r\nTo: My Alias <ALIAS@example.test>\r\nBcc: hidden@example.test\r\nSubject: Re: Questionnaire\r\nMessage-ID: <child@example.test>\r\nReferences: <root@example.test> <root@example.test>",
     );
-    let draft = reply::prepare(&account(), &source, Kind::Reply).expect("reply");
+    let draft = reply::prepare(&account(), &[], &source, Kind::Reply).expect("reply");
     assert_eq!(draft.account, "receiving-account");
     let frozen = draft.content.freeze().expect("valid reply MIME");
     let parsed = mime::project(frozen.original()).expect("independent MIME parser");
@@ -46,7 +46,7 @@ fn reply_all_excludes_all_self_identities_and_deduplicates_without_folding_other
     let source = source(
         "From: Author <author@example.test>\r\nReply-To: Desk <desk@example.test>\r\nTo: me@example.test, desk@EXAMPLE.TEST, Case@example.test, case@example.test\r\nCc: ALIAS@example.test, Desk <desk@example.test>, colleague@example.test\r\nBcc: hidden@example.test\r\nSubject: Topic\r\nMessage-ID: <child@example.test>",
     );
-    let draft = reply::prepare(&account(), &source, Kind::ReplyAll).expect("reply all");
+    let draft = reply::prepare(&account(), &[], &source, Kind::ReplyAll).expect("reply all");
     let parsed = mime::project(draft.content.freeze().expect("MIME").original()).expect("parse");
     let to = parsed
         .headers
@@ -74,7 +74,7 @@ fn replying_to_own_sent_mail_targets_original_recipients_and_keeps_the_sender_al
     let source = source(
         "From: My Alias <alias@example.test>\r\nTo: colleague@example.test\r\nCc: other@example.test\r\nBcc: hidden@example.test\r\nSubject: Sent topic\r\nMessage-ID: <child@example.test>\r\nIn-Reply-To: <parent@example.test>",
     );
-    let draft = reply::prepare(&account(), &source, Kind::ReplyAll).expect("sent reply");
+    let draft = reply::prepare(&account(), &[], &source, Kind::ReplyAll).expect("sent reply");
     assert_eq!(draft.content.from, "My Name <alias@example.test>");
     assert_eq!(draft.content.to, "colleague@example.test");
     assert_eq!(draft.content.cc, "other@example.test");
@@ -89,7 +89,7 @@ fn text_forward_is_a_new_thread_and_does_not_leak_bcc_or_promise_attachments() {
     let source = source(
         "From: Author <author@example.test>\r\nTo: me@example.test\r\nCc: colleague@example.test\r\nBcc: hidden@example.test\r\nSubject: Fwd: Topic\r\nMessage-ID: <child@example.test>\r\nReferences: <root@example.test>",
     );
-    let mut draft = reply::prepare(&account(), &source, Kind::ForwardText).expect("forward");
+    let mut draft = reply::prepare(&account(), &[], &source, Kind::ForwardText).expect("forward");
     assert_eq!(draft.content.subject, "Fwd: Topic");
     assert_eq!(draft.content.to, "");
     assert_eq!(draft.content.cc, "");
@@ -109,25 +109,25 @@ fn malformed_incomplete_encrypted_and_oversized_input_never_creates_a_partial_qu
     let mut message = original.clone();
     message.status.encrypted_unsupported = true;
     assert!(matches!(
-        reply::prepare(&account(), &message, Kind::Reply),
+        reply::prepare(&account(), &[], &message, Kind::Reply),
         Err(reply::Error::Incomplete)
     ));
     message = original.clone();
     message.status.headers_truncated = true;
     assert!(matches!(
-        reply::prepare(&account(), &message, Kind::ReplyAll),
+        reply::prepare(&account(), &[], &message, Kind::ReplyAll),
         Err(reply::Error::Incomplete)
     ));
     message = original.clone();
     message.headers.subject = Some("injected\r\nBcc: hidden@example.test".into());
     assert!(matches!(
-        reply::prepare(&account(), &message, Kind::Reply),
+        reply::prepare(&account(), &[], &message, Kind::Reply),
         Err(reply::Error::Addresses)
     ));
     message = original;
     message.text = Some("\n".repeat(mime::MAX_BODY_BYTES / 2));
     assert!(matches!(
-        reply::prepare(&account(), &message, Kind::Reply),
+        reply::prepare(&account(), &[], &message, Kind::Reply),
         Err(reply::Error::TooLarge)
     ));
 }
@@ -139,4 +139,35 @@ fn old_cached_header_json_defaults_the_new_reply_to_field() {
     let restored: mime::Headers =
         serde_json::from_value(old).expect("schema-compatible cached headers");
     assert_eq!(restored.reply_to, []);
+}
+
+#[test]
+fn reply_all_excludes_other_configured_accounts_without_changing_the_receiving_sender() {
+    let receiving = account();
+    let mut other = account();
+    other.id = "other".into();
+    other.address = "other@example.test".into();
+    other.aliases = vec!["other-alias@example.test".into()];
+    let source=mime::project(b"From: author@example.test\r\nTo: alias@example.test, OTHER@example.test, colleague@example.test\r\nCc: other-alias@example.test, me@example.test\r\nMessage-ID: <source@example.test>\r\n\r\nSynthetic cross-account recipients").expect("projection");
+    let draft = reply::prepare(
+        &receiving,
+        std::slice::from_ref(&other),
+        &source,
+        Kind::ReplyAll,
+    )
+    .expect("reply all");
+    assert_eq!(
+        draft.content.to,
+        "author@example.test, colleague@example.test"
+    );
+    assert_eq!(draft.content.cc, "");
+    assert!(draft.content.from.contains("alias@example.test"));
+    assert!(!draft.content.from.contains("other@example.test"));
+    let sent=mime::project(b"From: other@example.test\r\nTo: alias@example.test, colleague@example.test\r\nMessage-ID: <own-source@example.test>\r\n\r\nSynthetic other own account author").expect("projection");
+    let draft =
+        reply::prepare(&receiving, &[other], &sent, Kind::ReplyAll).expect("own-sent reply");
+    assert_eq!(draft.content.to, "colleague@example.test");
+    assert_eq!(draft.content.cc, "");
+    assert!(draft.content.from.contains("alias@example.test"));
+    assert_eq!(draft.account, "receiving-account");
 }

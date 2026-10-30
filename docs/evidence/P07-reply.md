@@ -79,3 +79,26 @@ passed and returned
 `/nix/store/jk00sgjfkrpyimf5inn0rxdi677kkmw0-mailstronaut-0.1.0-vendor`.
 Local rehydration used the same fsck-verified exact Snix cache as P05; no mirror
 or pin change is part of the flake. This vendor check is not a release package gate.
+
+## Configured own identities across accounts
+
+The follow-up passes all configured account addresses/aliases to draft preparation.
+Reply and reply-all exclude those owned identities from recipients while selecting
+From exclusively from the original receiving account. Own-author detection for
+recipient fallback is distinct from receiving-account identity selection: a message
+authored by another owned mailbox and addressed to a receiving alias must not
+switch the sender or fall back unnecessarily to its primary address. Own addresses
+retain the established ASCII case-insensitive identity policy; unrelated recipients'
+local-part case remains distinct. No provider-specific dot/plus equivalence is inferred.
+
+A new synthetic regression covers cross-account primary/alias exclusion and that
+other-owned-author/receiving-alias case. Full pinned workspace checks passed with
+**126 tests plus seven isolated renderer children**. Final formatting and strict
+workspace Clippy passed after the final alias-selection adjustment. The native
+focused-read/offline/Sent-ancestor/other-account reply flow and both private keyring
+checks passed again; its two drafts stayed local and no outgoing record was created.
+See [checks](artifacts/p07-reply/all-identities-check.log),
+[final lint](artifacts/p07-reply/all-identities-final-lint.log) and
+[native regression](artifacts/p07-reply/all-identities-native-gui.log).
+The ongoing Nix gate at `62e4236` precedes this follow-up; no new release, CI,
+Flatpak or live-provider reply-delivery acceptance is claimed.

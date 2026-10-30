@@ -16,7 +16,7 @@ use crate::{
 pub enum Kind {
     /// Address the declared Reply-To, or the original author.
     Reply,
-    /// Also retain visible recipients, excluding this account's identities.
+    /// Also retain visible recipients, excluding every configured own identity.
     ReplyAll,
     /// Start a new thread with a plain-text copy and no attachments.
     ForwardText,
@@ -44,11 +44,19 @@ impl fmt::Display for Error {
 impl StdError for Error {}
 
 /// Prepare a new editable local draft for the original receiving account.
-/// Only an explicit later Send can freeze/submit it. No Bcc is copied to replies.
+///
+/// All configured own addresses/aliases are excluded from recipients while the
+/// sender always belongs to the receiving account. Only an explicit later Send
+/// can freeze/submit it. No Bcc is copied to replies.
 ///
 /// # Errors
 /// Rejects incomplete/encrypted input, invalid routing fields and oversized quotes.
-pub fn prepare(account: &Account, message: &Projection, kind: Kind) -> Result<Draft, Error> {
+pub fn prepare(
+    account: &Account,
+    own_accounts: &[Account],
+    message: &Projection,
+    kind: Kind,
+) -> Result<Draft, Error> {
     if message.status.encrypted_unsupported
         || message.status.headers_truncated
         || message.status.parts_truncated
@@ -60,15 +68,25 @@ pub fn prepare(account: &Account, message: &Projection, kind: Kind) -> Result<Dr
         .chain(&account.aliases)
         .map(|address| address.parse::<Address>().map_err(|_| Error::Addresses))
         .collect::<Result<Vec<_>, _>>()?;
-    let is_self = |address: &Address| {
-        own.iter().any(|own| {
-            own.user().eq_ignore_ascii_case(address.user())
-                && own.domain().eq_ignore_ascii_case(address.domain())
+    let all_own = own_accounts
+        .iter()
+        .chain(std::iter::once(account))
+        .flat_map(|account| std::iter::once(&account.address).chain(&account.aliases))
+        .map(|identity| {
+            identity
+                .parse::<Address>()
+                .map(|identity| identity_key(&identity))
+                .map_err(|_| Error::Addresses)
         })
-    };
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let is_self = |address: &Address| all_own.contains(&identity_key(address));
     let from = parse(&message.headers.from)?;
     let sent_by_self = !from.is_empty() && from.iter().all(|(address, _)| is_self(address));
-    let receiving = if sent_by_self {
+    let receiving_identity =
+        |address: &Address| own.iter().any(|identity| same_identity(identity, address));
+    let sent_by_receiving =
+        !from.is_empty() && from.iter().all(|(address, _)| receiving_identity(address));
+    let receiving = if sent_by_receiving {
         &message.headers.from
     } else {
         &message.headers.to
@@ -78,7 +96,7 @@ pub fn prepare(account: &Account, message: &Projection, kind: Kind) -> Result<Dr
         .chain(&message.headers.cc)
         .chain(&message.headers.bcc)
         .filter_map(|mailbox| mailbox.address.as_deref()?.parse::<Address>().ok())
-        .find(is_self);
+        .find(receiving_identity);
     // Use the configured spelling, not a case variant from an untrusted header:
     // the native identity selector and frozen-envelope guard use that identity.
     let sender = receiving
@@ -103,6 +121,12 @@ pub fn prepare(account: &Account, message: &Projection, kind: Kind) -> Result<Dr
     Ok(draft)
 }
 
+fn identity_key(address: &Address) -> (String, String) {
+    (
+        address.user().to_ascii_lowercase(),
+        address.domain().to_ascii_lowercase(),
+    )
+}
 fn same_identity(left: &Address, right: &Address) -> bool {
     left.user().eq_ignore_ascii_case(right.user())
         && left.domain().eq_ignore_ascii_case(right.domain())
