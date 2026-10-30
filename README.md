@@ -26,6 +26,7 @@ each step complete. The first feature milestone proves Servo/libcosmic integrati
 | [Research](docs/RESEARCH.md) | Primary sources, inspected pins and unresolved assumptions |
 
 Planned essentials: unified inbox, grouped conversations, offline mail, draft/send,
+typo-tolerant fuzzy search and local multilingual search by meaning,
 Remind me notifications, optional background operation and a highlighted priority
 section that clears on read or contextual expiry. Previews use extracted text;
 deadline evidence appears below them. Classification stays on device, with no

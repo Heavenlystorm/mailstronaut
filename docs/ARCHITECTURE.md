@@ -27,7 +27,8 @@ The first usable release includes:
 
 - Google OAuth2, iCloud app passwords, and arbitrary IMAP/SMTP accounts, including
   separate incoming/outgoing usernames and configurable OAuth2 for institutions.
-- Offline cached reading, folder navigation, unified inbox, search, conversation
+- Offline cached reading, folder navigation, unified inbox, typo-tolerant fuzzy and
+  multilingual meaning-based search, conversation
   grouping, read/unread, star, archive, move to trash, and undo before submission.
 - Plain-text compose, reply, reply-all, forward, To/Cc/Bcc, attachments, persistent
   drafts and an outbox. No automatic sending or forwarding by the classifier.
@@ -176,6 +177,35 @@ exact identity coverage and the unchanged account revision before committing.
 This is computation isolation, not a second persistent service or a capability
 sandbox. Unavailable/stale projections fall back to individual cached messages. Thread grouping must include
 Sent and Archive ancestors even when the inbox shows only inbox conversations.
+
+### 4.1. Strong local search
+
+Literal FTS5 is a baseline, not the complete search feature. Provide typo-tolerant
+fuzzy matching over subject, addresses and cached readable text, plus semantic
+retrieval by meaning across languages. In particular, the English query
+"reminder about doctoral school re-enrollment" must find a relevant French notice
+about renewing doctoral registration even when it contains none of those query
+words. English/French/Italian paraphrase and cross-language retrieval are acceptance
+cases; fuzzy character matching alone cannot satisfy this requirement.
+
+Use one native search field with lexical/fuzzy and semantic candidate ranking,
+useful matching snippets and unchanged account/folder/date/sender filter semantics.
+Conversation grouping must retain which original matched and open that original.
+Searching or loading result previews does not mark a message Seen. Show partial
+mail-cache/semantic-index coverage and an explicit unavailable-model state; local
+lexical/fuzzy search stays usable when semantic inference is disabled or absent.
+That degraded mode does not constitute completion of semantic search acceptance.
+
+Queries, readable email text, embeddings, indexing and retrieval remain on device.
+Choose a lightweight CPU multilingual encoder, an existing Rust inference/runtime
+path and maintained fuzzy/vector components after pinned-build and resource/quality
+proof. Search is independent of the priority classifier toggle or its classification
+head. Models are explicit, hashed installations; never upload a query/message or
+silently fetch weights. Semantic indexes are private, derived data keyed by account,
+original message and source/model revision. Incremental bounded indexing, invalidation,
+purge and rebuild must preserve user-owned drafts/reminders and exclude unavailable
+or encrypted text. Record held-out retrieval relevance and CPU/memory/index costs;
+implementation and acceptance steps are in P06 of [PLAN.md](PLAN.md).
 
 ## 5. Synchronization and sending
 

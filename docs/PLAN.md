@@ -261,6 +261,7 @@ first. Core provides pagination and stable IDs; UI performs no SQL/network work.
 - [x] Add bounded native account/cached-folder selection and local FTS5 search,
   exact-name authenticated discovery and context-fenced per-folder paging.
   Synthetic TLS/native/offline evidence: [P06 browsing](evidence/P06-browse.md).
+  This is literal lexical search only; fuzzy and semantic search below are still required.
 - [ ] Add account/folder navigation, unified inbox, conversation list, reader pane,
   account badges, unread/star states and visible account/sync/partial-cache status.
 - [ ] Load immutable paged view models; preserve selection and scroll across updates,
@@ -275,6 +276,41 @@ first. Core provides pagination and stable IDs; UI performs no SQL/network work.
   native accessible text mode, keyboard navigation, copy and error/empty/offline UX.
 - [ ] Add local search/folder controls and identity-safe actions through engine
   commands; search never uploads text. Integrate sender URLs through portals only.
+- [ ] Make typo-tolerant fuzzy search a first-class feature across subject, sender,
+  recipients and cached readable body: handle misspellings, missing accents and
+  approximate/partial terms, with useful ranking rather than exact substring-only
+  matching. Preserve deliberate exact/filter queries; test punctuation, Unicode,
+  accents, short queries and bounded expansion without opening every email body.
+- [ ] Add multilingual semantic retrieval by meaning, including an English query
+  retrieving a relevant French message with no matching query words. Required
+  acceptance example: "reminder about doctoral school re-enrollment" finds a
+  French notice about renewing a doctoral registration. Test paraphrases and
+  cross-language English/French/Italian pairs with distracting unrelated messages;
+  do not treat translation, fuzzy matching or lexical FTS alone as semantic search.
+- [ ] Keep queries, email text, embeddings, indexing and retrieval on device; use a
+  lightweight CPU encoder with a pinned, hashed, licensed artifact and explicit
+  installation. Research/compile the exact Rust encoder and existing fuzzy/vector
+  components before adoption; benchmark memory, index size, cold/warm query latency
+  and indexing costs. Semantic search is independent of enabling priority mail.
+  Missing/disabled model state must be explicit, with local lexical/fuzzy search
+  still usable and no automatic/remote model fallback or untracked download.
+- [ ] Combine lexical/fuzzy and semantic candidates behind one native search field;
+  preserve account/folder/date/sender filters, deduplicate conversations while
+  opening the matching original, and show an honest matching snippet/relevance
+  cue. Cancellation and config/index generations must fence stale results. Make
+  partial-cache and semantic-index coverage visible; search never marks mail Seen.
+- [ ] Persist a versioned, rebuildable local semantic index keyed by original
+  account/message identity and source/model revision. Support bounded incremental
+  indexing, restart, model change, disabled/removed accounts, message edits/deletion
+  and purge without retaining stale snippets/vectors or touching reminders/drafts.
+  Index only permitted readable text; report encrypted/unsupported/uncached gaps.
+- [ ] Add deterministic synthetic fuzzy and multilingual meaning-search relevance
+  fixtures, with top-k/reciprocal-rank targets fixed before tuning on a held-out
+  corpus. Include the doctoral re-enrollment example, near-topic negative controls,
+  typo variants and offline restart/deletion/filter isolation. Record retrieval
+  quality and reference-laptop CPU/resource measurements separately from compile,
+  native UI, CI and Nix/Flatpak runtime proof; literal FTS success does not close
+  this search gate.
 - [ ] Establish the priority group/deadline-box view model with synthetic data,
   COSMIC themed highlight/text/icon and overflow control; model integration is P09.
 - [ ] Verify live theme, narrow/wide window behavior, 100/150/200% scale, keyboard
@@ -421,6 +457,10 @@ P10 evidence. Do not call manifest validation or local compilation distribution 
   login/sync/flags/reconnect/controlled send differences documented separately.
 - [ ] Unified inbox/threading/offline/search/draft/outbox behavior survives restarts,
   account failure, invalid config reload and server UIDVALIDITY resets.
+- [ ] Strong search passes typo-tolerant and multilingual semantic retrieval
+  acceptance, including an English meaning query finding the relevant French
+  doctoral re-enrollment email without shared query words. Local-only operation,
+  ranking, index lifecycle, partial coverage and resource budgets have evidence.
 - [ ] Read/expiry/deadline/reminder acceptance cases pass; model is optional, local,
   bounded, and reports supported-language/accuracy limitations honestly.
 - [ ] Default email open is network-silent; no exposed scripts/local files, unprompted
@@ -458,4 +498,5 @@ contracts. Main may receive commits; no push/publication is implied by that perm
 | Priority always clears on read, context controls lifetime | ARCHITECTURE section 6; P04 external flags/P09 expiry and read-race tests |
 | Deadline box below extracted two/three-line preview | ARCHITECTURE section 6; CLASSIFIER; P06/P09 |
 | Future generated summaries without implementing them now | Preview source/body-revision contract in ARCHITECTURE section 6; P03 |
+| Strong fuzzy and multilingual meaning-based search | ARCHITECTURE section 4.1; P03/P06/P11 |
 | Local behavior/privacy wherever possible | Renderer default-deny P01, credentials P02, local FTS P03, offline P04, classifier P09 |
