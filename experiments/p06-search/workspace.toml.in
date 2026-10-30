@@ -1,0 +1,24 @@
+# Isolated feasibility workspace, materialized under target/p06-search/probe.
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+lancedb = { version = "=0.41.0", default-features = false }
+arrow-array = "=58.4.1"
+arrow-schema = "=58.4.1"
+futures-util = "=0.3.34"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

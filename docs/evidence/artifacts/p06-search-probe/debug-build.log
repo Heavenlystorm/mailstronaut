@@ -1,0 +1,5 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+   Compiling mailstronaut-search-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/search-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.95s
+    Checking mailstronaut-search-probe v0.0.0 (/home/eduard/.t3/projects/mailstronaut/target/p06-search/probe/crates/search-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.51s

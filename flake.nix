@@ -260,7 +260,9 @@
                   ${self}/experiments/p07-compose/gui.sh \
                   ${self}/experiments/p06-conversations/gui.sh \
                   ${self}/experiments/p08-reminders/portal.sh \
-                  ${self}/experiments/p08-reminders/gui.sh
+                  ${self}/experiments/p08-reminders/gui.sh \
+                  ${self}/experiments/p06-search/reproduce.sh \
+                  ${self}/experiments/p06-search/run-release.sh
                 touch "$out"
               '';
         }
@@ -274,6 +276,13 @@
         {
           # Retain the experiment's entry point without a second environment.
           servo-probe = self.devShells.${system}.default;
+          # Lance/Prost generates protocol bindings during the isolated search probe.
+          search-probe = self.devShells.${system}.default.overrideAttrs (old: {
+            nativeBuildInputs = old.nativeBuildInputs ++ [
+              pkgs.protobuf
+              pkgs.strace
+            ];
+          });
           # Optional isolated-window acceptance tools; retain every development
           # toolchain/environment setting without relying on inputsFrom.
           gui-test = self.devShells.${system}.default.overrideAttrs (old: {

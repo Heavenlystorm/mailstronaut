@@ -33,8 +33,10 @@ per source/model revision; encode each query once, then use library retrieval.
 Published crate versions/checksums and repository snapshots are recorded in
 [source-audit.json](evidence/artifacts/p06-search-research/source-audit.json).
 Tantivy and LanceDB source archives were checked against crates.io checksums;
-LanceDB's exact `lance-index =14.0.2` source was inspected as well. No dependencies
-were added to Cargo.toml/Cargo.lock and no candidate/model build was run.
+LanceDB's exact `lance-index =14.0.2` source was inspected as well. No search dependencies
+were added to the application Cargo.toml/Cargo.lock. A later isolated API probe
+built and ran successfully; see [probe evidence](evidence/P06-search-probe.md).
+Model and adoption/resource acceptance remain open.
 
 | Candidate | Existing functionality and fit | Decision for the probe |
 | --- | --- | --- |
@@ -104,6 +106,10 @@ model correctness or adequacy for English/French/Italian email retrieval.
 
 - [x] Source-level comparison with exact published versions/checksums, public Rust
   API inspection, local-only model candidates and explicit tradeoffs recorded.
+- [x] Build and exercise the isolated LanceDB 0.41.0 public Rust API under the
+  pinned Nix development toolchain: fuzzy/filter/vector/hybrid queries, independent
+  process reopen, logical deletion and controlled network observation passed.
+  [Evidence](evidence/P06-search-probe.md). This is not model/relevance/adoption proof.
 - [ ] After the active coordinated release gate finishes, run one bounded pinned
   `nix develop` probe for LanceDB, then the lean comparison if needed. Keep probe
   artifacts in the project and coordinate builds; do not start several model/
