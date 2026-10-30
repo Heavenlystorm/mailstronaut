@@ -1,0 +1,47 @@
+Build parallelism: 16 CPUs
+mailstronaut-deps> +++ command cargo --version
+mailstronaut-deps> +++ command cargo check --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu --all-targets
+mailstronaut-deps> +++ command cargo build --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut-deps> +++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu --no-run
+mailstronaut> +++++ command cargo fmt --all -- --check
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut> +++ command cargo --version
+mailstronaut> +++ command cargo build --release --message-format json-render-diagnostics --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut> +++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.09s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test store::migration_tests::upgrades_with_consistent_private_backup_including_committed_wal ... ok
+mailstronaut> test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.16s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+mailstronaut> test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.08s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.60s
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.06s
+mailstronaut> test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.23s
+mailstronaut> test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> +++++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu --no-run --message-format=json
+mailstronaut> test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.04s
+mailstronaut> test private_missing_service_fails_closed ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> test private_secret_service_oauth_rotation_is_serialized_and_revocation_stops_retries ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.05s
+mailstronaut> test private_missing_service_fails_closed ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux

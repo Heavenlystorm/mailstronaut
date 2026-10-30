@@ -71,7 +71,7 @@ were used when available. No failed page read was treated as supporting evidence
 | Question | Owner / next proof |
 | --- | --- |
 | Can pinned GPUI Kit and Blitz compose through standard CPU raster/image APIs? | P01: exact source-compatible compile, active theme/input/resource/lifecycle demo |
-| Is offscreen readback light enough, with accessible text available? | P01/P06: CPU/PSS, scrolling/HiDPI/selection, screen-reader test |
+| Is bounded CPU rasterization/image upload light enough, with accessible text available? | P01/P06: CPU/PSS, scrolling/HiDPI/selection, screen-reader test |
 | Does the passive Blitz provider/sanitizer boundary deny every required resource path? | P01: trapped HTTP/CSS/font/SVG/non-HTTP fixtures, no filesystem/network leaks |
 | Is pure Snix config acceptable in startup time/closure size and available offline in Flatpak? | P02: helper benchmarks, pure-evaluation/error/limits tests and sandbox run |
 | Which current Inria/PoliTO route does the user's account actually use? | P05: user/IT settings, authorized sign-in; no current login assumed |

@@ -42,7 +42,7 @@ Model research must not indefinitely postpone the usable mailbox/compose UI.
   choices, native Wayland route and upstream limitations in DEPENDENCIES/RENDERING.
 - [x] Resolve/lock the new graph and native inputs; remove obsolete dependencies
   and build hooks. Avoid duplicate GPUI versions and untracked build downloads.
-- [ ] Pass current-stack format, strict Clippy, tests, Nix package and installed
+- [x] Pass current-stack format, strict Clippy, tests, Nix package and installed
   CLI/config smoke. Record exact commands, revision and remaining limits.
 
 ## P01 — Native GPUI Kit and Blitz foundation
@@ -53,9 +53,10 @@ Read RENDERING.md and DEPENDENCIES.md. Record evidence in
 - [x] Pin matching GPUI Kit/GPUI and Blitz/AnyRender/Vello CPU releases. Use the
   published component ecosystem; carry no large forks or reference-app patches
   without a demonstrated, documented need and an upstream removal path.
-- [ ] Build a normal GPUI Kit window with standard assets/components, semantic
-  light/dark themes, focus, keyboard bindings and responsive layout.
-- [ ] Run on native Wayland with `DISPLAY` unset and no XWayland. Verify the actual
+- [x] Build a normal GPUI Kit window with standard assets/components, semantic
+  light/dark themes, focus and keyboard bindings. Responsive resize/HiDPI acceptance
+  is tracked below; the first native-window fixture is 1280×840.
+- [x] Run on native Wayland with `DISPLAY` unset and no XWayland. Verify the actual
   platform connection and packaged window, not merely a compiled backend feature.
 - [x] Embed actual Blitz HTML/CSS layout through AnyRender's Vello CPU backend and
   GPUI's standard image API. No child browser window, foreign X surface, alternate

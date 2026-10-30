@@ -84,8 +84,9 @@ packaged-window, screen-reader, resize/HiDPI or performance acceptance.
 
 ## Remaining acceptance
 
-Nix release/package and installed smoke are pending for this source. Hosted CI,
-aarch64, Flatpak and exact minimum-Rust acceptance are separate open gates.
+The local Nix release/package, installed CLI and installed Wayland checks passed
+as recorded below. Hosted CI, aarch64, Flatpak and exact minimum-Rust acceptance
+remain separate gates.
 The previous GitHub run `41072214708` failed from build-disk exhaustion in the
 retired dependency graph; it does not validate or invalidate this replacement.
 
@@ -96,3 +97,35 @@ actual accessibility. Blitz's published table/border limitations remain visible;
 no Aviary patches were imported. Native accounts/sync/compose/reminders need GPUI
 workflows even though their backend persists. Strong fuzzy/multilingual meaning
 search and local priority/deadline inference are not implemented by this slice.
+
+## Stable Nix package acceptance
+
+Implementation commit: `ae67c6526a8f89a30ec4928e1bac8c330deb6b44`.
+The coordinated service invocation `fa8e90a0b9d3465c9f37c84993758734` ran
+`ci/nix-check.sh` with 16 Nix cores and one Nix job. Its fresh numeric receipt was
+`0`; the service was collected/inactive, with `ExecMainStatus=0`, and the complete
+log ended `all checks passed`. No second release build ran in parallel.
+
+The gate validated the new fixed vendor hash, Nix/CI formatting, stable Rust/Cargo
+1.99.0, strict release Clippy, **132 release workspace tests** and four private
+Secret Service/OAuth fixture invocations (three distinct cases, with the
+missing-service case repeated). The encrypted adapter therefore passes the
+private native fixtures after the oo7 backend feature change; Flatpak portal
+credentials and live-provider sign-in remain unverified. Release is LLVM, thin
+LTO, one codegen unit; development backend exceptions are excluded.
+
+The subsequent `nix build --no-update-lock-file` and installed version/config
+init/config checks passed inside `nix develop`. Installed output:
+`/nix/store/gfb67bx585d5vj7w0h79q5dlwz4an0y6-mailstronaut-0.1.0`.
+The same native Wayland script passed against `result/bin/mailstronaut`, including
+real keyboard input, dark chrome/HTML pixel checks and rejection of X11-only
+startup. The installed dark screenshot was visually inspected. These package
+results cover x86_64-linux only; Nix explicitly omitted aarch64-linux.
+
+- [Release gate excerpt](artifacts/p01-gpui-blitz/release-gate-excerpt.log)
+- [Installed CLI/config output](artifacts/p01-gpui-blitz/installed-smoke.log)
+- [Installed Wayland dark window](artifacts/p01-gpui-blitz/installed-dark.png)
+
+Full logs and disposable private fixtures remain under project `target/`.
+This is local package/native-window acceptance, not full P01 privacy,
+accessibility, performance, hosted CI or Flatpak acceptance.
