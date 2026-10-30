@@ -33,9 +33,6 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
   credentials/bodies, or include real mail in tests. Model input is untrusted data.
 - Check off PLAN.md rows only with actual tests/artifacts and a short evidence
   record. Distinguish local checks, CI, GUI/portal/runtime, live auth and distribution.
-- Respect existing dirty work. Use focused descriptive commits; main is allowed.
-  Do not push, publish, send mail, submit forms, or activate Home Manager without
-  authorization for that action. Do not use subagents unless the user asks for them.
 
 Routine scaffold checks:
 
