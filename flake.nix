@@ -301,6 +301,7 @@
               pkgs.sway-unwrapped
               pkgs.grim
               pkgs.wtype
+              pkgs.wl-clipboard
               pkgs.imagemagick
               pkgs.dbus
               pkgs.zenity

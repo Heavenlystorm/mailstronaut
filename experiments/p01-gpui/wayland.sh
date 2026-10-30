@@ -78,8 +78,34 @@ timeout 15 grim "$root/dark.png"
 [[ $(magick "$root/window.png" -format '%[fx:p{10,80}.r>0.5]' info:) == 1 ]]
 [[ $(magick "$root/dark.png" -format '%[fx:p{10,80}.r<0.5]' info:) == 1 ]]
 [[ $(magick "$root/dark.png" -format '%[fx:p{700,550}.r<0.5]' info:) == 1 ]]
+# Exercise the standard native text reader and the Wayland clipboard. This
+# profile contains only synthetic mail; never capture a real user's message.
+printf 'clipboard observer control' | wl-copy
+[[ $(timeout 5 wl-paste --no-newline) == 'clipboard observer control' ]]
+wtype -s 400 -M ctrl -M shift t -m shift -m ctrl -s 300 -M ctrl a -m ctrl -M ctrl c -m ctrl -s 300
+timeout 5 wl-paste --no-newline > "$root/reader-all.txt"
+grep -q 'Synthetic reader line 001' "$root/reader-all.txt"
+grep -q 'Synthetic reader line 120' "$root/reader-all.txt"
+grep -q 'Bonjour · Ciao · 世界' "$root/reader-all.txt"
+# With all text selected, typing, deletion and paste must leave the body intact.
+wtype -s 400 MUTATION -k BackSpace -M ctrl v -m ctrl -s 200
+printf 'edit copy observer control' | wl-copy
+wtype -s 400 -M ctrl a -m ctrl -M ctrl c -m ctrl -s 300
+timeout 5 wl-paste --no-newline > "$root/reader-after-edit.txt"
+cmp "$root/reader-all.txt" "$root/reader-after-edit.txt"
+# Document-end navigation must scroll to, select and copy the final Unicode line.
+wtype -s 400 -M ctrl -k End -m ctrl -M shift -k Home -m shift -M ctrl c -m ctrl -s 300
+timeout 5 wl-paste --no-newline > "$root/reader-end.txt"
+[[ $(cat "$root/reader-end.txt") == 'End of synthetic message · fin · 世界.' ]]
+timeout 15 grim "$root/reader-end.png"
+# Theme changes retain reader selection and never reopen a message.
+wtype -s 400 -M ctrl -M shift d -m shift -m ctrl -s 1000
+printf 'theme copy observer control' | wl-copy
+wtype -s 400 -M ctrl c -m ctrl -s 300
+timeout 5 wl-paste --no-newline > "$root/reader-after-theme.txt"
+cmp "$root/reader-end.txt" "$root/reader-after-theme.txt"
 if grep -Eiq 'panic|error:|fatal' "$root/client.log"; then
   printf '%s\n' 'Application reported a runtime failure; inspect client.log' >&2
   exit 1
 fi
-printf 'Native Wayland window, synthetic Blitz preview and screenshot: %s\n' "$root"
+printf 'Native Wayland window, Blitz preview and read-only Unicode reader passed: %s\n' "$root"

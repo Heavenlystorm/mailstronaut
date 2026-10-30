@@ -74,8 +74,12 @@ Read RENDERING.md and DEPENDENCIES.md. Record evidence in
   IDs, encoding/traversal, missing parts, wrong types, retirement and isolation.
 - [x] Forward the app's selected color scheme through Blitz's viewport/media API.
   Respect fixed-light emails; do not invert images or reproduce desktop themes.
-- [ ] Implement scrolling, resize, HiDPI, explicit portal links, selection/copy and
-  a native accessible text reader. A raster alone is not text accessibility.
+- [x] Provide a native read-only text reader using standard GPUI Kit components;
+  verify Unicode selection/copy, rejected edits, document-end keyboard scrolling
+  and selection preservation across theme changes in a private Wayland session.
+  [Bounded evidence](evidence/P01-native-reader.md).
+- [ ] Implement HTML scrolling, resize, HiDPI, explicit portal links and HTML
+  selection/copy. A raster alone is not text accessibility.
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
 - [ ] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering.

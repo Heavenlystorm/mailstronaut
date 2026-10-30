@@ -6,7 +6,7 @@ use gpui::base::StyledExt as _;
 use gpui::component::{
     ActiveTheme as _, Theme, ThemeMode,
     button::{Button, ButtonVariants as _},
-    input::{Input, InputEvent, InputState},
+    input::{Input, InputEvent, InputState, Textarea, TextareaState},
     resizable::{h_resizable, resizable_panel},
 };
 use gpui::{
@@ -33,7 +33,10 @@ gpui::actions!(
         RefreshCache,
         #[derive(Eq)]
         /// Toggle the standard GPUI Kit light/dark appearance.
-        ToggleAppearance
+        ToggleAppearance,
+        #[derive(Eq)]
+        /// Focus the native read-only message text without opening a message.
+        FocusReader
     ]
 );
 
@@ -59,6 +62,8 @@ pub struct Workspace {
     rows: Vec<Row>,
     selected: Option<Row>,
     body: String,
+    text_reader: Entity<TextareaState>,
+    show_text: bool,
     frame: Option<Arc<RenderImage>>,
     search: Entity<InputState>,
     status: String,
@@ -83,10 +88,12 @@ impl Workspace {
             KeyBinding::new("ctrl-k", FocusSearch, Some("Mailstronaut")),
             KeyBinding::new("ctrl-r", RefreshCache, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-d", ToggleAppearance, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-t", FocusReader, Some("Mailstronaut")),
         ]);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search cached mail"));
+        let text_reader = cx.new(|cx| TextareaState::new(window, cx));
         let events = cx.subscribe(&search, |this, _, event, cx| {
             if matches!(event, InputEvent::PressEnter { .. }) {
                 this.refresh(cx);
@@ -113,6 +120,8 @@ impl Workspace {
             rows: Vec::new(),
             selected: None,
             body: String::new(),
+            text_reader,
+            show_text: !demo,
             frame: None,
             search,
             status: "Opening local mail…".into(),
@@ -154,7 +163,7 @@ impl Workspace {
             })
             .collect();
             if let Some(row) = this.rows.first().cloned() {
-                this.open(row, cx);
+                this.open(row, window, cx);
             }
         } else {
             this.start(path, cx);
@@ -230,12 +239,20 @@ impl Workspace {
         self.refresh_demo(cx);
     }
 
-    fn refresh_demo(&mut self, cx: &mut Context<Self>) {
+    fn refresh_demo(&mut self, cx: &Context<Self>) {
         // Theme changes never reopen real messages or authorize Seen.
-        if self.demo
-            && let Some(row) = self.selected.clone()
-        {
-            self.open(row, cx);
+        if self.demo && self.selected.is_some() {
+            self.generation = self.generation.wrapping_add(1);
+            self.render_demo(cx);
+        }
+    }
+
+    fn focus_reader(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected.is_some() {
+            self.show_text = true;
+            self.text_reader
+                .update(cx, |reader, cx| reader.focus(window, cx));
+            cx.notify();
         }
     }
 
@@ -293,60 +310,48 @@ impl Workspace {
         cx.notify();
     }
 
-    fn open(&mut self, row: Row, cx: &mut Context<Self>) {
+    fn open(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
         self.generation = self.generation.wrapping_add(1);
         let generation = self.generation;
         self.read_gate.clicked(generation, generation);
         self.selected = Some(row.clone());
         self.frame = None;
         self.body = "Opening cached message…".into();
+        self.text_reader
+            .update(cx, |reader, cx| reader.set_value("", window, cx));
         if self.demo {
-            let dark = cx.theme().mode.is_dark();
-            let job = self
-                .runtime
-                .spawn_blocking(move || mailstronaut_render::render(DEMO_HTML, 780, 600, dark));
-            cx.spawn(async move |this, cx| {
-                let result = job.await;
-                _ = this.update(cx, |this, cx| {
-                    if generation != this.generation {
-                        return;
-                    }
-                    match result {
-                        Ok(Ok(mut frame)) => {
-                            // GPUI's RenderImage requires BGRA, Vello CPU returns RGBA.
-                            for pixel in frame.pixels.as_chunks_mut::<4>().0 {
-                                pixel.swap(0, 2);
-                            }
-                            if let Some(pixels) =
-                                image::RgbaImage::from_raw(frame.width, frame.height, frame.pixels)
-                            {
-                                this.frame =
-                                    Some(Arc::new(RenderImage::new([image::Frame::new(pixels)])));
-                                this.body.clear();
-                            }
-                        }
-                        _ => this.body = "Unable to render the synthetic HTML fixture.".into(),
-                    }
-                    cx.notify();
-                });
-            })
-            .detach();
+            // A synthetic plain-text alternative; real messages use the MIME projection.
+            let mut text = "A little more space for your mail.\n\nThis synthetic email has a native, read-only text alternative.\nTables, inline CSS and Unicode: Bonjour · Ciao · 世界.\n".to_owned();
+            for line in 1..=120 {
+                use std::fmt::Write as _;
+                _ = writeln!(
+                    text,
+                    "\nSynthetic reader line {line:03} · Bonjour · Ciao · 世界."
+                );
+            }
+            text.push_str("\nEnd of synthetic message · fin · 世界.");
+            self.text_reader
+                .update(cx, |reader, cx| reader.set_value(text, window, cx));
+            self.render_demo(cx);
         } else if let Some(handle) = self.handle() {
             let job = self
                 .runtime
                 .spawn(async move { handle.message(row.account.clone(), row.id).await });
-            cx.spawn(async move |this, cx| {
+            cx.spawn_in(window, async move |this, cx| {
                 let result = job.await;
-                _ = this.update(cx, |this, cx| {
+                _ = this.update_in(cx, |this, window, cx| {
                     if generation != this.generation {
                         return;
                     }
                     match result {
                         Ok(Ok(message)) => {
-                            this.body = message.readable_text().map_or_else(
+                            let text = message.readable_text().map_or_else(
                                 || "No readable body is cached.".into(),
                                 std::borrow::Cow::into_owned,
                             );
+                            this.text_reader
+                                .update(cx, |reader, cx| reader.set_value(text, window, cx));
+                            this.body.clear();
                             if this.read_gate.take(generation, generation, true) {
                                 this.mark_opened(cx);
                             }
@@ -360,6 +365,40 @@ impl Workspace {
             .detach();
         }
         cx.notify();
+    }
+
+    fn render_demo(&self, cx: &Context<Self>) {
+        let generation = self.generation;
+        let dark = cx.theme().mode.is_dark();
+        let job = self
+            .runtime
+            .spawn_blocking(move || mailstronaut_render::render(DEMO_HTML, 780, 600, dark));
+        cx.spawn(async move |this, cx| {
+            let result = job.await;
+            _ = this.update(cx, |this, cx| {
+                if generation != this.generation {
+                    return;
+                }
+                match result {
+                    Ok(Ok(mut frame)) => {
+                        // GPUI's RenderImage requires BGRA, Vello CPU returns RGBA.
+                        for pixel in frame.pixels.as_chunks_mut::<4>().0 {
+                            pixel.swap(0, 2);
+                        }
+                        if let Some(pixels) =
+                            image::RgbaImage::from_raw(frame.width, frame.height, frame.pixels)
+                        {
+                            this.frame =
+                                Some(Arc::new(RenderImage::new([image::Frame::new(pixels)])));
+                            this.body.clear();
+                        }
+                    }
+                    _ => this.body = "Unable to render the synthetic HTML fixture.".into(),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     fn mark_opened(&self, cx: &Context<Self>) {
@@ -445,8 +484,8 @@ impl Workspace {
                                     .truncate()
                                     .child(row.preview.clone()),
                             )
-                            .on_click(move |_, _, cx| {
-                                _ = weak.update(cx, |this, cx| this.open(row.clone(), cx));
+                            .on_click(move |_, window, cx| {
+                                _ = weak.update(cx, |this, cx| this.open(row.clone(), window, cx));
                             })
                     })
                     .collect::<Vec<_>>()
@@ -459,7 +498,8 @@ impl Workspace {
         div()
             .id("reader-scroll")
             .size_full()
-            .overflow_y_scroll()
+            .flex()
+            .flex_col()
             .p_8()
             .child(self.selected.as_ref().map_or_else(
                 || {
@@ -483,8 +523,55 @@ impl Workspace {
                         )
                 },
             ))
-            .when_some(self.frame.clone(), |view, image| {
-                view.child(img(image).w_full())
+            .when_some(self.selected.as_ref(), |view, _| {
+                view.child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .mb_4()
+                        .child(
+                            Button::new("read-text")
+                                .ghost()
+                                .label("Text · Ctrl+Shift+T")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.focus_reader(window, cx);
+                                })),
+                        )
+                        .when(self.demo, |view| {
+                            view.child(Button::new("read-html").ghost().label("HTML").on_click(
+                                cx.listener(|this, _, _, cx| {
+                                    this.show_text = false;
+                                    cx.notify();
+                                }),
+                            ))
+                        }),
+                )
+            })
+            .when(self.show_text && self.body.is_empty(), |view| {
+                view.child(
+                    div().flex_1().min_h_0().child(
+                        Textarea::new(&self.text_reader)
+                            .readonly(true)
+                            .appearance(false)
+                            .bordered(false)
+                            .aria_label("Message text")
+                            .accessibility_id("message-text")
+                            .h_full()
+                            .w_full(),
+                    ),
+                )
+            })
+            .when(!self.show_text, |view| {
+                view.child(
+                    div()
+                        .id("html-scroll")
+                        .flex_1()
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .when_some(self.frame.clone(), |view, image| {
+                            view.child(img(image).w_full())
+                        }),
+                )
             })
             .when(!self.body.is_empty(), |view| view.child(self.body.clone()))
     }
@@ -508,6 +595,9 @@ impl Render for Workspace {
             .on_action(cx.listener(|this, _: &RefreshCache, _, cx| this.refresh(cx)))
             .on_action(cx.listener(|this, _: &ToggleAppearance, window, cx| {
                 this.toggle_appearance(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &FocusReader, window, cx| {
+                this.focus_reader(window, cx);
             }))
             .flex()
             .flex_col()

@@ -32,6 +32,12 @@ content becomes read only through an explicit successful open, never list/search
 refresh or focus. Currently the replacement UI is a foundation: account setup,
 network sync, compose and notification workflows are being restored.
 
+The native text reader uses GPUI Kit's read-only multiline component. Use
+Ctrl+Shift+T to focus message text, Ctrl+A/C to select/copy, and the usual
+Home/End/Page keys to navigate. Ctrl+K focuses search; Ctrl+Shift+D toggles
+appearance. Focusing, copying and changing appearance do not open a message or
+mark additional mail Seen. Arbitrary cached HTML remains disabled pending P01.
+
 Development uses pinned nightly Rust, Cranelift and Wild; release uses stable
 LLVM, thin LTO and one codegen unit. See [delivery](docs/DELIVERY.md) for native
 inputs, checks and distribution limitations. All application code is Rust.

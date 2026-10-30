@@ -80,8 +80,13 @@ Keep native controls/theme and document colors distinct. Resize/HiDPI changes
 invalidate frames; generations prevent an old width/theme/message from repainting.
 Hide/close cancels rendering and releases message data when no longer needed.
 
-GPUI Kit supplies normal text selection/editor/focus behavior for a native text
-reader. The Blitz image alone is not an accessibility tree. Verify Unicode copy,
+The native text reader uses GPUI Kit's `TextareaState`/`Textarea::readonly(true)`
+with a bounded MIME text projection, an accessible label and a focus action.
+It accepts no edits; selection/copy, wrapping and keyboard scrolling remain the
+component's responsibility. Focus and appearance changes never reopen mail or
+authorize Seen. The demo includes a synthetic long text alternative alongside
+the actual Blitz preview. The Blitz image alone is not an accessibility tree.
+Verify Unicode copy,
 keyboard navigation/scrolling, focus and actual Wayland/AT-SPI exposure. HTML hit
 handling/selection and a possible accessibility subtree bridge need explicit
 public-API, lifecycle and user-session acceptance before claiming support.
