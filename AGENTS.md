@@ -19,6 +19,10 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
 - Root Cargo.toml owns workspace metadata, dependencies and all lint groups.
   Members use `workspace = true` for dependencies/metadata/lints. Keep
   `members = ["crates/*"]`. Create planned crates only when implemented.
+- After Cargo.lock changes, validate cargoHash against fresh vendor staging, even
+  for workspace dependency references: staging includes Cargo.lock itself. A
+  successful cached build is insufficient. `ci/nix-check.sh` compares workspace
+  and vendored lock hashes before compilation to detect this stale-cache case.
 - Keep the root Clippy policy strict and practical: `all`, `pedantic`, `nursery`
   plus selected checks for debug macros, unfinished code and unguarded unwraps.
   Do not enable the entire restriction or cargo group. Use narrow reasoned

@@ -145,3 +145,36 @@ Flatpak remain unverified. These cached checks alone do not validate the new
 fixed-output input; the corrected-hash gate is recorded separately below.
 The resource/MIME/privacy/lifecycle limitations above
 remain open; this is not whole-P01 or functional-client acceptance.
+
+## Corrected-input release and resumed verification
+
+Vendor correction: `e875ede469cb26fb274eabef2262cfcf4e135d70`.
+Fresh staging accepted the measured hash recorded above. The coordinated gate
+invocation `72ef35918d454521bdd7e3fe274f4f06` finished with receipt `0`, a full
+`all checks passed` log and 136 normal release tests plus four private
+credential/OAuth invocations. After resuming, the unit was confirmed inactive,
+collected, with `ExecMainStatus=0`; its journal records the successful exit.
+
+- Corrected package: `/nix/store/hg1zndb04s9j7lrmcq3ygs4z67gdjqf8-mailstronaut-0.1.0`
+- Dependency artifact: `/nix/store/xbdj95vzzsrj5y5s5p1yrj5xxmkm1igq-mailstronaut-deps-0.1.0`
+
+The corrected package passed the installed empty-environment CLI/config smoke.
+Its full private Wayland probe then passed through `nix develop .#gui-test`,
+including the ordered RGB bands in light/dark modes, native reader interactions
+and rejection of an X11-only session. Profile: `target/gpui-wayland.87E8mz`.
+The installed screenshot linked above now comes from this corrected package.
+Nix reported an ignored evaluation-cache contention warning during concurrent
+checks; both commands exited successfully and the application probe passed.
+
+The pre-compilation vendor-lock guard compares raw hashes using Nix itself,
+without requiring additional tools in the minimal container. Executing its exact
+comparison block against the fresh vendor succeeds; the previously cached stale
+vendor fails with the intended diagnostic. The resumed pinned `ci/check.sh`
+(136 normal tests, strict Clippy and format/shell/CI lint) and full
+`ci/nix-check.sh` both passed with this guard. Aarch64 remains omitted.
+
+Logs: `target/gpui-vendor-lock-guard.log`,
+`target/gpui-inline-images-resume-checks.log`,
+`target/gpui-inline-images-final-wayland.log` and
+`target/gpui-inline-images-final-installed-cli.log`.
+Hosted CI, MIME/HTML enablement, lifecycle/privacy and Flatpak remain separate.

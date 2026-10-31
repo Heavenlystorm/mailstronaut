@@ -1,0 +1,3 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+error (ignored): SQLite database '/home/eduard/.t3/projects/mailstronaut/target/nix-cache/nix/eval-cache-v6/ca4fbfecb018d93df0afae71bc16dfe3188de2b2c7ed51dea977544088d9dd56.sqlite' is busy
+Native Wayland window, Blitz preview and read-only Unicode reader passed: /home/eduard/.t3/projects/mailstronaut/target/gpui-wayland.87E8mz

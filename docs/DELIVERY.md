@@ -53,6 +53,12 @@ The probe rejects an ignored setting before compiling; sandboxed local results
 do not prove reuse across CI's different temporary paths. Old cache results do not
 transfer automatically.
 
+The standard vendor staging output includes `Cargo.lock` verbatim, including
+workspace dependency references. Refresh `cargoHash` from a fresh staging build
+after lockfile changes; an existing fixed-output cache can mask a stale hash.
+`ci/nix-check.sh` compares raw workspace/vendor lockfile hashes before compilation
+and rejects that case without adding tools to the minimal container.
+
 The immutable Snix source archive under `third-party` preserves the exact pinned
 upstream Git commit/tree when its forge is unavailable. Cargo revision and fixed
 vendor hash remain authoritative. This is a source cache, not an evaluator fork.
