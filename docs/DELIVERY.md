@@ -79,6 +79,15 @@ actual window screenshots, compositor/client protocol and failures; a successful
 compile is not native Wayland or accessibility proof. Do not modify the user's
 desktop theme/configuration to test synthetic fixtures.
 
+The GUI-test shell alone applies a small wlrctl 0.2.2 test-only keep-alive patch.
+The fixture opts into one persistent virtual pointer and retains a virtual keyboard;
+Sway's IPC injects pointer events into that private seat. Ordinary one-shot devices
+advertise then remove their capability before GPUI binds, dropping clicks or
+deactivating the headless window. The application/runtime is unpatched. Remove this
+tool-only patch when an upstream persistent-device option passes the
+same native click/keyboard fixture; do not treat successful CLI injection as proof
+that an application action occurred.
+
 ## Home Manager
 
 The application directly evaluates `$XDG_CONFIG_HOME/mailstronaut/config.nix` in

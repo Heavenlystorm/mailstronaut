@@ -1,0 +1,5 @@
+checking outputs of '/nix/store/jf2xq5b2cpk3q5h9b1la86951z0fz1xp-mailstronaut-0.1.0-vendor-staging.drv'...
+note: keeping build directory "/nix/var/nix/builds/nix-612090-1675193405/build"
+error: hash mismatch in fixed-output derivation '/nix/store/jf2xq5b2cpk3q5h9b1la86951z0fz1xp-mailstronaut-0.1.0-vendor-staging.drv':
+         specified: sha256-ZGIoa0S/uiLjnuuWVYiCeWV59VErlAk/QcHd88ReBLQ=
+            got:    sha256-cH8i/Y4P8Ms72wArUgp5d/+XY6vGoZ4GSUUPFSzpNRs=

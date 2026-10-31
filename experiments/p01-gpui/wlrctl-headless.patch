@@ -1,0 +1,23 @@
+--- a/pointer.c
++++ b/pointer.c
+@@ -117,8 +117,12 @@
+-static void
+-complete_pointer(void *data, struct wl_callback *callback, uint32_t serial)
+-{
+-	struct wlrctl *state = data;
+-	wl_callback_destroy(callback);
+-	state->running = false;
+-	destroy_pointer(state);
+-}
++static void
++complete_pointer(void *data, struct wl_callback *callback, uint32_t serial)
++{
++	struct wlrctl *state = data;
++	wl_callback_destroy(callback);
++	/* A stable test seat needs a persistent pointer, not millisecond devices. */
++	if (getenv("WLRCTL_TEST_KEEP_POINTER")) {
++		return;
++	}
++	state->running = false;
++	destroy_pointer(state);
++}

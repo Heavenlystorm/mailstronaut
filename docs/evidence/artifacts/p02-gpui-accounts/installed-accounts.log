@@ -1,0 +1,29 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+error (ignored): SQLite database '/home/eduard/.t3/projects/mailstronaut/target/nix-cache/nix/eval-cache-v6/c1f04e3e9cc1918506246ed5967e3822a57f0af407c5f1876021771dc3b92e0f.sqlite' is busy
+Explicit open queued Seen only after loading the original; passive sync/list/reload did not.
+Disabling the configured account retained its cached original across reload.
+The GUI credential marker is absent from persisted keyring bytes.
+Native Wayland Settings, masked keyring save, TLS PEEK sync, explicit-open Seen, invalid reload, offline restart and disable-without-purge passed: /home/eduard/.t3/projects/mailstronaut/target/p02.IGVFR5/gui
+
+running 1 test
+Cancelled/invalid account actions left the keyring unopened and mailbox empty.
+test account_actions::tests::private_cancellation_and_validation_never_unlock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.06s
+
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.12s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /home/eduard/.t3/projects/mailstronaut/target/p02.IGVFR5

@@ -4309,6 +4309,7 @@ dependencies = [
 name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
+ "ashpd",
  "directories",
  "gpui-kit",
  "image",

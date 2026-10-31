@@ -2,8 +2,11 @@
 
 This is the **target contract** for P02/P05/P08/P10. The retained backend implements
 bounded native evaluation, last-valid source state, encrypted credentials and
-public-client OAuth/refresh. Current GPUI Settings/account workflows, mutable HM
-activation and export require their own implementation and acceptance in PLAN.md;
+public-client OAuth/refresh. GPUI Settings now connects declared accounts to
+foreground password storage and explicit bounded TLS inbox sync; native last-valid
+reload and offline reading passed the private synthetic workflow in
+[current account evidence](evidence/P02-gpui-accounts.md). Editable onboarding,
+mutable HM activation and export still require implementation/acceptance in PLAN.md;
 earlier frontend prototypes do not establish that work. Automatic synchronization
 and live-provider/real-portal acceptance remain open. Canonical user configuration
 is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.

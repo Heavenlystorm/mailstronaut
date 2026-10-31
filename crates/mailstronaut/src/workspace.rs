@@ -4,10 +4,14 @@ use std::{path::PathBuf, sync::Arc};
 
 use gpui::base::StyledExt as _;
 use gpui::component::{
-    ActiveTheme as _, Theme, ThemeMode,
+    ActiveTheme as _, Disableable as _, IconName, Selectable as _, Theme, ThemeMode,
     button::{Button, ButtonVariants as _},
+    clipboard::Clipboard,
+    description_list::DescriptionList,
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
     resizable::{h_resizable, resizable_panel},
+    setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
+    sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
 };
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
@@ -36,7 +40,16 @@ gpui::actions!(
         ToggleAppearance,
         #[derive(Eq)]
         /// Focus the native read-only message text without opening a message.
-        FocusReader
+        FocusReader,
+        #[derive(Eq)]
+        /// Display configured accounts without starting network work.
+        ShowAccounts,
+        #[derive(Eq)]
+        /// Return to the inbox without opening any message.
+        ShowInbox,
+        #[derive(Eq)]
+        /// Explicitly reload the canonical native Nix source.
+        ReloadConfiguration
     ]
 );
 
@@ -52,12 +65,27 @@ struct Row {
     unread: bool,
 }
 
+#[derive(Eq, PartialEq)]
+enum View {
+    Inbox,
+    Accounts,
+}
+
 pub struct Workspace {
     focus: FocusHandle,
     runtime: Arc<Runtime>,
     owner: Option<Arc<Worker>>,
     accounts: Vec<String>,
-    config: Option<Arc<Config>>,
+    declaration: source::Runtime,
+    config_path: Option<PathBuf>,
+    loading_config: bool,
+    view: View,
+    account_access: crate::account_actions::Access,
+    account_views: Vec<Entity<crate::accounts::AccountPane>>,
+    account_events: Vec<Subscription>,
+    account_lifetime: CancellationToken,
+    lifetime: CancellationToken,
+    query_cancel: CancellationToken,
     read_gate: crate::read_gate::Gate,
     rows: Vec<Row>,
     selected: Option<Row>,
@@ -75,6 +103,14 @@ pub struct Workspace {
     theme_override: Option<ThemeMode>,
 }
 
+impl Drop for Workspace {
+    fn drop(&mut self) {
+        self.lifetime.cancel();
+        self.account_lifetime.cancel();
+        self.query_cancel.cancel();
+    }
+}
+
 impl Workspace {
     pub fn new(
         path: Option<PathBuf>,
@@ -89,6 +125,9 @@ impl Workspace {
             KeyBinding::new("ctrl-r", RefreshCache, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-d", ToggleAppearance, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-t", FocusReader, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
         ]);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
@@ -100,7 +139,8 @@ impl Workspace {
             }
         });
         let activation = cx.observe_window_activation(window, |this, window, _| {
-            this.read_gate.visibility(window.is_window_active());
+            this.read_gate
+                .visibility(window.is_window_active() && this.view != View::Accounts);
         });
         let appearance = cx.observe_window_appearance(window, |this, window, cx| {
             if this.theme_override.is_none() {
@@ -115,7 +155,16 @@ impl Workspace {
             runtime,
             owner: None,
             accounts: Vec::new(),
-            config: None,
+            declaration: source::Runtime::default(),
+            config_path: path,
+            loading_config: false,
+            view: View::Inbox,
+            account_access: crate::account_actions::Access::default(),
+            account_views: Vec::new(),
+            account_events: Vec::new(),
+            account_lifetime: CancellationToken::new(),
+            lifetime: CancellationToken::new(),
+            query_cancel: CancellationToken::new(),
             read_gate,
             rows: Vec::new(),
             selected: None,
@@ -166,47 +215,75 @@ impl Workspace {
                 this.open(row, window, cx);
             }
         } else {
-            this.start(path, cx);
+            this.load_configuration(window, cx);
         }
         this
     }
 
-    fn start(&self, path: Option<PathBuf>, cx: &Context<Self>) {
+    fn load_configuration(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if self.demo || self.loading_config {
+            return;
+        }
+        self.loading_config = true;
+        self.status = "Loading native Nix configuration…".into();
+        let path = self.config_path.clone();
+        let owner = self.owner.clone();
+        let cancel = self.lifetime.child_token();
         let job = self.runtime.spawn(async move {
             let path =
                 path.ok_or_else(|| "Unable to locate native Nix configuration.".to_owned())?;
             let executable =
                 std::env::current_exe().map_err(|_| "Unable to locate configuration helper.")?;
-            let config = source::load(path, &executable, &CancellationToken::new())
-                .await
-                .map_err(|error| error.to_string())?;
-            let root = directories::BaseDirs::new()
-                .ok_or("Unable to locate local mail storage.")?
-                .data_local_dir()
-                .join("mailstronaut");
-            let owner = Worker::open(root)
-                .await
-                .map_err(|error| error.to_string())?;
-            Ok::<_, String>((Arc::new(owner), config))
+            let config = source::load(path, &executable, &cancel).await;
+            let owner = if owner.is_some() || config.is_err() {
+                owner
+            } else {
+                let root = directories::BaseDirs::new()
+                    .ok_or("Unable to locate local mail storage.")?
+                    .data_local_dir()
+                    .join("mailstronaut");
+                Some(Arc::new(
+                    Worker::open(root)
+                        .await
+                        .map_err(|error| error.to_string())?,
+                ))
+            };
+            Ok::<_, String>((owner, config))
         });
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
-            _ = this.update(cx, |this, cx| {
+            _ = this.update_in(cx, |this, window, cx| {
+                this.loading_config = false;
                 match result {
                     Ok(Ok((owner, config))) => {
-                        this.accounts = config.as_ref().map_or_else(Vec::new, |config| {
-                            config
-                                .accounts
-                                .iter()
-                                .map(|account| account.id.clone())
-                                .collect()
-                        });
-                        this.owner = Some(owner);
-                        if let Some(config) = config {
-                            this.apply_appearance(&config, cx);
-                            this.config = Some(Arc::new(config));
+                        this.owner = owner;
+                        if this.declaration.apply(config) {
+                            this.generation = this.generation.wrapping_add(1);
+                            this.read_gate.suppress(this.generation, this.generation);
+                            this.selected = None;
+                            this.body.clear();
+                            this.frame = None;
+                            this.text_reader
+                                .update(cx, |reader, cx| reader.set_value("", window, cx));
+                            if let Some(config) = this.declaration.active().cloned() {
+                                this.accounts = config
+                                    .accounts
+                                    .iter()
+                                    .map(|account| account.id.clone())
+                                    .collect();
+                                this.apply_appearance(&config, window, cx);
+                                this.rebuild_accounts(&config, window, cx);
+                            }
                         }
-                        this.refresh(cx);
+                        if let Some(error) = this.declaration.error() {
+                            this.status = if this.declaration.active().is_some() {
+                                format!("{error}. The last valid configuration remains active.")
+                            } else {
+                                format!("{error}. No accounts have been started.")
+                            };
+                        } else {
+                            this.refresh(cx);
+                        }
                     }
                     Ok(Err(error)) => this.status = error,
                     Err(_) => this.status = "Unable to open local mail.".into(),
@@ -215,16 +292,58 @@ impl Workspace {
             });
         })
         .detach();
+        cx.notify();
     }
 
-    fn apply_appearance(&mut self, config: &Config, cx: &mut Context<Self>) {
+    fn rebuild_accounts(
+        &mut self,
+        config: &Arc<Config>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.account_lifetime.cancel();
+        self.account_lifetime = self.lifetime.child_token();
+        self.account_events.clear();
+        self.account_views.clear();
+        let Some(handle) = self.handle() else {
+            return;
+        };
+        let revision = self.declaration.revision();
+        for account in &config.accounts {
+            let view = cx.new(|cx| {
+                crate::accounts::AccountPane::new(
+                    config.clone(),
+                    account.clone(),
+                    handle.clone(),
+                    self.runtime.clone(),
+                    self.account_access.clone(),
+                    self.account_lifetime.child_token(),
+                    window,
+                    cx,
+                )
+            });
+            self.account_events.push(cx.subscribe(
+                &view,
+                move |this, _, _: &crate::accounts::Event, cx| {
+                    if revision == this.declaration.revision() {
+                        this.refresh(cx);
+                    }
+                },
+            ));
+            self.account_views.push(view);
+        }
+    }
+
+    fn apply_appearance(&mut self, config: &Config, window: &mut Window, cx: &mut Context<Self>) {
         self.theme_override = match config.appearance {
             Appearance::Dark => Some(ThemeMode::Dark),
             Appearance::Light => Some(ThemeMode::Light),
             _ => None,
         };
         if let Some(mode) = self.theme_override {
-            Theme::change(mode, None, cx);
+            Theme::change(mode, Some(window), cx);
+        } else {
+            Theme::sync_system_appearance(Some(window), cx);
         }
     }
 
@@ -248,7 +367,7 @@ impl Workspace {
     }
 
     fn focus_reader(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.selected.is_some() {
+        if self.selected.is_some() && self.view != View::Accounts {
             self.show_text = true;
             self.text_reader
                 .update(cx, |reader, cx| reader.focus(window, cx));
@@ -268,12 +387,40 @@ impl Workspace {
         let generation = self.generation;
         self.read_gate.suppress(generation, generation);
         let accounts = self.accounts.clone();
+        self.query_cancel.cancel();
+        self.query_cancel = self.lifetime.child_token();
+        let cancel = self.query_cancel.clone();
         let query = self.search.read(cx).value().to_string();
         self.status = "Searching local cache…".into();
         let job = self.runtime.spawn(async move {
+            let executable = std::env::current_exe()
+                .map_err(|_| "Unable to locate the conversation helper.".to_owned())?;
+            for account in &accounts {
+                if let Some(snapshot) = handle
+                    .conversation_snapshot(account.clone())
+                    .await
+                    .map_err(|error| error.to_string())?
+                {
+                    let groups = mailstronaut_core::threads::process::project(
+                        &executable,
+                        &snapshot.messages,
+                        &cancel,
+                    )
+                    .await
+                    .map_err(|error| error.to_string())?;
+                    handle
+                        .commit_conversations(snapshot, groups)
+                        .await
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            if cancel.is_cancelled() {
+                return Err("Local query cancelled.".into());
+            }
             handle
                 .conversation_page(accounts, Scope::Inbox, query, None, 100)
                 .await
+                .map_err(|error| error.to_string())
         });
         cx.spawn(async move |this, cx| {
             let result = job.await;
@@ -300,7 +447,7 @@ impl Workspace {
                             format!("{} cached conversations · local search", this.rows.len())
                         };
                     }
-                    Ok(Err(error)) => this.status = error.to_string(),
+                    Ok(Err(error)) => this.status = error,
                     Err(_) => this.status = "Local query interrupted.".into(),
                 }
                 cx.notify();
@@ -345,14 +492,16 @@ impl Workspace {
                     }
                     match result {
                         Ok(Ok(message)) => {
-                            let text = message.readable_text().map_or_else(
+                            let readable = message.readable_text();
+                            let eligible = readable.is_some();
+                            let text = readable.map_or_else(
                                 || "No readable body is cached.".into(),
                                 std::borrow::Cow::into_owned,
                             );
                             this.text_reader
                                 .update(cx, |reader, cx| reader.set_value(text, window, cx));
                             this.body.clear();
-                            if this.read_gate.take(generation, generation, true) {
+                            if this.read_gate.take(generation, generation, eligible) {
                                 this.mark_opened(cx);
                             }
                         }
@@ -410,7 +559,7 @@ impl Workspace {
         let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
             return;
         };
-        let Some(account) = self.config.as_ref().and_then(|config| {
+        let Some(account) = self.declaration.active().and_then(|config| {
             config
                 .accounts
                 .iter()
@@ -445,6 +594,138 @@ impl Workspace {
 }
 
 impl Workspace {
+    fn show_accounts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.view = View::Accounts;
+        self.read_gate.visibility(false);
+        window.focus(&self.focus, cx);
+        cx.notify();
+    }
+
+    fn show_inbox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.view = View::Inbox;
+        self.read_gate.visibility(window.is_window_active());
+        window.focus(&self.focus, cx);
+        self.refresh(cx);
+        cx.notify();
+    }
+
+    fn account_settings(&self, cx: &Context<Self>) -> impl IntoElement {
+        let path = self.config_path.as_ref().map_or_else(
+            || "No configuration path is available.".to_owned(),
+            |path| path.display().to_string(),
+        );
+        let loading = self.loading_config;
+        let reload_disabled = loading || self.demo;
+        let workspace = cx.entity().downgrade();
+        let config = self.declaration.active();
+        let ownership = if config.is_some_and(|config| config.managed) {
+            "Managed by your Nix declaration"
+        } else {
+            "Native Nix source · read-only in this view"
+        };
+        let appearance = config.map_or("system", |config| match config.appearance {
+            Appearance::Dark => "dark",
+            Appearance::Light => "light",
+            _ => "system",
+        });
+        let general = SettingPage::new("Configuration")
+            .description("Your native Nix source is authoritative. Edit it and reload to apply changes.")
+            .resettable(false)
+            .group(
+                SettingGroup::new()
+                    .title("Native Nix")
+                    .description(ownership)
+                    .item(SettingItem::render(move |_, _, _| {
+                        DescriptionList::vertical().columns(1).item("Source",
+                            div().flex().items_center().gap_2()
+                                .child(div().flex_1().min_w_0().child(path.clone()))
+                                .child(Clipboard::new("copy-source").value(path.clone())
+                                    .accessibility_label("Copy configuration path").tooltip("Copy configuration path"))
+                                .into_any_element(), 1)
+                    }).keywords(["source", "path", "Nix", "configuration", "Home Manager"]))
+                    .item(SettingItem::new("Appearance", SettingField::dropdown(
+                        vec![("system".into(), "System".into()), ("light".into(), "Light".into()), ("dark".into(), "Dark".into())],
+                        move |_| appearance.into(), |_, _| {},
+                    )).description("Declared appearance. The toolbar toggle is a temporary window preview.").disabled(true))
+                    .item(SettingItem::render(move |options, _, _| {
+                        let workspace = workspace.clone();
+                        Button::new("reload-config")
+                            .label(if loading { "Loading…" } else { "Reload configuration" })
+                            .disabled(options.is_disabled() || reload_disabled)
+                            .on_click(move |_, window, cx| {
+                                _ = workspace.update(cx, |this, cx| this.load_configuration(window, cx));
+                            })
+                    }).keywords(["reload", "configuration", "Nix", "Home Manager"])),
+            )
+            .group(SettingGroup::new().title("Account status").item({
+                let status = self.declaration.error().map_or_else(
+                    || if self.account_views.is_empty() {
+                        "No accounts are active. Add an account declaration, then reload.".to_owned()
+                    } else {
+                        "Choose an account in Settings to sign in or sync mail.".to_owned()
+                    },
+                    |error| if config.is_some() {
+                        format!("{error}. The last valid configuration remains active.")
+                    } else {
+                        format!("{error}. No accounts have been started.")
+                    },
+                );
+                SettingItem::render(move |_, _, _| div().text_sm().child(status.clone()))
+                    .keywords(["accounts", "status", "errors", "reload"])
+            }));
+        Settings::new(("mail-settings", self.declaration.revision()))
+            .sidebar_width(px(220.))
+            .page(general)
+            .pages(
+                self.account_views
+                    .iter()
+                    .map(|view| crate::accounts::AccountPane::page(view, cx)),
+            )
+    }
+
+    fn sidebar(&self, cx: &Context<Self>) -> impl IntoElement {
+        Sidebar::new("mail-sidebar")
+            .w_full()
+            .collapsible(false)
+            .header(SidebarHeader::new().child(div().font_semibold().child("Mailstronaut")))
+            .child(
+                SidebarGroup::new("Mail").child(
+                    SidebarMenu::new().child(
+                        SidebarMenuItem::new("Unified inbox")
+                            .icon(IconName::Inbox)
+                            .active(self.view == View::Inbox)
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.show_inbox(window, cx)),
+                            ),
+                    ),
+                ),
+            )
+            .footer(
+                SidebarFooter::new().child(
+                    Button::new("settings")
+                        .ghost()
+                        .icon(IconName::Settings)
+                        .w_full()
+                        .label("Settings")
+                        .selected(self.view == View::Accounts)
+                        .on_click(
+                            cx.listener(|this, _, window, cx| this.show_accounts(window, cx)),
+                        ),
+                ),
+            )
+    }
+
+    fn mailbox(&self, cx: &Context<Self>) -> impl IntoElement {
+        h_resizable("mail-panes")
+            .child(
+                resizable_panel()
+                    .size(px(360.))
+                    .size_range(px(280.)..px(600.))
+                    .child(self.message_list(cx)),
+            )
+            .child(resizable_panel().child(self.reader(cx)))
+    }
+
     fn message_list(&self, cx: &Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
         let muted = cx.theme().muted_foreground;
@@ -588,13 +869,14 @@ impl Render for Workspace {
         let foreground = cx.theme().foreground;
         let muted = cx.theme().muted_foreground;
         let border = cx.theme().border;
-        let list = self.message_list(cx).into_any_element();
-        let reader = self.reader(cx).into_any_element();
         div()
             .size_full()
             .key_context("Mailstronaut")
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {
+                if this.view == View::Accounts {
+                    this.show_inbox(window, cx);
+                }
                 this.search.update(cx, |input, cx| input.focus(window, cx));
             }))
             .on_action(cx.listener(|this, _: &RefreshCache, _, cx| this.refresh(cx)))
@@ -603,6 +885,13 @@ impl Render for Workspace {
             }))
             .on_action(cx.listener(|this, _: &FocusReader, window, cx| {
                 this.focus_reader(window, cx);
+            }))
+            .on_action(
+                cx.listener(|this, _: &ShowAccounts, window, cx| this.show_accounts(window, cx)),
+            )
+            .on_action(cx.listener(|this, _: &ShowInbox, window, cx| this.show_inbox(window, cx)))
+            .on_action(cx.listener(|this, _: &ReloadConfiguration, window, cx| {
+                this.load_configuration(window, cx);
             }))
             .flex()
             .flex_col()
@@ -617,13 +906,23 @@ impl Render for Workspace {
                     .p_4()
                     .border_b_1()
                     .border_color(border)
-                    .child(div().w(px(190.)).font_semibold().child("Mailstronaut"))
-                    .child(div().flex_1().child(Input::new(&self.search)))
-                    .child(
-                        Button::new("refresh")
-                            .label("Refresh cache")
-                            .on_click(cx.listener(|this, _, _, cx| this.refresh(cx))),
-                    )
+                    .child(div().w(px(190.)).font_semibold().child(
+                        if self.view == View::Accounts {
+                            "Settings"
+                        } else {
+                            "Unified inbox"
+                        },
+                    ))
+                    .child(div().flex_1().when(self.view == View::Inbox, |view| {
+                        view.child(Input::new(&self.search))
+                    }))
+                    .when(self.view == View::Inbox, |view| {
+                        view.child(
+                            Button::new("refresh")
+                                .label("Refresh cache")
+                                .on_click(cx.listener(|this, _, _, cx| this.refresh(cx))),
+                        )
+                    })
                     .child(
                         Button::new("appearance")
                             .ghost()
@@ -635,38 +934,25 @@ impl Render for Workspace {
             )
             .child(
                 div().flex_1().min_h_0().child(
-                    h_resizable("mail-panes")
+                    h_resizable("workspace-panes")
                         .child(
                             resizable_panel()
                                 .size(px(200.))
                                 .size_range(px(160.)..px(300.))
-                                .child(
-                                    div()
-                                        .p_4()
-                                        .child(
-                                            Button::new("inbox")
-                                                .primary()
-                                                .label("Unified inbox")
-                                                .on_click(
-                                                    cx.listener(|this, _, _, cx| this.refresh(cx)),
-                                                ),
-                                        )
-                                        .child(div().mt_6().text_xs().text_color(muted).child(
-                                            if self.demo {
-                                                "DEMO · SYNTHETIC MAIL"
-                                            } else {
-                                                "LOCAL MAIL CACHE"
-                                            },
-                                        )),
-                                ),
+                                .child(self.sidebar(cx)),
                         )
                         .child(
-                            resizable_panel()
-                                .size(px(360.))
-                                .size_range(px(280.)..px(600.))
-                                .child(list),
-                        )
-                        .child(resizable_panel().child(reader)),
+                            resizable_panel().child(
+                                div()
+                                    .size_full()
+                                    .when(self.view == View::Accounts, |view| {
+                                        view.child(self.account_settings(cx))
+                                    })
+                                    .when(self.view == View::Inbox, |view| {
+                                        view.child(self.mailbox(cx))
+                                    }),
+                            ),
+                        ),
                 ),
             )
             .child(

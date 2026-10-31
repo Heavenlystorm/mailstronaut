@@ -4,7 +4,8 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 mkdir -p target/p02-accounts
-root=$(mktemp -d "$PWD/target/p02-accounts/keyring.XXXXXXXX")
+# Keep Unix-domain socket paths short enough for the private headless compositor.
+root=$(mktemp -d "$PWD/target/p02.XXXXXX")
 export MAILSTRONAUT_SECRET_TEST_ROOT="$root"
 export XDG_DATA_HOME="$root/data" XDG_CONFIG_HOME="$root/config"
 export XDG_CACHE_HOME="$root/cache" XDG_RUNTIME_DIR="$root/runtime"
@@ -57,6 +58,9 @@ if [[ -n ${MAILSTRONAUT_THREADS_GUI_BINARY:-} ]]; then
 fi
 if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"
+fi
+if [[ -n ${MAILSTRONAUT_ACCOUNT_ACTION_FIXTURE:-} ]]; then
+  "$(realpath "$MAILSTRONAUT_ACCOUNT_ACTION_FIXTURE")" account_actions::tests::private_cancellation_and_validation_never_unlock --exact --ignored --nocapture | tee "$root/account-actions.log"
 fi
 cargo_flags=(--locked --offline)
 if [[ ${MAILSTRONAUT_CREDENTIAL_TEST_PROFILE:-debug} == release ]]; then

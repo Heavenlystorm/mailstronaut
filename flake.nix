@@ -80,7 +80,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-ZGIoa0S/uiLjnuuWVYiCeWV59VErlAk/QcHd88ReBLQ=";
+          cargoHash = "sha256-cH8i/Y4P8Ms72wArUgp5d/+XY6vGoZ4GSUUPFSzpNRs=";
           cargoDeps =
             (pkgs.rustPlatform.fetchCargoVendor {
               inherit pname version;
@@ -207,7 +207,9 @@
               }
               credential_fixture="$(fixture_path credentials)"
               oauth_fixture="$(fixture_path oauth)"
+              account_fixture="$(fixture_path mailstronaut)"
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
+                MAILSTRONAUT_ACCOUNT_ACTION_FIXTURE="$account_fixture" \
                 bash experiments/p02-accounts/credentials.sh
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
                 MAILSTRONAUT_OAUTH_FIXTURE="$oauth_fixture" \
@@ -259,6 +261,7 @@
                 shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh \
                   ${self}/experiments/p01-gpui/wayland.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
+                  ${self}/experiments/p02-accounts/gui.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"
@@ -301,6 +304,11 @@
               pkgs.sway-unwrapped
               pkgs.grim
               pkgs.wtype
+              (pkgs.wlrctl.overrideAttrs (old: {
+                # Keep a stable pointer capability for the isolated headless
+                # fixture. The opt-in test tool mode does not patch the app.
+                patches = (old.patches or [ ]) ++ [ ./experiments/p01-gpui/wlrctl-headless.patch ];
+              }))
               pkgs.wl-clipboard
               pkgs.imagemagick
               pkgs.dbus

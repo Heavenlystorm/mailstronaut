@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 gpui-kit.workspace = true
+ashpd.workspace = true
 image.workspace = true
 directories.workspace = true
 mailstronaut-config.workspace = true

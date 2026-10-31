@@ -1,0 +1,42 @@
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut> test account_actions::tests::private_cancellation_and_validation_never_unlock ... ignored, requires the explicitly isolated credentials.sh bus and XDG profile
+mailstronaut> test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.16s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+mailstronaut> test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.08s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test private_missing_service_fails_closed ... ignored, requires the private fixture after its Secret Service has stopped
+mailstronaut> test private_secret_service_round_trip_isolation_rotation_and_lock ... ignored, requires experiments/p02-accounts/credentials.sh private bus and disposable keyring
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.64s
+mailstronaut> test private_secret_service_oauth_rotation_is_serialized_and_revocation_stops_retries ... ignored, requires the explicit project-local Secret Service harness
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.06s
+mailstronaut> test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.23s
+mailstronaut> test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test account_actions::tests::private_cancellation_and_validation_never_unlock ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.04s
+mailstronaut> test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.04s
+mailstronaut> test private_missing_service_fails_closed ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> test private_secret_service_oauth_rotation_is_serialized_and_revocation_stops_retries ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.04s
+mailstronaut> test private_missing_service_fails_closed ... ok
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux

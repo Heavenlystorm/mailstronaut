@@ -12,3 +12,7 @@ Retained configuration, storage, MIME, protocol, OAuth and credential tests rema
 useful backend evidence. They must pass again with the new dependency graph;
 backend proof alone does not establish GPUI or Blitz behavior. New foundation
 results are recorded in `P01-gpui-blitz.md`, with precise limitations.
+
+Current GPUI account/settings, encrypted password storage, explicit TLS/PEEK sync,
+Seen and offline-restart results are in [P02-gpui-accounts.md](P02-gpui-accounts.md).
+The older P02 account UI walkthrough remains historical.

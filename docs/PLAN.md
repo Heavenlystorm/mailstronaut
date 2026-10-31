@@ -144,6 +144,12 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
 - [x] Retain scoped oo7 storage, encrypted persistence, rotation, account/purpose
   isolation, lock and unavailable behavior against a private native Secret Service.
   Existing protocol evidence does not prove new UI or Flatpak portal acceptance.
+- [x] Connect declared password accounts to native GPUI Kit Settings pages,
+  source-path copy, masked encrypted password save, explicit bounded TLS/PEEK sync
+  and offline reading. Verify invalid reload retention, explicit-open-only Seen,
+  restart and disable-without-purge in the private Wayland fixture.
+  [Bounded current-stack evidence](evidence/P02-gpui-accounts.md).
+  This does not complete editable onboarding, provider login or all P02/P04 gates.
 - [ ] Build settings/onboarding with GPUI Kit `Settings`, `SettingPage`,
   `SettingGroup`, `SettingItem` and existing `SettingField` controls; reuse built-in
   page navigation/search and disabled-state behavior. Use masked `Input` for secret
@@ -274,6 +280,10 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   distinguish no results, missing models and partial indexes from an empty mailbox.
 - [ ] Preserve stable selection/scroll through updates; cancel stale account,
   folder, query, body and render work. Measure large-list responsiveness.
+  Separate query and body/render generations: repaint rows from the canonical
+  projection after a local flag commit without cancelling a newer explicit body
+  open. Update thread unread indicators immediately, retaining other unread members;
+  the current scaffold waits for its next cache query to repaint those indicators.
 - [ ] Display each account-local thread once, include cached Sent ancestry, open
   the matching original and allow per-message selection/actions.
   Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)

@@ -1,0 +1,13 @@
+{
+  "package": "/nix/store/5saag2i5afhnk14ylafj625sb486i2ba-mailstronaut-0.1.0",
+  "source": "/nix/store/aj7nypsf10xpjm4gnd8dapjfysglkz6z-source",
+  "source_files": 124,
+  "all_source_files_match": true,
+  "source_manifest_sha256": "6460811000ef19ac98902f7edff0da2e9bffeb9d9989dec6600602c56d746aa6",
+  "profile": "target/p02.IGVFR5/gui",
+  "platform": "x86_64-linux",
+  "release_gate_invocation": "996eb30b768e408f9f505de8d3018bcf",
+  "release_gate_exit": 0,
+  "normal_tests": 136,
+  "private_release_invocations": 5
+}
