@@ -10,6 +10,74 @@ mod tests {
 
     use mailstronaut_core::mime::{self, Error};
 
+    fn inline_message(parts: &str) -> Vec<u8> {
+        format!("MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary=x\r\n\r\n--x\r\nContent-Type: text/html\r\n\r\n<p>Safe image</p><img src='cid:local'>\r\n{parts}--x--\r\n").into_bytes()
+    }
+
+    #[test]
+    fn inline_rasters_use_library_transfer_decoding_and_exact_original_identity() {
+        let raw = inline_message(
+            "--x\r\nContent-Type: IMAGE/PNG; name=../../untrusted.png\r\nContent-ID: <local>\r\nContent-Transfer-Encoding: base64\r\n\r\nYWJj\r\n--x\r\nContent-Type: image/svg+xml\r\nContent-ID: <active>\r\n\r\n<svg onload='alert(1)'/>\r\n",
+        );
+        let mut projection = mime::project(&raw).expect("related MIME");
+        let images = projection
+            .inline_rasters()
+            .expect("bounded transfer decode");
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].content_id, "local");
+        assert_eq!(images[0].media_type, "image/png");
+        assert_eq!(
+            images[0].bytes, b"abc",
+            "raster signature remains the renderer's separate check"
+        );
+        projection.original.push(b'!');
+        assert!(matches!(
+            projection.inline_rasters(),
+            Err(Error::InlineResources)
+        ));
+    }
+
+    #[test]
+    fn inline_rasters_reject_ambiguity_bad_encoding_truncation_and_size() {
+        let part = "--x\r\nContent-Type: image/png\r\nContent-ID: <local>\r\nContent-Transfer-Encoding: base64\r\n\r\nYWJj\r\n";
+        for (case, parts) in [
+            part.repeat(2),
+            part.replace("YWJj", "%%%"),
+            part.replace("base64", "unknown"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let projection = mime::project(&inline_message(&parts)).expect("synthetic MIME");
+            assert!(
+                matches!(projection.inline_rasters(), Err(Error::InlineResources)),
+                "invalid inline raster case {case}"
+            );
+        }
+        let opaque = mime::project(&inline_message(&part.replace("<local>", "<../opaque>")))
+            .expect("opaque MIME identifier");
+        assert_eq!(
+            opaque.inline_rasters().expect("MIME IDs remain data")[0].content_id,
+            "../opaque",
+            "the renderer's stricter CID table rejects this key; MIME extraction never treats it as a path"
+        );
+        let mut projection = mime::project(&inline_message(part)).expect("MIME");
+        projection.status.attachments_truncated = true;
+        assert!(matches!(
+            projection.inline_rasters(),
+            Err(Error::InlineResources)
+        ));
+        let huge = format!(
+            "--x\r\nContent-Type: image/png\r\nContent-ID: <local>\r\n\r\n{}\r\n",
+            "x".repeat(4 * 1024 * 1024 + 1)
+        );
+        let projection = mime::project(&inline_message(&huge)).expect("bounded original");
+        assert!(matches!(
+            projection.inline_rasters(),
+            Err(Error::InlineResources)
+        ));
+    }
+
     #[test]
     fn alternatives_headers_and_encodings() {
         let raw = b"From: =?UTF-8?Q?Ren=C3=A9?= <rene@example.test>\r\nTo: Team: a@example.test, b@example.test;\r\nSubject: =?UTF-8?Q?Caf=C3=A9?=\r\nMessage-ID: <one@example.test>\r\nReferences: <old@example.test> <older@example.test>\r\nIn-Reply-To: <old@example.test>\r\nDate: Tue, 27 Oct 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\nContent-Type: multipart/alternative; boundary=inner\r\n\r\n--inner\r\nContent-Type: text/plain; charset=iso-8859-1\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nCaf=E9  plain\r\n--inner\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\nPGI+SFRNTDwvYj4=\r\n--inner--\r\n--outer--\r\n";

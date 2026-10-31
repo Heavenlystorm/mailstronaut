@@ -93,11 +93,17 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   off the UI thread and fence message/resize/theme generations against stale frames.
 - [ ] Render synthetic ordinary and nested email tables, inline CSS, malformed
   HTML and Unicode; record unsupported layout/font/image behavior honestly.
-- [ ] Enforce parser-based sanitization and default-deny resource, navigation and
+- [x] Enforce parser-based sanitization and default-deny resource, navigation and
   shell providers. Include no JS runtime, form submission, native commands,
   credential access or automatic external links. Do not assume browser CSP support.
-- [ ] Prove no remote/DNS/localhost/file/redirect/CSS/font/SVG/tracking loads on
-  open, using working positive controls and independent observations.
+  Remove active subtrees as well as attributes. [Evidence](evidence/P01-passive-viewport.md).
+- [x] Verify the passive rendering API against remote/DNS/localhost/file/redirect/
+  CSS/font/SVG/tracking fixtures with actual resolver, TCP and readable-file
+  positive controls and independent syscall traces. The isolated network namespace
+  is test containment, not the application's resource policy.
+  [Bounded observer evidence](evidence/P01-passive-viewport.md).
+- [ ] Repeat resource-policy and retirement acceptance through actual cached-message
+  opening, switching, resizing and hiding after the MIME/HTML connector is enabled.
 - [x] Implement immutable per-render PNG/JPEG CID tables through Blitz's decoded
   raster API; verify painting/alpha, ambiguous IDs, encoding/traversal, missing
   resources, wrong types, budgets and isolation between renders.
@@ -105,6 +111,10 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
 - [ ] Connect bounded original-message MIME/CID descriptors to the HTML reader;
   respect truncated/ambiguous MIME parts and verify resource retirement during
   asynchronous message switching. CSS CID backgrounds remain unsupported.
+- [x] Extract transfer-decoded local PNG/JPEG parts through the existing MIME
+  library, preserving opaque IDs and validating original revision, ambiguity,
+  encoding, descriptor ranges and compressed-byte budgets. Renderer validation
+  remains separate. [Evidence](evidence/P01-passive-viewport.md).
 - [x] Forward the app's selected color scheme through Blitz's viewport/media API.
   Respect fixed-light emails; do not invert images or reproduce desktop themes.
 - [x] Provide a native read-only text reader using `TextareaState`/`Textarea::readonly(true)`;
@@ -115,6 +125,12 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   for reader actions. Reuse `ScrollableElement`/`ScrollHandle` for scrollbars;
   implement actual viewport rendering, resize, HiDPI and HTML selection/copy.
   A raster alone is not text accessibility.
+- [x] Provide a retained passive document API that reuses DOM/font/raster state,
+  repaints only bounded physical viewport pixels, forwards logical scale/theme,
+  clamps scroll and rejects invalid geometry/excessive CSS extents. Verify pixel
+  results across scroll, scale, resize and theme changes. Native UI integration,
+  scrollbars, switching and performance acceptance remain above/below.
+  [Renderer evidence](evidence/P01-passive-viewport.md).
 - [ ] Implement explicit validated portal links with a standard `Button` (or
   `Link` without `href`). In this pin `Link::on_click` does not override `href` and
   `Link::disabled` does not gate navigation; never pass untrusted URLs to defaults.

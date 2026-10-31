@@ -259,6 +259,7 @@
               ''
                 actionlint ${self}/.github/workflows/ci.yml
                 shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh \
+                  ${self}/experiments/p01-blitz/privacy.sh \
                   ${self}/experiments/p01-gpui/wayland.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
@@ -276,6 +277,13 @@
           pkgs = pkgsFor system;
         in
         {
+          # Isolated passive-rendering observers; never application runtime inputs.
+          renderer-probe = self.devShells.${system}.default.overrideAttrs (old: {
+            nativeBuildInputs = old.nativeBuildInputs ++ [
+              pkgs.bubblewrap
+              pkgs.strace
+            ];
+          });
           # Lance/Prost generates protocol bindings during the isolated search probe.
           search-probe = self.devShells.${system}.default.overrideAttrs (old: {
             nativeBuildInputs = old.nativeBuildInputs ++ [

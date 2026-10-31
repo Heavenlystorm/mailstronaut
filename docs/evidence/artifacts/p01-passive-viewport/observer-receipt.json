@@ -1,0 +1,11 @@
+{
+  "profile": "/home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.GqHDUj",
+  "controlRequests": [
+    "dns",
+    "dns",
+    "http /control"
+  ],
+  "controlNetworkCalls": 16,
+  "deniedNetworkCalls": 0,
+  "deniedEmailFileReferences": 0
+}

@@ -1,0 +1,3 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+error (ignored): SQLite database '/home/eduard/.t3/projects/mailstronaut/target/nix-cache/nix/eval-cache-v6/e204bcfd22340c9587f06ee87168e9fbcbb876ee4d33ec374de4588a481e08ae.sqlite' is busy
+Installed CLI/configuration smoke passed. Artifacts: /home/eduard/.t3/projects/mailstronaut/target/p01-installed-smoke.gLQ0ZC

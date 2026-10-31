@@ -1,0 +1,20 @@
+openat(AT_FDCWD, "/home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.GqHDUj/sentinel.png", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.GqHDUj/sentinel.css", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.GqHDUj/sentinel.font", O_RDONLY|O_CLOEXEC) = 3
+openat(AT_FDCWD, "/home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.GqHDUj/sentinel.html", O_RDONLY|O_CLOEXEC) = 3
+socket(AF_UNIX, SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK, 0) = 3
+connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)
+socket(AF_UNIX, SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK, 0) = 3
+connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)
+socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC|SOCK_NONBLOCK, IPPROTO_IP) = 3
+connect(3, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr("127.0.0.1")}, 16) = 0
+sendmmsg(3, [{msg_hdr={msg_name=NULL, msg_namelen=0, msg_iov=[{iov_base="\221\375\1\0\0\1\0\0\0\0\0\0\24mailstronaut-control\7invalid\0\0\1\0\1", iov_len=46}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, msg_len=46}, {msg_hdr={msg_name=NULL, msg_namelen=0, msg_iov=[{iov_base="/\377\1\0\0\1\0\0\0\0\0\0\24mailstronaut-control\7invalid\0\0\34\0\1", iov_len=46}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, msg_len=46}], 2, MSG_NOSIGNAL) = 2
+recvfrom(3, "\221\375\201\203\0\1\0\0\0\0\0\0\24mailstronaut-control\7invalid\0\0\1\0\1", 2048, 0, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr("127.0.0.1")}, [28 => 16]) = 46
+recvfrom(3, "/\377\201\203\0\1\0\0\0\0\0\0\24mailstronaut-control\7invalid\0\0\34\0\1", 65536, 0, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr("127.0.0.1")}, [28 => 16]) = 46
+socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 3
+connect(3, {sa_family=AF_INET, sin_port=htons(43187), sin_addr=inet_addr("127.0.0.1")}, 16) = 0
+sendto(3, "GET /control HTTP/1.0\r\nHost: localhost\r\n\r\n", 42, MSG_NOSIGNAL, NULL, 0) = 42
+recvfrom(3, "HTTP/1.0 302 Found\r\nServer: Base", 32, 0, NULL, NULL) = 32
+recvfrom(3, "HTTP/0.6 Python/3.14.8\r\nDate: Sa", 32, 0, NULL, NULL) = 32
+recvfrom(3, "t, 31 Oct 2026 19:21:21 GMT\r\nLocation: /redirect-target\r\n\r\n", 64, 0, NULL, NULL) = 59
+recvfrom(3, "", 133, 0, NULL, NULL)     = 0

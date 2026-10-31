@@ -8,6 +8,11 @@ its stated revision. Its screenshots, window interaction, renderer/privacy/theme
 accessibility and GUI package claims are **not** acceptance of the new stack.
 Those checklist rows were reset or replaced rather than carried forward.
 
+Current passive-resource syscall observations, retained viewport rendering and
+MIME raster extraction are recorded in
+[P01-passive-viewport.md](P01-passive-viewport.md). This does not yet enable the
+original-message HTML view or complete P01.
+
 Retained configuration, storage, MIME, protocol, OAuth and credential tests remain
 useful backend evidence. They must pass again with the new dependency graph;
 backend proof alone does not establish GPUI or Blitz behavior. New foundation

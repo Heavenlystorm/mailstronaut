@@ -54,7 +54,8 @@ content types. Decode dimensions and encoded/decoded bytes must be bounded befor
 supplying an image to the engine. Active SVG and unbounded embedded data remain
 disabled until separately supported and tested.
 
-The implemented renderer entry point is `render_with_images`: the host supplies
+The retained renderer entry point is `Document::new` followed by `Document::paint`;
+`render` and `render_with_images` remain one-frame convenience functions. The host supplies
 borrowed, transfer-decoded PNG/JPEG bytes and MIME Content-IDs. Each call validates
 at most 64 images, 4 MiB encoded per image, and 16 MiB aggregate encoded plus
 retained RGBA bytes. Dimensions are inspected before pixel decode with the same
@@ -70,8 +71,13 @@ encoded bytes never reach Blitz's own image decoder. Every `NetProvider::fetch`
 still drops its handler without I/O, even for supplied images; the independent
 cache supplies those pixels. No process-global image registry is retained.
 
-This path is wired into the synthetic Wayland preview. Original-message MIME
-extraction and cached HTML remain gated separately; CSS CID backgrounds, SVG, GIF
+This path is wired into the synthetic Wayland preview. `Projection::inline_rasters`
+now reparses the bounded, revision-checked original with mail-parser and obtains
+transfer-decoded PNG/JPEG bytes. It rejects ambiguous/truncated parts, decode
+problems and oversized resources; MIME IDs remain opaque data, with the stricter
+CID-key/signature/dimension checks applied in the renderer. Connecting those bytes
+to cached HTML and proving native switching/retirement remain separate gates.
+CSS CID backgrounds, SVG, GIF
 and arbitrary data URLs are not enabled. A private namespace is an application
 lookup key, not a claim about browser-origin semantics.
 
@@ -88,6 +94,23 @@ axis and at most 8 million pixels. Validate finite scale/scroll/size values befo
 allocation or narrowing integer conversions. Tune limits from recorded fixtures,
 not from an unbounded document. Rasterize the viewport rather than an entire long
 newsletter; reuse the active document and avoid painting unrelated offscreen work.
+
+`Document` now retains that DOM, font context and Vello CPU raster context across
+`paint(View)` calls. `View` uses physical width/height, native scale in 0.5–8 and
+nonnegative finite CSS scroll coordinates. Scale/media changes go through Blitz's
+public viewport API; scroll clamps to the current content extent. CSS extent is
+limited to one million pixels per axis before painting. `Frame` reports that
+extent for future native scrollbars but contains only viewport-sized RGBA bytes.
+The GUI still uses the convenience one-frame preview path: native bounds/scroll,
+source generations and hidden-worker lifetime are the next integration step.
+
+The independent privacy probe is `experiments/p01-blitz/privacy.sh` in the pinned
+`renderer-probe` shell. It uses an isolated network namespace and observes actual
+file/network syscalls with strace. Actual DNS resolution, TCP redirect response
+and four readable-file controls precede the denied fixture matrix. The namespace
+prevents a test regression from contacting host services; it does not hide socket
+attempts from the observer or supply a production sandbox. See the exact tested
+scope in [P01 passive/viewport evidence](evidence/P01-passive-viewport.md).
 
 Start with ordinary block/table/inline email layouts, inline CSS and system fonts.
 Exercise nested tables, colspan/rowspan, collapsed borders, fixed/relative widths,

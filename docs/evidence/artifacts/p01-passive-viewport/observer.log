@@ -1,0 +1,18 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Actual resolver/UDP, TCP/redirect and four readable-file controls observed.
+Denied matrix: zero socket/network operations; zero accesses to email-specified synthetic files.
+
+running 1 test
+Real DNS, TCP/redirect response and synthetic file observer controls exercised.
+test privacy::trace_resource_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+
+running 1 test
+12 synthetic resource variants rendered with 48 denied callbacks and valid local raster pixels.
+test privacy::trace_resource_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.85s
+
+Passive Blitz resource observation passed: /home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.GqHDUj

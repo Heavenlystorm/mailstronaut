@@ -1,7 +1,11 @@
 //! Bounded, passive Blitz HTML layout and CPU rasterization, without window or I/O authority.
 
+#[cfg(test)]
+mod privacy;
 mod resources;
+mod viewport;
 pub use resources::{InlineImage, MAX_IMAGE_BYTES, MAX_INLINE_IMAGES, MAX_RESOURCE_BYTES};
+pub use viewport::{Document, View};
 
 use core::{error::Error as StdError, fmt};
 use std::sync::{
@@ -9,15 +13,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use anyrender::ImageRenderer as _;
-use anyrender_vello_cpu::VelloCpuImageRenderer;
-use blitz_dom::DocumentConfig;
-use blitz_html::HtmlDocument;
-use blitz_traits::{
-    navigation::DummyNavigationProvider,
-    net::{NetHandler, NetProvider, Request},
-    shell::{ColorScheme, DummyShellProvider, Viewport},
-};
+use blitz_traits::net::{NetHandler, NetProvider, Request};
 
 /// Maximum decoded HTML accepted by the reader.
 pub const MAX_HTML_BYTES: usize = 256 * 1024;
@@ -58,6 +54,10 @@ pub struct Frame {
     pub height: u32,
     /// RGBA bytes in row-major order.
     pub pixels: Vec<u8>,
+    /// CSS content width, bounded independently from the viewport raster.
+    pub content_width: f64,
+    /// CSS content height; the host may use this for its native scrollbar.
+    pub content_height: f64,
     /// Denied resource attempts, without retaining untrusted URLs.
     pub blocked_resources: usize,
 }
@@ -95,6 +95,10 @@ fn sanitize(input: &str, images: Arc<resources::Images>) -> Result<String, Error
             "style", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "col", "colgroup",
         ])
         .rm_clean_content_tags(&["style"])
+        .add_clean_content_tags(&[
+            "script", "iframe", "object", "embed", "form", "button", "textarea", "select",
+            "template", "video", "audio", "canvas", "svg", "math",
+        ])
         .add_generic_attributes(&["style", "class", "align", "width", "height", "bgcolor"])
         .add_tag_attributes("td", &["colspan", "rowspan"])
         .add_tag_attributes("th", &["colspan", "rowspan"])
@@ -143,66 +147,16 @@ pub fn render_with_images(
     height: u32,
     dark: bool,
 ) -> Result<Frame, Error> {
-    if width == 0
-        || height == 0
-        || width > MAX_SIDE
-        || height > MAX_SIDE
-        || u64::from(width) * u64::from(height) > MAX_PIXELS
-    {
-        return Err(Error::Dimensions);
-    }
-    if html.len() > MAX_HTML_BYTES {
-        return Err(Error::ContentLimit);
-    }
-    let images = Arc::new(resources::Images::new(images)?);
-    let html = sanitize(html, images.clone())?;
-    let resources = Arc::new(DenyResources {
-        blocked: AtomicUsize::new(0),
-        images: images.clone(),
-    });
-    let config = DocumentConfig {
-        viewport: Some(Viewport::new(
-            width,
-            height,
-            1.0,
-            if dark {
-                ColorScheme::Dark
-            } else {
-                ColorScheme::Light
-            },
-        )),
-        base_url: Some("mailstronaut://message/".into()),
-        net_provider: Some(resources.clone()),
-        navigation_provider: Some(Arc::new(DummyNavigationProvider)),
-        shell_provider: Some(Arc::new(DummyShellProvider)),
-        ..DocumentConfig::default()
-    };
-    let mut document = HtmlDocument::from_html(&html, config);
-    // Use Blitz's parsed tree rather than another HTML parser or a depth heuristic.
-    let mut pending = vec![(document.root_node().id, 0_usize)];
-    let mut count = 0;
-    while let Some((id, depth)) = pending.pop() {
-        count += 1;
-        let node = document.get_node(id).ok_or(Error::ContentLimit)?;
-        if depth > 128 || count + pending.len() + node.children.len() > 4096 {
-            return Err(Error::ContentLimit);
-        }
-        pending.extend(node.children.iter().map(|child| (*child, depth + 1)));
-    }
-    images.install(&mut document);
-    document.resolve(0.0);
-    let mut renderer = VelloCpuImageRenderer::new(width, height);
-    let mut pixels = Vec::new();
-    renderer.render_to_vec(
-        |scene| blitz_paint::paint_scene(scene, &mut document, 1.0, width, height, 0, 0),
-        &mut pixels,
-    );
-    Ok(Frame {
+    let view = View {
         width,
         height,
-        pixels,
-        blocked_resources: resources.blocked.load(Ordering::Relaxed),
-    })
+        scale: 1.0,
+        dark,
+        scroll_x: 0.0,
+        scroll_y: 0.0,
+    };
+    view.validate()?;
+    Document::new(html, images)?.paint(view)
 }
 
 #[cfg(test)]

@@ -77,6 +77,18 @@ pub struct Attachment {
     pub raw_body: Range<usize>,
 }
 
+/// Transfer-decoded local PNG/JPEG bytes; pixel validation belongs to the renderer.
+/// No filename or sender-provided path is used to read this resource.
+#[derive(Clone)]
+pub struct InlineRaster {
+    /// Exact, message-local MIME Content-ID.
+    pub content_id: String,
+    /// Declared image/png or image/jpeg type, still requiring a signature check.
+    pub media_type: String,
+    /// Compressed raster bytes after MIME transfer decoding.
+    pub bytes: Vec<u8>,
+}
+
 /// Origin of preview text, retained separately from the body revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -148,6 +160,74 @@ pub struct Projection {
 }
 
 impl Projection {
+    /// Decode unambiguous root-message raster parts using the MIME library.
+    ///
+    /// This is blocking work for the message/render worker. It reparses the
+    /// bounded original with the same parser limits and checks its revision.
+    /// Non-raster attachments stay unavailable to HTML; image dimensions and
+    /// decoded pixel budgets must additionally be checked by the renderer.
+    ///
+    /// # Errors
+    /// Rejects changed/truncated originals, ambiguous IDs, bad transfer encoding,
+    /// parts above 4 MiB or aggregate compressed raster data above 16 MiB.
+    pub fn inline_rasters(&self) -> Result<Vec<InlineRaster>, Error> {
+        if self.status.encrypted_unsupported {
+            return Ok(Vec::new());
+        }
+        if self.original.len() > MAX_INPUT_BYTES
+            || self.status.parts_truncated
+            || self.status.attachments_truncated
+            || <[u8; 32]>::from(Sha256::digest(&self.original)) != self.revision
+        {
+            return Err(Error::InlineResources);
+        }
+        let message = MessageParser::new()
+            .max_parts(MAX_PARTS)
+            .max_depth(32)
+            .max_encoded_nesting(0)
+            .parse(&self.original)
+            .ok_or(Error::Unparseable)?;
+        let mut images = Vec::new();
+        let mut total = 0_usize;
+        for part in message.attachments() {
+            let Some(cid) = part.content_id() else {
+                continue;
+            };
+            let media_type = if part.is_content_type("image", "png") {
+                "image/png"
+            } else if part.is_content_type("image", "jpeg") {
+                "image/jpeg"
+            } else {
+                continue;
+            };
+            let descriptor = self.attachment_for_cid(cid).ok_or(Error::InlineResources)?;
+            if part.decoded_len() > 4 * 1024 * 1024
+                || !descriptor
+                    .media_type
+                    .as_deref()
+                    .is_some_and(|kind| kind.eq_ignore_ascii_case(media_type))
+                || usize::try_from(part.offset_body()).ok() != Some(descriptor.raw_body.start)
+                || usize::try_from(part.offset_end()).ok() != Some(descriptor.raw_body.end)
+            {
+                return Err(Error::InlineResources);
+            }
+            total = total
+                .checked_add(part.decoded_len())
+                .filter(|n| *n <= 16 * 1024 * 1024)
+                .ok_or(Error::InlineResources)?;
+            let (bytes, problems) = part.decoded_checked();
+            if !problems.is_empty() || bytes.len() != part.decoded_len() {
+                return Err(Error::InlineResources);
+            }
+            images.push(InlineRaster {
+                content_id: cid.into(),
+                media_type: media_type.into(),
+                bytes: bytes.into_owned(),
+            });
+        }
+        Ok(images)
+    }
+
     /// Native text-reader content. HTML is converted to inert Unicode text by
     /// the existing MIME library; no browser or remote resource is invoked.
     #[must_use]
@@ -188,6 +268,8 @@ impl Projection {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
+    /// Inline rasters are ambiguous, changed, malformed or beyond their budgets.
+    InlineResources,
     /// Original exceeds the hard input limit.
     InputTooLarge,
     /// No message could be parsed.
