@@ -77,9 +77,31 @@ explicit `.#` flake target runs the already built application successfully.
 The corrected workflow checks both `--version` and the native configuration
 helper against `examples/config.nix`; both exact commands and workflow actionlint
 passed locally through `nix develop` on Nix 2.34.9. The complete hosted workflow, including
-this correction and the newer native-reader commits, needs a fresh run.
+this correction and the newer native-reader commits, passed in the fresh run below.
 
 The full hosted log is `target/gpui-ci-f6cbf81-full.log`; the isolated smoke
 failure is `target/gpui-ci-f6cbf81-failure.log`. A retained excerpt is linked below.
 
 - [Hosted gate and smoke evidence](artifacts/p01-gpui-blitz/hosted-cache-gate-excerpt.log)
+
+## Complete hosted workflow passed
+
+[Run 41150436483](https://github.com/eduardz1/mailstronaut/actions/runs/41150436483)
+completed successfully at `c4d34a189bd5706a88ff14c3e26958870af2f517`, including
+the native-reader commits. Job `124385430967` passed the Nix gate, installed smoke
+and container cleanup, finishing at `2026-10-31T01:25:15Z`.
+
+The complete log confirms strict release Clippy, 132 normal tests and four private
+credential/OAuth fixture invocations. Only the five workspace crates compiled or
+checked in the real package after restoring the same dependency artifact. The
+runner again started with 13 GiB free and ended the gate with 5.0 GiB free. Both
+corrected installed commands passed: `--version` printed `mailstronaut 0.1.0`,
+and the native configuration helper printed `Configuration is valid.`
+
+- [Passing hosted workflow excerpt](artifacts/p01-gpui-blitz/hosted-ci-success.log)
+- Full local copy: `target/gpui-ci-c4d34a1-full.log`
+
+This closes the current prototype's hosted build/test/installed-CLI gate on
+x86_64-linux. Aarch64 was omitted. Hosted Wayland GUI, the full HTML privacy
+matrix, accessibility, live providers, Flatpak and final-release acceptance
+remain open; local Wayland evidence is recorded separately.

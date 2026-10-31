@@ -307,8 +307,11 @@ transformer, hosted model or summarization service.
   plaintext secrets or uncontrolled model downloads.
 - [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
   portals, read-only managed configuration and packaged HTML resources.
-- [ ] Run format/strict Clippy/backend/MIME/privacy/fixture tests in the official
-  minimal Nix container; add headless native Wayland current-stack acceptance.
+- [x] Run format/strict release Clippy, backend/MIME/renderer tests, private
+  credential fixtures and installed CLI/config checks in the official minimal
+  Nix container on x86_64. [Hosted evidence](evidence/P01-ci-cache.md).
+- [ ] Add full privacy-matrix and headless native Wayland current-stack acceptance
+  to hosted CI. Local private-window evidence does not complete this row.
 - [ ] Confirm hosted CI on the actual release source and distinguish local package,
   GUI, security, accessibility, live-provider and distribution evidence.
 - [ ] Include licenses/notices/reproducible sources and explicit optional model

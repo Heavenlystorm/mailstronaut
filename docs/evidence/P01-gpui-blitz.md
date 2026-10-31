@@ -85,8 +85,9 @@ packaged-window, screen-reader, resize/HiDPI or performance acceptance.
 ## Remaining acceptance
 
 The local Nix release/package, installed CLI and installed Wayland checks passed
-as recorded below. Hosted CI, aarch64, Flatpak and exact minimum-Rust acceptance
-remain separate gates.
+as recorded below. The complete x86_64 [hosted CI gate](P01-ci-cache.md) later
+passed at `c4d34a1`, including installed CLI/config smoke. Aarch64, Flatpak and
+exact minimum-Rust acceptance remain separate gates.
 The previous GitHub run `41072214708` failed from build-disk exhaustion in the
 retired dependency graph; it does not validate or invalidate this replacement.
 

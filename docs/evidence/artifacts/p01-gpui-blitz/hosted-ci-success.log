@@ -1,0 +1,13 @@
+Successful GitHub Actions run 41150436483; job 124385430967.
+Source c4d34a189bd5706a88ff14c3e26958870af2f517; completed 2026-10-31T01:25:15Z.
+132 normal tests + four private credential/OAuth invocations passed.
+Final package compiled/checked only: mailstronaut, mailstronaut-config, mailstronaut-core, mailstronaut-mail, mailstronaut-render
+
+checks	Build, format, lint and test through Nix	2026-10-31T00:30:13.5320042Z /dev/root        72G   60G   13G  83% /__w
+checks	Build, format, lint and test through Nix	2026-10-31T00:59:50.1222978Z mailstronaut> decompressing cargo artifacts from /nix/store/nq9xmnmgnic7ai5913kzh5rp0xq9sxjm-mailstronaut-deps-0.1.0/target.tar.zst to target
+checks	Build, format, lint and test through Nix	2026-10-31T01:00:16.1600347Z mailstronaut> +++++ command cargo clippy --jobs 2 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+checks	Build, format, lint and test through Nix	2026-10-31T01:24:48.1276872Z all checks passed!
+checks	Build, format, lint and test through Nix	2026-10-31T01:24:48.1279606Z warning: The check omitted these incompatible systems: aarch64-linux
+checks	Build, format, lint and test through Nix	2026-10-31T01:24:48.4647554Z /dev/root        72G   67G  5.0G  94% /__w
+checks	Installed package smoke check	2026-10-31T01:24:50.9400002Z mailstronaut 0.1.0
+checks	Installed package smoke check	2026-10-31T01:24:51.6596162Z Configuration is valid.

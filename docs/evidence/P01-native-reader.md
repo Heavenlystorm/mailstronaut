@@ -81,5 +81,8 @@ The installed reader screenshot was also visually inspected.
 - [Installed native reader](artifacts/p01-gpui-blitz/installed-native-reader.png)
 - [Installed smoke output](artifacts/p01-gpui-blitz/native-reader-installed.log)
 
-The separate hosted CI repair run remains pending. These local package checks
-do not close hosted CI, accessibility, HTML privacy or distribution acceptance.
+The complete [hosted CI run](https://github.com/eduardz1/mailstronaut/actions/runs/41150436483)
+at `c4d34a189bd5706a88ff14c3e26958870af2f517` also passed, including this reader,
+release tests and installed version/config smoke. See the [CI record](P01-ci-cache.md).
+The Wayland interaction checks above ran locally, not in hosted CI. Accessibility,
+HTML privacy, live accounts and Flatpak acceptance remain open.
