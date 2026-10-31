@@ -54,6 +54,27 @@ content types. Decode dimensions and encoded/decoded bytes must be bounded befor
 supplying an image to the engine. Active SVG and unbounded embedded data remain
 disabled until separately supported and tested.
 
+The implemented renderer entry point is `render_with_images`: the host supplies
+borrowed, transfer-decoded PNG/JPEG bytes and MIME Content-IDs. Each call validates
+at most 64 images, 4 MiB encoded per image, and 16 MiB aggregate encoded plus
+retained RGBA bytes. Dimensions are inspected before pixel decode with the same
+strict 4096-side limit used during decoding. The image library's decoder allocation
+limit is also set for header inspection and decoding, but is best-effort; this is
+not a measured process-memory cap, and scratch/font/frame memory is additional.
+
+Ammonia rewrites only exact known `<img src="cid:...">` values into a fresh private
+URL namespace. Unknown, encoded, path-like and external image sources are removed.
+IDs are case-sensitive conservative ASCII keys up to 255 bytes, never filenames.
+The host installs already decoded RGBA with Blitz's public `load_resource` API;
+encoded bytes never reach Blitz's own image decoder. Every `NetProvider::fetch`
+still drops its handler without I/O, even for supplied images; the independent
+cache supplies those pixels. No process-global image registry is retained.
+
+This path is wired into the synthetic Wayland preview. Original-message MIME
+extraction and cached HTML remain gated separately; CSS CID backgrounds, SVG, GIF
+and arbitrary data URLs are not enabled. A private namespace is an application
+lookup key, not a claim about browser-origin semantics.
+
 Automatic navigation is inert. A future explicit GPUI link action may invoke the
 standard external-browser portal after checking the current document and allowed
 URL scheme. There is no login page inside the reader. Forms and email content do

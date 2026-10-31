@@ -78,6 +78,22 @@ timeout 15 grim "$root/dark.png"
 [[ $(magick "$root/window.png" -format '%[fx:p{10,80}.r>0.5]' info:) == 1 ]]
 [[ $(magick "$root/dark.png" -format '%[fx:p{10,80}.r<0.5]' info:) == 1 ]]
 [[ $(magick "$root/dark.png" -format '%[fx:p{700,550}.r<0.5]' info:) == 1 ]]
+# The versioned inline PNG is three bands: red, green, blue. Observe real
+# image pixels and their order in both themes, including the RGBA/BGRA bridge.
+for capture in window dark; do
+  previous_x=-1
+  band_y=''
+  for color in 'r>0.98&&g<0.02&&b<0.02' 'g>0.98&&r<0.02&&b<0.02' 'b>0.98&&r<0.02&&g<0.02'; do
+    read -r band_x current_y band_width band_height < <(
+      magick "$root/$capture.png" -fx "$color" -trim -format '%X %Y %w %h\n' info:
+    )
+    printf '%s %s: %s %s %s %s\n' "$capture" "$color" "$band_x" "$current_y" "$band_width" "$band_height" >> "$root/inline-colors.log"
+    (( band_width > 8 && band_height > 8 && band_x > previous_x ))
+    [[ -z $band_y || $current_y == "$band_y" ]]
+    previous_x=$band_x
+    band_y=$current_y
+  done
+done
 # Exercise the standard native text reader and the Wayland clipboard. This
 # profile contains only synthetic mail; never capture a real user's message.
 printf 'clipboard observer control' | wl-copy

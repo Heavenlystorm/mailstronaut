@@ -18,6 +18,8 @@ blitz-paint.workspace = true
 blitz-traits.workspace = true
 anyrender.workspace = true
 anyrender_vello_cpu.workspace = true
+image.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

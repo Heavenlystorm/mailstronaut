@@ -40,7 +40,7 @@ gpui::actions!(
     ]
 );
 
-const DEMO_HTML: &str = "<style>body{font:17px sans-serif;margin:32px;color:#243044;background:#fff}h1{font-size:30px}td{padding:18px} @media(prefers-color-scheme:dark){body{background:#20242b;color:#edf1fa}}</style><h1>A little more space for your mail.</h1><p>This synthetic email is laid out by Blitz and painted by Vello CPU.</p><table style='width:100%;border-collapse:collapse'><tr><td style='background:#dce9ff;color:#173b73'>Native Wayland</td><td style='background:#e1f2e8;color:#164c34'>Rust throughout</td></tr></table><p>Tables, inline CSS and Unicode: Bonjour · Ciao · 世界.</p>";
+const DEMO_HTML: &str = "<style>body{font:17px sans-serif;margin:32px;color:#243044;background:#fff}h1{font-size:30px}td{padding:18px} @media(prefers-color-scheme:dark){body{background:#20242b;color:#edf1fa}}</style><h1>A little more space for your mail.</h1><p>This synthetic email is laid out by Blitz and painted by Vello CPU.</p><table style='width:100%;border-collapse:collapse'><tr><td style='background:#dce9ff;color:#173b73'>Native Wayland</td><td style='background:#e1f2e8;color:#164c34'>Rust throughout</td></tr></table><p>Tables, inline CSS and Unicode: Bonjour · Ciao · 世界.</p><p><img src='cid:demo-badge' width='96' height='32' alt='Local raster image'> Message-local PNG · no fetching.</p>";
 
 #[derive(Clone)]
 struct Row {
@@ -370,9 +370,14 @@ impl Workspace {
     fn render_demo(&self, cx: &Context<Self>) {
         let generation = self.generation;
         let dark = cx.theme().mode.is_dark();
-        let job = self
-            .runtime
-            .spawn_blocking(move || mailstronaut_render::render(DEMO_HTML, 780, 600, dark));
+        let job = self.runtime.spawn_blocking(move || {
+            let images = [mailstronaut_render::InlineImage {
+                content_id: "demo-badge",
+                media_type: "image/png",
+                bytes: include_bytes!("../../../assets/inline-fixture.png"),
+            }];
+            mailstronaut_render::render_with_images(DEMO_HTML, &images, 780, 600, dark)
+        });
         cx.spawn(async move |this, cx| {
             let result = job.await;
             _ = this.update(cx, |this, cx| {

@@ -24,6 +24,9 @@ Scoped Pulp 0.22.3 and fearless_simd 0.4.1 LLVM debug/test overrides handle
 exact assembly link names and an unsupported AVX2 conversion intrinsic respectively.
 Vello Common/CPU also need LLVM because they instantiate those inline SIMD kernels;
 changing only fearless_simd still aborts at runtime.
+AnyRender Vello CPU also instantiates a SIMD premultiplication kernel for images:
+its debug/test LLVM override resolves the demonstrated unsupported
+`llvm.x86.avx2.psrl.w` intrinsic. Release settings are unchanged.
 Other crates retain Cranelift and all debug/test linking uses Wild. Remove each
 exception when pinned Cranelift supports the demonstrated operation.
 

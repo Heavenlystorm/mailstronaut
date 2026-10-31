@@ -32,3 +32,12 @@ codegen-backend = "llvm"
 
 [profile.test.package.vello_cpu]
 codegen-backend = "llvm"
+
+# Image painting instantiates another fearless_simd kernel in AnyRender's RGBA
+# premultiplication. Cranelift aborts on llvm.x86.avx2.psrl.w in
+# anyrender_vello_cpu::image_convert::premultiply_rgba8_impl (inline-image test).
+[profile.dev.package.anyrender_vello_cpu]
+codegen-backend = "llvm"
+
+[profile.test.package.anyrender_vello_cpu]
+codegen-backend = "llvm"

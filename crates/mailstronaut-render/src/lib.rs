@@ -1,5 +1,8 @@
 //! Bounded, passive Blitz HTML layout and CPU rasterization, without window or I/O authority.
 
+mod resources;
+pub use resources::{InlineImage, MAX_IMAGE_BYTES, MAX_INLINE_IMAGES, MAX_RESOURCE_BYTES};
+
 use core::{error::Error as StdError, fmt};
 use std::sync::{
     Arc,
@@ -30,12 +33,18 @@ pub enum Error {
     ContentLimit,
     /// Invalid, excessive or overflowing viewport dimensions.
     Dimensions,
+    /// Supplied images exceed encoded, decoded, count or dimension budgets.
+    ResourceLimit,
+    /// Invalid/ambiguous CID, unsupported image, invalid encoding or MIME mismatch.
+    InvalidResource,
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::ContentLimit => "email exceeds HTML reader limits",
             Self::Dimensions => "invalid HTML viewport dimensions",
+            Self::ResourceLimit => "email exceeds inline image limits",
+            Self::InvalidResource => "invalid or unsupported inline image",
         })
     }
 }
@@ -62,18 +71,22 @@ impl fmt::Debug for Frame {
     }
 }
 
-#[derive(Default)]
-struct DenyResources(AtomicUsize);
+struct DenyResources {
+    blocked: AtomicUsize,
+    images: Arc<resources::Images>,
+}
 impl NetProvider for DenyResources {
-    fn fetch(&self, _document: usize, _request: Request, _handler: Box<dyn NetHandler>) {
-        self.0.fetch_add(1, Ordering::Relaxed);
+    fn fetch(&self, _document: usize, request: Request, _handler: Box<dyn NetHandler>) {
+        if !self.images.contains_url(request.url.as_str()) {
+            self.blocked.fetch_add(1, Ordering::Relaxed);
+        }
     }
     fn is_noop(&self) -> bool {
         true
     }
 }
 
-fn sanitize(input: &str) -> Result<String, Error> {
+fn sanitize(input: &str, images: Arc<resources::Images>) -> Result<String, Error> {
     if input.len() > MAX_HTML_BYTES {
         return Err(Error::ContentLimit);
     }
@@ -85,6 +98,16 @@ fn sanitize(input: &str) -> Result<String, Error> {
         .add_generic_attributes(&["style", "class", "align", "width", "height", "bgcolor"])
         .add_tag_attributes("td", &["colspan", "rowspan"])
         .add_tag_attributes("th", &["colspan", "rowspan"])
+        .add_url_schemes(&["cid", "mailstronaut-resource"])
+        .attribute_filter(move |element, attribute, value| {
+            if element == "img" && attribute == "src" {
+                images.resolve(value).map(|url| url.to_owned().into())
+            } else if element == "img" && attribute == "srcset" {
+                None
+            } else {
+                Some(value.into())
+            }
+        })
         .clean(input);
     let output = cleaned.to_string();
     if output.len() > MAX_HTML_BYTES * 2 {
@@ -101,6 +124,25 @@ fn sanitize(input: &str) -> Result<String, Error> {
 /// # Errors
 /// Rejects oversized HTML and invalid/oversized viewport allocations.
 pub fn render(html: &str, width: u32, height: u32, dark: bool) -> Result<Frame, Error> {
+    render_with_images(html, &[], width, height, dark)
+}
+
+/// Rasterize passive HTML with a fresh immutable table of message-local images.
+///
+/// Only exact known `cid:` image sources are rewritten to this document's private
+/// namespace. Other image sources are removed; all CSS/resource fetching remains
+/// denied. PNG/JPEG are decoded with the image library before supplying RGBA to
+/// Blitz. A table is never shared between calls or retained after rendering.
+///
+/// # Errors
+/// Rejects invalid/ambiguous resources, resource budgets, HTML and frame limits.
+pub fn render_with_images(
+    html: &str,
+    images: &[InlineImage<'_>],
+    width: u32,
+    height: u32,
+    dark: bool,
+) -> Result<Frame, Error> {
     if width == 0
         || height == 0
         || width > MAX_SIDE
@@ -109,8 +151,15 @@ pub fn render(html: &str, width: u32, height: u32, dark: bool) -> Result<Frame, 
     {
         return Err(Error::Dimensions);
     }
-    let html = sanitize(html)?;
-    let resources = Arc::new(DenyResources::default());
+    if html.len() > MAX_HTML_BYTES {
+        return Err(Error::ContentLimit);
+    }
+    let images = Arc::new(resources::Images::new(images)?);
+    let html = sanitize(html, images.clone())?;
+    let resources = Arc::new(DenyResources {
+        blocked: AtomicUsize::new(0),
+        images: images.clone(),
+    });
     let config = DocumentConfig {
         viewport: Some(Viewport::new(
             width,
@@ -140,6 +189,7 @@ pub fn render(html: &str, width: u32, height: u32, dark: bool) -> Result<Frame, 
         }
         pending.extend(node.children.iter().map(|child| (*child, depth + 1)));
     }
+    images.install(&mut document);
     document.resolve(0.0);
     let mut renderer = VelloCpuImageRenderer::new(width, height);
     let mut pixels = Vec::new();
@@ -151,7 +201,7 @@ pub fn render(html: &str, width: u32, height: u32, dark: bool) -> Result<Frame, 
         width,
         height,
         pixels,
-        blocked_resources: resources.0.load(Ordering::Relaxed),
+        blocked_resources: resources.blocked.load(Ordering::Relaxed),
     })
 }
 
@@ -161,7 +211,7 @@ mod tests {
 
     #[test]
     fn sanitization_removes_active_content_and_retains_table_styles() {
-        let html=sanitize("<script>PRIVATE_SCRIPT</script><iframe src='file:///private'></iframe><form><input value='PRIVATE_INPUT'></form><table style='color: red'><tr><td colspan='2' onclick='PRIVATE_EVENT'>Safe body</td></tr></table>").expect("bounded sanitizer");
+        let html=sanitize("<script>PRIVATE_SCRIPT</script><iframe src='file:///private'></iframe><form><input value='PRIVATE_INPUT'></form><table style='color: red'><tr><td colspan='2' onclick='PRIVATE_EVENT'>Safe body</td></tr></table>", Arc::default()).expect("bounded sanitizer");
         assert!(!html.contains("PRIVATE_"));
         assert!(html.contains("<table style=\"color: red\""));
         assert!(html.contains("colspan=\"2\""));
@@ -202,8 +252,8 @@ mod tests {
                 .any(|p| p[1] > 240 && p[0] < 10 && p[2] < 10 && p[3] > 240)
         );
         assert!(
-            frame.blocked_resources >= 2,
-            "resource provider is exercised"
+            frame.blocked_resources >= 1,
+            "CSS request reaches the denied provider; image URLs are stripped"
         );
     }
     #[test]
@@ -249,8 +299,8 @@ mod tests {
         );
         let frame = render(&html, 100, 100, false).expect("passive raster");
         assert!(
-            frame.blocked_resources >= 2,
-            "resource fixtures reach denied provider"
+            frame.blocked_resources >= 1,
+            "CSS fixture reaches denied provider; image URL is stripped"
         );
         assert_eq!(
             listener.accept().expect_err("no HTML connection").kind(),

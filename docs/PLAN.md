@@ -70,8 +70,13 @@ Read RENDERING.md and DEPENDENCIES.md. Record evidence in
   credential access or automatic external links. Do not assume browser CSP support.
 - [ ] Prove no remote/DNS/localhost/file/redirect/CSS/font/SVG/tracking loads on
   open, using working positive controls and independent observations.
-- [ ] Support bounded immutable message-local CID/raster resources; test ambiguous
-  IDs, encoding/traversal, missing parts, wrong types, retirement and isolation.
+- [x] Implement immutable per-render PNG/JPEG CID tables through Blitz's decoded
+  raster API; verify painting/alpha, ambiguous IDs, encoding/traversal, missing
+  resources, wrong types, budgets and isolation between renders.
+  [Renderer and preview evidence](evidence/P01-inline-images.md).
+- [ ] Connect bounded original-message MIME/CID descriptors to the HTML reader;
+  respect truncated/ambiguous MIME parts and verify resource retirement during
+  asynchronous message switching. CSS CID backgrounds remain unsupported.
 - [x] Forward the app's selected color scheme through Blitz's viewport/media API.
   Respect fixed-light emails; do not invert images or reproduce desktop themes.
 - [x] Provide a native read-only text reader using standard GPUI Kit components;

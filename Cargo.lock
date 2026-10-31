@@ -4407,7 +4407,9 @@ dependencies = [
  "blitz-html",
  "blitz-paint",
  "blitz-traits",
+ "image",
  "tempfile",
+ "uuid",
 ]
 
 [[package]]
