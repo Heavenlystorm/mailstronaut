@@ -1,0 +1,514 @@
+{
+  "source": "/nix/store/9vqgdx1qss6ryrxl8pml8ajzlqlxqk0q-source",
+  "package": "/nix/store/hj83xbbjfbww7z0k6nsk3rqsjk1vvwqs-mailstronaut-0.1.0",
+  "sourceFilesMatchCheckout": true,
+  "gate": {
+    "service": "mailstronaut-mailbox-package-gate-r2.service",
+    "invocation": "5c5715d316344052aa7d9c59b06cd8f4",
+    "status": 0,
+    "allChecksPassed": true,
+    "tests": 141
+  },
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "28fa8ac8273936d79f4e2f28ce673350052143bd6c5e5401fbc5cca0113780f4"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "c6c72a7326369b989e55ae0841d40d5fb35620a94e1d714f889761efa43dc94d"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "README.md",
+      "sha256": "23738014a9f9a27737f5056cdc7015fb4295b7039a2f102577eff032e26227eb"
+    },
+    {
+      "path": "assets/app-id",
+      "sha256": "481d1b41c3371b1bfc006a8c96221c53ab9c8689a8e7982bfe8372099a35756c"
+    },
+    {
+      "path": "assets/icon.svg",
+      "sha256": "bf023f5d39192071c32b79ca6aff2bcc97b5256a2cc3ec776f55379eda690912"
+    },
+    {
+      "path": "assets/inline-fixture.png",
+      "sha256": "9850acd4e770292c99010d3d58dd9c5edda614173287a82e023109b76e5c005f"
+    },
+    {
+      "path": "crates/mailstronaut/Cargo.toml",
+      "sha256": "93ef742072446782afc611a0adf61c8af7b5992e5519092c24fb537a74534b12"
+    },
+    {
+      "path": "crates/mailstronaut/src/account_actions.rs",
+      "sha256": "93d3d65c3ea2404314334f68e9aec9548ecd12590fcf9f60c4389a3574220602"
+    },
+    {
+      "path": "crates/mailstronaut/src/accounts.rs",
+      "sha256": "92c5b34cee82db3e5f905c5d9e2731130bf462ab27d8264ef0dbb850c659aa27"
+    },
+    {
+      "path": "crates/mailstronaut/src/config_cli.rs",
+      "sha256": "f1b331bdbeb91055fdadba6f1006575ac6aeb38a33bb265cc10edd3f5cca7a15"
+    },
+    {
+      "path": "crates/mailstronaut/src/mailbox.rs",
+      "sha256": "6d0d3cb51d65fb949f641201e232474df3a2e66f74db63a4b448fd377cabc767"
+    },
+    {
+      "path": "crates/mailstronaut/src/main.rs",
+      "sha256": "b96df742a2fd73734cf69ce8a0b4d8b2b98a8251c48e5af7285baf520677a275"
+    },
+    {
+      "path": "crates/mailstronaut/src/read_gate.rs",
+      "sha256": "650f2850825107ddeb4e294868c5e046c829ccbbc5fdf0b434a824c7ecdc7a4f"
+    },
+    {
+      "path": "crates/mailstronaut/src/workspace.rs",
+      "sha256": "b5f0805542faa913df63ba34eb49ade151810e47d8d423b8738ee678898f2756"
+    },
+    {
+      "path": "crates/mailstronaut/tests/configuration.rs",
+      "sha256": "352e7c7fc6e659e820c97eda9349ce8ce1530e3aa4e3d13305c3cfe7a1121ed5"
+    },
+    {
+      "path": "crates/mailstronaut/tests/configuration_source.rs",
+      "sha256": "43bc7c35d4c27b47433b079e6617d015f9ed0f87f04d7323fc821e31863b941a"
+    },
+    {
+      "path": "crates/mailstronaut/tests/threading.rs",
+      "sha256": "0719a7b405bdef688cea04a203baa2e8eece699baf00bf00f578bae2d1995fa6"
+    },
+    {
+      "path": "crates/mailstronaut-config/Cargo.toml",
+      "sha256": "d67fa9f002cb407d3fa1485e430b51d3174424bc341f941381a66446c2699b4c"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/helper.rs",
+      "sha256": "fc2470a1029d89ad20e33b29013b1f74705354eecbf3cc1e535a0570989da908"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/lib.rs",
+      "sha256": "2fc67c294d553a2d68d9a1b14f67beac2190e20095f39443424a925868d3e56e"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/process.rs",
+      "sha256": "f000e28bd03a7579e16d1d5fc594bf10e4e6c99c5564ca11bb876677813f4d5b"
+    },
+    {
+      "path": "crates/mailstronaut-config/src/source.rs",
+      "sha256": "9ffb2e6947f107dc146cbadfc18b68a37ecf8b62f05abd3c256d26a743774c35"
+    },
+    {
+      "path": "crates/mailstronaut-core/Cargo.toml",
+      "sha256": "1e1216eb208bf605bd5c906061bd936f9303f1164b08f1dfd7d760ff261dd0a8"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/actions.rs",
+      "sha256": "36b8806a3ef25cd874218b09beb8da7e0f71a348502e6324ede2b395cdfa4523"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/attachments.rs",
+      "sha256": "ea71e215ed2aaf3a9bfd4106d63af8f339392ca62a05f1c3ceede1f318ae7c56"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/lib.rs",
+      "sha256": "425d52b7836a065dbdfbef375dca2dc8a5978bc9a7a1370fe29325ccaaca9b13"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/mime.rs",
+      "sha256": "b8c7ae3517cdbded29471718588699ee3ad16cfe2f3cf69917044af3d7eab440"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/reminders.rs",
+      "sha256": "3c682d435a8b64f1b463fc964d3cfa498cbdd6c61087ac162eb9f32d3b91865b"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/reply.rs",
+      "sha256": "9b762e55e52dff4b11b1a4b9a3018a147f44e9aa0ade4bce89f9ef3c928f3c90"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/browse.rs",
+      "sha256": "1e4228dc9fd6a751cc06d715ce1e08e5212c45f9fb7b8cb7d28fb5a7e45723c1"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/conversations.rs",
+      "sha256": "1116fcf838ec44a7e85bb83aa113775986f3980c27eade724aecbae0dce23a20"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/flags.rs",
+      "sha256": "90d2a8e3513f74b8e5fb9f8b0b7b88a0e44dc0944a9ec170a11b9e8c7bbf734e"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/mailbox.rs",
+      "sha256": "347976d92e6908a61bd1939549bd0430c84858cd3380f7b2cbc4c7e8596b15d2"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/migration_tests.rs",
+      "sha256": "21e8bc4c871135ce89e9ec05176f9e23cf1b57967b1eb7df47861c4741605d60"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/outbox/attachments.rs",
+      "sha256": "4a52bd8cb0fd11901728113acb712bf7f4a91a43e695f362330fa611f5d01f93"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/outbox.rs",
+      "sha256": "1f65f6736c6855e00899a26b8aede234d2335e69b9744aed7c18ce2ea08e91ad"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/reminders/tests.rs",
+      "sha256": "e83036410719ec6de821ac3beff6dca606f807f38f6ec465f8aeca5baeb7993e"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store/reminders.rs",
+      "sha256": "9e5419d7a257b848d8c70a67d98e873ca890c9dd2442b2bed78c652a07558a15"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/store.rs",
+      "sha256": "47defbbdc0c74af687efe7d476f52a57bf8a8c88da186efec888c215624a9b0d"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/sync.rs",
+      "sha256": "bb2d747138c20699853ac80b11135e7d9e4fa94df00320c615e877529ee30217"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/threads/helper.rs",
+      "sha256": "0b2fc42c127568167ea453bf5f6980118bf10a77a33bc13b0e57cda6d2dbb186"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/threads/process.rs",
+      "sha256": "a150a20ac5ffbd406630ad4ec766d6e6b65afccf2b847911891a709f72c06e0e"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/threads.rs",
+      "sha256": "73174fe377cdfb58f8247f51209f01dfafaffdbcb7846ff64f48d6b6462267df"
+    },
+    {
+      "path": "crates/mailstronaut-core/src/worker.rs",
+      "sha256": "403ca21d40b75f032f4bd19c95c47056cddf6dd0904f03664ccfe3d88fccbcba"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/attachments.rs",
+      "sha256": "6c28cc33e50b39abd30cd2e969c95923124788ebed23307376cc60997a6d2f07"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/conversation-gui.json",
+      "sha256": "8d39f4a8c740ddfe4091f4240357beb3d5191eb81f82cbe8cedd00db021e2468"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/LICENSE-APACHE",
+      "sha256": "6165cbb956c22bbd65533882d4378a7463b9fae4e15fb39107475b0207e824b5"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/LICENSE-MIT",
+      "sha256": "a6e24a7e12b8d6f620c3159dfb71f654b94a3948230450914d7a1d5f14e9869e"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/README.md",
+      "sha256": "58fc06e69466b4c01fed46c89839107006e494b6b1fdc552017a35c520a1438e"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/basic-references-chain.json",
+      "sha256": "8cf158f4a2e10059a2f306432f99329c047d8d152beca5ff2000391abcff0495"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/canonical-root-preserved-with-earlier-child.json",
+      "sha256": "f7f9993160b45e83b64968fcacecc5dd47322104d900f71354221fa87eb32a9b"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/conflicting-references-beat-in-reply-to.json",
+      "sha256": "185fa44f9d5c1a1013da8f9762f59d42d23f082bfe326d6f8a5aaf8480a87f21"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/current-message-reparents-to-last-reference.json",
+      "sha256": "9db11eab056a99655f680f61097037308c7796f1eda9e404f848d94f5953b267"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/cycle-in-references.json",
+      "sha256": "33bf62c41b1e9f01b603b2cb38e7a5240a264b15bb57aea8847ee1963c8fa0cb"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/duplicate-message-id-first-wins.json",
+      "sha256": "7595287db467f1f8d8c2d5e66944ad83877464aac6f1b467e4568b4c237aecde"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/empty-input.json",
+      "sha256": "d0bb4429f103898395a1c1fa56292c1201c33387058ee3a46313a841e31fa9bd"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/in-reply-to-only-parent-missing.json",
+      "sha256": "633aad288dc87f11780cda50d2e78fa0199bbdb389fee635e35cfc70a60d9ec1"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/in-reply-to-only-parent-present.json",
+      "sha256": "d2421d1e4a0c5b40e82b6eb127bd9e5343450c7b765414cb9c37336f784e2c94"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/invalid-references-fall-back-to-in-reply-to.json",
+      "sha256": "fa504fb3b98e41eb733083823fc4b7722d9ce60e5e0c4483bb5c1c819d559813"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/invalid-threading-headers-allow-subject-fallback.json",
+      "sha256": "e3827bdff6fd577e4d533bcbf9fe5e09bacb6e430190b1d75a3bba49f413e55e"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/localized-subject-prefixes.json",
+      "sha256": "a9d93fa349ce9e84283c438173c0ac754962d588274662a52a4e7062267cad28"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/message-id-case-sensitive.json",
+      "sha256": "434a163a5cf04e784f03cd3298df4d5f3f7f4f89aa8cbc07a29be199b1b11795"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/message-id-quoted-local-normalization.json",
+      "sha256": "3efd43ce6107251b9a19ef07fda36e05ab0617cc08a6db0a5911ef0dd73b5753"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/missing-message-id-assigned-unique-id.json",
+      "sha256": "1fdaa600949acaf2b4200ac13c1b5653b3d563787efdbc5efaa11b04c0dc7144"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/missing-message-id-reply-to-present-parent.json",
+      "sha256": "b49faea854f2b7c3a83b8d4d0be683abf811743820a5780efe5083fe7aa87b46"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/missing-top-reference.json",
+      "sha256": "19751ad1b07e8f0bfc3a9ce66da6050ab03d66132fc48544c38fab17d650cb9c"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/multi-level-missing-phantom-chain.json",
+      "sha256": "98a0e6d264d7667763b659d95f50c1fe03ed1f20c7710dd1db059cf328dda0f1"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/no-replies.json",
+      "sha256": "5b0bb31d8694345db0411bea6ef8214cf387adbc891df3d62cd524f464d04546"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/prune-phantoms-disabled.json",
+      "sha256": "8d8207ee2a31326aa4368ed89e4c24bdae6d52c64bbf8c0a8755c911b0495ed7"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/references-chain-preserves-existing-parent.json",
+      "sha256": "47e2ee8a3191a9754cae2b9b84adba7ba66e05704f493e388c7ff205fe44fb39"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/reply-arrives-before-parent.json",
+      "sha256": "e8624f9d3bce6812e1f94fc7add4c2cdc32e2271a67dbf7b58cc57a15be88b5d"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/same-subject-header-threads-not-merged.json",
+      "sha256": "ff59049f27d3fd7222eba5b96293510e82e608c70a0b5657e1697a90721ae312"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/self-reference.json",
+      "sha256": "ac94bb6579f05110f4a23d59b0b8455f235bd3262309f1139187a2e01cb590da"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/single-message.json",
+      "sha256": "d9a08c512f9766a6473486c67a8c8a3ea15b9d3a1eaacd6b5495887ee1c6aec6"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/stable-thread-ordering-by-date.json",
+      "sha256": "8c8774894f90bbfb83f1461700028b9123c87a1b703fe901b275f28d4fdece61"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/stable-thread-ordering-with-caller-ids.json",
+      "sha256": "0b9e5dc1c4df01d015000c86abfcd7484ea3949916e0844ab4db2156e9d75f62"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-blob-normalization.json",
+      "sha256": "2733ff3a82069b7cb4a8be17d4ad3c9fb4cff008349216b3d3ab698de098b219"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-blob-only-preserved.json",
+      "sha256": "c17fefcfd36ebc8b5435ef0da9927110fd7e659d6bc011357f0c3ac9eff90977"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-fallback-attaches-to-header-thread.json",
+      "sha256": "29edd16c01698c06f68f89d847cd28ef0941b9f02a1fbd67a32dbcefa554965e"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-fallback-groups-headerless.json",
+      "sha256": "bc5c0537261547f2d95664cf2de8476cc67bfefaff6894979b77454db66b710c"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-forward-wrapper-normalization.json",
+      "sha256": "c0bd659bcd0696a0311b821851ef332ed2ceb4719fb2f801507cd36e3782214b"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-merge-disabled.json",
+      "sha256": "dc9079567581612865dbbef2531744dc4056118b6f5dab0b908710b782b50ba9"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-prefixes-custom.json",
+      "sha256": "4af730c1747229e152bbaec4d426d612e2f159e8c81c318377ed9f85cac227be"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-trailer-fwd-normalization.json",
+      "sha256": "99bdf4cbbdb9f9fea6b2c6ff3a01ad8891d181cf54ae983b6a91ab2959d8db40"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/subject-whitespace-normalization.json",
+      "sha256": "5812b7d5434c5f5737fb3d6ed9dcbec182c5db2fa4a38fa65a315c7e3e8af394"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/conformance/two-independent-threads.json",
+      "sha256": "d280d352b9c196fba5333a5afad9135629591cc37825fd75824d4ba7d6bcc12a"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/fixtures/mail-threading-0.1.3/rfc5256-coverage.md",
+      "sha256": "1f7e0b7ccd478bd41f4b69cc74ce4687b12e121fbce092b6bb748bd60f8eb957"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/flags.rs",
+      "sha256": "2449a22a3c88b1120ab2426343044854bd8b0f73e7568409e210688119afb383"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/mailbox.rs",
+      "sha256": "a64e2fd3a1146d0ad7b9f935f359d0e329f3bb86cd2b486033d12c250f8f73eb"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/mime.rs",
+      "sha256": "c870499d9cacee2ac0410eab26d83d4be0b948bdf9f2846563c9bc658800960c"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/outbox.rs",
+      "sha256": "bd8798099b92179556a98beffdf1bbb1255fce5b453c3f1adbff96fe0f31dc6d"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/reply.rs",
+      "sha256": "3cbf24290c85fcf8d8fa57191cf610ea4ccb1f62e91c14c58cb013b76b642479"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/threading_corpus.rs",
+      "sha256": "f55c060dd0a0a82b9a6ad7c4aec8f039764e09f9b33fce0de70b0046c8f4af30"
+    },
+    {
+      "path": "crates/mailstronaut-core/tests/worker.rs",
+      "sha256": "04a794347404a5cd77d416b7c4791ea428e0cc7ecf7e392613df130e5afecea3"
+    },
+    {
+      "path": "crates/mailstronaut-mail/Cargo.toml",
+      "sha256": "c42bf37bf72f171b9e9d083f1f576727b637260acada4db31d0393be387d8556"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/auth.rs",
+      "sha256": "2b5cd224f9782d664bab428197dc85a5d84bfbccd718a32188033c0feab74992"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/compose.rs",
+      "sha256": "ad6932278a1f3f4fb6978b6e07bc945d1ba73a8c886ebcfabb17cf4f31a25438"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/credentials.rs",
+      "sha256": "63e85aaa4a4a520aabd05ee729cc7c29ae9ea1196427c94cc7ae2cf50a5d4bd7"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/imap/flags.rs",
+      "sha256": "d5011837cbb307b0904830960a7ea60045c3008a088dcf92bbdedbdc39f818bc"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/imap/read.rs",
+      "sha256": "0dcbec2515988e32073070a505c136280b43da25950a5506472608cf003fbfa1"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/imap.rs",
+      "sha256": "f0744f3faf9d0cb617a476ea28e36b88be6db781723fda2cba746ff84cf68d6e"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/lib.rs",
+      "sha256": "cd586c38f418d5fba569507fbee838358d934b449dab396dd97a699d649c6100"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/oauth/callback.rs",
+      "sha256": "dc7b4224a14e2a1f759f6a03fd3e2330ab218fac59ced12b4992d9ec44df44fd"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/oauth.rs",
+      "sha256": "38aedbc6820a6cd93b26d9acac3d3f8fd532ea0b3ff6666c6781001c0565b167"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/smtp.rs",
+      "sha256": "0229f585b4eedd5fafd65213d3b3f707375161c94d6d9971a54602f4b03ae434"
+    },
+    {
+      "path": "crates/mailstronaut-mail/src/tls.rs",
+      "sha256": "d585ca6435d2c60d30e6dc0f2725a8ae0cc130fd7ee62f492870aaea7b589302"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/certs/README.md",
+      "sha256": "8420f56fd92c8b55425ba70373cb8914e2c986efbce26fe843f5821c07d9224d"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/certs/ca.pem",
+      "sha256": "8793f68ede9f69ba3e7dcd3e2a369ef3a081842c2743beb2be3bb81831e98a61"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/certs/expired.pem",
+      "sha256": "bcd9c9f538697556d0d5006db907bf66d4e1011756aec82ea3204ab4ee5e8083"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/certs/localhost-key.pem",
+      "sha256": "0e4189e639088726f421c7bddc5ac4b462969a679a17146f372dd0257845969c"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/certs/localhost.pem",
+      "sha256": "d60704696e49e030754f322f423ff35c703d2c305634f4934bc0072856ee6b78"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/compose.rs",
+      "sha256": "c0e9bb890e138bd9255ff815ad77882f5f3447c4aed4724fdf9348d96c10a4ac"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/credentials.rs",
+      "sha256": "4c5481947297567432394bf438baf81dad6c6908df201ffcae657229b45556c3"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/imap_tls.rs",
+      "sha256": "526e80ebeec5f1f674aeb11ff5db22bdd0ebb9191efc68805d1ab9a7ec0bc501"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/oauth/portal.rs",
+      "sha256": "59958438e0544c45ba487c252d74cd40b38daf9f1fd8990e2be14547ffd9f9ec"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/oauth.rs",
+      "sha256": "f49fb591d6fc079f901ac1be0e89543a30b56d0dd386b5e5e42e4027d435ebc8"
+    },
+    {
+      "path": "crates/mailstronaut-mail/tests/smtp.rs",
+      "sha256": "915b93e4b8a0ca4a5a9e414aa24daadbed540217964e7e32583e1a8a00f57ab4"
+    },
+    {
+      "path": "crates/mailstronaut-render/Cargo.toml",
+      "sha256": "903e2e4ca122fbee8afbf178ce4a2ff30806abbfee010d4df970886a7247b38a"
+    },
+    {
+      "path": "crates/mailstronaut-render/src/lib.rs",
+      "sha256": "ac33c14755e03329737f0859c91ffac04210ed778a4a81da89e2234a071b5e90"
+    },
+    {
+      "path": "crates/mailstronaut-render/src/resources.rs",
+      "sha256": "d1dc4c78cef674a1128afc3e01bdb7db596bac359fd99a633a555f54b0a9b957"
+    },
+    {
+      "path": "docs/CONFIGURATION.md",
+      "sha256": "8225a53c31961170a243edb42cec6dd3ab0a276d0d191be711621d4938d31619"
+    },
+    {
+      "path": "examples/config.nix",
+      "sha256": "1d4dff787fae9c03dbaaab58b33cdba93202c64789b084562da59ac4f040fa47"
+    },
+    {
+      "path": "examples/home-manager.nix",
+      "sha256": "e2cc68f699e8cd312a7692e9ff6044cd3a1c10546331c99faba642d5a890ff07"
+    },
+    {
+      "path": "experiments/p02-accounts/credentials.sh",
+      "sha256": "08818d79ca3de973ce541de033e5fedd76fc646f22ece7dca9a90783ad6089bb"
+    }
+  ]
+}

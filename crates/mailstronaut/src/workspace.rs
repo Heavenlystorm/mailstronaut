@@ -9,14 +9,15 @@ use gpui::component::{
     clipboard::Clipboard,
     description_list::DescriptionList,
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
+    list::{List, ListEvent, ListState},
     resizable::{h_resizable, resizable_panel},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
 };
 use gpui::{
-    App, AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
+    AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
     KeyBinding, ParentElement as _, Render, RenderImage, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Window, div, img, prelude::FluentBuilder as _, px, uniform_list,
+    Styled as _, Subscription, Window, div, img, prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
@@ -25,6 +26,8 @@ use mailstronaut_core::{
 };
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
+
+use crate::mailbox::{Row, Rows};
 
 gpui::actions!(
     mailstronaut,
@@ -42,6 +45,9 @@ gpui::actions!(
         /// Focus the native read-only message text without opening a message.
         FocusReader,
         #[derive(Eq)]
+        /// Focus the message list without opening its selection.
+        FocusMessages,
+        #[derive(Eq)]
         /// Display configured accounts without starting network work.
         ShowAccounts,
         #[derive(Eq)]
@@ -54,16 +60,6 @@ gpui::actions!(
 );
 
 const DEMO_HTML: &str = "<style>body{font:17px sans-serif;margin:32px;color:#243044;background:#fff}h1{font-size:30px}td{padding:18px} @media(prefers-color-scheme:dark){body{background:#20242b;color:#edf1fa}}</style><h1>A little more space for your mail.</h1><p>This synthetic email is laid out by Blitz and painted by Vello CPU.</p><table style='width:100%;border-collapse:collapse'><tr><td style='background:#dce9ff;color:#173b73'>Native Wayland</td><td style='background:#e1f2e8;color:#164c34'>Rust throughout</td></tr></table><p>Tables, inline CSS and Unicode: Bonjour · Ciao · 世界.</p><p><img src='cid:demo-badge' width='96' height='32' alt='Local raster image'> Message-local PNG · no fetching.</p>";
-
-#[derive(Clone)]
-struct Row {
-    account: String,
-    id: i64,
-    sender: String,
-    subject: String,
-    preview: String,
-    unread: bool,
-}
 
 #[derive(Eq, PartialEq)]
 enum View {
@@ -87,7 +83,8 @@ pub struct Workspace {
     lifetime: CancellationToken,
     query_cancel: CancellationToken,
     read_gate: crate::read_gate::Gate,
-    rows: Vec<Row>,
+    list: Entity<ListState<Rows>>,
+    _list_events: Subscription,
     selected: Option<Row>,
     body: String,
     text_reader: Entity<TextareaState>,
@@ -95,7 +92,10 @@ pub struct Workspace {
     frame: Option<Arc<RenderImage>>,
     search: Entity<InputState>,
     status: String,
-    generation: u64,
+    query: String,
+    query_generation: u64,
+    reading_generation: u64,
+    render_generation: u64,
     demo: bool,
     _search_events: Subscription,
     _activation: Subscription,
@@ -125,6 +125,7 @@ impl Workspace {
             KeyBinding::new("ctrl-r", RefreshCache, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-d", ToggleAppearance, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-t", FocusReader, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-l", FocusMessages, Some("Mailstronaut")),
             KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
             KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
@@ -133,9 +134,17 @@ impl Workspace {
         window.focus(&focus, cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search cached mail"));
         let text_reader = cx.new(|cx| TextareaState::new(window, cx));
-        let events = cx.subscribe(&search, |this, _, event, cx| {
+        let events = cx.subscribe_in(&search, window, |this, _, event, window, cx| {
             if matches!(event, InputEvent::PressEnter { .. }) {
-                this.refresh(cx);
+                this.refresh(window, cx);
+            }
+        });
+        let list = cx.new(|cx| ListState::new(Rows::default(), window, cx).searchable(false));
+        let list_events = cx.subscribe_in(&list, window, |this, list, event, window, cx| {
+            if let ListEvent::Confirm(index) = event
+                && let Some(row) = list.read(cx).delegate().items.get(index.row).cloned()
+            {
+                this.open(row, window, cx);
             }
         });
         let activation = cx.observe_window_activation(window, |this, window, _| {
@@ -166,7 +175,8 @@ impl Workspace {
             lifetime: CancellationToken::new(),
             query_cancel: CancellationToken::new(),
             read_gate,
-            rows: Vec::new(),
+            list,
+            _list_events: list_events,
             selected: None,
             body: String::new(),
             text_reader,
@@ -174,7 +184,10 @@ impl Workspace {
             frame: None,
             search,
             status: "Opening local mail…".into(),
-            generation: 0,
+            query: String::new(),
+            query_generation: 0,
+            reading_generation: 0,
+            render_generation: 0,
             demo,
             _search_events: events,
             _activation: activation,
@@ -182,42 +195,51 @@ impl Workspace {
             theme_override: None,
         };
         if demo {
-            this.status = "Synthetic preview · no accounts or network".into();
-            this.rows = [
-                (
-                    "The Mailstronaut team",
-                    "Welcome aboard",
-                    "A native space for your mail.",
-                ),
-                (
-                    "Doctoral school",
-                    "Réinscription en doctorat",
-                    "Synthetic example, no personal data.",
-                ),
-                (
-                    "Design notes",
-                    "A calmer inbox",
-                    "Built with standard GPUI Kit components.",
-                ),
-            ]
-            .into_iter()
-            .enumerate()
-            .map(|(id, (sender, subject, preview))| Row {
-                account: "Demo".into(),
-                id: i64::try_from(id).unwrap_or_default(),
-                sender: sender.into(),
-                subject: subject.into(),
-                preview: preview.into(),
-                unread: true,
-            })
-            .collect();
-            if let Some(row) = this.rows.first().cloned() {
-                this.open(row, window, cx);
-            }
+            this.init_demo(window, cx);
         } else {
             this.load_configuration(window, cx);
         }
         this
+    }
+
+    fn init_demo(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.status = "Synthetic preview · no accounts or network".into();
+        let rows: Vec<_> = [
+            (
+                "The Mailstronaut team",
+                "Welcome aboard",
+                "A native space for your mail.",
+            ),
+            (
+                "Doctoral school",
+                "Réinscription en doctorat",
+                "Synthetic example, no personal data.",
+            ),
+            (
+                "Design notes",
+                "A calmer inbox",
+                "Built with standard GPUI Kit components.",
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(id, (sender, subject, preview))| Row {
+            account: "Demo".into(),
+            id: i64::try_from(id).unwrap_or_default(),
+            conversation: None,
+            sender: sender.into(),
+            subject: subject.into(),
+            preview: preview.into(),
+            unread: 1,
+            messages: 1,
+        })
+        .collect();
+        if let Some(row) = rows.first().cloned() {
+            self.open(row, window, cx);
+        }
+        self.list.update(cx, |list, cx| {
+            crate::mailbox::replace(list, rows, window, cx);
+        });
     }
 
     fn load_configuration(&mut self, window: &Window, cx: &mut Context<Self>) {
@@ -258,11 +280,10 @@ impl Workspace {
                     Ok(Ok((owner, config))) => {
                         this.owner = owner;
                         if this.declaration.apply(config) {
-                            this.generation = this.generation.wrapping_add(1);
-                            this.read_gate.suppress(this.generation, this.generation);
-                            this.selected = None;
-                            this.body.clear();
-                            this.frame = None;
+                            this.retire_open();
+                            this.list.update(cx, |list, cx| {
+                                crate::mailbox::replace(list, Vec::new(), window, cx);
+                            });
                             this.text_reader
                                 .update(cx, |reader, cx| reader.set_value("", window, cx));
                             if let Some(config) = this.declaration.active().cloned() {
@@ -282,7 +303,7 @@ impl Workspace {
                                 format!("{error}. No accounts have been started.")
                             };
                         } else {
-                            this.refresh(cx);
+                            this.refresh(window, cx);
                         }
                     }
                     Ok(Err(error)) => this.status = error,
@@ -322,11 +343,12 @@ impl Workspace {
                     cx,
                 )
             });
-            self.account_events.push(cx.subscribe(
+            self.account_events.push(cx.subscribe_in(
                 &view,
-                move |this, _, _: &crate::accounts::Event, cx| {
+                window,
+                move |this, _, _: &crate::accounts::Event, window, cx| {
                     if revision == this.declaration.revision() {
-                        this.refresh(cx);
+                        this.refresh_rows(window, cx);
                     }
                 },
             ));
@@ -361,7 +383,7 @@ impl Workspace {
     fn refresh_demo(&mut self, cx: &Context<Self>) {
         // Theme changes never reopen real messages or authorize Seen.
         if self.demo && self.selected.is_some() {
-            self.generation = self.generation.wrapping_add(1);
+            self.render_generation = self.render_generation.wrapping_add(1);
             self.render_demo(cx);
         }
     }
@@ -379,18 +401,45 @@ impl Workspace {
         self.owner.as_ref().map(|owner| owner.handle())
     }
 
-    fn refresh(&mut self, cx: &mut Context<Self>) {
+    fn retire_open(&mut self) {
+        self.reading_generation = self.reading_generation.wrapping_add(1);
+        self.render_generation = self.render_generation.wrapping_add(1);
+        self.read_gate
+            .suppress(self.declaration.revision(), self.reading_generation);
+        self.selected = None;
+        self.body.clear();
+        self.frame = None;
+    }
+
+    fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let query = self.search.read(cx).value().to_string();
+        if query != self.query {
+            self.query = query;
+            self.retire_open();
+            self.list.update(cx, |list, cx| {
+                crate::mailbox::replace(list, Vec::new(), window, cx);
+            });
+        }
+        self.refresh_rows(window, cx);
+    }
+
+    fn refresh_rows(&mut self, window: &Window, cx: &mut Context<Self>) {
         let Some(handle) = self.handle() else {
             return;
         };
-        self.generation = self.generation.wrapping_add(1);
-        let generation = self.generation;
-        self.read_gate.suppress(generation, generation);
+        self.query_generation = self.query_generation.wrapping_add(1);
+        let generation = self.query_generation;
+        let revision = self.declaration.revision();
         let accounts = self.accounts.clone();
         self.query_cancel.cancel();
         self.query_cancel = self.lifetime.child_token();
         let cancel = self.query_cancel.clone();
-        let query = self.search.read(cx).value().to_string();
+        let query = self.query.clone();
+        self.list.update(cx, |list, cx| {
+            list.delegate_mut().loading = true;
+            list.delegate_mut().searching = !query.is_empty();
+            cx.notify();
+        });
         self.status = "Searching local cache…".into();
         let job = self.runtime.spawn(async move {
             let executable = std::env::current_exe()
@@ -422,18 +471,25 @@ impl Workspace {
                 .await
                 .map_err(|error| error.to_string())
         });
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
-            _ = this.update(cx, |this, cx| {
-                if generation != this.generation {
+            _ = this.update_in(cx, |this, window, cx| {
+                if generation != this.query_generation || revision != this.declaration.revision() {
                     return;
                 }
+                this.list.update(cx, |list, cx| {
+                    list.delegate_mut().loading = false;
+                    cx.notify();
+                });
                 match result {
                     Ok(Ok(rows)) => {
-                        this.rows = rows
+                        let count = rows.len();
+                        let rows = rows
                             .into_iter()
                             .map(|row| Row {
-                                unread: row.unread > 0,
+                                unread: row.unread,
+                                conversation: row.conversation,
+                                messages: row.cached_messages,
                                 account: row.latest.account,
                                 id: row.latest.id,
                                 sender: row.latest.sender,
@@ -441,10 +497,13 @@ impl Workspace {
                                 preview: row.latest.preview,
                             })
                             .collect();
+                        this.list.update(cx, |list, cx| {
+                            crate::mailbox::replace(list, rows, window, cx);
+                        });
                         this.status = if this.accounts.is_empty() {
                             "Add accounts in your native Nix configuration.".into()
                         } else {
-                            format!("{} cached conversations · local search", this.rows.len())
+                            format!("{count} cached conversations · local search")
                         };
                     }
                     Ok(Err(error)) => this.status = error,
@@ -458,9 +517,11 @@ impl Workspace {
     }
 
     fn open(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
-        self.generation = self.generation.wrapping_add(1);
-        let generation = self.generation;
-        self.read_gate.clicked(generation, generation);
+        self.reading_generation = self.reading_generation.wrapping_add(1);
+        self.render_generation = self.render_generation.wrapping_add(1);
+        let generation = self.reading_generation;
+        let revision = self.declaration.revision();
+        self.read_gate.clicked(revision, generation);
         self.selected = Some(row.clone());
         self.frame = None;
         self.body = "Opening cached message…".into();
@@ -487,7 +548,9 @@ impl Workspace {
             cx.spawn_in(window, async move |this, cx| {
                 let result = job.await;
                 _ = this.update_in(cx, |this, window, cx| {
-                    if generation != this.generation {
+                    if generation != this.reading_generation
+                        || revision != this.declaration.revision()
+                    {
                         return;
                     }
                     match result {
@@ -501,8 +564,8 @@ impl Workspace {
                             this.text_reader
                                 .update(cx, |reader, cx| reader.set_value(text, window, cx));
                             this.body.clear();
-                            if this.read_gate.take(generation, generation, eligible) {
-                                this.mark_opened(cx);
+                            if this.read_gate.take(revision, generation, eligible) {
+                                this.mark_opened(window, cx);
                             }
                         }
                         Ok(Err(error)) => this.body = error.to_string(),
@@ -517,7 +580,7 @@ impl Workspace {
     }
 
     fn render_demo(&self, cx: &Context<Self>) {
-        let generation = self.generation;
+        let generation = self.render_generation;
         let dark = cx.theme().mode.is_dark();
         let job = self.runtime.spawn_blocking(move || {
             let images = [mailstronaut_render::InlineImage {
@@ -530,7 +593,7 @@ impl Workspace {
         cx.spawn(async move |this, cx| {
             let result = job.await;
             _ = this.update(cx, |this, cx| {
-                if generation != this.generation {
+                if generation != this.render_generation {
                     return;
                 }
                 match result {
@@ -555,7 +618,7 @@ impl Workspace {
         .detach();
     }
 
-    fn mark_opened(&self, cx: &Context<Self>) {
+    fn mark_opened(&self, window: &Window, cx: &Context<Self>) {
         let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
             return;
         };
@@ -570,6 +633,7 @@ impl Workspace {
         let Ok(context) = mailstronaut_core::store::flags::context(account) else {
             return;
         };
+        let revision = self.declaration.revision();
         let job = self.runtime.spawn(async move {
             handle
                 .set_flag(
@@ -581,13 +645,19 @@ impl Workspace {
                 )
                 .await
         });
-        cx.spawn(async move |this, cx| {
-            if let Ok(Err(error)) = job.await {
-                _ = this.update(cx, |this, cx| {
-                    this.status = error.to_string();
-                    cx.notify();
-                });
-            }
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if revision != this.declaration.revision() {
+                    return;
+                }
+                match result {
+                    Ok(Ok(())) => this.refresh_rows(window, cx),
+                    Ok(Err(error)) => this.status = error.to_string(),
+                    Err(_) => this.status = "Unable to save the message's read state.".into(),
+                }
+                cx.notify();
+            });
         })
         .detach();
     }
@@ -605,7 +675,7 @@ impl Workspace {
         self.view = View::Inbox;
         self.read_gate.visibility(window.is_window_active());
         window.focus(&self.focus, cx);
-        self.refresh(cx);
+        self.refresh(window, cx);
         cx.notify();
     }
 
@@ -726,58 +796,47 @@ impl Workspace {
             .child(resizable_panel().child(self.reader(cx)))
     }
 
-    fn message_list(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn top_bar(&self, cx: &Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let muted = cx.theme().muted_foreground;
-        let accent = cx.theme().accent;
-        let rows = self.rows.clone();
-        let weak = cx.entity().downgrade();
-        uniform_list(
-            "message-list",
-            rows.len(),
-            move |range, _, _cx: &mut App| {
-                range
-                    .map(|index| {
-                        let row = rows[index].clone();
-                        let weak = weak.clone();
-                        div()
-                            .id(("message", index))
-                            .h(px(112.))
-                            .p_4()
-                            .border_b_1()
-                            .border_color(border)
-                            .cursor_pointer()
-                            .hover(move |style| style.bg(accent))
-                            .child(
-                                div()
-                                    .flex()
-                                    .justify_between()
-                                    .child(row.sender.clone())
-                                    .child(if row.unread { "•" } else { "" }),
-                            )
-                            .child(
-                                div()
-                                    .mt_1()
-                                    .font_semibold()
-                                    .truncate()
-                                    .child(row.subject.clone()),
-                            )
-                            .child(
-                                div()
-                                    .mt_1()
-                                    .text_sm()
-                                    .text_color(muted)
-                                    .truncate()
-                                    .child(row.preview.clone()),
-                            )
-                            .on_click(move |_, window, cx| {
-                                _ = weak.update(cx, |this, cx| this.open(row.clone(), window, cx));
-                            })
-                    })
-                    .collect::<Vec<_>>()
-            },
-        )
-        .size_full()
+        div()
+            .flex()
+            .items_center()
+            .gap_4()
+            .p_4()
+            .border_b_1()
+            .border_color(border)
+            .child(
+                div()
+                    .w(px(190.))
+                    .font_semibold()
+                    .child(if self.view == View::Accounts {
+                        "Settings"
+                    } else {
+                        "Unified inbox"
+                    }),
+            )
+            .child(div().flex_1().when(self.view == View::Inbox, |view| {
+                view.child(Input::new(&self.search))
+            }))
+            .when(self.view == View::Inbox, |view| {
+                view.child(
+                    Button::new("refresh")
+                        .label("Refresh cache")
+                        .on_click(cx.listener(|this, _, window, cx| this.refresh(window, cx))),
+                )
+            })
+            .child(
+                Button::new("appearance")
+                    .ghost()
+                    .label("Appearance")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.toggle_appearance(window, cx);
+                    })),
+            )
+    }
+
+    fn message_list(&self, _: &Context<Self>) -> impl IntoElement {
+        List::new(&self.list).size_full()
     }
     fn reader(&self, cx: &Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
@@ -879,9 +938,15 @@ impl Render for Workspace {
                 }
                 this.search.update(cx, |input, cx| input.focus(window, cx));
             }))
-            .on_action(cx.listener(|this, _: &RefreshCache, _, cx| this.refresh(cx)))
+            .on_action(cx.listener(|this, _: &RefreshCache, window, cx| this.refresh(window, cx)))
             .on_action(cx.listener(|this, _: &ToggleAppearance, window, cx| {
                 this.toggle_appearance(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &FocusMessages, window, cx| {
+                if this.view == View::Accounts {
+                    this.show_inbox(window, cx);
+                }
+                this.list.update(cx, |list, cx| list.focus(window, cx));
             }))
             .on_action(cx.listener(|this, _: &FocusReader, window, cx| {
                 this.focus_reader(window, cx);
@@ -898,40 +963,7 @@ impl Render for Workspace {
             .bg(background)
             .text_color(foreground)
             .child(gpui::component::TitleBar::new().child("Mailstronaut"))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_4()
-                    .p_4()
-                    .border_b_1()
-                    .border_color(border)
-                    .child(div().w(px(190.)).font_semibold().child(
-                        if self.view == View::Accounts {
-                            "Settings"
-                        } else {
-                            "Unified inbox"
-                        },
-                    ))
-                    .child(div().flex_1().when(self.view == View::Inbox, |view| {
-                        view.child(Input::new(&self.search))
-                    }))
-                    .when(self.view == View::Inbox, |view| {
-                        view.child(
-                            Button::new("refresh")
-                                .label("Refresh cache")
-                                .on_click(cx.listener(|this, _, _, cx| this.refresh(cx))),
-                        )
-                    })
-                    .child(
-                        Button::new("appearance")
-                            .ghost()
-                            .label("Appearance")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.toggle_appearance(window, cx);
-                            })),
-                    ),
-            )
+            .child(self.top_bar(cx))
             .child(
                 div().flex_1().min_h_0().child(
                     h_resizable("workspace-panes")

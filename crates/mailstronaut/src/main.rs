@@ -5,6 +5,7 @@ extern crate gpui_kit as gpui;
 mod account_actions;
 mod accounts;
 mod config_cli;
+mod mailbox;
 mod read_gate;
 mod workspace;
 

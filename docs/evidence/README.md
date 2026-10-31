@@ -16,3 +16,8 @@ results are recorded in `P01-gpui-blitz.md`, with precise limitations.
 Current GPUI account/settings, encrypted password storage, explicit TLS/PEEK sync,
 Seen and offline-restart results are in [P02-gpui-accounts.md](P02-gpui-accounts.md).
 The older P02 account UI walkthrough remains historical.
+
+Current GPUI mailbox List, passive selection, explicit confirmation, overlapping
+flag/query/body work and canonical unread repaint results are in
+[P06-gpui-mailbox.md](P06-gpui-mailbox.md). Earlier X11 mailbox walkthroughs remain
+historical frontend evidence.

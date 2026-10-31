@@ -261,6 +261,13 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
 
 - [x] Retain scoped cached-folder queries, literal FTS5 and account-local
   conversation projections. [Backend evidence](evidence/P06-browse.md).
+- [x] Replace the row scaffold with GPUI Kit List/ListState/ListDelegate/ListItem,
+  one external query field, account/thread/unread indicators and passive arrow
+  selection. Confirm once through ListEvent::Confirm; reload canonical unread
+  counts after a committed explicit open while retaining the newer body and
+  passive group selection. Verify the overlapping write/query/body case and
+  matching-original search in the private Wayland fixture.
+  [Bounded current-stack evidence](evidence/P06-gpui-mailbox.md).
 - [ ] Use GPUI Kit `Sidebar`, `SidebarHeader`, `SidebarGroup`, `SidebarMenu`,
   `SidebarMenuItem` and `SidebarFooter` for unified/per-account folders and Settings.
   Reuse active/collapsed states, icons and `Badge::count`; show only implemented
@@ -282,8 +289,9 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   folder, query, body and render work. Measure large-list responsiveness.
   Separate query and body/render generations: repaint rows from the canonical
   projection after a local flag commit without cancelling a newer explicit body
-  open. Update thread unread indicators immediately, retaining other unread members;
-  the current scaffold waits for its next cache query to repaint those indicators.
+  open. The bounded same-scope path is implemented above; complete account/folder,
+  conversation-merge, paging, removal and large-list acceptance before this row
+  is complete. Preserve unread siblings through every state change.
 - [ ] Display each account-local thread once, include cached Sent ancestry, open
   the matching original and allow per-message selection/actions.
   Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)

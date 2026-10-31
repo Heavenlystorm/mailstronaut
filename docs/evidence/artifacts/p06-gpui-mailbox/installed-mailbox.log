@@ -1,0 +1,12 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: ['other', 'second']
+Effective Seen matches explicit opens: ['other', 'second']
+Effective Seen matches explicit opens: ['other', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'second', 'unrelated']
+Native Wayland Kit List, passive selection, explicit original open, concurrent refresh, canonical unread and offline restart passed: /home/eduard/.t3/projects/mailstronaut/target/p06.5AUdyg

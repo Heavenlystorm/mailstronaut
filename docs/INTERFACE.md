@@ -64,6 +64,13 @@ not recreate/focus fields or trigger network work.
 
 ### P06: mailbox, threads and search
 
+The current mailbox uses Kit's virtualized List. Ctrl+L focuses it; arrows select
+passively, and Enter or a click opens the matching original. Same-query refreshes
+retain the selected group and reader. After a local Seen commit, rows reload the
+canonical thread unread counts without clearing unread siblings. See the bounded
+[native acceptance](evidence/P06-gpui-mailbox.md); the remaining table entries are
+requirements, not a claim that all those controls exist today.
+
 | Subproblem | Component/API | Boundary |
 | --- | --- | --- |
 | Unified/account/folder navigation | [`Sidebar::new(id)`, `SidebarHeader/Group/Menu/MenuItem/Footer`](https://gpui-kit.com/component/sidebar/), `Badge::count` | Use Sidebar nesting first. Consider [`Tree`/`TreeState`](https://gpui-kit.com/component/tree/) only for a demonstrated large hierarchical folder requirement. |
