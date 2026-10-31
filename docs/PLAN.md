@@ -26,6 +26,9 @@ current components and supplied design references to mail workflows.
 - [x] Download and inspect all seven supplied Apple Mail/Thunderbird/Spark/Proton/
   Gmail screenshots. Keep the images and download manifest only in ignored
   `target/design-references/`; do not commit or ship them.
+- [x] Audit the pinned GPUI Kit Component/Base catalog against P01–P11 UI
+  subproblems and record exact choices/limits in [INTERFACE.md](INTERFACE.md).
+  This is source/API research, not implemented feature or runtime acceptance.
 - [ ] At each completed UI workflow and before release, compare the actual app
   with those references for usability: navigation, information hierarchy, search,
   reader space, keyboard access and recoverable errors. Record remaining issues;
@@ -72,13 +75,13 @@ Model research must not indefinitely postpone the usable mailbox/compose UI.
 
 ## P01 — Native GPUI Kit and Blitz foundation
 
-Read RENDERING.md and DEPENDENCIES.md. Record evidence in
+Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p01-reader-and-shell). Record evidence in
 `evidence/P01-gpui-blitz.md`. Earlier renderer evidence is historical.
 
 - [x] Pin matching GPUI Kit/GPUI and Blitz/AnyRender/Vello CPU releases. Use the
   published component ecosystem; carry no large forks or reference-app patches
   without a demonstrated, documented need and an upstream removal path.
-- [x] Build a normal GPUI Kit window with standard assets/components, semantic
+- [x] Build a normal GPUI Kit window with `TitleBar`/`Root`, standard assets/components, semantic
   light/dark themes, focus and keyboard bindings. Responsive resize/HiDPI acceptance
   is tracked below; the first native-window fixture is 1280×840.
 - [x] Run on native Wayland with `DISPLAY` unset and no XWayland. Verify the actual
@@ -104,12 +107,17 @@ Read RENDERING.md and DEPENDENCIES.md. Record evidence in
   asynchronous message switching. CSS CID backgrounds remain unsupported.
 - [x] Forward the app's selected color scheme through Blitz's viewport/media API.
   Respect fixed-light emails; do not invert images or reproduce desktop themes.
-- [x] Provide a native read-only text reader using standard GPUI Kit components;
+- [x] Provide a native read-only text reader using `TextareaState`/`Textarea::readonly(true)`;
   verify Unicode selection/copy, rejected edits, document-end keyboard scrolling
   and selection preservation across theme changes in a private Wayland session.
   [Bounded evidence](evidence/P01-native-reader.md).
-- [ ] Implement HTML scrolling, resize, HiDPI, explicit portal links and HTML
-  selection/copy. A raster alone is not text accessibility.
+- [ ] Use `TabBar::segmented`/`Tab` for HTML/text mode and `Toolbar`/`ToolbarGroup`
+  for reader actions. Reuse `ScrollableElement`/`ScrollHandle` for scrollbars;
+  implement actual viewport rendering, resize, HiDPI and HTML selection/copy.
+  A raster alone is not text accessibility.
+- [ ] Implement explicit validated portal links with a standard `Button` (or
+  `Link` without `href`). In this pin `Link::on_click` does not override `href` and
+  `Link::disabled` does not gate navigation; never pass untrusted URLs to defaults.
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
 - [ ] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering.
@@ -127,6 +135,7 @@ explicitly mutable native Nix file. An optional small HM module may manage file
 ownership and activation, but must not mirror the application's schema or convert
 to another configuration format. No hidden TOML, imported Nixpkgs or host Nix daemon
 is required by the application.
+Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboarding).
 
 - [x] Retain typed schema/defaults/unknown-field rejection and the bounded pure
   Snix same-binary helper, resource limits, cancellation/reaping and redacted IPC.
@@ -139,7 +148,8 @@ is required by the application.
   `SettingGroup`, `SettingItem` and existing `SettingField` controls; reuse built-in
   page navigation/search and disabled-state behavior. Use masked `Input` for secret
   entry and explicit foreground keyring/OAuth actions, never a generic stored field.
-- [ ] Show the native source path, managed/mutable ownership and reload errors.
+- [ ] Show the native source path/ownership/last reload with `DescriptionList`,
+  a `Clipboard` path-copy action and persistent `Alert` reload errors.
   Protect managed, store-backed, read-only and unadopted user-authored expressions;
   credentials remain editable through the keyring even with managed configuration.
 - [ ] Support opt-in HM `mutableSettings` with one writable native `config.nix`:
@@ -151,6 +161,8 @@ is required by the application.
   attrset snapshot that can be imported as HM `settings` or installed directly.
   Include supported account declarations and secret references, never credentials
   or mailbox/runtime state. Do not rewrite the user's original expression or dotfiles.
+  Use `Dialog` + read-only `Textarea`, `Clipboard` and a Save `Button` invoking
+  the portal; use an in-app `Notification` for completed copy/save feedback.
 - [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
@@ -170,7 +182,9 @@ Existing synthetic backend tests/evidence remain relevant; rerun them with the
 new dependency graph before claiming current-package acceptance.
 
 - [ ] Verify private XDG paths, one blocking store owner/profile lock, bounded
-  commands, WAL/foreign keys/busy timeout, migration backup/rollback and corrupt DB UX.
+  commands, WAL/foreign keys/busy timeout and migration backup/rollback. Present
+  unavailable/corrupt stores with `Empty`/`Alert` and a real Retry action; use
+  `AlertDialog` only for explicitly destructive purge/reset decisions.
 - [ ] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
 - [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
@@ -183,6 +197,8 @@ new dependency graph before claiming current-package acceptance.
   at measured mailbox scale; sequence numbers never become persistent identity.
 - [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
   partial-cache states and bounded 100k-message behavior. See P06 for strong search.
+  Rebuild progress uses `Spinner`, or `Progress` only with a known bounded total;
+  [components present store state](INTERFACE.md#p03-store-and-p04-synchronization), not persistence logic.
 
 ## P04 — IMAP synchronization and offline operation
 
@@ -191,12 +207,16 @@ new dependency graph before claiming current-package acceptance.
   [Protocol evidence](evidence/P04.md); earlier frontend acceptance is historical.
 - [ ] Connect this backend to GPUI with explicit sync, cancellable progress/errors,
   independent account state, configuration generations and useful offline reading.
+  Reuse `Button::loading`/`Spinner`, Cancel/Retry `Button`s and persistent per-account
+  `Alert`s; show offline/partial coverage in `StatusBar`, retaining cached rows.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
   capability discovery, account cancellation/backoff and fair connection/work budgets.
 - [ ] Complete SPECIAL-USE discovery, explicit folder overrides and verified
   UTF-7/UTF-8 names, without lossy folder identity.
 - [ ] Complete bounded recent sync, older paging, partial-cache status, on-demand
   bodies/attachments and safe UIDVALIDITY/gap/reset reconciliation.
+  Use `ListDelegate::has_more/load_more` or an explicit Load older `Button` for
+  backend paging; never report an invented progress percentage.
 - [ ] Implement IDLE/DONE/renew/reselect with polling fallback, non-INBOX flags,
   reconnect, offline/resume recovery and changes made by other clients.
 - [ ] Preserve local reminder/dismiss/analysis state across moves/reconciliation.
@@ -213,36 +233,56 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   keyring and callback backend tests remain valid. [Evidence](evidence/P05.md).
 - [ ] Port onboarding/account status to GPUI Kit; isolate account errors, token
   refresh and cancellation. Never render a provider login form inside email HTML.
+  Use `Form`/`Field`, `Select`/`SelectState` for provider/auth/TLS, `Input` for
+  address/login/host and `NumberInput` for ports. Typed schema validation remains
+  authoritative; `Field::required` alone does not validate a connection.
 - [ ] Verify Google public desktop-client ownership, consent/scopes, OAuth IMAP/SMTP,
   revoked/expired tokens and actual login/sync/controlled send with authorization.
 - [ ] Verify iCloud account/app-specific password flows and provider endpoints.
 - [ ] Support manual IMAP/SMTP/TLS/CA/auth configuration for INRIA, Politecnico di
   Torino and Université de Pau et des Pays de l'Adour; verify each actual supported
   route, differing login names, aliases and authentication restrictions.
+  Put optional SMTP/folder/CA controls in `Collapsible`; use `InputGroup` with a
+  Browse/Import `InputGroupButton` for standard portal file selection. Use ordinary
+  Sign in/Unlock/Reauthenticate/Cancel buttons with `Spinner`/`Alert`, not a new wizard.
 - [ ] Test locked/unavailable keyring, denied/cancelled browser, invalid callback,
   refresh races and logout/purge. Complete native Wayland and Flatpak portal flows.
 - [ ] Keep live-provider outcomes separate from local mock/compile evidence.
 
 ## P06 — GPUI mailbox workspace and strong local search
 
+Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-search).
+
 - [x] Retain scoped cached-folder queries, literal FTS5 and account-local
   conversation projections. [Backend evidence](evidence/P06-browse.md).
 - [ ] Use GPUI Kit `Sidebar`, `SidebarHeader`, `SidebarGroup`, `SidebarMenu`,
   `SidebarMenuItem` and `SidebarFooter` for unified/per-account folders and Settings.
-  Reuse active/collapsed states, icons and badges; show only implemented mail routes.
-- [ ] Deliver resizable mailbox/list/reader panes, standard virtualized rows,
-  account badges, readable sender/subject/date/two-or-three-line preview hierarchy,
+  Reuse active/collapsed states, icons and `Badge::count`; show only implemented
+  mail routes. Prefer Sidebar nesting; evaluate `Tree`/`TreeState` only if actual
+  folder scale requires it, without maintaining two navigation models.
+- [ ] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
+  `List`/`ListState`/`ListDelegate`/`ListItem` virtualized rows. Disable the list's
+  extra query field with `ListState::searchable(false)`. Use `v_virtual_list` only
+  when measured variable-height rows require it; do not implement virtualization.
+  Compose `Label`, `Icon`, `Badge::count/dot` and explicit row accessibility labels
+  for account, sender/subject/date/two-or-three-line preview hierarchy,
   distinct focus/selection/unread/priority states and keyboard commands. Keep search,
   compose and essential actions discoverable without crowding the reading area.
 - [ ] Verify useful empty/loading/offline/error/partial-cache states, long subjects,
   Unicode names, narrow/wide windows and light/dark appearance using synthetic data.
+  Reuse list empty/loading hooks, `Empty`, `Skeleton`, `Alert` and `StatusBar`;
+  distinguish no results, missing models and partial indexes from an empty mailbox.
 - [ ] Preserve stable selection/scroll through updates; cancel stale account,
   folder, query, body and render work. Measure large-list responsiveness.
 - [ ] Display each account-local thread once, include cached Sent ancestry, open
   the matching original and allow per-message selection/actions.
+  Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)
+  and `DescriptionList` for From/To/Cc/date; do not adopt chat/tail-following behavior.
 - [ ] Mark Seen only after an **explicit open action loads that original's content**.
   Passive focus/selection/restoration/search/previews/refresh never mark read;
   opening one member does not mark its whole thread. Preserve explicit unread.
+  Keep `ListDelegate::set_selected_index`/`ListEvent::Select` passive;
+  `ListDelegate::confirm`/`ListEvent::Confirm` invokes the existing content-load gate.
 - [ ] Display extracted two/three-line previews, safe HTML/CID and accessible text
   modes; verify actual Wayland keyboard/copy/link behavior.
 - [x] Research maintained fuzzy/hybrid libraries and local encoders, with exact
@@ -261,6 +301,12 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   fallback. Semantic search is independent of enabling the priority classifier.
 - [ ] Use one native search field with library ranking, scoped account/folder/date/
   sender filters, honest snippets and conversation deduplication. Search never sets Seen.
+  Use `InputGroup`/`Input` with clear/filter buttons, a filter `Popover`,
+  `Select`/`Combobox` for account/folder and `DatePickerState::range` for date bounds.
+  Use `Label::highlights` for actual literal matches or GPUI `StyledText::with_highlights`
+  for backend-provided UTF-8 ranges; do not fabricate highlights for semantic matches.
+  `SearchableVec`/default list substring matching is suitable for small option menus,
+  not the required fuzzy or multilingual search engine.
 - [ ] Maintain a private rebuildable index keyed by canonical original/source/model
   revision; bounded incremental indexing, restart/model change, deletion/purge and
   disabled accounts must not retain stale results or touch user-owned state.
@@ -271,6 +317,8 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
 ## P07 — Composition, submission and mailbox actions
 
+Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-actions).
+
 - [x] Retain revisioned transactional drafts, lettre MIME/Unicode/Bcc handling,
   immutable originals/Message-ID, fenced SMTP attempts and delivery uncertainty.
   [Backend evidence](evidence/P07.md); previous UI evidence is historical.
@@ -280,9 +328,12 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   rejection recovery and freeze/hash integrity. [Evidence](evidence/P07-attachments.md).
 - [x] Retain read/unread/star/unstar intentions, unsent-only undo, TLS application
   and exact UID/configuration fences. [Evidence](evidence/P07-actions.md).
-- [ ] Build the GPUI Kit composer from standard inputs/editor/identity controls,
-  To/Cc/Bcc, signature, reply/forward and validation. Keep identity and save/send
-  state unambiguous, with less-used recipient fields revealed when needed.
+- [ ] Build the composer with `Form`/`Field`, an identity `Select`, recipient/subject
+  `Input`s and body/signature `Textarea`; no source-code editor or custom text editor.
+  Support To/Cc/Bcc, signature, reply/forward and validation. Keep identity and save/send
+  state unambiguous. Use `Collapsible` for Cc/Bcc. Start with plain address input;
+  if recipient chips are needed, reuse `InlineToken`/`InputToken` and existing
+  replacement APIs rather than custom token editing or a contacts subsystem.
 - [ ] Reuse `Attachment`, `AttachmentGroup`, `AttachmentMedia`, `AttachmentContent`,
   `AttachmentTitle`, `AttachmentDescription` and `AttachmentActions` in composer and
   reader. Show filename/type/size and real pending/processing/failed/ready states;
@@ -294,14 +345,20 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   raster previews. Verify keyboard actions, long names, failures and narrow layouts.
 - [ ] Verify autosave, draft switching, source-file access loss, close/restart and
   failure recovery on Wayland. A selected file becomes a private owned snapshot.
+  Expose draft/save/outbox state in `StatusBar`, with persistent `Alert` failures.
 - [ ] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
   Preserve fixed frozen bytes and Message-ID; no automatic ambiguous-delivery retry.
 - [ ] Complete accepted-DATA/drop reconciliation, provider Sent auto-save and
   separately retriable Sent APPEND. Sent-copy failure must never trigger SMTP resend.
 - [ ] Port native flag/undo controls and implement safe archive/trash/move with
   pending operations, UID MOVE/UIDPLUS fallbacks and no unrelated global EXPUNGE.
+  Reuse `Toolbar`/`ToolbarGroup`, `Button`, `DropdownButton`/`PopupMenu` and
+  `ContextMenuExt`; use searchable `Combobox` for move destinations and explicit
+  in-app `Notification::action` for Undo. Keep durable errors beyond toast lifetime.
 - [ ] Recover interrupted operations and reconcile real server state, retaining
   local reminder/analysis identity and visible permanent failure/undo behavior.
+  Use `AlertDialog`/`Dialog` for discard, destructive purge or ambiguous-delivery
+  decisions; no routine confirmations for already reversible actions.
 - [ ] Verify native composition/attachments/actions on Wayland and Flatpak, plus
   authorized controlled send/reply flows on all required providers.
 
@@ -309,19 +366,31 @@ HTML composition, remote draft sync, signing and permanent purge remain deferred
 
 ## P08 — Remind me and background lifetime
 
+Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
+
 - [x] Retain durable reminder generations/claims/receipts and store transitions.
   [Backend/historical evidence](evidence/P08.md). The old UI/scheduler walkthrough
   does not establish GPUI acceptance.
-- [ ] Add GPUI Kit presets/date/time controls, original timezone and UTC instants,
-  reschedule/cancel and per-message routing independent of priority/read labels.
+- [ ] Use `DropdownButton`/`PopupMenu` for reminder presets and `DatePicker` with
+  `DatePickerState::time_precision(TimePrecision::Minute)`, `hour_cycle`,
+  `default_time` and `DateRangePreset::date_time` for a custom instant. Retain
+  original timezone/UTC, reschedule/cancel and per-message routing. Chrono TZ resolves
+  the component's civil time; the widget does not implement DST policy or scheduling.
+- [ ] Use `TimeField` for configured morning/evening defaults, searchable
+  `Combobox` for editable timezone and `DescriptionList` for scheduled-time details.
 - [ ] Reconnect notification delivery and action handling; generation fences,
   earliest-due wake, overdue coalescing and restart/resume/clock changes must be safe.
+  Use GPUI `Notification` in explicit `InApp` mode for foreground feedback only.
+  Its pinned system path submits no actions and is window-bound; retain stable
+  backend IDs, portal delivery and Open/Remind again/Dismiss routing for reminders.
 - [ ] Verify stable replacement, both crash windows, Open/Remind again/Dismiss,
   denied/disabled notifications, DST/ambiguous times and deleted-message cases.
 - [ ] Implement single-instance D-Bus activation/window reopening and `--background`
   without a second DB writer. Explicit Quit must stop work.
 - [ ] Implement independent background/autostart/notification settings and zero
   hidden work when disabled; unload renderer/models while headless when enabled.
+  Reuse `SettingField::switch` and ownership/disabled-state text for each setting;
+  a toggle cannot grant portal permission or mutate HM-managed systemd services.
 - [ ] Use the standard Background portal for Flatpak permission/revocation and
   Home Manager-managed native service semantics, without host-unit installation
   from the sandbox. Test close, suspend, login/restart and missing display.
@@ -332,6 +401,7 @@ No delivery guarantee is made while powered off or logged out.
 
 Read CLASSIFIER.md. Use existing small CPU inference/date libraries, not a custom
 transformer, hosted model or summarization service.
+Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-and-models).
 
 - [ ] Implement versioned evidence/result types, pure eligibility/expiry and
   user-dismissed/read-cleared state that late analysis cannot override.
@@ -350,9 +420,16 @@ transformer, hosted model or summarization service.
 - [ ] Remove a priority original immediately on read/dismiss, and do not resurrect
   it via unread toggling or stale inference. A newly eligible thread member may
   reprioritize that conversation; reading one member does not read all members.
-- [ ] Present a GPUI Kit themed priority group, icon/text/highlight and overflow,
-  stable ordering and normal inbox access. Show a deadline box beneath extracted
-  previews, source quote/timezone/assumptions in the reader and user correction.
+- [ ] Present priority with `List` sections/headers, `Label`, `Icon`, `Badge::count`
+  and semantic theme surfaces, stable ordering and a Show all button. Keep normal
+  inbox access without a second custom list engine or independently scrolling inbox.
+- [ ] Use a small `GroupBox` + `Label`/`Icon` for deadline boxes beneath extracted
+  previews; show evidence/timezone/assumptions through a clicked `Popover` or reader
+  `DescriptionList`. Use `Dialog`/`Form`/`DatePicker` and Dismiss `Button` for corrections,
+  retaining backend persistence/expiry; evidence must not require hover alone.
+- [ ] Use Settings `SettingField::switch`, model metadata `DescriptionList`, an
+  explicit Import `Button`/portal and `Alert` for absent/unsupported local models.
+  Show `Progress` only for measured work; add no model marketplace or dashboards.
 - [ ] Test INTERNALDATE vs Date, delayed delivery, DST, multiple dates, quote tails,
   unsupported languages, stale read races, malicious prompts and missing models.
 - [ ] Keep previews extracted with source/body revision; support a future generated
@@ -382,6 +459,8 @@ transformer, hosted model or summarization service.
   plaintext secrets or uncontrolled model downloads.
 - [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
   portals, read-only managed configuration and packaged HTML resources.
+  Reuse the P02 Settings/source/export and P05 import components; do not create a
+  second sandbox-specific settings UI. Packaging and portal policy remain backend work.
 - [x] Run format/strict release Clippy, backend/MIME/renderer tests, private
   credential fixtures and installed CLI/config checks in the official minimal
   Nix container on x86_64. [Hosted evidence](evidence/P01-ci-cache.md).
@@ -401,6 +480,10 @@ transformer, hosted model or summarization service.
   outbox, reminders and background behavior survive expected errors/restarts.
 - [ ] The GPUI Kit interface is visually consistent, keyboard/accessibility tested,
   responsive at measured mailbox scale and genuinely native Wayland.
+  Use `Kbd::binding_for_action` and Tooltip for real bound shortcuts, standard
+  Toolbar/Menu/Dialog/Select/List focus behavior, and `FocusTrapElement::focus_trap`
+  only for a genuinely custom overlay. Preserve real keyboard/AT-SPI/screen-reader
+  acceptance; component availability/aria source hooks do not check off that proof.
 - [ ] Review an actual daily-mail walkthrough against the supplied references:
   find an account/folder, scan unread/priority/deadline rows, search/open the matching
   original, read a thread, reply/attach/save/send, set a reminder and recover from
