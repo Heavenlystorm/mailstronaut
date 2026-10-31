@@ -51,5 +51,35 @@ formatting and omitted aarch64-linux. ShellCheck passed for the revised cache pr
 - Vendor: `/nix/store/fdicpmzwbks26jncnpfy3mbhwsfxypcq-mailstronaut-0.1.0-vendor`
 
 Full local logs, installed smoke fixtures and receipts remain under `target/`.
-Hosted acceptance of the corrected source paths and runner disk use is pending;
-local reuse alone does not close that gate.
+
+## Hosted cache acceptance and smoke-command correction
+
+[Run 41142706847](https://github.com/eduardz1/mailstronaut/actions/runs/41142706847)
+at `f6cbf815d0c1685884bbf2be138ccacc83fc6925` passed the complete minimal-container
+Nix gate: release Clippy, 132 normal tests, four private credential/OAuth fixture
+invocations and Nix/CI formatting. The real package restored
+`nq9xmnmgnic7ai5913kzh5rp0xq9sxjm-mailstronaut-deps-0.1.0` and compiled/checked only
+the five workspace crates; the previous third-party recompilation is gone.
+The unsandboxed hosted builder therefore supplies the reuse evidence that the
+restricted local daemon could not. The runner started with 13 GiB free and ended
+the gate with 5.0 GiB free, without unrelated cleanup. This is one passing hosted
+build, not a measured peak-disk bound or a second hosted source-only rebuild.
+
+The overall run still failed in its subsequent installed smoke step:
+
+```
+nix run --no-update-lock-file -- --version
+error: getting status of "/__w/mailstronaut/mailstronaut/--version": No such file or directory
+```
+
+Nix 2.34.9 reproduced the same argument-parsing failure locally. Supplying the
+explicit `.#` flake target runs the already built application successfully.
+The corrected workflow checks both `--version` and the native configuration
+helper against `examples/config.nix`; both exact commands and workflow actionlint
+passed locally through `nix develop` on Nix 2.34.9. The complete hosted workflow, including
+this correction and the newer native-reader commits, needs a fresh run.
+
+The full hosted log is `target/gpui-ci-f6cbf81-full.log`; the isolated smoke
+failure is `target/gpui-ci-f6cbf81-failure.log`. A retained excerpt is linked below.
+
+- [Hosted gate and smoke evidence](artifacts/p01-gpui-blitz/hosted-cache-gate-excerpt.log)

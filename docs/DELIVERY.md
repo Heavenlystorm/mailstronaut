@@ -12,7 +12,7 @@ cargo fetch --locked                 # explicit initial dependency download
 bash ci/check.sh                      # format, shell/CI lint, strict Clippy, tests
 nix flake check --no-update-lock-file --print-build-logs
 nix build --no-update-lock-file
-nix run -- --demo
+nix run .# -- --demo
 ```
 
 The flake pins Nixpkgs, rust-overlay and Crane. Development uses matching nightly
@@ -99,6 +99,11 @@ CLI/config smoke. Build tools/dependencies come from Nix; no host package-manage
 bootstrap or Node checkout action is needed. A minimal container does not guarantee
 a small build: track disk pressure, lock graph size and dependency artifacts.
 Never delete unrelated host files to make CI pass.
+
+Pass the explicit `.#` target to `nix run` before the application's `--`
+separator. Nix 2.34.9 otherwise interprets `--version` as a flake path. The installed
+smoke checks both the version and the native Nix configuration helper without a
+display.
 
 Record local development, release/package, hosted CI, private credential fixture,
 Wayland GUI, accessibility, live-account and Flatpak evidence separately. Retain

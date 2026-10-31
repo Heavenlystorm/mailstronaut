@@ -1,0 +1,13 @@
+Hosted run 41142706847; revision f6cbf815d0c1685884bbf2be138ccacc83fc6925.
+Full Nix gate passed; final installed smoke failed at argument parsing.
+Final package compiled/checked only: mailstronaut, mailstronaut-config, mailstronaut-core, mailstronaut-mail, mailstronaut-render
+132 normal tests + four private credential/OAuth invocations passed.
+
+checks	Build, format, lint and test through Nix	2026-10-30T23:09:55.1392569Z /dev/root        72G   60G   13G  83% /__w
+checks	Build, format, lint and test through Nix	2026-10-30T23:50:16.9980853Z mailstronaut> decompressing cargo artifacts from /nix/store/nq9xmnmgnic7ai5913kzh5rp0xq9sxjm-mailstronaut-deps-0.1.0/target.tar.zst to target
+checks	Build, format, lint and test through Nix	2026-10-30T23:51:09.4371476Z mailstronaut>    Compiling mailstronaut v0.1.0 (/nix/var/nix/builds/nix-3338-2000583239/source/crates/mailstronaut)
+checks	Build, format, lint and test through Nix	2026-10-30T23:59:35.4501962Z mailstronaut>    Compiling mailstronaut v0.1.0 (/nix/var/nix/builds/nix-3338-2000583239/source/crates/mailstronaut)
+checks	Build, format, lint and test through Nix	2026-10-31T00:24:15.3659368Z all checks passed!
+checks	Build, format, lint and test through Nix	2026-10-31T00:24:15.7049645Z /dev/root        72G   67G  5.0G  94% /__w
+checks	Installed package smoke check	﻿2026-10-31T00:24:15.7601866Z ##[group]Run nix run --no-update-lock-file -- --version
+checks	Installed package smoke check	2026-10-31T00:24:16.1037621Z error: getting status of "/__w/mailstronaut/mailstronaut/--version": No such file or directory

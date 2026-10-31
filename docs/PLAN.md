@@ -294,9 +294,10 @@ transformer, hosted model or summarization service.
 
 ## P10 — Nix/Home Manager, Flatpak and CI
 
-- [ ] Keep one maintainable flake, shared native inputs and standard Crane caching;
+- [x] Keep one maintainable flake, shared native inputs and standard Crane caching;
   prove dependency reuse after a source-only edit. Debug/test use Cranelift/Wild;
   release uses LLVM/thin LTO/one codegen unit. Retire obsolete native-browser hooks.
+  [Local source-only reuse and hosted build evidence](evidence/P01-ci-cache.md).
 - [ ] Build/install through `nix develop`, `nix flake check`, `nix build`, `nix run`
   and direct Home Manager package/config composition. No custom HM format adapter.
 - [ ] Verify actual native Wayland launch, assets/fonts/icons, TLS roots, portals,

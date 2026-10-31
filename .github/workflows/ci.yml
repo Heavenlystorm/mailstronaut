@@ -47,4 +47,6 @@ jobs:
       - name: Build, format, lint and test through Nix
         run: bash ci/nix-check.sh
       - name: Installed package smoke check
-        run: nix run --no-update-lock-file -- --version
+        run: |
+          nix run --no-update-lock-file .# -- --version
+          nix run --no-update-lock-file .# -- config check --path examples/config.nix
