@@ -30,9 +30,13 @@ its image references before returning an independent frame. This is document-loc
 lookup isolation, not a browser-origin claim.
 
 The only new direct dependencies are the already locked `image` and `uuid`
-workspace entries. No upstream package version or source changes. The standard
-Nix vendor build passed with the existing hash; the changed lockfile only adds
-those two workspace dependency references.
+workspace entries. No upstream package version or source changes. The lockfile
+adds those two workspace references, but the standard Nix fixed-output staging
+also stores the lockfile itself. Its hash therefore must change. An initially
+cached vendor output hid this; a forced fresh staging rebuild correctly rejected
+the old hash and reported `sha256-ZGIoa0S/uiLjnuuWVYiCeWV59VErlAk/QcHd88ReBLQ=`.
+The flake now declares that measured hash. Fresh-probe log:
+`target/gpui-inline-images-fresh-vendor.log`.
 
 ## Development and rendering evidence
 
@@ -109,3 +113,35 @@ cached HTML enablement, the full resource/privacy matrix, viewport/HiDPI, links,
 HTML selection and accessibility remain separate. Nix release/package, installed
 Wayland, hosted CI and Flatpak acceptance for this change are recorded only when
 their own checks finish.
+
+## Initial cached Nix and installed checks
+
+Implementation commit: `0a0fdc53d0b40cd1b7a3079a78b1d7562514ffbf`.
+Before the fresh staging check above, the single coordinated release gate, invocation
+`e25bc925800a4a87b23a084aabef7116`, completed with a fresh receipt `0`, full
+`all checks passed` log, inactive/collected service and `ExecMainStatus=0`.
+It used 16 cores and one Nix job. Strict stable release Clippy, **136 normal
+tests** and four private credential/OAuth fixture invocations passed. Only the
+five workspace crates compiled/checked in the real package after restoring the
+new dependency artifact. Aarch64 was omitted.
+
+- Package: `/nix/store/c5bv1kxiwpbi7wj9zmvyr505hpl131kw-mailstronaut-0.1.0`
+- Dependency artifact: `/nix/store/adf976i645f6jydpaizl8yw6gp0mim5r-mailstronaut-deps-0.1.0`
+
+The subsequent cached `nix build --no-update-lock-file` and installed empty-env
+CLI/configuration smoke passed. The complete private Wayland script also passed
+against `result/bin/mailstronaut`, including ordered RGB image bands in both
+themes, native reader copy/edit protection/navigation and X11-only rejection.
+The installed dark screenshot was visually inspected. Private fixtures:
+`target/gpui-wayland.3d2eb1`, `target/p01-installed-smoke.6UqAse`.
+
+- [Installed dark preview](artifacts/p01-inline-images/installed-dark.png)
+- [Installed pixel observations](artifacts/p01-inline-images/installed-colors.log)
+- [Installed smoke output](artifacts/p01-inline-images/installed-smoke.log)
+
+The full release log is `target/p01-package-gate-service.log`; installed output
+is `target/gpui-inline-images-installed.log`. Hosted CI for this commit and
+Flatpak remain unverified. These cached checks alone do not validate the new
+fixed-output input; the corrected-hash gate is recorded separately below.
+The resource/MIME/privacy/lifecycle limitations above
+remain open; this is not whole-P01 or functional-client acceptance.
