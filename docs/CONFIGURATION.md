@@ -1,11 +1,12 @@
 # Native Nix configuration and account authentication
 
-This is the **target contract** for P02/P05/P08. Native file loading, bounded
-evaluation, last-valid reload, foreground password storage, bounded explicit
-password-account inbox fetching and plain-text draft/SMTP prototypes are implemented;
-Public-client OAuth/refresh and native browser-portal wiring are implemented;
-automatic synchronization and live-provider/real-portal acceptance remain open. Canonical user
-configuration is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
+This is the **target contract** for P02/P05/P08/P10. The retained backend implements
+bounded native evaluation, last-valid source state, encrypted credentials and
+public-client OAuth/refresh. Current GPUI Settings/account workflows, mutable HM
+activation and export require their own implementation and acceptance in PLAN.md;
+earlier frontend prototypes do not establish that work. Automatic synchronization
+and live-provider/real-portal acceptance remain open. Canonical user configuration
+is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
 Flatpak uses its usual application-specific XDG config directory. A `.nix` file is
 the actual input consumed by the Rust application in both distributions.
 
@@ -15,8 +16,9 @@ Use `snix_serde::from_str::<Config>(&source)` to evaluate a self-contained pure 
 expression and deserialize directly into Rust. Its pinned implementation constructs
 `EvaluationBuilder::new_pure().mode(EvalMode::Strict)`. This is an in-memory typed
 value conversion, not a second user configuration format. Do not invoke `nix eval`,
-install Nix into Flatpak, generate TOML/JSON files, build an HM-to-client option
-adapter, or implement a partial home-grown Nix evaluator.
+install Nix into Flatpak, generate TOML/JSON configuration files, mirror all Rust
+fields in a separate HM schema, or implement a partial home-grown Nix evaluator.
+An optional small HM module may manage native-file installation and mutability.
 
 The supported runtime language is pure data, `let`, attribute references, lists,
 conditionals and pure builtins provided by the pinned evaluator. It is not a
@@ -194,9 +196,56 @@ Native Nix install, without a Mailstronaut HM module:
 Home Manager may instead use `lib.generators.toPretty { } nativeConfig` in
 `xdg.configFile."mailstronaut/config.nix".text` when values must be composed from
 the user's other Nix settings. That still writes the app's **native Nix** format.
-No second options namespace/schema or Nix→TOML layer is part of this project.
+No duplicate per-field schema or Nix→TOML layer is part of this project.
 The account list is the authoritative declaration; OAuth refresh tokens, passwords,
 sync cursors, drafts and window placement are not declarative config.
+
+### Optional mutable settings: planned contract
+
+Keep the direct-file recipe above. P02/P10 also require a small optional module
+exported as `homeManagerModules.default`, with `programs.mailstronaut.enable`,
+`package`, `settings` and `mutableSettings`. This interface is **planned, not yet
+exported by the current flake**. `settings` contains the same native data accepted
+by the application, rather than an independently maintained option per Rust field.
+Use `lib.generators.toPretty` for native Nix data, with the application's existing
+evaluator/schema as the final validation boundary. Ownership field `managed` is
+set by the chosen deployment mode rather than duplicated as a preference.
+
+`mutableSettings = false` is the default: install a managed native `.nix` file,
+and keep persisted preferences read-only in Settings. `mutableSettings = true`
+opts into an app-owned writable regular `config.nix`, mode `0600`, with
+`managed = false`. It is not an out-of-store link into the user's dotfiles and
+does not introduce a TOML file or a hidden preference overlay.
+
+Use familiar activation semantics: explicitly declared attributes take precedence
+over the current writable configuration on each HM activation; other UI-set values
+survive. Attribute sets merge recursively; scalars, nulls and whole lists replace.
+Do not expand missing declarations to schema defaults before reconciliation, as
+that would reset undeclared preferences. Apply and validate defaults only after
+merging. In particular, `accounts = [ ];` explicitly disables all connections,
+whereas omitting `accounts` preserves the current mutable list. Removing a
+declaration relinquishes enforcement; it does not erase the current value or
+delete mailbox data. Explain in Settings that UI edits to declared values can be
+overwritten at the next switch; export lets the user adopt those edits in HM.
+
+The user's Herdr example follows static-wins mutable activation. Its pinned
+[HM module](https://github.com/nix-community/home-manager/blob/095fef2f265c3c0da4fe315efba8f8a04495ab34/modules/programs/herdr.nix)
+uses HM's standard merger. The pinned
+[helper](https://github.com/nix-community/home-manager/blob/095fef2f265c3c0da4fe315efba8f8a04495ab34/modules/lib/generators.nix)
+supports JSON/YAML/TOML/CBOR, not native Nix output. Do not assume a universal
+`mutableSettings` facility or route our native Nix through a persisted foreign
+format to use it. Reuse the existing Snix evaluation/serialization boundary for
+the small reconciliation operation; do not add a parser or general configuration
+framework. Any intermediate typed data is internal IPC, not a second user file.
+
+Activation and UI save must coordinate writes to the same app-owned path. Validate
+the complete candidate, retain the last valid runtime state on failure, and use a
+temporary sibling plus atomic replacement. Reject stale/concurrent edits and
+unexpected links instead of clobbering them. Changing from immutable to mutable
+may replace only the module's known managed link after checking its identity;
+never write into its Nix-store target. Changing back must preserve changed files
+through explicit collision/backup handling rather than silently discard UI edits.
+Test these cases in a disposable HOME, not by activating the user's configuration.
 
 For an already installed Flatpak, Home Manager can link the **same native file**:
 
@@ -249,7 +298,14 @@ native service mode show “managed by Home Manager” and do not write an autos
 entry or toggle systemd from the app. Stopping/disabling/restarting that user service
 is a Home Manager/user decision. Explicit Quit exits successfully and is not restarted.
 
-## Editable vs managed configuration
+## GPUI Settings and source ownership
+
+Use GPUI Kit's `Settings`/`SettingPage`/`SettingGroup`/`SettingItem` hierarchy and
+standard `SettingField` controls, retaining built-in search and disabled states.
+See [INTERFACE.md](INTERFACE.md). Display the effective source path, ownership,
+last reload result and whether an edit is saved. Do not enable controls for features
+that have no working backend. Masked credential entry and browser sign-in are
+separate runtime actions, not serializable preference fields.
 
 `managed = true` or a read-only/Nix-store-backed config prevents the GUI from
 rewriting it. Account rows and static preferences are displayed with their source;
@@ -265,6 +321,25 @@ or discard comments/let-bindings: treat an existing user-created file as managed
 unless it was explicitly adopted. Preferences do not acquire hidden SQLite
 overrides that conflict with Home Manager. Dynamic UI state (selection/window size)
 is runtime state, not an override of declarative preferences.
+
+### Export to Nix
+
+Provide a simple Settings action to copy or save a self-contained native Nix
+attrset through the clipboard/file portal. Export the supported effective
+preferences and account declarations, including `secretRef` identifiers; exclude
+passwords, tokens, mailbox contents, runtime cursors, machine UI state and file
+ownership metadata. The target deployment supplies `managed`. Present the result
+as a snapshot of values, not a reconstruction of the original expression's
+comments, functions, imports or let-bindings.
+
+Use `snix_serde::to_string` and evaluate/validate the output with the existing
+bounded helper before offering it. Test strings containing quotes, newlines,
+backslashes and Nix interpolation syntax, optional/default values and empty lists.
+Reimport must preserve all exported values. Exporting never rewrites the active
+managed file or activates Home Manager. The user can import the saved attrset as
+the module's native `settings`, or install it directly with `xdg.configFile`.
+This gives a short declare → edit → export → review/import workflow without a
+bidirectional dotfile editor or another configuration language.
 
 ## Provider and authentication matrix
 

@@ -11,6 +11,31 @@ Use `nix develop`, centralized workspace dependencies/lints and focused commits.
 Keep mail, MIME, TLS, OAuth, Nix evaluation, threading, inference and rendering in
 existing libraries. Do not implement a second toolkit, browser or search engine.
 
+## Product and interface review
+
+Build a minimal client people can choose for daily mail: fast to scan, easy to
+navigate, reliable under errors and comfortable with several accounts. A lean,
+well-engineered codebase and the requested useful features matter more than
+matching another client's appearance or number of features.
+
+Before adding custom UI, check the pinned GPUI Kit component catalog. Use the
+existing component when it solves the problem; record a concrete API limitation
+before introducing a custom replacement. [INTERFACE.md](INTERFACE.md) maps the
+current components and supplied design references to mail workflows.
+
+- [x] Download and inspect all seven supplied Apple Mail/Thunderbird/Spark/Proton/
+  Gmail screenshots. Keep the images and download manifest only in ignored
+  `target/design-references/`; do not commit or ship them.
+- [ ] At each completed UI workflow and before release, compare the actual app
+  with those references for usability: navigation, information hierarchy, search,
+  reader space, keyboard access and recoverable errors. Record remaining issues;
+  screenshots do not establish working mail behavior or performance.
+- [ ] After **each implemented feature**, capture the current actual application
+  in a private native Wayland session and show the screenshot in chat. Use only
+  synthetic mail; identify the feature and any acceptance still unverified. Show
+  light/dark or narrow/wide variants when that feature affects them. A mockup,
+  reference image or old application screenshot cannot satisfy this step.
+
 ## Milestone map
 
 | ID | Outcome | Dependencies |
@@ -97,8 +122,11 @@ this stack; do not restore the previous architecture or fabricate a reader.
 ## P02 — Native Nix configuration and encrypted secrets
 
 Reuse `mailstronaut-config`; read CONFIGURATION.md. The input remains a native
-`.nix` expression. Home Manager links/copies that same source directly; no HM
-adapter, hidden TOML file, imported Nixpkgs or host Nix daemon is required.
+`.nix` expression. Home Manager directly installs that source or manages an
+explicitly mutable native Nix file. An optional small HM module may manage file
+ownership and activation, but must not mirror the application's schema or convert
+to another configuration format. No hidden TOML, imported Nixpkgs or host Nix daemon
+is required by the application.
 
 - [x] Retain typed schema/defaults/unknown-field rejection and the bounded pure
   Snix same-binary helper, resource limits, cancellation/reaping and redacted IPC.
@@ -107,8 +135,25 @@ adapter, hidden TOML file, imported Nixpkgs or host Nix daemon is required.
 - [x] Retain scoped oo7 storage, encrypted persistence, rotation, account/purpose
   isolation, lock and unavailable behavior against a private native Secret Service.
   Existing protocol evidence does not prove new UI or Flatpak portal acceptance.
-- [ ] Build GPUI Kit settings/onboarding with managed/read-only source handling,
-  reload/error states, masked secret fields and foreground keyring/OAuth actions.
+- [ ] Build settings/onboarding with GPUI Kit `Settings`, `SettingPage`,
+  `SettingGroup`, `SettingItem` and existing `SettingField` controls; reuse built-in
+  page navigation/search and disabled-state behavior. Use masked `Input` for secret
+  entry and explicit foreground keyring/OAuth actions, never a generic stored field.
+- [ ] Show the native source path, managed/mutable ownership and reload errors.
+  Protect managed, store-backed, read-only and unadopted user-authored expressions;
+  credentials remain editable through the keyring even with managed configuration.
+- [ ] Support opt-in HM `mutableSettings` with one writable native `config.nix`:
+  declared attributes win on activation, undeclared UI values survive, lists replace
+  as whole values, and removing a declaration does not implicitly delete data.
+  Preserve explicitly declared keys before applying schema defaults. Explain that
+  UI edits to declared values are reapplied from HM on the next switch.
+- [ ] Add **Export to Nix** from Settings: copy/save a validated secret-free native
+  attrset snapshot that can be imported as HM `settings` or installed directly.
+  Include supported account declarations and secret references, never credentials
+  or mailbox/runtime state. Do not rewrite the user's original expression or dotfiles.
+- [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
+  default/omitted fields, activation precedence, concurrent-write conflicts, invalid
+  reload retention and mutable/immutable transitions in disposable profiles.
 - [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
   configuration cannot replace the last valid account state or expose secrets.
 - [ ] Verify the same `.nix` source through disposable Home Manager integration,
@@ -182,9 +227,15 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
 - [x] Retain scoped cached-folder queries, literal FTS5 and account-local
   conversation projections. [Backend evidence](evidence/P06-browse.md).
-- [ ] Deliver a coherent GPUI Kit sidebar, resizable mailbox/list/reader panes,
-  virtualized rows, account badges, metadata/preview hierarchy, unread/star states,
-  keyboard commands and responsive empty/offline/error/partial-cache states.
+- [ ] Use GPUI Kit `Sidebar`, `SidebarHeader`, `SidebarGroup`, `SidebarMenu`,
+  `SidebarMenuItem` and `SidebarFooter` for unified/per-account folders and Settings.
+  Reuse active/collapsed states, icons and badges; show only implemented mail routes.
+- [ ] Deliver resizable mailbox/list/reader panes, standard virtualized rows,
+  account badges, readable sender/subject/date/two-or-three-line preview hierarchy,
+  distinct focus/selection/unread/priority states and keyboard commands. Keep search,
+  compose and essential actions discoverable without crowding the reading area.
+- [ ] Verify useful empty/loading/offline/error/partial-cache states, long subjects,
+  Unicode names, narrow/wide windows and light/dark appearance using synthetic data.
 - [ ] Preserve stable selection/scroll through updates; cancel stale account,
   folder, query, body and render work. Measure large-list responsiveness.
 - [ ] Display each account-local thread once, include cached Sent ancestry, open
@@ -230,7 +281,17 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 - [x] Retain read/unread/star/unstar intentions, unsent-only undo, TLS application
   and exact UID/configuration fences. [Evidence](evidence/P07-actions.md).
 - [ ] Build the GPUI Kit composer from standard inputs/editor/identity controls,
-  To/Cc/Bcc, portal Attach/Remove, signature, reply/forward and validation.
+  To/Cc/Bcc, signature, reply/forward and validation. Keep identity and save/send
+  state unambiguous, with less-used recipient fields revealed when needed.
+- [ ] Reuse `Attachment`, `AttachmentGroup`, `AttachmentMedia`, `AttachmentContent`,
+  `AttachmentTitle`, `AttachmentDescription` and `AttachmentActions` in composer and
+  reader. Show filename/type/size and real pending/processing/failed/ready states;
+  use built-in remove/retry affordances only where the operation supports them.
+- [ ] Connect portal Attach/Remove to owned draft snapshots, and explicit received
+  attachment Save/Open to bounded extraction and safe portal destinations. The
+  component is presentation, not a downloader or upload service. Never pass an
+  email-supplied URL/path to its image source; use generic icons or validated owned
+  raster previews. Verify keyboard actions, long names, failures and narrow layouts.
 - [ ] Verify autosave, draft switching, source-file access loss, close/restart and
   failure recovery on Wayland. A selected file becomes a private owned snapshot.
 - [ ] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
@@ -305,6 +366,15 @@ transformer, hosted model or summarization service.
   [Local source-only reuse and hosted build evidence](evidence/P01-ci-cache.md).
 - [ ] Build/install through `nix develop`, `nix flake check`, `nix build`, `nix run`
   and direct Home Manager package/config composition. No custom HM format adapter.
+- [ ] Provide the direct native-file HM recipe and an optional thin
+  `programs.mailstronaut` module with `enable`, `package`, native `settings` and
+  `mutableSettings = false` by default. Share Rust evaluation/validation/serialization
+  for mutable reconciliation/export; no duplicate per-field HM schema or hidden
+  preference database. Test activation without activating the user's dotfiles.
+- [ ] Test immutable links, mutable first/repeated activation, declared-value
+  precedence, retained UI edits, explicit empty account lists, invalid/concurrent
+  sources and changing ownership without silent overwrite. Document export/import
+  and why removing a declaration is different from deleting an account's local data.
 - [ ] Verify actual native Wayland launch, assets/fonts/icons, TLS roots, portals,
   keyring, notifications and GPU loader behavior on NixOS.
 - [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native
@@ -331,6 +401,14 @@ transformer, hosted model or summarization service.
   outbox, reminders and background behavior survive expected errors/restarts.
 - [ ] The GPUI Kit interface is visually consistent, keyboard/accessibility tested,
   responsive at measured mailbox scale and genuinely native Wayland.
+- [ ] Review an actual daily-mail walkthrough against the supplied references:
+  find an account/folder, scan unread/priority/deadline rows, search/open the matching
+  original, read a thread, reply/attach/save/send, set a reminder and recover from
+  offline/auth errors. Compare usability and code complexity, not visual similarity;
+  add no unrelated features from the references. Show current app screenshots in chat.
+- [ ] Verify the HM-first settings round trip: declare, activate, change an allowed
+  mutable preference, restart, export to Nix, import into HM and activate again.
+  Managed configuration and secrets must retain their stated ownership.
 - [ ] Ordinary HTML emails render reliably within documented Blitz limitations,
   remain network-silent by default and cannot execute active/native content or
   access local resources/other messages/credentials.
@@ -349,8 +427,8 @@ file before choosing the next slice; do not infer progress from old screenshots.
 | Requirement | Current contract/gate |
 | --- | --- |
 | Rust, simple existing components, workspace | ARCHITECTURE/DEPENDENCIES; P00/P01/P03 |
-| GPUI Kit + Blitz, native Wayland, polished UI | RENDERING; P01/P06/P07 |
-| Native Nix config and direct Home Manager | CONFIGURATION; P02/P10 |
+| GPUI Kit + Blitz, native Wayland, reusable components, daily usability | INTERFACE/RENDERING; P01/P06/P07/P11 |
+| Native Nix config, HM mutable settings and export to Nix | CONFIGURATION; P02/P10/P11 |
 | Five providers | P04/P05/P11 |
 | Unified inbox and threads | P03/P06 |
 | Explicit-open-only Seen | P06/P07/P09 |

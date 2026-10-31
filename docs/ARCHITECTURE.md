@@ -19,6 +19,13 @@ Use native Wayland; neither the application nor embedded HTML may require an X
 server, XWayland or a foreign embedded window. The selected upstream GPUI family
 may compile optional X11 support; that is not a runtime fallback for Mailstronaut.
 
+Before custom UI, check the existing GPUI Kit component. Use its Sidebar for mail
+navigation, Settings for preferences/accounts and Attachment for file presentation;
+keep only mail-specific state and actions in our views. [INTERFACE.md](INTERFACE.md)
+defines component reuse and recurring daily-use reviews against the supplied
+references. The references set usability questions, not an appearance or feature
+checklist. Show the current actual app in chat after each implemented feature.
+
 Blitz handles HTML/CSS layout; its existing CPU renderer produces bounded pixels
 for GPUI's ordinary image element. This avoids a full browser and unnecessary GPU
 interop. Untrusted mail gets no script/native execution, ambient resource loader,
@@ -361,6 +368,15 @@ See [CONFIGURATION.md](CONFIGURATION.md) for the actual native Nix schema and
 Home Manager examples. Use the existing `snix-serde` evaluator; do not implement a
 Nix parser/evaluator or require host `nix` inside Flatpak. Static configuration,
 runtime mailbox state and credentials have distinct storage and lifetimes.
+
+Home Manager installs native Nix directly. An optional thin module may add
+`settings`/`mutableSettings` file lifecycle without duplicating the Rust schema.
+Default managed files are read-only in Settings; opt-in mutable mode keeps one
+app-owned native Nix file, with declared values reapplied at HM activation and
+undeclared UI preferences retained. Export to Nix provides a validated, secret-free
+snapshot for the user's declarative source. Do not add a hidden format, preference
+overlay database or automatic dotfile rewriting; CONFIGURATION.md defines the
+ownership and round-trip acceptance contract.
 
 See [DELIVERY.md](DELIVERY.md) for reproducible Nix development, minimal Nix
 container CI, Flatpak permissions, build inputs, version pins and release checks.

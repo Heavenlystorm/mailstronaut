@@ -30,6 +30,11 @@ Home Manager direct use, Nix/Flatpak distribution, and minimal Nix-container CI.
   Unsafe code in our workspace is forbidden. Avoid forks of large dependencies.
 - Prefer the specified existing libraries. Do not reimplement MIME, TLS, OAuth,
   Nix evaluation, an HTML engine, a scheduler daemon or transformer architecture.
+- Before custom UI, check GPUI Kit's existing components; use its Sidebar,
+  Settings and Attachment components for those workflows. Read docs/INTERFACE.md.
+- After each implemented feature, show an actual current-app screenshot in chat
+  from a private native Wayland profile with synthetic mail. Reference screenshots
+  stay in ignored target/design-references and must not be committed or shipped.
 - P01/P02 are feasibility gates. No fake HTML pane, alternative engine, plaintext
   secret fallback, hidden TOML config, remote classifier or untracked model fetch.
 - Never fetch remote email resources by default, execute email scripts, log

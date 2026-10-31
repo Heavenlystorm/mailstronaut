@@ -43,13 +43,16 @@ LLVM, thin LTO and one codegen unit. See [delivery](docs/DELIVERY.md) for native
 inputs, checks and distribution limitations. All application code is Rust.
 
 Configuration is a directly evaluated `.nix` file, without a TOML conversion or
-Home Manager module. See [configuration](docs/CONFIGURATION.md),
+requirement for a Home Manager adapter. Direct-file composition works today; an
+optional native `mutableSettings` module and export-to-Nix workflow are planned.
+See [configuration](docs/CONFIGURATION.md),
 [example](examples/config.nix) and [Home Manager composition](examples/home-manager.nix).
 Secrets belong in encrypted storage and must never be put in the Nix store.
 
 Architecture and decisions: [architecture](docs/ARCHITECTURE.md),
 [dependencies](docs/DEPENDENCIES.md), [rendering](docs/RENDERING.md),
-[search](docs/SEARCH.md), [classifier](docs/CLASSIFIER.md).
+[interface/component reuse](docs/INTERFACE.md), [search](docs/SEARCH.md),
+[classifier](docs/CLASSIFIER.md).
 
 Nix and Flatpak are release targets. A new-stack Nix package and actual Flatpak
 runtime/portal/Wayland acceptance must pass before distribution is claimed.
