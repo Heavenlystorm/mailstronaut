@@ -13,11 +13,13 @@ use gpui::component::{
     resizable::{h_resizable, resizable_panel},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
+    tab::{Tab, TabBar},
+    toolbar::{Toolbar, ToolbarGroup},
 };
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
-    KeyBinding, ParentElement as _, Render, RenderImage, StatefulInteractiveElement as _,
-    Styled as _, Subscription, Window, div, img, prelude::FluentBuilder as _, px,
+    KeyBinding, ParentElement as _, Render, Styled as _, Subscription, Window, div,
+    prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
@@ -59,12 +61,16 @@ gpui::actions!(
     ]
 );
 
-const DEMO_HTML: &str = "<style>body{font:17px sans-serif;margin:32px;color:#243044;background:#fff}h1{font-size:30px}td{padding:18px} @media(prefers-color-scheme:dark){body{background:#20242b;color:#edf1fa}}</style><h1>A little more space for your mail.</h1><p>This synthetic email is laid out by Blitz and painted by Vello CPU.</p><table style='width:100%;border-collapse:collapse'><tr><td style='background:#dce9ff;color:#173b73'>Native Wayland</td><td style='background:#e1f2e8;color:#164c34'>Rust throughout</td></tr></table><p>Tables, inline CSS and Unicode: Bonjour · Ciao · 世界.</p><p><img src='cid:demo-badge' width='96' height='32' alt='Local raster image'> Message-local PNG · no fetching.</p>";
-
 #[derive(Eq, PartialEq)]
 enum View {
     Inbox,
     Accounts,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ReaderMode {
+    Text,
+    Html,
 }
 
 pub struct Workspace {
@@ -88,14 +94,17 @@ pub struct Workspace {
     selected: Option<Row>,
     body: String,
     text_reader: Entity<TextareaState>,
-    show_text: bool,
-    frame: Option<Arc<RenderImage>>,
+    reader_mode: ReaderMode,
+    html_reader: Entity<crate::html_reader::HtmlReader>,
+    _html_events: Subscription,
+    opened_message: Option<Arc<mailstronaut_core::mime::Projection>>,
+    preferred_reader: ReaderMode,
+    reader_notice: String,
     search: Entity<InputState>,
     status: String,
     query: String,
     query_generation: u64,
     reading_generation: u64,
-    render_generation: u64,
     demo: bool,
     _search_events: Subscription,
     _activation: Subscription,
@@ -134,6 +143,11 @@ impl Workspace {
         window.focus(&focus, cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search cached mail"));
         let text_reader = cx.new(|cx| TextareaState::new(window, cx));
+        let html_reader =
+            cx.new(|cx| crate::html_reader::HtmlReader::new(runtime.handle(), window, cx));
+        let html_events = cx.subscribe_in(&html_reader, window, |this, _, event, window, cx| {
+            this.html_event(event, window, cx);
+        });
         let events = cx.subscribe_in(&search, window, |this, _, event, window, cx| {
             if matches!(event, InputEvent::PressEnter { .. }) {
                 this.refresh(window, cx);
@@ -154,7 +168,7 @@ impl Workspace {
         let appearance = cx.observe_window_appearance(window, |this, window, cx| {
             if this.theme_override.is_none() {
                 Theme::sync_system_appearance(Some(window), cx);
-                this.refresh_demo(cx);
+                cx.notify();
             }
         });
         let mut read_gate = crate::read_gate::Gate::default();
@@ -180,14 +194,21 @@ impl Workspace {
             selected: None,
             body: String::new(),
             text_reader,
-            show_text: !demo,
-            frame: None,
+            reader_mode: if demo {
+                ReaderMode::Html
+            } else {
+                ReaderMode::Text
+            },
+            html_reader,
+            _html_events: html_events,
+            opened_message: None,
+            preferred_reader: ReaderMode::Html,
+            reader_notice: String::new(),
             search,
             status: "Opening local mail…".into(),
             query: String::new(),
             query_generation: 0,
             reading_generation: 0,
-            render_generation: 0,
             demo,
             _search_events: events,
             _activation: activation,
@@ -280,7 +301,7 @@ impl Workspace {
                     Ok(Ok((owner, config))) => {
                         this.owner = owner;
                         if this.declaration.apply(config) {
-                            this.retire_open();
+                            this.retire_open(cx);
                             this.list.update(cx, |list, cx| {
                                 crate::mailbox::replace(list, Vec::new(), window, cx);
                             });
@@ -377,20 +398,16 @@ impl Workspace {
         };
         self.theme_override = Some(mode);
         Theme::change(mode, Some(window), cx);
-        self.refresh_demo(cx);
-    }
-
-    fn refresh_demo(&mut self, cx: &Context<Self>) {
-        // Theme changes never reopen real messages or authorize Seen.
-        if self.demo && self.selected.is_some() {
-            self.render_generation = self.render_generation.wrapping_add(1);
-            self.render_demo(cx);
-        }
+        cx.notify();
     }
 
     fn focus_reader(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected.is_some() && self.view != View::Accounts {
-            self.show_text = true;
+            self.reader_mode = ReaderMode::Text;
+            self.preferred_reader = ReaderMode::Text;
+            self.html_reader
+                .update(cx, crate::html_reader::HtmlReader::hide);
+            self.mark_loaded(window, cx);
             self.text_reader
                 .update(cx, |reader, cx| reader.focus(window, cx));
             cx.notify();
@@ -401,21 +418,23 @@ impl Workspace {
         self.owner.as_ref().map(|owner| owner.handle())
     }
 
-    fn retire_open(&mut self) {
+    fn retire_open(&mut self, cx: &mut Context<Self>) {
         self.reading_generation = self.reading_generation.wrapping_add(1);
-        self.render_generation = self.render_generation.wrapping_add(1);
+        self.html_reader
+            .update(cx, crate::html_reader::HtmlReader::hide);
+        self.opened_message = None;
+        self.reader_notice.clear();
         self.read_gate
             .suppress(self.declaration.revision(), self.reading_generation);
         self.selected = None;
         self.body.clear();
-        self.frame = None;
     }
 
     fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let query = self.search.read(cx).value().to_string();
         if query != self.query {
             self.query = query;
-            self.retire_open();
+            self.retire_open(cx);
             self.list.update(cx, |list, cx| {
                 crate::mailbox::replace(list, Vec::new(), window, cx);
             });
@@ -518,12 +537,14 @@ impl Workspace {
 
     fn open(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
         self.reading_generation = self.reading_generation.wrapping_add(1);
-        self.render_generation = self.render_generation.wrapping_add(1);
         let generation = self.reading_generation;
         let revision = self.declaration.revision();
         self.read_gate.clicked(revision, generation);
         self.selected = Some(row.clone());
-        self.frame = None;
+        self.opened_message = None;
+        self.reader_notice.clear();
+        self.html_reader
+            .update(cx, crate::html_reader::HtmlReader::hide);
         self.body = "Opening cached message…".into();
         self.text_reader
             .update(cx, |reader, cx| reader.set_value("", window, cx));
@@ -540,7 +561,11 @@ impl Workspace {
             text.push_str("\nEnd of synthetic message · fin · 世界.");
             self.text_reader
                 .update(cx, |reader, cx| reader.set_value(text, window, cx));
-            self.render_demo(cx);
+            self.body.clear();
+            self.reader_mode = self.preferred_reader;
+            if self.reader_mode == ReaderMode::Html {
+                self.present_html(cx);
+            }
         } else if let Some(handle) = self.handle() {
             let job = self
                 .runtime
@@ -556,7 +581,6 @@ impl Workspace {
                     match result {
                         Ok(Ok(message)) => {
                             let readable = message.readable_text();
-                            let eligible = readable.is_some();
                             let text = readable.map_or_else(
                                 || "No readable body is cached.".into(),
                                 std::borrow::Cow::into_owned,
@@ -564,8 +588,17 @@ impl Workspace {
                             this.text_reader
                                 .update(cx, |reader, cx| reader.set_value(text, window, cx));
                             this.body.clear();
-                            if this.read_gate.take(revision, generation, eligible) {
-                                this.mark_opened(window, cx);
+                            this.opened_message = Some(Arc::new(message));
+                            this.reader_mode =
+                                if this.preferred_reader == ReaderMode::Html && this.has_html() {
+                                    ReaderMode::Html
+                                } else {
+                                    ReaderMode::Text
+                                };
+                            if this.reader_mode == ReaderMode::Text {
+                                this.mark_loaded(window, cx);
+                            } else {
+                                this.present_html(cx);
                             }
                         }
                         Ok(Err(error)) => this.body = error.to_string(),
@@ -579,43 +612,69 @@ impl Workspace {
         cx.notify();
     }
 
-    fn render_demo(&self, cx: &Context<Self>) {
-        let generation = self.render_generation;
-        let dark = cx.theme().mode.is_dark();
-        let job = self.runtime.spawn_blocking(move || {
-            let images = [mailstronaut_render::InlineImage {
-                content_id: "demo-badge",
-                media_type: "image/png",
-                bytes: include_bytes!("../../../assets/inline-fixture.png"),
-            }];
-            mailstronaut_render::render_with_images(DEMO_HTML, &images, 780, 600, dark)
+    fn has_html(&self) -> bool {
+        self.demo
+            || self.opened_message.as_ref().is_some_and(|message| {
+                message.html.is_some() && !message.status.encrypted_unsupported
+            })
+    }
+
+    fn present_html(&mut self, cx: &mut Context<Self>) {
+        if self.selected.is_none() || !self.has_html() || self.view != View::Inbox {
+            return;
+        }
+        self.reader_mode = ReaderMode::Html;
+        self.preferred_reader = ReaderMode::Html;
+        let content = if self.demo {
+            crate::html_worker::Content::Demo
+        } else {
+            let Some(message) = self.opened_message.clone() else {
+                return;
+            };
+            crate::html_worker::Content::Mail(message)
+        };
+        self.html_reader.update(cx, |reader, cx| {
+            reader.show(Arc::new(content), self.reading_generation, cx);
         });
-        cx.spawn(async move |this, cx| {
-            let result = job.await;
-            _ = this.update(cx, |this, cx| {
-                if generation != this.render_generation {
-                    return;
-                }
-                match result {
-                    Ok(Ok(mut frame)) => {
-                        // GPUI's RenderImage requires BGRA, Vello CPU returns RGBA.
-                        for pixel in frame.pixels.as_chunks_mut::<4>().0 {
-                            pixel.swap(0, 2);
-                        }
-                        if let Some(pixels) =
-                            image::RgbaImage::from_raw(frame.width, frame.height, frame.pixels)
-                        {
-                            this.frame =
-                                Some(Arc::new(RenderImage::new([image::Frame::new(pixels)])));
-                            this.body.clear();
-                        }
-                    }
-                    _ => this.body = "Unable to render the synthetic HTML fixture.".into(),
-                }
-                cx.notify();
-            });
-        })
-        .detach();
+        cx.notify();
+    }
+
+    fn html_event(
+        &mut self,
+        event: &crate::html_reader::Event,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (crate::html_reader::Event::Ready(epoch) | crate::html_reader::Event::Failed(epoch)) =
+            event;
+        if *epoch != self.reading_generation
+            || self.reader_mode == ReaderMode::Text
+            || self.view != View::Inbox
+        {
+            return;
+        }
+        if matches!(event, crate::html_reader::Event::Failed(_)) {
+            self.reader_mode = ReaderMode::Text;
+            self.reader_notice = "HTML could not be displayed. Showing cached text.".into();
+            self.html_reader
+                .update(cx, crate::html_reader::HtmlReader::hide);
+        }
+        self.mark_loaded(window, cx);
+        cx.notify();
+    }
+
+    fn mark_loaded(&mut self, window: &Window, cx: &Context<Self>) {
+        let eligible = self
+            .opened_message
+            .as_ref()
+            .is_some_and(|message| message.readable_text().is_some());
+        if self.read_gate.take(
+            self.declaration.revision(),
+            self.reading_generation,
+            eligible,
+        ) {
+            self.mark_opened(window, cx);
+        }
     }
 
     fn mark_opened(&self, window: &Window, cx: &Context<Self>) {
@@ -667,6 +726,8 @@ impl Workspace {
     fn show_accounts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.view = View::Accounts;
         self.read_gate.visibility(false);
+        self.html_reader
+            .update(cx, crate::html_reader::HtmlReader::hide);
         window.focus(&self.focus, cx);
         cx.notify();
     }
@@ -676,6 +737,9 @@ impl Workspace {
         self.read_gate.visibility(window.is_window_active());
         window.focus(&self.focus, cx);
         self.refresh(window, cx);
+        if self.reader_mode == ReaderMode::Html {
+            self.present_html(cx);
+        }
         cx.notify();
     }
 
@@ -870,54 +934,66 @@ impl Workspace {
             ))
             .when_some(self.selected.as_ref(), |view, _| {
                 view.child(
-                    div()
-                        .flex()
-                        .gap_2()
+                    Toolbar::new("reader-tools")
                         .mb_4()
-                        .child(
-                            Button::new("read-text")
-                                .ghost()
-                                .label("Text · Ctrl+Shift+T")
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.focus_reader(window, cx);
-                                })),
+                        .content(
+                            TabBar::new("reader-mode")
+                                .segmented()
+                                .selected_index(usize::from(self.reader_mode == ReaderMode::Html))
+                                .on_click(cx.listener(|this, index, window, cx| {
+                                    if *index == 0 {
+                                        this.focus_reader(window, cx);
+                                    } else {
+                                        this.present_html(cx);
+                                    }
+                                }))
+                                .child(Tab::new().label("Text"))
+                                .child(Tab::new().label("HTML").disabled(!self.has_html())),
                         )
-                        .when(self.demo, |view| {
-                            view.child(Button::new("read-html").ghost().label("HTML").on_click(
-                                cx.listener(|this, _, _, cx| {
-                                    this.show_text = false;
-                                    cx.notify();
-                                }),
-                            ))
-                        }),
+                        .content(
+                            ToolbarGroup::new("reader-text-actions")
+                                .label("Message text")
+                                .child(
+                                    Button::new("select-message-text")
+                                        .ghost()
+                                        .label("Select text")
+                                        .tooltip("Text selection and copy · Ctrl+Shift+T")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.focus_reader(window, cx);
+                                        })),
+                                ),
+                        ),
                 )
             })
-            .when(self.show_text && self.body.is_empty(), |view| {
-                view.child(
-                    div().flex_1().min_h_0().child(
-                        Textarea::new(&self.text_reader)
-                            .readonly(true)
-                            .appearance(false)
-                            .bordered(false)
-                            .aria_label("Message text")
-                            .accessibility_id("message-text")
-                            .h_full()
-                            .w_full(),
-                    ),
-                )
-            })
-            .when(!self.show_text, |view| {
+            .when(!self.reader_notice.is_empty(), |view| {
                 view.child(
                     div()
-                        .id("html-scroll")
-                        .flex_1()
-                        .min_h_0()
-                        .overflow_y_scroll()
-                        .when_some(self.frame.clone(), |view, image| {
-                            view.child(img(image).w_full())
-                        }),
+                        .text_sm()
+                        .text_color(muted)
+                        .child(self.reader_notice.clone()),
                 )
             })
+            .when(
+                self.reader_mode == ReaderMode::Text && self.body.is_empty(),
+                |view| {
+                    view.child(
+                        div().flex_1().min_h_0().child(
+                            Textarea::new(&self.text_reader)
+                                .readonly(true)
+                                .appearance(false)
+                                .bordered(false)
+                                .aria_label("Message text")
+                                .accessibility_id("message-text")
+                                .h_full()
+                                .w_full(),
+                        ),
+                    )
+                },
+            )
+            .when(
+                self.reader_mode == ReaderMode::Html && self.body.is_empty(),
+                |view| view.child(div().flex_1().min_h_0().child(self.html_reader.clone())),
+            )
             .when(!self.body.is_empty(), |view| view.child(self.body.clone()))
     }
 }

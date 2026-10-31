@@ -115,7 +115,7 @@ impl Document {
     /// Rejects invalid sizes/scales/coordinates or excessive CSS layout extents.
     pub fn paint(&mut self, view: View) -> Result<Frame, Error> {
         view.validate()?;
-        self.dom.set_viewport(Viewport::new(
+        let viewport = Viewport::new(
             view.width,
             view.height,
             view.scale,
@@ -124,8 +124,11 @@ impl Document {
             } else {
                 ColorScheme::Light
             },
-        ));
-        self.dom.resolve(0.0);
+        );
+        if self.dom.viewport() != &viewport {
+            self.dom.set_viewport(viewport);
+            self.dom.resolve(0.0);
+        }
         let layout = self.dom.root_element().final_layout();
         let content_width = f64::from(layout.size.width.max(layout.scrollable_overflow_rect.right));
         let content_height = f64::from(

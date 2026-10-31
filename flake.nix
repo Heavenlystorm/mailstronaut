@@ -260,6 +260,7 @@
                 actionlint ${self}/.github/workflows/ci.yml
                 shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh \
                   ${self}/experiments/p01-blitz/privacy.sh \
+                  ${self}/experiments/p01-blitz/reader.sh \
                   ${self}/experiments/p01-gpui/wayland.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
@@ -311,6 +312,7 @@
             FONTCONFIG_FILE = "${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}";
             nativeBuildInputs = old.nativeBuildInputs ++ [
               pkgs.sway-unwrapped
+              pkgs.strace
               pkgs.grim
               pkgs.wtype
               (pkgs.wlrctl.overrideAttrs (old: {

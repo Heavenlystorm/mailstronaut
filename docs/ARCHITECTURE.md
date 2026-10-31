@@ -63,6 +63,10 @@ existing async protocol/portal APIs. Blocking SQLite stays on its existing sole
 owner thread. HTML/layout/raster and inference must not block input/scrolling.
 Renderer documents and fonts remain on their owning worker; only bounded owned
 pixels/metadata cross into GPUI. Avoid per-message runtimes or daemon protocols.
+The HTML worker retains one document with latest-value requests and one pending
+reply. GPUI's standard scroll handle supplies logical offsets and actual native
+bounds; only matching-generation frames are painted. Settings, text mode and
+message replacement retire the previous document and local resource table.
 
 ## 3. Commands, cancellation and resource budgets
 

@@ -1,5 +1,9 @@
 # P01 — GPUI Kit + Blitz foundation
 
+Later [cached HTML integration](P01-cached-html.md) supersedes the initial
+text-only cached-mail scope below. This document records the original foundation
+at its stated revision; PLAN.md owns current progress.
+
 2026-10-30. This record replaces frontend acceptance claims for the retired
 stack; P01 remains **open**. The source/lockfile and local commands in this change
 are authoritative. No live mail/account was used in these fixtures.

@@ -44,7 +44,13 @@ The native text reader uses GPUI Kit's read-only multiline component. Use
 Ctrl+Shift+T to focus message text, Ctrl+A/C to select/copy, and the usual
 Home/End/Page keys to navigate. Ctrl+K focuses search; Ctrl+Shift+D toggles
 appearance. Focusing, copying and changing appearance do not open a message or
-mark additional mail Seen. Arbitrary cached HTML remains disabled pending P01.
+mark additional mail Seen. Cached HTML opens in a bounded, passive Blitz viewport
+with native scrollbars, resize, HiDPI and theme handling. Text/HTML tabs and Select
+text keep the native text alternative available for selection and copying. Remote
+resources and link activation are disabled; only validated message-local PNG/JPEG
+images are supplied. Invalid local images are omitted, and unsupported HTML falls
+back to cached text. Full layout, accessibility, performance and Flatpak acceptance
+remain open P01 requirements.
 
 Development uses pinned nightly Rust, Cranelift and Wild; release uses stable
 LLVM, thin LTO and one codegen unit. See [delivery](docs/DELIVERY.md) for native

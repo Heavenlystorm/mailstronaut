@@ -1,0 +1,54 @@
+Build parallelism: 16 CPUs
+mailstronaut> +++++ command cargo fmt --all -- --check
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut>     Finished `release` profile [optimized] target(s) in 3.60s
+mailstronaut> +++ command cargo --version
+mailstronaut> +++ command cargo build --release --message-format json-render-diagnostics --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut>     Finished `release` profile [optimized] target(s) in 2m 18s
+mailstronaut> +++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu
+mailstronaut>     Finished `release` profile [optimized] target(s) in 4m 14s
+mailstronaut> test account_actions::tests::private_cancellation_and_validation_never_unlock ... ignored, requires the explicitly isolated credentials.sh bus and XDG profile
+mailstronaut> test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.08s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+mailstronaut> test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+mailstronaut> test tests::inline_encrypted_text_suppresses_all_alternatives ... ok
+mailstronaut> test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test malformed_incomplete_encrypted_and_oversized_input_never_creates_a_partial_quote ... ok
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.08s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+mailstronaut>      Running tests/credentials.rs (target/x86_64-unknown-linux-gnu/release/deps/credentials-0cfb8c3b072ba931)
+mailstronaut> test private_secret_service_round_trip_isolation_rotation_and_lock ... ignored, requires experiments/p02-accounts/credentials.sh private bus and disposable keyring
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test a_live_tls_handshake_can_be_cancelled_without_sending_credentials ... ok
+mailstronaut> test untrusted_expired_and_wrong_hostname_certificates_never_receive_credentials ... ok
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.63s
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.06s
+mailstronaut> test missing_starttls_and_invalid_certificates_withhold_credentials_and_mail ... ok
+mailstronaut> test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.23s
+mailstronaut> test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> +++++ command cargo test --release --workspace --all-features --locked --offline --target x86_64-unknown-linux-gnu --no-run --message-format=json
+mailstronaut>     Finished `release` profile [optimized] target(s) in 0.43s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+mailstronaut> Private OAuth: refresh rotation persisted before shared use, restart recovery, locked-cache denial and revoked-credential removal passed.
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux

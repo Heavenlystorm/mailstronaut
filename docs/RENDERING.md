@@ -71,13 +71,14 @@ encoded bytes never reach Blitz's own image decoder. Every `NetProvider::fetch`
 still drops its handler without I/O, even for supplied images; the independent
 cache supplies those pixels. No process-global image registry is retained.
 
-This path is wired into the synthetic Wayland preview. `Projection::inline_rasters`
-now reparses the bounded, revision-checked original with mail-parser and obtains
+This path is wired into the synthetic Wayland preview and cached HTML reader.
+`Projection::inline_rasters` reparses the bounded, revision-checked original with mail-parser and obtains
 transfer-decoded PNG/JPEG bytes. It rejects ambiguous/truncated parts, decode
 problems and oversized resources; MIME IDs remain opaque data, with the stricter
-CID-key/signature/dimension checks applied in the renderer. Connecting those bytes
-to cached HTML and proving native switching/retirement remain separate gates.
-CSS CID backgrounds, SVG, GIF
+CID-key/signature/dimension checks applied in the renderer. The owner worker
+prepares these resources off the UI thread. Invalid extraction or image validation
+omits the local images with a visible notice; otherwise unsupported HTML falls
+back to the already loaded native text alternative. CSS CID backgrounds, SVG, GIF
 and arbitrary data URLs are not enabled. A private namespace is an application
 lookup key, not a claim about browser-origin semantics.
 
@@ -101,8 +102,21 @@ nonnegative finite CSS scroll coordinates. Scale/media changes go through Blitz'
 public viewport API; scroll clamps to the current content extent. CSS extent is
 limited to one million pixels per axis before painting. `Frame` reports that
 extent for future native scrollbars but contains only viewport-sized RGBA bytes.
-The GUI still uses the convenience one-frame preview path: native bounds/scroll,
-source generations and hidden-worker lifetime are the next integration step.
+The GUI has one document-owner thread, a latest-value request channel and a
+one-frame reply channel per window. Native geometry, scroll, scale and theme
+changes repaint only the viewport; scroll alone does not relayout the immutable
+DOM. Superseded requests coalesce, obsolete replies are ignored, and source changes
+or hiding retire the prior DOM/resource table. BGRA conversion runs on that same
+owner thread. GPUI's normal image paint API presents the result; there is no
+custom GPU interop or forwarded HTML input event.
+
+GPUI Kit's segmented `TabBar` and `Toolbar` select HTML or native text. Standard
+`ScrollHandle` and Kit horizontal/vertical scrollbars own scrolling; a small GPUI
+canvas bridge measures their public bounds and paints the matching viewport.
+Home/End/Page Up/Page Down act on the scroll handle. Invalid native geometry
+falls back to text. Successfully presenting a current frame can consume an
+existing explicit-open authorization for Seen; layout completion, passive focus,
+theme changes and page restoration cannot create one.
 
 The independent privacy probe is `experiments/p01-blitz/privacy.sh` in the pinned
 `renderer-probe` shell. It uses an isolated network namespace and observes actual

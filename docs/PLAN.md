@@ -89,10 +89,14 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
 - [x] Embed actual Blitz HTML/CSS layout through AnyRender's Vello CPU backend and
   GPUI's standard image API. No child browser window, foreign X surface, alternate
   HTML engine or unnecessary GPU-sharing layer.
-- [ ] Bound HTML/DOM/resource/frame dimensions and memory; keep layout/raster work
+- [x] Bound HTML/DOM/resource/frame allocations; keep layout/raster work
   off the UI thread and fence message/resize/theme generations against stale frames.
-- [ ] Render synthetic ordinary and nested email tables, inline CSS, malformed
+  [Native owner/viewport evidence](evidence/P01-cached-html.md). Process-memory
+  and latency/idle measurements remain open below.
+- [x] Render synthetic ordinary and nested email tables, inline CSS, malformed
   HTML and Unicode; record unsupported layout/font/image behavior honestly.
+  [Bounded native fixtures and limits](evidence/P01-cached-html.md); this is not
+  acceptance of a comprehensive real-world layout corpus.
 - [x] Enforce parser-based sanitization and default-deny resource, navigation and
   shell providers. Include no JS runtime, form submission, native commands,
   credential access or automatic external links. Do not assume browser CSP support.
@@ -102,15 +106,17 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   positive controls and independent syscall traces. The isolated network namespace
   is test containment, not the application's resource policy.
   [Bounded observer evidence](evidence/P01-passive-viewport.md).
-- [ ] Repeat resource-policy and retirement acceptance through actual cached-message
+- [x] Repeat bounded resource-policy and retirement acceptance through actual cached-message
   opening, switching, resizing and hiding after the MIME/HTML connector is enabled.
+  [Independent native HTTP/file observations and current-frame pixels](evidence/P01-cached-html.md).
 - [x] Implement immutable per-render PNG/JPEG CID tables through Blitz's decoded
   raster API; verify painting/alpha, ambiguous IDs, encoding/traversal, missing
   resources, wrong types, budgets and isolation between renders.
   [Renderer and preview evidence](evidence/P01-inline-images.md).
-- [ ] Connect bounded original-message MIME/CID descriptors to the HTML reader;
+- [x] Connect bounded original-message MIME/CID descriptors to the HTML reader;
   respect truncated/ambiguous MIME parts and verify resource retirement during
   asynchronous message switching. CSS CID backgrounds remain unsupported.
+  [MIME/worker/native isolation evidence](evidence/P01-cached-html.md).
 - [x] Extract transfer-decoded local PNG/JPEG parts through the existing MIME
   library, preserving opaque IDs and validating original revision, ambiguity,
   encoding, descriptor ranges and compressed-byte budgets. Renderer validation
@@ -121,15 +127,18 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   verify Unicode selection/copy, rejected edits, document-end keyboard scrolling
   and selection preservation across theme changes in a private Wayland session.
   [Bounded evidence](evidence/P01-native-reader.md).
-- [ ] Use `TabBar::segmented`/`Tab` for HTML/text mode and `Toolbar`/`ToolbarGroup`
+- [x] Use `TabBar::segmented`/`Tab` for HTML/text mode and `Toolbar`/`ToolbarGroup`
   for reader actions. Reuse `ScrollableElement`/`ScrollHandle` for scrollbars;
-  implement actual viewport rendering, resize, HiDPI and HTML selection/copy.
-  A raster alone is not text accessibility.
+  implement actual viewport rendering, resize, HiDPI and native keyboard scrolling.
+  [Installed Wayland evidence](evidence/P01-cached-html.md).
+- [ ] Establish an appropriate public-API HTML selection/copy route if practical;
+  keep native Text/Select text usable for every readable message. A raster alone
+  is not text accessibility. Verify actual assistive-technology behavior below.
 - [x] Provide a retained passive document API that reuses DOM/font/raster state,
   repaints only bounded physical viewport pixels, forwards logical scale/theme,
   clamps scroll and rejects invalid geometry/excessive CSS extents. Verify pixel
   results across scroll, scale, resize and theme changes. Native UI integration,
-  scrollbars, switching and performance acceptance remain above/below.
+  scrollbars and switching are verified above; performance acceptance remains below.
   [Renderer evidence](evidence/P01-passive-viewport.md).
 - [ ] Implement explicit validated portal links with a standard `Button` (or
   `Link` without `href`). In this pin `Link::on_click` does not override `href` and

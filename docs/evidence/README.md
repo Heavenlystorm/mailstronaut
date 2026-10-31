@@ -8,10 +8,10 @@ its stated revision. Its screenshots, window interaction, renderer/privacy/theme
 accessibility and GUI package claims are **not** acceptance of the new stack.
 Those checklist rows were reset or replaced rather than carried forward.
 
-Current passive-resource syscall observations, retained viewport rendering and
-MIME raster extraction are recorded in
-[P01-passive-viewport.md](P01-passive-viewport.md). This does not yet enable the
-original-message HTML view or complete P01.
+The cached-original HTML connector, native viewport/modes and current acceptance
+are recorded in [P01-cached-html.md](P01-cached-html.md). P01 remains open. The
+preceding passive-resource syscall observations, retained viewport API and MIME
+raster extraction are recorded in [P01-passive-viewport.md](P01-passive-viewport.md).
 
 Retained configuration, storage, MIME, protocol, OAuth and credential tests remain
 useful backend evidence. They must pass again with the new dependency graph;

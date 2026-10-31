@@ -161,6 +161,10 @@ struct GuiMessage {
     sent: bool,
     seen: bool,
     body: String,
+    #[serde(default)]
+    subject: Option<String>,
+    #[serde(default)]
+    mime: Option<String>,
     from: String,
     order: i64,
 }
@@ -211,9 +215,29 @@ async fn seed_conversation_gui() {
         .await
         .expect("profile owner");
     let store = owner.handle();
-    let messages: Vec<GuiMessage> =
-        serde_json::from_str(include_str!("fixtures/conversation-gui.json"))
-            .expect("synthetic mail fixture");
+    let html = std::env::var("MAILSTRONAUT_HTML_GUI").is_ok_and(|value| value == "1");
+    let mut messages: Vec<GuiMessage> = serde_json::from_str(if html {
+        include_str!("fixtures/html-gui.json")
+    } else {
+        include_str!("fixtures/conversation-gui.json")
+    })
+    .expect("synthetic mail fixture");
+    if html {
+        let port: u16 = std::env::var("MAILSTRONAUT_HTML_HTTP_PORT")
+            .expect("loopback observer port")
+            .parse()
+            .expect("port");
+        assert_ne!(port, 0);
+        let file = data.parent().expect("private root").join("blocked.png");
+        assert!(file.is_file());
+        for message in &mut messages {
+            if let Some(mime) = &mut message.mime {
+                *mime = mime
+                    .replace("__HTTP_ENDPOINT__", &format!("http://127.0.0.1:{port}"))
+                    .replace("__FILE_ENDPOINT__", &format!("file://{}", file.display()));
+            }
+        }
+    }
     let mut receipt = serde_json::Map::new();
     for (index, account) in config.accounts.iter().enumerate() {
         assert!(
@@ -275,8 +299,13 @@ async fn seed_conversation_gui() {
                 ..
             } = message;
             let folder = if *in_sent { sent } else { inbox };
+            let subject = message.subject.as_deref().unwrap_or("Shared conversation");
+            let content = message
+                .mime
+                .clone()
+                .unwrap_or_else(|| format!("\r\n{body}\r\n"));
             let raw = format!(
-                "From: {from}\r\nTo: alice@example.test, {}\r\nMessage-ID: <{mid}>\r\nReferences: {references}\r\nSubject: Shared conversation\r\n\r\n{body}\r\n",
+                "From: {from}\r\nTo: alice@example.test, {}\r\nMessage-ID: <{mid}>\r\nReferences: {references}\r\nSubject: {subject}\r\n{content}",
                 account.address
             );
             let id = store

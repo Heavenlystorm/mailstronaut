@@ -1,0 +1,61 @@
+{
+  "profile": "target/p01.ig5MSp",
+  "package": "/nix/store/bw70m14m72psn8wkl1vnwxk6xr3s3r2p-mailstronaut-0.1.0",
+  "captureBackend": "native Wayland; software Vulkan; no DISPLAY or XWayland",
+  "observerControls": {
+    "httpRequests": [
+      "/control"
+    ],
+    "ipSocketObserved": true,
+    "syntheticFileObserved": true
+  },
+  "sessions": {
+    "initial": {
+      "ipSocketAttempts": 0,
+      "emailSpecifiedFileOpens": 0,
+      "tracedFiles": 735,
+      "normalExit": true
+    },
+    "offline": {
+      "ipSocketAttempts": 0,
+      "emailSpecifiedFileOpens": 0,
+      "tracedFiles": 109,
+      "normalExit": true
+    }
+  },
+  "clipboard": {
+    "alpha": {
+      "bytes": 60,
+      "sha256": "992e74f15df726db9e0a098ec2f972f11d7595511104983faf9a9dd489ab953b"
+    },
+    "beta": {
+      "bytes": 38,
+      "sha256": "97ed1b2eb2c8a529655f5b83e390fb4bd53785d327d57879453eed025c1a4ead"
+    },
+    "bad-image": {
+      "bytes": 45,
+      "sha256": "2fe9f0cd22a09fd5120d7a3f44667a4e183d7d93fe985645a72a38a80863cacd"
+    },
+    "plain": {
+      "bytes": 39,
+      "sha256": "bfbf7ed1e6ea60a325e0888430846438b985fd3e71cf7cc2a3ecbc69f200985e"
+    }
+  },
+  "screenshots": {
+    "alpha": "70a5191d4f5328f77474ec1ff5359c3ed96a416430d0f961dfd554b6548c9972",
+    "alpha-html": "70a5191d4f5328f77474ec1ff5359c3ed96a416430d0f961dfd554b6548c9972",
+    "inert-link": "70a5191d4f5328f77474ec1ff5359c3ed96a416430d0f961dfd554b6548c9972",
+    "end": "5e0542d785d9b2359553a8d3edb441c2c0a197136b2a817f4d08d87aa63c5dbc",
+    "home": "3368983994761399ce39fde75ee6023da39866c79e384e3b9db425f0045baf83",
+    "narrow": "d71f99a02194d524a9c16576e8246d872214adc03ee4a05c70e16e6f2e4fe203",
+    "hidpi": "d770dd1c5d808973eb5fe0d39ffe68eebec438657a8c56cff11cd1562e6dc0f8",
+    "dark": "de5cd602371ec3027ec9035bbdc0e36e8381c2412f0a2ad270889902534a8f72",
+    "beta": "c4277ef06a0dd20dd7627d8de9156744f740fb00e97b2f1bb7b147a104cb6174",
+    "bad-image": "9b30f6b8d2877c0ed5e46f6dc5c89dd1855fa3a1783200a01c819f6d10fb2efd",
+    "plain": "d3700615c0e569f073b7687e8a2a0a99f8d880012056ac5971d80545a44bbea0",
+    "switched-beta": "335ac2ccec7818faf9f1b16bf27f34fd03a1effb1bb53cacc87f0ccb2c517819",
+    "hidden": "4fe691f690ea1861167f0d99202b5a9e4b230a38fa1d380e87d2fcce85fe1c37",
+    "restored": "335ac2ccec7818faf9f1b16bf27f34fd03a1effb1bb53cacc87f0ccb2c517819",
+    "offline": "c2435fa83feda4c54bb0b7c7aa18f350bd3c30ffc332258905bc7ac5e76f6e07"
+  }
+}
