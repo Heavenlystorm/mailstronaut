@@ -9,6 +9,7 @@ mod config_cli;
 mod html_reader;
 mod html_worker;
 mod link_portal;
+mod mail_sync;
 mod mailbox;
 mod read_gate;
 mod thread_reader;

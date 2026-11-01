@@ -20,7 +20,7 @@ pub mod mailbox;
 pub mod outbox;
 pub mod reminders;
 
-const SCHEMA_VERSION: u32 = 7;
+const SCHEMA_VERSION: u32 = 8;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -175,6 +175,7 @@ impl Store {
             M::up(conversations::SCHEMA).foreign_key_check(),
             M::up(reminders::SCHEMA).foreign_key_check(),
             M::up(outbox::attachments::SCHEMA).foreign_key_check(),
+            M::up(mailbox::ROLE_SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;

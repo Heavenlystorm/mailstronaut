@@ -8,6 +8,12 @@ use serde::{Deserialize, Serialize};
 use super::{Error, Store, write_blob};
 use crate::mime::{self, Headers, Projection, Status};
 
+/// Forward migration: remember which folder serves each standard mail role.
+pub(super) const ROLE_SCHEMA: &str = "
+ALTER TABLE folders ADD COLUMN role TEXT CHECK(role IN ('sent','drafts','trash','archive','junk'));
+CREATE UNIQUE INDEX one_folder_per_role ON folders(account_id,role) WHERE role IS NOT NULL;
+";
+
 /// Forward migration: never recycle message IDs and retain decoded metadata.
 pub(super) const SCHEMA: &str = "
 CREATE TABLE messages_next (
@@ -47,6 +53,55 @@ pub struct Folder {
     pub uid_validity: Option<NonZeroU32>,
     /// Whether this folder participates in the unified inbox.
     pub inbox: bool,
+    /// Standard purpose, if one is known.
+    pub role: Option<FolderRole>,
+}
+
+/// The standard purpose of a folder, from configuration or server SPECIAL-USE.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FolderRole {
+    /// Sent mail.
+    Sent,
+    /// Server-side drafts.
+    Drafts,
+    /// Reversible deletion target.
+    Trash,
+    /// Archive target.
+    Archive,
+    /// Spam.
+    Junk,
+}
+impl FolderRole {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sent => "sent",
+            Self::Drafts => "drafts",
+            Self::Trash => "trash",
+            Self::Archive => "archive",
+            Self::Junk => "junk",
+        }
+    }
+    fn parse(value: Option<&str>) -> Option<Self> {
+        match value? {
+            "sent" => Some(Self::Sent),
+            "drafts" => Some(Self::Drafts),
+            "trash" => Some(Self::Trash),
+            "archive" => Some(Self::Archive),
+            "junk" => Some(Self::Junk),
+            _ => None,
+        }
+    }
+    /// Name shown instead of a provider-specific server path.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Sent => "Sent",
+            Self::Drafts => "Drafts",
+            Self::Trash => "Trash",
+            Self::Archive => "Archive",
+            Self::Junk => "Junk",
+        }
+    }
 }
 
 /// Observed server flags; fetching a body never changes them.
@@ -222,7 +277,31 @@ impl Store {
             return Err(Error::InvalidInput);
         }
         self.connection.execute("INSERT INTO folders(account_id, name, is_inbox) VALUES (?1, ?2, ?3) ON CONFLICT(account_id, name) DO UPDATE SET is_inbox=excluded.is_inbox", params![account, name, inbox])?;
-        self.connection.query_row("SELECT id, account_id, name, uidvalidity, is_inbox FROM folders WHERE account_id=?1 AND name=?2", params![account, name], read_folder).map_err(Error::from)
+        self.connection.query_row("SELECT id, account_id, name, uidvalidity, is_inbox, role FROM folders WHERE account_id=?1 AND name=?2", params![account, name], read_folder).map_err(Error::from)
+    }
+
+    /// Replace this account's folder roles after an authenticated folder listing.
+    ///
+    /// # Errors
+    /// Rejects duplicate roles and storage failures.
+    pub fn assign_folder_roles(
+        &mut self,
+        account: &str,
+        roles: &[(String, FolderRole)],
+    ) -> Result<(), Error> {
+        let tx = self.connection.transaction()?;
+        tx.execute(
+            "UPDATE folders SET role=NULL WHERE account_id=?1",
+            [account],
+        )?;
+        for (name, role) in roles {
+            tx.execute(
+                "UPDATE folders SET role=?3 WHERE account_id=?1 AND name=?2",
+                params![account, name, role.as_str()],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     /// Commit SELECT's generation. A changed generation discards old server UID
@@ -389,6 +468,7 @@ pub(super) fn read_folder(row: &rusqlite::Row<'_>) -> rusqlite::Result<Folder> {
         name: row.get(2)?,
         uid_validity: row.get::<_, Option<u32>>(3)?.and_then(NonZeroU32::new),
         inbox: row.get(4)?,
+        role: FolderRole::parse(row.get::<_, Option<String>>(5)?.as_deref()),
     })
 }
 pub(super) fn read_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<Summary> {

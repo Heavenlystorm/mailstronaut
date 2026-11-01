@@ -6,7 +6,12 @@ use std::{
 };
 
 use mailstronaut_config::{Account, Auth, Config, Provider};
-use mailstronaut_core::{actions, store::flags, store::outbox::Draft, sync, worker::Handle};
+use mailstronaut_core::{
+    actions,
+    store::{flags, mailbox::FolderRole, outbox::Draft},
+    sync,
+    worker::Handle,
+};
 use mailstronaut_mail::{
     auth,
     credentials::{Key, Purpose, Store},
@@ -17,6 +22,10 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 const CANCELLED: &str = "Account operation cancelled.";
+/// Four active accounts at one connection each, per the architecture's initial target.
+const MAX_CONNECTIONS: usize = 4;
+/// A cycle fetches back through recent mail at most this many UID windows per folder.
+const CYCLE_PAGES: u32 = 8;
 
 #[derive(Clone)]
 struct Open {
@@ -31,6 +40,42 @@ pub enum Sent {
     Queued(Result<Outcome, String>),
 }
 
+/// What one automatic pass over an account did.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Cycle {
+    pub downloaded: u32,
+    pub refreshed: u32,
+    pub actions: u32,
+}
+
+/// Whether trying again later could help without the user changing anything.
+pub enum SyncFailure {
+    Retry(String),
+    Stop(String),
+}
+impl SyncFailure {
+    /// Refused or unusable credentials and invalid trust must not be retried
+    /// automatically: repeated failures can lock an account at the server.
+    fn from_imap(error: imap::Error) -> Self {
+        let text = error.to_string();
+        match error {
+            imap::Error::Authentication
+            | imap::Error::AuthenticationUnavailable
+            | imap::Error::Configuration
+            | imap::Error::StarttlsRequired
+            | imap::Error::Tls
+            | imap::Error::TrustStore => Self::Stop(text),
+            _ => Self::Retry(text),
+        }
+    }
+    fn from_sync(error: sync::Error) -> Self {
+        match error {
+            sync::Error::Transport(error) => Self::from_imap(error),
+            sync::Error::Storage(error) => Self::Retry(error.to_string()),
+        }
+    }
+}
+
 /// One encrypted backend and shared IMAP/SMTP refresh session for the workspace.
 #[derive(Clone)]
 pub struct Access {
@@ -41,7 +86,7 @@ impl Default for Access {
     fn default() -> Self {
         Self {
             opened: Arc::default(),
-            connections: Arc::new(Semaphore::new(2)),
+            connections: Arc::new(Semaphore::new(MAX_CONNECTIONS)),
         }
     }
 }
@@ -200,9 +245,17 @@ impl Access {
         };
         let context = flags::context(account).map_err(|error| error.to_string())?;
         let inbox = account.folders.inbox.as_deref().unwrap_or("INBOX");
-        sync::discover(store, &mut connection, &account.id, &context, inbox, cancel)
-            .await
-            .map_err(|error| error.to_string())?;
+        sync::discover(
+            store,
+            &mut connection,
+            &account.id,
+            &context,
+            inbox,
+            &account.folders,
+            cancel,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
         actions::apply(
             store,
             &mut connection,
@@ -241,6 +294,150 @@ impl Access {
 }
 
 impl Access {
+    async fn connect(
+        opened: &Open,
+        account: &Account,
+        cancel: &CancellationToken,
+    ) -> Result<imap::Connection, SyncFailure> {
+        let credential = opened
+            .session
+            .resolve(account, false, cancel)
+            .await
+            .map_err(|error| SyncFailure::Stop(error.to_string()))?;
+        let endpoint = account
+            .incoming_endpoint()
+            .ok_or_else(|| SyncFailure::Stop("Incoming server is not configured.".into()))?;
+        match imap::Connection::connect(
+            &endpoint,
+            &account.tls,
+            &account.user_name,
+            credential.authentication(),
+            cancel,
+        )
+        .await
+        {
+            Ok(connection) => Ok(connection),
+            Err(error) => {
+                if error == imap::Error::Authentication {
+                    opened.session.invalidate(account, false).await;
+                }
+                Err(SyncFailure::from_imap(error))
+            }
+        }
+    }
+
+    /// Discover folders, send queued flag changes, then fetch recent mail: the inbox,
+    /// the standard role folders and any folder the user just opened.
+    pub async fn sync_account(
+        &self,
+        store: &Handle,
+        config: &Config,
+        account: &Account,
+        extra: &[String],
+        cancel: &CancellationToken,
+    ) -> Result<Cycle, SyncFailure> {
+        let opened = self.foreground(cancel).await.map_err(SyncFailure::Stop)?;
+        let _permit = cancel
+            .run_until_cancelled(self.connections.acquire())
+            .await
+            .ok_or_else(|| SyncFailure::Retry(CANCELLED.into()))?
+            .map_err(|_| SyncFailure::Retry("Mail connection queue is unavailable.".into()))?;
+        let context =
+            flags::context(account).map_err(|error| SyncFailure::Stop(error.to_string()))?;
+        let inbox = account.folders.inbox.as_deref().unwrap_or("INBOX");
+        let mut connection = Self::connect(&opened, account, cancel).await?;
+        let roles = sync::discover(
+            store,
+            &mut connection,
+            &account.id,
+            &context,
+            inbox,
+            &account.folders,
+            cancel,
+        )
+        .await
+        .map_err(SyncFailure::from_sync)?;
+        let mut cycle = Cycle {
+            actions: actions::apply(
+                store,
+                &mut connection,
+                &actions::Request {
+                    account: &account.id,
+                    context: &context,
+                    retry: true,
+                },
+                cancel,
+            )
+            .await
+            .map_err(SyncFailure::from_sync)?,
+            ..Cycle::default()
+        };
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let earliest =
+            i64::try_from(now.saturating_sub(u64::from(config.sync.initial_days) * 86400))
+                .unwrap_or_default();
+        let others = roles
+            .iter()
+            .filter(|(_, role)| {
+                matches!(
+                    role,
+                    FolderRole::Sent | FolderRole::Archive | FolderRole::Drafts
+                )
+            })
+            .map(|(name, _)| name.as_str())
+            .chain(extra.iter().map(String::as_str))
+            .filter(|name| *name != inbox);
+        for (folder, is_inbox) in
+            core::iter::once((inbox, true)).chain(others.map(|name| (name, false)))
+        {
+            let request = sync::Request {
+                account: &account.id,
+                context: &context,
+                folder,
+                inbox: is_inbox,
+                before: None,
+                earliest,
+                max_original: config.sync.max_body_bytes.min(8 * 1024 * 1024),
+            };
+            connection = Self::recent_pages(
+                &opened, account, store, connection, request, &mut cycle, cancel,
+            )
+            .await?;
+        }
+        Ok(cycle)
+    }
+
+    /// Fetch newest-first until a window has nothing new, reconnecting after any window
+    /// that downloaded: one connection's receive budget is smaller than several windows.
+    async fn recent_pages(
+        opened: &Open,
+        account: &Account,
+        store: &Handle,
+        mut connection: imap::Connection,
+        mut request: sync::Request<'_>,
+        cycle: &mut Cycle,
+        cancel: &CancellationToken,
+    ) -> Result<imap::Connection, SyncFailure> {
+        for _ in 0..CYCLE_PAGES {
+            let page = sync::page(store, &mut connection, &request, cancel)
+                .await
+                .map_err(SyncFailure::from_sync)?;
+            cycle.downloaded += page.downloaded;
+            cycle.refreshed += page.refreshed;
+            if page.downloaded > 0 {
+                connection = Self::connect(opened, account, cancel).await?;
+            }
+            request.before = page.next_before;
+            if page.next_before.is_none() || page.downloaded == 0 {
+                break;
+            }
+        }
+        Ok(connection)
+    }
+
     /// Unlock before freezing, so a locked keyring leaves the draft editable.
     pub async fn send_draft(
         &self,

@@ -1,11 +1,17 @@
 //! GPUI Kit mailbox workspace. Mail and storage remain toolkit-independent.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use gpui::base::StyledExt as _;
 use gpui::component::{
     ActiveTheme as _, Disableable as _, IconName, IndexPath, Selectable as _, Theme, ThemeMode,
     WindowExt as _,
+    alert::Alert,
     badge::Badge,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
@@ -33,10 +39,14 @@ use mailstronaut_core::{
     store::mailbox::Folder,
     worker::{Handle, Worker},
 };
+use mailstronaut_mail::imap::FlagChange;
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
 use crate::mailbox::{Row, Rows};
+
+/// Returning to the window checks for mail, at most this often.
+const ACTIVATION_WAKE_INTERVAL: Duration = Duration::from_secs(60);
 
 gpui::actions!(
     mailstronaut,
@@ -82,7 +92,13 @@ gpui::actions!(
         ReplyAll,
         #[derive(Eq)]
         /// Prepare a plain-text forward of the open original.
-        Forward
+        Forward,
+        #[derive(Eq)]
+        /// Toggle the open original between read and unread.
+        ToggleRead,
+        #[derive(Eq)]
+        /// Toggle the star on the open original.
+        ToggleStar
     ]
 );
 
@@ -147,6 +163,11 @@ pub struct Workspace {
     _appearance: Subscription,
     _focus_lost: Subscription,
     theme_override: Option<ThemeMode>,
+    engine: Option<crate::mail_sync::Engine>,
+    syncing: BTreeSet<String>,
+    sync_errors: BTreeMap<String, String>,
+    last_sync: String,
+    last_wake: Instant,
 }
 
 impl Drop for Workspace {
@@ -196,6 +217,13 @@ impl Workspace {
         let activation = cx.observe_window_activation(window, |this, window, _| {
             this.read_gate
                 .visibility(window.is_window_active() && this.view == View::Inbox);
+            if window.is_window_active()
+                && let Some(engine) = &this.engine
+                && this.last_wake.elapsed() >= ACTIVATION_WAKE_INTERVAL
+            {
+                this.last_wake = Instant::now();
+                engine.wake_all();
+            }
         });
         let thread_reader =
             cx.new(|cx| crate::thread_reader::ThreadReader::new(runtime.clone(), window, cx));
@@ -299,6 +327,11 @@ impl Workspace {
             _appearance: appearance,
             _focus_lost: focus_lost,
             theme_override: None,
+            engine: None,
+            syncing: BTreeSet::new(),
+            sync_errors: BTreeMap::new(),
+            last_sync: String::new(),
+            last_wake: Instant::now(),
         };
         if demo {
             this.init_demo(window, cx);
@@ -339,6 +372,8 @@ impl Workspace {
             unread: 1,
             messages: 1,
             received_at: 1_700_000_000,
+            seen: false,
+            starred: false,
         })
         .collect();
         if let Some(row) = rows.first().cloned() {
@@ -416,6 +451,7 @@ impl Workspace {
                                 this.composer.update(cx, |composer, cx| {
                                     composer.configure(&config, handle, window, cx);
                                 });
+                                this.restart_sync(&config, window, cx);
                             }
                         }
                         if let Some(error) = this.declaration.error() {
@@ -621,20 +657,7 @@ impl Workspace {
                         this.folders = folders;
                         let count = rows.len();
                         this.pages.more = count == 100;
-                        let rows = rows
-                            .into_iter()
-                            .map(|row| Row {
-                                unread: row.unread,
-                                conversation: row.conversation,
-                                messages: row.cached_messages,
-                                account: row.latest.account,
-                                id: row.latest.id,
-                                sender: row.latest.sender,
-                                subject: row.latest.subject,
-                                preview: row.latest.preview,
-                                received_at: row.latest.received_at,
-                            })
-                            .collect();
+                        let rows = rows.into_iter().map(Row::from).collect();
                         this.list.update(cx, |list, cx| {
                             crate::mailbox::replace(list, rows, window, cx);
                         });
@@ -864,8 +887,25 @@ impl Workspace {
         }
     }
 
-    fn mark_opened(&self, window: &Window, cx: &Context<Self>) {
-        let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
+    fn mark_opened(&mut self, window: &Window, cx: &Context<Self>) {
+        self.apply_flag(FlagChange::Seen, true, window, cx);
+    }
+
+    /// An explicit toggle stays until the next explicit open: the read gate is spent,
+    /// so refreshing or reselecting this message cannot mark it read again.
+    fn toggle_flag(&mut self, flag: FlagChange, window: &Window, cx: &Context<Self>) {
+        let Some(row) = &self.selected else {
+            return;
+        };
+        let desired = match flag {
+            FlagChange::Seen => !row.seen,
+            FlagChange::Starred => !row.starred,
+        };
+        self.apply_flag(flag, desired, window, cx);
+    }
+
+    fn apply_flag(&mut self, flag: FlagChange, desired: bool, window: &Window, cx: &Context<Self>) {
+        let (Some(handle), Some(row)) = (self.handle(), self.selected.as_mut()) else {
             return;
         };
         let Some(account) = self.declaration.active().and_then(|config| {
@@ -879,18 +919,15 @@ impl Workspace {
         let Ok(context) = mailstronaut_core::store::flags::context(account) else {
             return;
         };
+        match flag {
+            FlagChange::Seen => row.seen = desired,
+            FlagChange::Starred => row.starred = desired,
+        }
+        let (account, id) = (row.account.clone(), row.id);
         let revision = self.declaration.revision();
-        let job = self.runtime.spawn(async move {
-            handle
-                .set_flag(
-                    row.account,
-                    row.id,
-                    mailstronaut_mail::imap::FlagChange::Seen,
-                    true,
-                    context,
-                )
-                .await
-        });
+        let job = self
+            .runtime
+            .spawn(async move { handle.set_flag(account, id, flag, desired, context).await });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
@@ -902,14 +939,131 @@ impl Workspace {
                         this.refresh_rows(window, cx);
                         this.thread_reader
                             .update(cx, |thread, cx| thread.refresh(window, cx));
+                        // Changes reach the server on the account's next cycle.
+                        if let Some(engine) = &this.engine {
+                            engine.wake_all();
+                        }
                     }
-                    Ok(Err(error)) => this.status = error.to_string(),
-                    Err(_) => this.status = "Unable to save the message's read state.".into(),
+                    Ok(Err(error)) => {
+                        this.status = error.to_string();
+                        if let Some(row) = this.selected.as_mut().filter(|row| row.id == id) {
+                            match flag {
+                                FlagChange::Seen => row.seen = !desired,
+                                FlagChange::Starred => row.starred = !desired,
+                            }
+                        }
+                    }
+                    Err(_) => this.status = "Unable to save the message's state.".into(),
                 }
                 cx.notify();
             });
         })
         .detach();
+    }
+
+    /// Restart per-account polling for the active configuration. Explicit sync in
+    /// Settings still works when `sync.automatic` is off.
+    fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &Context<Self>) {
+        self.engine = None;
+        self.sync_errors.clear();
+        self.syncing.clear();
+        let Some(handle) = self.handle().filter(|_| config.sync.automatic) else {
+            return;
+        };
+        let (engine, mut updates) = crate::mail_sync::Engine::start(
+            &self.runtime,
+            &self.account_access,
+            &handle,
+            config,
+            self.lifetime.child_token(),
+        );
+        self.engine = Some(engine);
+        let revision = self.declaration.revision();
+        cx.spawn_in(window, async move |this, cx| {
+            while let Some(update) = updates.recv().await {
+                let applied = this.update_in(cx, |this, window, cx| {
+                    if revision == this.declaration.revision() {
+                        this.sync_update(update, window, cx);
+                    }
+                });
+                if applied.is_err() {
+                    return;
+                }
+            }
+        })
+        .detach();
+    }
+
+    fn sync_update(
+        &mut self,
+        update: crate::mail_sync::Update,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        match update {
+            crate::mail_sync::Update::Started(account) => {
+                self.syncing.insert(account);
+            }
+            crate::mail_sync::Update::Finished(account, result) => {
+                self.syncing.remove(&account);
+                match result {
+                    Ok(cycle) => {
+                        self.sync_errors.remove(&account);
+                        self.last_sync = chrono::Local::now().format("%H:%M").to_string();
+                        if cycle.downloaded > 0 || cycle.refreshed > 0 || cycle.actions > 0 {
+                            self.refresh_rows(window, cx);
+                        }
+                    }
+                    Err(error) => {
+                        self.sync_errors.insert(account, error);
+                    }
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    fn sync_now(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh(window, cx);
+        if let Some(engine) = &self.engine {
+            engine.wake_all();
+        }
+    }
+
+    fn sync_status(&self) -> String {
+        if !self.syncing.is_empty() {
+            return format!("{} · syncing…", self.status);
+        }
+        if self.last_sync.is_empty() {
+            return self.status.clone();
+        }
+        format!("{} · updated {}", self.status, self.last_sync)
+    }
+
+    fn sync_alert(&self, cx: &Context<Self>) -> impl IntoElement {
+        div().when_some(self.sync_errors.iter().next(), |view, (account, error)| {
+            let more = self.sync_errors.len().saturating_sub(1);
+            let name = self
+                .declaration
+                .active()
+                .and_then(|config| config.accounts.iter().find(|item| &item.id == account))
+                .map_or_else(|| account.clone(), |item| item.display_name.clone());
+            view.p_2().child(
+                Alert::warning(
+                    "sync-error",
+                    if more > 0 {
+                        format!("{name}: {error}. {more} more accounts also need attention.")
+                    } else {
+                        format!("{name}: {error}. Cached mail is still available.")
+                    },
+                )
+                .on_close(cx.listener(|this, _, _, cx| {
+                    // Dismissal hides this report; each account keeps its own retry state.
+                    this.sync_errors.clear();
+                    cx.notify();
+                })),
+            )
+        })
     }
 }
 
@@ -930,6 +1084,8 @@ impl Workspace {
             KeyBinding::new("alt-r", Reply, Some("Mailstronaut")),
             KeyBinding::new("alt-a", ReplyAll, Some("Mailstronaut")),
             KeyBinding::new("alt-f", Forward, Some("Mailstronaut")),
+            KeyBinding::new("alt-u", ToggleRead, Some("Mailstronaut")),
+            KeyBinding::new("alt-s", ToggleStar, Some("Mailstronaut")),
         ]);
     }
 
@@ -1183,7 +1339,12 @@ impl Workspace {
                                                     account: account.id.clone(),
                                                     folder: folder.id,
                                                 };
-                                                SidebarMenuItem::new(folder.name.clone())
+                                                let label = folder.role.map_or_else(
+                                                    || folder.name.clone(),
+                                                    |role| role.label().to_owned(),
+                                                );
+                                                let wire = folder.name.clone();
+                                                SidebarMenuItem::new(label)
                                                     .icon(if folder.inbox {
                                                         IconName::Inbox
                                                     } else {
@@ -1204,6 +1365,18 @@ impl Workspace {
                                                                 window,
                                                                 cx,
                                                             );
+                                                            // Standard folders already sync;
+                                                            // this covers any other folder.
+                                                            if let (
+                                                                Some(engine),
+                                                                Scope::Folder { account, .. },
+                                                            ) = (&this.engine, &scope)
+                                                            {
+                                                                engine.include_folder(
+                                                                    account,
+                                                                    wire.clone(),
+                                                                );
+                                                            }
                                                         },
                                                     ))
                                             }),
@@ -1271,8 +1444,14 @@ impl Workspace {
             .when(self.view == View::Inbox, |view| {
                 view.child(
                     Button::new("refresh")
-                        .label("Refresh cache")
-                        .on_click(cx.listener(|this, _, window, cx| this.refresh(window, cx))),
+                        .label(if self.engine.is_some() {
+                            "Sync"
+                        } else {
+                            "Refresh cache"
+                        })
+                        .tooltip("Ctrl+R")
+                        .loading(!self.syncing.is_empty())
+                        .on_click(cx.listener(|this, _, window, cx| this.sync_now(window, cx))),
                 )
             })
             .child(
@@ -1291,6 +1470,7 @@ impl Workspace {
             .size_full()
             .flex()
             .flex_col()
+            .child(self.sync_alert(cx))
             .child(
                 div()
                     .flex_1()
@@ -1447,40 +1627,70 @@ impl Workspace {
 
     fn message_actions(&self, cx: &Context<Self>) -> impl IntoElement {
         let unavailable = self.opened_message.is_none() || self.demo;
-        Toolbar::new("message-actions").mb_3().content(
-            ToolbarGroup::new("message-respond")
-                .label("Respond")
-                .child(
-                    Button::new("reply")
-                        .outline()
-                        .label("Reply")
-                        .tooltip("Alt+R")
-                        .disabled(unavailable)
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.respond(Kind::Reply, window, cx);
-                        })),
-                )
-                .child(
-                    Button::new("reply-all")
-                        .ghost()
-                        .label("Reply all")
-                        .tooltip("Alt+A")
-                        .disabled(unavailable)
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.respond(Kind::ReplyAll, window, cx);
-                        })),
-                )
-                .child(
-                    Button::new("forward")
-                        .ghost()
-                        .label("Forward")
-                        .tooltip("Alt+F · plain text, without attachments")
-                        .disabled(unavailable)
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.respond(Kind::ForwardText, window, cx);
-                        })),
-                ),
-        )
+        let (seen, starred) = self
+            .selected
+            .as_ref()
+            .map_or((false, false), |row| (row.seen, row.starred));
+        Toolbar::new("message-actions")
+            .mb_3()
+            .content(
+                ToolbarGroup::new("message-respond")
+                    .label("Respond")
+                    .child(
+                        Button::new("reply")
+                            .outline()
+                            .label("Reply")
+                            .tooltip("Alt+R")
+                            .disabled(unavailable)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.respond(Kind::Reply, window, cx);
+                            })),
+                    )
+                    .child(
+                        Button::new("reply-all")
+                            .ghost()
+                            .label("Reply all")
+                            .tooltip("Alt+A")
+                            .disabled(unavailable)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.respond(Kind::ReplyAll, window, cx);
+                            })),
+                    )
+                    .child(
+                        Button::new("forward")
+                            .ghost()
+                            .label("Forward")
+                            .tooltip("Alt+F · plain text, without attachments")
+                            .disabled(unavailable)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.respond(Kind::ForwardText, window, cx);
+                            })),
+                    ),
+            )
+            .content(
+                ToolbarGroup::new("message-state")
+                    .label("Message state")
+                    .child(
+                        Button::new("toggle-read")
+                            .ghost()
+                            .label(if seen { "Mark unread" } else { "Mark read" })
+                            .tooltip("Alt+U")
+                            .disabled(self.demo)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.toggle_flag(FlagChange::Seen, window, cx);
+                            })),
+                    )
+                    .child(
+                        Button::new("toggle-star")
+                            .ghost()
+                            .label(if starred { "Unstar" } else { "Star" })
+                            .tooltip("Alt+S")
+                            .disabled(self.demo)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.toggle_flag(FlagChange::Starred, window, cx);
+                            })),
+                    ),
+            )
     }
 
     fn reader_tools(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1602,13 +1812,23 @@ impl Workspace {
                 this.respond(Kind::ForwardText, window, cx);
             }
         }))
+        .on_action(cx.listener(|this, _: &ToggleRead, window, cx| {
+            if this.view == View::Inbox {
+                this.toggle_flag(FlagChange::Seen, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &ToggleStar, window, cx| {
+            if this.view == View::Inbox {
+                this.toggle_flag(FlagChange::Starred, window, cx);
+            }
+        }))
         .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {
             if this.view != View::Inbox {
                 this.show_inbox(window, cx);
             }
             this.search.update(cx, |input, cx| input.focus(window, cx));
         }))
-        .on_action(cx.listener(|this, _: &RefreshCache, window, cx| this.refresh(window, cx)))
+        .on_action(cx.listener(|this, _: &RefreshCache, window, cx| this.sync_now(window, cx)))
         .on_action(cx.listener(|this, _: &ToggleAppearance, window, cx| {
             this.toggle_appearance(window, cx);
         }))
@@ -1690,7 +1910,7 @@ impl Render for Workspace {
                         .text_color(muted)
                         .border_t_1()
                         .border_color(border)
-                        .child(self.status.clone()),
+                        .child(self.sync_status()),
                 )
             })
     }

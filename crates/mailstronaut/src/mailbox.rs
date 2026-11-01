@@ -24,6 +24,27 @@ pub struct Row {
     pub unread: u32,
     pub messages: u32,
     pub received_at: i64,
+    /// This original's own flags, separate from the group's unread count.
+    pub seen: bool,
+    pub starred: bool,
+}
+
+impl From<mailstronaut_core::store::conversations::Summary> for Row {
+    fn from(row: mailstronaut_core::store::conversations::Summary) -> Self {
+        Self {
+            unread: row.unread,
+            conversation: row.conversation,
+            messages: row.cached_messages,
+            account: row.latest.account,
+            id: row.latest.id,
+            sender: row.latest.sender,
+            subject: row.latest.subject,
+            preview: row.latest.preview,
+            received_at: row.latest.received_at,
+            seen: row.latest.seen,
+            starred: row.latest.starred,
+        }
+    }
 }
 
 impl Row {
@@ -148,8 +169,13 @@ impl ListDelegate for Rows {
                 .border_b_1()
                 .border_color(cx.theme().border)
                 .accessibility_label(format!(
-                    "{} · {} · {} · {} messages · {} unread",
-                    row.sender, row.subject, row.account, row.messages, row.unread
+                    "{} · {} · {} · {} messages · {} unread{}",
+                    row.sender,
+                    row.subject,
+                    row.account,
+                    row.messages,
+                    row.unread,
+                    if row.starred { " · starred" } else { "" }
                 ))
                 .child(
                     div()
@@ -161,6 +187,11 @@ impl ListDelegate for Rows {
                                 .items_center()
                                 .gap_2()
                                 .child(Label::new(row.sender.clone()).flex_1().truncate())
+                                .when(row.starred, |view| {
+                                    view.child(
+                                        Label::new("★").text_color(cx.theme().primary).flex_none(),
+                                    )
+                                })
                                 .child(
                                     Badge::new()
                                         .count(row.unread as usize)

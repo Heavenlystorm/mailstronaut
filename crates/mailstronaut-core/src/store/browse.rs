@@ -106,7 +106,7 @@ impl Store {
         if accounts.len() > 256 {
             return Err(Error::InvalidInput);
         }
-        let mut query=self.connection.prepare_cached("SELECT id,account_id,name,uidvalidity,is_inbox FROM folders WHERE account_id IN (SELECT value FROM json_each(?1)) ORDER BY account_id,is_inbox DESC,name LIMIT 4097")?;
+        let mut query=self.connection.prepare_cached("SELECT id,account_id,name,uidvalidity,is_inbox,role FROM folders WHERE account_id IN (SELECT value FROM json_each(?1)) ORDER BY account_id,is_inbox DESC,CASE role WHEN 'sent' THEN 0 WHEN 'drafts' THEN 1 WHEN 'archive' THEN 2 WHEN 'junk' THEN 3 WHEN 'trash' THEN 4 ELSE 5 END,name LIMIT 4097")?;
         let rows = query
             .query_map(
                 [serde_json::to_string(accounts)?],

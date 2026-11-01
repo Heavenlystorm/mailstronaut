@@ -44,3 +44,11 @@ message while keeping its cache; and an offline restart.
 No live provider, real desktop session, assistive-technology, large-mailbox timing or
 Flatpak acceptance. Sidebar rows have no unread `Badge::count` yet, and folder-specific
 sync is not implemented, so a folder lists only what is already cached.
+
+## Message actions
+
+The reader toolbar adds Reply, Reply all, Forward, Mark read/unread (Alt+U) and Star
+(Alt+S). `MAILSTRONAUT_MAILBOX_NAVIGATION=1` now also opens an original, stars it, marks
+it unread and replies. SQLite shows it unread and starred, with an unsent local draft
+carrying `In-Reply-To`, the sender as recipient and a quotation. Later refreshes do not
+mark it read again, because the read gate is spent by the explicit open.

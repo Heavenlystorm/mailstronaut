@@ -7,7 +7,7 @@ use sha2::{Digest as _, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    store::mailbox::{Flags, Folder, GmailId, Membership, UidSnapshot},
+    store::mailbox::{Flags, Folder, FolderRole, GmailId, Membership, UidSnapshot},
     worker,
 };
 
@@ -89,8 +89,108 @@ impl From<worker::Error> for Error {
     }
 }
 
+const ROLES: [FolderRole; 5] = [
+    FolderRole::Sent,
+    FolderRole::Drafts,
+    FolderRole::Trash,
+    FolderRole::Archive,
+    FolderRole::Junk,
+];
+
+/// Choose at most one folder per role.
+///
+/// An explicit configuration override wins, then the server's SPECIAL-USE attribute,
+/// then a conventional name for servers without that extension. Wire names are matched,
+/// never rewritten.
+#[must_use]
+pub fn folder_roles(
+    folders: &[imap::Folder],
+    overrides: &mailstronaut_config::Folders,
+) -> Vec<(String, FolderRole)> {
+    let selectable = || folders.iter().filter(|folder| folder.selectable);
+    ROLES
+        .into_iter()
+        .filter_map(|role| {
+            let (declared, attribute, names): (_, _, &[&str]) = match role {
+                FolderRole::Sent => (
+                    &overrides.sent,
+                    "\\sent",
+                    &[
+                        "sent",
+                        "sent mail",
+                        "sent items",
+                        "sent messages",
+                        "envoyés",
+                        "inviata",
+                        "posta inviata",
+                    ],
+                ),
+                FolderRole::Drafts => (
+                    &overrides.drafts,
+                    "\\drafts",
+                    &["drafts", "draft", "brouillons", "bozze"],
+                ),
+                FolderRole::Trash => (
+                    &overrides.trash,
+                    "\\trash",
+                    &[
+                        "trash",
+                        "deleted",
+                        "deleted items",
+                        "deleted messages",
+                        "corbeille",
+                        "cestino",
+                    ],
+                ),
+                FolderRole::Archive => (
+                    &overrides.archive,
+                    "\\archive",
+                    &["archive", "archives", "archivio"],
+                ),
+                FolderRole::Junk => (
+                    &None,
+                    "\\junk",
+                    &[
+                        "junk",
+                        "spam",
+                        "junk e-mail",
+                        "indésirables",
+                        "posta indesiderata",
+                    ],
+                ),
+            };
+            let leaf = |folder: &&imap::Folder| {
+                let delimiter = folder.delimiter.as_deref().unwrap_or("/");
+                let name = folder
+                    .wire_name
+                    .rsplit(delimiter)
+                    .next()
+                    .unwrap_or_default()
+                    .to_lowercase();
+                names.contains(&name.as_str())
+            };
+            declared
+                .as_deref()
+                .filter(|name| selectable().any(|folder| folder.wire_name == *name))
+                .map(str::to_owned)
+                .or_else(|| {
+                    selectable()
+                        .find(|folder| {
+                            folder
+                                .attributes
+                                .iter()
+                                .any(|value| value.eq_ignore_ascii_case(attribute))
+                        })
+                        .or_else(|| selectable().find(leaf))
+                        .map(|folder| folder.wire_name.clone())
+                })
+                .map(|name| (name, role))
+        })
+        .collect()
+}
+
 /// Discover selectable folders over an already authenticated connection. Persist
-/// exact wire identities without translating paths or silently syncing their mail.
+/// exact wire identities and roles without translating paths or fetching their mail.
 /// # Errors
 /// Returns redacted transport/storage errors; incomplete LIST results are not saved.
 pub async fn discover(
@@ -99,13 +199,15 @@ pub async fn discover(
     account: &str,
     context: &str,
     inbox: &str,
+    overrides: &mailstronaut_config::Folders,
     cancel: &CancellationToken,
-) -> Result<(), Error> {
+) -> Result<Vec<(String, FolderRole)>, Error> {
     let folders = connection.folders(cancel).await?;
     store.ensure_account(account.into()).await?;
     store
         .bind_mailbox_context(account.into(), context.into())
         .await?;
+    let roles = folder_roles(&folders, overrides);
     let names = folders
         .into_iter()
         .filter(|folder| folder.selectable)
@@ -114,7 +216,10 @@ pub async fn discover(
     store
         .remember_folders(account.into(), names, inbox.into())
         .await?;
-    Ok(())
+    store
+        .assign_folder_roles(account.into(), roles.clone())
+        .await?;
+    Ok(roles)
 }
 
 /// Reconcile one closed UID window and fetch bounded PEEK originals serially.
@@ -277,5 +382,61 @@ const fn membership(folder: i64, validity: NonZeroU32, metadata: &Metadata) -> M
             seen: metadata.seen,
             starred: metadata.starred,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FolderRole, folder_roles, imap};
+    use mailstronaut_config::Folders;
+
+    fn folder(name: &str, attributes: &[&str]) -> imap::Folder {
+        imap::Folder {
+            wire_name: name.into(),
+            selectable: true,
+            delimiter: Some("/".into()),
+            attributes: attributes.iter().map(|value| (*value).into()).collect(),
+        }
+    }
+
+    #[test]
+    fn special_use_beats_conventional_names_and_an_override_beats_both() {
+        let folders = [
+            folder("INBOX", &[]),
+            folder("Sent", &[]),
+            folder("[Gmail]/Sent Mail", &["\\Sent"]),
+            folder("Custom outgoing", &[]),
+        ];
+        assert_eq!(
+            folder_roles(&folders, &Folders::default()),
+            [("[Gmail]/Sent Mail".to_owned(), FolderRole::Sent)]
+        );
+        let declared: Folders =
+            serde_json::from_str(r#"{"sent":"Custom outgoing"}"#).expect("declared folders");
+        assert_eq!(
+            folder_roles(&folders, &declared),
+            [("Custom outgoing".to_owned(), FolderRole::Sent)]
+        );
+    }
+
+    #[test]
+    fn names_are_a_fallback_and_unselectable_or_unknown_folders_gain_no_role() {
+        let mut parent = folder("Trash", &["\\Trash"]);
+        parent.selectable = false;
+        let folders = [
+            parent,
+            folder("INBOX/Envoyés", &[]),
+            folder("Corbeille", &[]),
+            folder("Reports", &[]),
+        ];
+        let declared: Folders =
+            serde_json::from_str(r#"{"archive":"Missing"}"#).expect("declared folders");
+        assert_eq!(
+            folder_roles(&folders, &declared),
+            [
+                ("INBOX/Envoyés".to_owned(), FolderRole::Sent),
+                ("Corbeille".to_owned(), FolderRole::Trash),
+            ]
+        );
     }
 }

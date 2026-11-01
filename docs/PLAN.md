@@ -245,6 +245,8 @@ new dependency graph before claiming current-package acceptance.
   independent account state, configuration generations and useful offline reading.
   Reuse `Button::loading`/`Spinner`, Cancel/Retry `Button`s and persistent per-account
   `Alert`s; show offline/partial coverage in `StatusBar`, retaining cached rows.
+  [Automatic engine implemented](evidence/P04-background-sync.md); native acceptance
+  against a real IMAP server remains open.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
   capability discovery, account cancellation/backoff and fair connection/work budgets.
 - [ ] Complete SPECIAL-USE discovery, explicit folder overrides and verified

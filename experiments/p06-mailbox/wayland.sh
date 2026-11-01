@@ -42,6 +42,7 @@ cat > "$config" <<'NIX'
   schemaVersion = 1;
   managed = true;
   appearance = "light";
+  sync.automatic = false;
   accounts = map (identity: {
     id = identity.id;
     provider = "manual";

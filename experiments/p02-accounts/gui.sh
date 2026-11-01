@@ -29,6 +29,7 @@ cat > "$config" <<NIX
   schemaVersion = 1;
   managed = true;
   appearance = "light";
+  sync.automatic = false;
   accounts = [{
     id = "inbox-synthetic";
     provider = "manual";

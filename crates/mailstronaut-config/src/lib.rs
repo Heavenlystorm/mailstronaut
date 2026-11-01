@@ -118,6 +118,9 @@ pub enum RemoteContent {
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
 #[non_exhaustive]
 pub struct Sync {
+    /// Keep accounts up to date while the application runs. When false, mail is
+    /// fetched only by an explicit request in Settings.
+    pub automatic: bool,
     /// Initial history in days.
     pub initial_days: u32,
     /// Polling interval in seconds.
@@ -129,6 +132,7 @@ impl Default for Sync {
     #[inline]
     fn default() -> Self {
         Self {
+            automatic: true,
             initial_days: 30,
             poll_seconds: 300,
             max_body_bytes: 0x20_0000,

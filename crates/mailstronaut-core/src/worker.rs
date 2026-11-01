@@ -14,7 +14,7 @@ use crate::{
     mime::{self, Projection},
     store::{
         self, Store,
-        mailbox::{Cursor, Folder, GmailId, Membership, Summary, UidSnapshot},
+        mailbox::{Cursor, Folder, FolderRole, GmailId, Membership, Summary, UidSnapshot},
         outbox::{self, Draft, DraftSummary, Submission},
     },
 };
@@ -120,6 +120,7 @@ enum Command {
     ),
     Folders(Vec<String>, Reply<Vec<Folder>>),
     RememberFolders(String, Vec<String>, String, Reply<()>),
+    AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
     ConversationMessages(String, i64, Reply<Vec<Summary>>),
     ConversationMemberPage(String, i64, Option<Cursor>, u32, Reply<Vec<Summary>>),
     BindContext(String, String, Reply<bool>),
@@ -345,6 +346,17 @@ impl Handle {
         inbox: String,
     ) -> Result<(), Error> {
         self.request(|reply| Command::RememberFolders(account, names, inbox, reply))
+            .await
+    }
+    /// Record which folders serve the standard mail roles.
+    /// # Errors
+    /// Rejects duplicate roles and failed durable writes.
+    pub async fn assign_folder_roles(
+        &self,
+        account: String,
+        roles: Vec<(String, FolderRole)>,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::AssignFolderRoles(account, roles, reply))
             .await
     }
     /// Read bounded cached conversation members, including Sent/Archive ancestry.
@@ -911,6 +923,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));
+            }
+            Command::AssignFolderRoles(account, roles, reply) => {
+                commit(reply, || store.assign_folder_roles(&account, &roles));
             }
             Command::ConversationMessages(account, message, reply) => {
                 respond(reply, || store.conversation_messages(&account, message));

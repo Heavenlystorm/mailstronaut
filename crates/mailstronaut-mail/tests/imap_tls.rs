@@ -510,6 +510,7 @@ async fn sync_pages_commit_once_and_remain_readable_after_network_and_worker_res
         request.account,
         request.context,
         "INBOX",
+        &mailstronaut_config::Folders::default(),
         &cancel,
     )
     .await
@@ -628,6 +629,7 @@ async fn paging_cursors_from_old_uid_or_account_context_restart_at_the_newest_ma
         changed.account,
         changed.context,
         "INBOX",
+        &mailstronaut_config::Folders::default(),
         &cancel,
     )
     .await

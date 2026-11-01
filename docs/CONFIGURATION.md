@@ -89,6 +89,7 @@ in
     remoteContent = "ask"; # v1: ask | never; neither loads on message open
   };
   sync = {
+    automatic = true;
     initialDays = 30;
     pollSeconds = 300;
     maxBodyBytes = 2097152;

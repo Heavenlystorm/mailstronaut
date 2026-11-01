@@ -122,6 +122,8 @@ impl ThreadReader {
                     unread: u32::from(!member.seen),
                     messages: group.messages,
                     received_at: member.received_at,
+                    seen: member.seen,
+                    starred: member.starred,
                 }));
             }
         });
