@@ -1,0 +1,64 @@
+Revision: 5e79d975c8a3d3b29eb620bdc2fa4f0101f0d501
+Service verified inactive/dead, Result=success; numeric receipt 0.
+259 normal workspace tests; subsequent private tests are counted separately.
+Package: /nix/store/3a7m90176l6ywmz2497170kic7ksxmyz-mailstronaut-0.1.0
+Source: /nix/store/dl7kv18wd0rq69w05djw82j0wk623ww0-source
+
+Build parallelism: 16 CPUs
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut>     Finished `release` profile [optimized] target(s) in 7.52s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 2m 48s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 3m 22s
+mailstronaut> test result: ok. 21 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.07s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.10s
+mailstronaut> test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.02s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.14s
+mailstronaut> test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+mailstronaut> test result: ok. 61 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.44s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+mailstronaut> test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+mailstronaut> test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+mailstronaut> test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 30.10s
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.74s
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.07s
+mailstronaut> test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.27s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test result: ok. 16 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.11s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.09s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 1.01s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.04s
+mailstronaut> Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> Private keyring artifacts: /build/source/target/p02.wwby47
+mailstronaut> Private OAuth: refresh rotation persisted before shared use, restart recovery, locked-cache denial and revoked-credential removal passed.
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> Private keyring artifacts: /build/source/target/p02.DufiCO
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.21s
+mailstronaut> Private web-link portal transport passed: /build/tmp.dYZL1GVJ9f
+mailstronaut> actually installing contents of postBuildInstallFromCargoBuildLogOutTempnnp to /nix/store/3a7m90176l6ywmz2497170kic7ksxmyz-mailstronaut-0.1.0
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+Package gate exited 0; log: /builds/mailstronaut-dev/target/p01-package-gate-service.log
+gate-exit=0

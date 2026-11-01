@@ -1,0 +1,56 @@
+mailstronaut 0.1.0
+Created native Nix configuration.
+configuration already exists; reload it instead
+Configuration is valid.
+Configuration is valid.
+All 173 package source files match the checkout.
+Installed CLI no-clobber, mode 0600, check/export/reimport passed: /builds/mailstronaut-dev/target/p05-installed.Hqmrb3
+
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Configuration is valid.
+Applied declared configuration.
+Configuration is valid.
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Native first-run, manual/Google/iCloud declarations, keyboard Save, auth routing, duplicate refusal, native export and restart passed: /builds/mailstronaut-dev/target/p06.8ZGfhZ
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: ['unrelated']
+Effective Seen matches explicit opens: ['unrelated']
+Native calendar/time selection persisted the exact original, UTC instant and timezone.
+Effective Seen matches explicit opens: ['unrelated']
+Reschedule retained the original and notification identity, with a new generation.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+A different original received its own default date/time, without sharing the prior selection.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+Both original-specific reminders survived normal close and offline restart unchanged.
+Cancellation preserved both originals, their Seen state, and the empty draft/outbox state.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+Native reminder acceptance: /builds/mailstronaut-dev/target/p06.xVXNqp
+Saving encrypted credentials woke the stopped account; automatic PEEK sync left mail unread: /mnt/data/mailstronaut/dev-target/p02.HS7SUW/onboarding-auth
+
+running 1 test
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.38s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /mnt/data/mailstronaut/dev-target/p02.HS7SUW
+Installed onboarding, reminder and encrypted-auth wake workflows passed.
+
+Effective Seen matches explicit opens: []
+Configuration is valid.
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Applied declared configuration.
+Effective Seen matches explicit opens: []
+Native preferences acceptance (staging/discard/save/restart/export/HM conflict/last-valid/ownership/Seen): /builds/mailstronaut-dev/target/p06.qRbOlb

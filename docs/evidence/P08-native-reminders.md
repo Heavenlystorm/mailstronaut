@@ -79,6 +79,12 @@ that status line. Actual desktop notification presentation remains unverified.
 - [Narrow layout](artifacts/p08-native-editor/narrow.png)
 - [Dark appearance](artifacts/p08-native-editor/dark.png)
 
-The final release/package gate and installed native retest are pending, together
-with the [onboarding package acceptance](P05-onboarding.md). This is bounded
-current-stack UI/runtime evidence; P08 remains incomplete.
+The full x86_64 release/package gate passed at
+`5e79d975c8a3d3b29eb620bdc2fa4f0101f0d501`, with strict release Clippy, 259 normal
+workspace tests and the additional private credential/OAuth/web-link checks.
+The same native reminder workflow then passed against the installed package in
+`target/p06.xVXNqp`, including close/restart, identity/generation and Seen checks.
+The package path, numeric receipt, source comparison and bounded installed results
+are recorded with [onboarding package acceptance](P05-onboarding.md#release-and-installed-acceptance).
+There is no hosted-CI, aarch64, live-account, real notification server, Flatpak,
+full HM activation or accessibility claim. P08 remains incomplete.

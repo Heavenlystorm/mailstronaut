@@ -81,30 +81,52 @@ bash ci/remote.sh nix develop --command cargo build --workspace --all-features -
 
 ## Release and installed acceptance
 
-The package gate remains **pending**, as does installed native acceptance. A first
-coordinated gate returned 1 on a ShellCheck trap-reference diagnostic in the remote
-runner before package acceptance. The trap was simplified and pinned ShellCheck
-then passed. Later attempts failed during SSH banner exchange; a normal SSH
-connection and a jump-host socket probe each succeeded between those failures.
-No new passing release/package or installed-app outcome is claimed. There is no
-active gate left running from these attempts.
+The coordinated x86_64 Nix gate passed at
+`5e79d975c8a3d3b29eb620bdc2fa4f0101f0d501`, including the integrated work through
+`f92c7b3`, onboarding and reminder editing. Its numeric receipt was 0, the service
+was inactive/dead with Result=success, and the complete log ends with all checks
+passed. Release Clippy, 259 normal workspace tests, the additional private
+credential/OAuth/web-link checks, HM module check, format and CI-script lint passed.
+The gate used stable LLVM Rust 1.99, thin LTO, one codegen unit, 16 cores and one
+Nix job; aarch64 was omitted. A prior stable-Clippy failure in the mailbox test
+fixture was fixed with the standard integer `is_multiple_of` method.
+
+The installed output is
+`/nix/store/3a7m90176l6ywmz2497170kic7ksxmyz-mailstronaut-0.1.0`, built from
+`/nix/store/dl7kv18wd0rq69w05djw82j0wk623ww0-source`. A cached `nix build` passed.
+All 173 filtered source files matched the checkout, independently verified from
+their SHA256 manifest. The installed CLI passed no-clobber initialization, mode
+0600, typed validation and export/reimport in an explicit private path.
+
+The same installed binary passed native onboarding in `target/p06.8ZGfhZ`,
+reminder editing/restart in `target/p06.xVXNqp`, and preferences staging, discard,
+save, restart, export, HM conflict, last-valid and ownership checks in
+`target/p06.qRbOlb`. The encrypted password-save/automatic-sync wake test passed
+again in `target/p02.HS7SUW/onboarding-auth`, followed by keyring isolation,
+locked/missing-service and encrypted-at-rest checks. All profiles are synthetic
+and native Wayland with DISPLAY unset and XWayland disabled. No real provider
+authorization or desktop portal approval is inferred from these fixtures.
 
 The remote runner now bounds dead connections and shares one invocation-local
 OpenSSH control socket across copying/execution, including jump-host routes.
 Socket cleanup stays inside the checkout. This uses standard SSH; host keys and
-authentication policies are unchanged. Its first real invocation reached the Nix
-gate; the final cleanup spelling passed pinned ShellCheck separately.
+authentication policies are unchanged. After intermittent SSH banner failures,
+terminal-backed invocations successfully ran the checks above. The cause of the
+earlier connection failures was not established. The final runner passed pinned
+ShellCheck and the full Nix CI-script check.
 
 Cargo.lock includes only one application UUID dependency reference on top of the
 integrated main graph. Fresh deliberately invalid-hash staging produced
-`sha256-KMptW4/L3lHYhRFATs79ORN0KKza31wpEz8NIY+6OC8=`. It still needs the corrected
-final vendor-lock/package gate; no cached output is accepted as that proof.
+`sha256-KMptW4/L3lHYhRFATs79ORN0KKza31wpEz8NIY+6OC8=`. The corrected gate's
+workspace/vendor lock comparison passed before compilation.
 
 - [Development check excerpt](artifacts/p05-onboarding/development-excerpt.log)
 - [Native declaration/restart receipt](artifacts/p05-onboarding/native-declarations.log)
 - [Encrypted password wake and unread checks](artifacts/p05-onboarding/native-auth-wake.log)
 - [Native staged manual form](artifacts/p05-onboarding/manual-staged.png)
 - [Separate incoming/outgoing encrypted controls](artifacts/p05-onboarding/manual-saved.png)
+- [Release gate and installed source receipt](artifacts/p05-onboarding/package-gate.log)
+- [Installed CLI, native and encrypted-keyring workflows](artifacts/p05-onboarding/installed-workflows.log)
 
 Full logs and private profiles remain under the project target on ci-py and in
 `target/remote`. Real provider authorization, CA/browser desktop and Flatpak
