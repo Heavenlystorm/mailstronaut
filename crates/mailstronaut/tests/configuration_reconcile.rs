@@ -215,3 +215,187 @@ async fn raw_helper_preserves_exact_strings_and_rejects_impure_and_recursive_sou
         Err(process::EvaluationError::Cancelled)
     ));
 }
+
+#[tokio::test]
+async fn preference_saves_preserve_raw_omissions_and_reject_a_newer_declaration() {
+    use mailstronaut_config::persistence;
+    let root = tempfile::tempdir().expect("private profile");
+    let path = root.path().join("config.nix");
+    let source = format!(
+        "{}let days = 7; in {{ schemaVersion = 1; sync = {{ automatic = false; initialDays = days; }}; notifications.showPreview = true; }}",
+        native::MUTABLE_HEADER
+    );
+    fs::write(&path, &source).expect("owned source");
+    let cancel = CancellationToken::new();
+    let expected = process::evaluate(Path::new(BINARY), &source, &cancel)
+        .await
+        .expect("loaded source");
+    let saved = persistence::preferences(Path::new(BINARY), &path, &expected,
+        serde_json::json!({"appearance": "dark", "sync": {"pollSeconds": 120}, "timeZone": "Europe/Paris"}), &cancel).await.expect("preference save");
+    assert!(matches!(
+        saved.appearance,
+        mailstronaut_config::Appearance::Dark
+    ));
+    assert_eq!(saved.sync.poll_seconds, 120);
+    assert_eq!(saved.sync.initial_days, 7);
+    assert!(!saved.sync.automatic);
+    assert!(saved.notifications.show_preview);
+    assert_eq!(saved.time_zone.as_deref(), Some("Europe/Paris"));
+    let text = fs::read_to_string(&path).expect("one native source");
+    let raw = process::evaluate_raw(Path::new(BINARY), &text, &cancel)
+        .await
+        .expect("raw source");
+    assert!(
+        raw.get("accounts").is_none(),
+        "no typed defaults were persisted for untouched keys"
+    );
+    assert!(raw["sync"].get("maxBodyBytes").is_none());
+    assert!(raw["notifications"].get("enabled").is_none());
+    let declaration = root.path().join("hm.nix");
+    fs::write(
+        &declaration,
+        "{ schemaVersion = 1; appearance = \"light\"; }",
+    )
+    .expect("HM declaration");
+    assert!(reconcile(&declaration, &path).status.success());
+    let before = fs::read(&path).expect("reactivated source");
+    assert!(matches!(
+        persistence::preferences(
+            Path::new(BINARY),
+            &path,
+            &saved,
+            serde_json::json!({"appearance": "dark"}),
+            &cancel
+        )
+        .await,
+        Err(persistence::Error::Changed)
+    ));
+    assert_eq!(
+        fs::read(&path).expect("static declaration preserved"),
+        before
+    );
+    let reloaded = export(&path).await;
+    assert!(matches!(
+        reloaded.appearance,
+        mailstronaut_config::Appearance::Light
+    ));
+    assert_eq!(
+        reloaded.sync.poll_seconds, 120,
+        "HM omitted that saved preference"
+    );
+}
+
+#[tokio::test]
+async fn preference_validation_and_ownership_failures_preserve_the_source() {
+    use mailstronaut_config::persistence;
+    let root = tempfile::tempdir().expect("private profile");
+    let path = root.path().join("config.nix");
+    let source = format!("{}{{ schemaVersion = 1; }}", native::MUTABLE_HEADER);
+    fs::write(&path, &source).expect("owned source");
+    let cancel = CancellationToken::new();
+    let config = process::evaluate(Path::new(BINARY), &source, &cancel)
+        .await
+        .expect("active configuration");
+    for changes in [
+        serde_json::json!({"timeZone": "Mars/Olympus"}),
+        serde_json::json!({"reminders": {"morning": "25:99"}}),
+        serde_json::json!({"sync": {"pollSeconds": 1}}),
+    ] {
+        let error = persistence::preferences(Path::new(BINARY), &path, &config, changes, &cancel)
+            .await
+            .expect_err("canonical validation");
+        assert!(matches!(error, persistence::Error::Validation(_)));
+        assert_eq!(fs::read_to_string(&path).expect("preserved source"), source);
+    }
+    let edit = source::Edit::begin(&path).expect("other cooperating writer");
+    assert!(matches!(
+        persistence::preferences(
+            Path::new(BINARY),
+            &path,
+            &config,
+            serde_json::json!({"appearance": "dark"}),
+            &cancel
+        )
+        .await,
+        Err(persistence::Error::Source(source::Error::Conflict))
+    ));
+    drop(edit);
+    for replacement in [
+        "{ schemaVersion = 1; }".to_owned(),
+        format!(
+            "{}{{ schemaVersion = 1; managed = true; }}",
+            native::MUTABLE_HEADER
+        ),
+    ] {
+        fs::write(&path, &replacement).expect("authored/managed source");
+        let current = process::evaluate(Path::new(BINARY), &replacement, &cancel)
+            .await
+            .expect("valid source");
+        assert!(matches!(
+            persistence::preferences(
+                Path::new(BINARY),
+                &path,
+                &current,
+                serde_json::json!({"appearance": "dark"}),
+                &cancel
+            )
+            .await,
+            Err(persistence::Error::Source(source::Error::Ownership))
+        ));
+        assert_eq!(
+            fs::read_to_string(&path).expect("preserved source"),
+            replacement
+        );
+    }
+}
+
+#[tokio::test]
+async fn preference_saves_reject_readonly_links_and_cancelled_work() {
+    use mailstronaut_config::persistence;
+    let root = tempfile::tempdir().expect("private profile");
+    let path = root.path().join("config.nix");
+    let original = format!("{}{{ schemaVersion = 1; }}", native::MUTABLE_HEADER);
+    fs::write(&path, &original).expect("owned source");
+    let cancel = CancellationToken::new();
+    let config = process::evaluate(Path::new(BINARY), &original, &cancel)
+        .await
+        .expect("valid configuration");
+    let changes = serde_json::json!({"appearance": "dark"});
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o400)).expect("readonly source");
+    assert_eq!(
+        source::ownership(&path).expect("ownership"),
+        source::Ownership::ReadOnly
+    );
+    assert!(matches!(
+        persistence::preferences(Path::new(BINARY), &path, &config, changes.clone(), &cancel).await,
+        Err(persistence::Error::Source(source::Error::Ownership))
+    ));
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("restore mode");
+    let link = root.path().join("linked.nix");
+    symlink(&path, &link).expect("external source link");
+    assert_eq!(
+        source::ownership(&link).expect("ownership"),
+        source::Ownership::External
+    );
+    assert!(matches!(
+        persistence::preferences(Path::new(BINARY), &link, &config, changes.clone(), &cancel).await,
+        Err(persistence::Error::Source(source::Error::Ownership))
+    ));
+    assert!(
+        fs::symlink_metadata(&link)
+            .expect("preserved link")
+            .file_type()
+            .is_symlink()
+    );
+    cancel.cancel();
+    assert!(matches!(
+        persistence::preferences(Path::new(BINARY), &path, &config, changes, &cancel).await,
+        Err(persistence::Error::Evaluation(
+            process::EvaluationError::Cancelled
+        ))
+    ));
+    assert_eq!(
+        fs::read_to_string(&path).expect("preserved source"),
+        original
+    );
+}

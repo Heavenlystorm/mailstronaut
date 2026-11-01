@@ -46,6 +46,9 @@ one writable native source: declarations take precedence on activation and omitt
 values survive. Settings → Export to Nix (Ctrl+Shift+E) copies or saves an effective
 snapshot, including keyring references. Existing user-authored expressions and
 unrelated links require explicit adoption; activation preserves them.
+App-owned sources expose staged appearance, sync, notification, timezone and
+reminder preferences with Save/Discard. Managed sources stay read-only. A stale
+save is rejected; export lets you retain the saved values in your HM declaration.
 
 The sidebar opens each account's cached mail and individual known folders without
 starting a sync. Newer/Older controls page through 100 conversations at a time.
@@ -75,7 +78,8 @@ inputs, checks and distribution limitations. All application code is Rust.
 
 Configuration is a directly evaluated `.nix` file, without a TOML conversion or
 requirement for a Home Manager adapter. Direct-file composition works today; an
-optional native `mutableSettings` module and export-to-Nix workflow are planned.
+optional native `mutableSettings` module and export-to-Nix workflow use that same
+schema today. Full Home Manager generation activation remains a separate gate.
 See [configuration](docs/CONFIGURATION.md),
 [example](examples/config.nix) and [Home Manager composition](examples/home-manager.nix).
 Secrets belong in encrypted storage and must never be put in the Nix store.

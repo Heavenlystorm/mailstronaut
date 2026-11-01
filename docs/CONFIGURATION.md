@@ -6,9 +6,9 @@ public-client OAuth/refresh. GPUI Settings now connects declared accounts to
 foreground password storage and explicit bounded TLS inbox sync; native last-valid
 reload and offline reading passed the private synthetic workflow in
 [current account evidence](evidence/P02-gpui-accounts.md). Native export and the optional
-HM module are implemented; their acceptance scope is recorded in PLAN.md. Editable
-preferences/onboarding, full Home Manager activation and real-provider/portal acceptance
-remain open. Canonical user configuration
+HM module and basic editable preferences are implemented; their acceptance scope
+is recorded in PLAN.md. Editable account onboarding, full Home Manager activation
+and real-provider/portal acceptance remain open. Canonical user configuration
 is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
 Flatpak uses its usual application-specific XDG config directory. A `.nix` file is
 the actual input consumed by the Rust application in both distributions.
@@ -248,6 +248,30 @@ and keep persisted preferences read-only in Settings. `mutableSettings = true`
 opts into an app-owned writable regular `config.nix`, mode `0600`, with
 `managed = false`. It is not an out-of-store link into the user's dotfiles and
 does not introduce a TOML file or a hidden preference overlay.
+
+### Editing preferences in the application
+
+Settings exposes appearance, automatic synchronization and its polling interval,
+reminder notifications and private previews, timezone, and morning/evening defaults.
+It reuses Kit's settings fields, segmented time editors and searchable IANA timezone
+picker. Changes are staged until **Save preferences**; **Discard changes** restores
+the loaded values. The actions stay visible while filtering Settings. A saved
+candidate reloads through the same validated account/runtime adoption path as an
+explicit reload. The toolbar theme toggle remains a temporary preview.
+
+The source path, ownership and last reload are visible alongside persistent errors.
+Only an app-initialized or mutable-HM regular writable source with `managed = false`
+is editable. Managed sources, read-only files, other links and unadopted expressions
+stay read-only; encrypted credential actions remain available separately. Saving
+serializes native data from the raw explicit keys, changing only the staged fields
+before defaults. It can replace expressions/comments in an app-owned file, so keep
+handwritten expressions as read-only sources or in the HM declaration.
+
+The application and activation share the same lock and atomic writer. A save
+rejects a different effective source than the loaded snapshot, including a newer
+HM activation. Reload before retrying; errors preserve the source and last valid
+runtime. Export includes saved effective values, so copy it into HM to retain UI
+edits to declared keys across the next switch.
 
 Use familiar activation semantics: explicitly declared attributes take precedence
 over the current writable configuration on each HM activation; other UI-set values

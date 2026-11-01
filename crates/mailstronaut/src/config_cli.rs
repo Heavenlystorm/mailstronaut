@@ -11,7 +11,7 @@ use std::{
 };
 
 use directories::BaseDirs;
-use mailstronaut_config::{helper, native, process, source};
+use mailstronaut_config::{helper, native, persistence, process, source};
 use tokio::runtime;
 use tokio_util::sync::CancellationToken;
 
@@ -92,7 +92,14 @@ fn configuration_command(arguments: &[OsString]) -> Result<String, String> {
     let cancellation = CancellationToken::new();
     if command == OsStr::new("reconcile") {
         let declared = declared.ok_or(USAGE)?;
-        runtime.block_on(reconcile(&executable, &declared, &path, &cancellation))?;
+        runtime
+            .block_on(persistence::reconcile(
+                &executable,
+                &declared,
+                &path,
+                &cancellation,
+            ))
+            .map_err(|error| error.to_string())?;
         return Ok("Applied declared configuration.\n".into());
     }
     if declared.is_some() {
@@ -112,103 +119,6 @@ fn configuration_command(arguments: &[OsString]) -> Result<String, String> {
         return Ok("Configuration is valid.\n".into());
     }
     native::export(&validated).map_err(|_error| "unable to export configuration".into())
-}
-
-/// Apply Home Manager's declaration to the application's writable native file. The
-/// merged result is validated in full before it replaces anything, so a bad declaration
-/// leaves the last valid file in place.
-async fn reconcile(
-    executable: &Path,
-    declared: &Path,
-    path: &Path,
-    cancellation: &CancellationToken,
-) -> Result<(), String> {
-    let declared_source = source::read(declared)
-        .map_err(|error| error.to_string())?
-        .ok_or("declared configuration does not exist")?;
-    let declared = process::evaluate_raw(executable, &declared_source, cancellation)
-        .await
-        .map_err(|error| error.to_string())?;
-    if !declared.is_object() {
-        return Err("declared configuration must be an attribute set".into());
-    }
-    let edit = source::Edit::begin(path).map_err(|error| error.to_string())?;
-    check_ownership(path, edit.current())?;
-    let mut merged = match edit.current() {
-        Some(source) => process::evaluate_raw(executable, source, cancellation)
-            .await
-            .map_err(|error| format!("current configuration: {error}"))?,
-        None => serde_json::json!({ "schemaVersion": 1 }),
-    };
-    if !merged.is_object() {
-        return Err("current configuration must be an attribute set".into());
-    }
-    native::merge(&mut merged, declared);
-    if !native::set_managed(&mut merged, false) {
-        return Err("current configuration must be an attribute set".into());
-    }
-    let text = native::to_nix(&merged).map_err(|error| error.to_string())?;
-    process::evaluate(executable, &text, cancellation)
-        .await
-        .map_err(|error| format!("merged configuration: {error}"))?;
-    install(path, &text, &edit)
-}
-
-fn check_ownership(path: &Path, current: Option<&str>) -> Result<(), String> {
-    let Some(current) = current else {
-        return Ok(());
-    };
-    let metadata = fs::symlink_metadata(path).map_err(|_| "unable to inspect configuration")?;
-    if metadata.file_type().is_symlink() {
-        let target = fs::canonicalize(path).map_err(|_| "unable to inspect configuration")?;
-        let module_link = target.parent() == Some(Path::new("/nix/store"))
-            && target
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().ends_with("-mailstronaut-config.nix"))
-            && current.starts_with(native::MANAGED_HEADER);
-        if !module_link {
-            return Err("configuration is a link to another file; refusing to replace it".into());
-        }
-    } else if metadata.permissions().readonly() {
-        return Err("configuration is read-only".into());
-    } else if !current.starts_with(native::MUTABLE_HEADER) {
-        return Err("configuration is user-authored; export and back it up before adopting an app-owned file".into());
-    }
-    Ok(())
-}
-
-/// Replace atomically with a private regular file; a concurrent writer cannot be
-/// observed half-written, and a store link is replaced rather than written through.
-fn install(path: &Path, text: &str, edit: &source::Edit) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .filter(|directory| !directory.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(parent)
-        .map_err(|_error| "unable to create configuration directory")?;
-    let mut temporary = tempfile::NamedTempFile::new_in(parent)
-        .map_err(|_error| "unable to create configuration")?;
-    temporary
-        .write_all(native::MUTABLE_HEADER.as_bytes())
-        .map_err(|_error| "unable to write configuration")?;
-    temporary
-        .write_all(text.as_bytes())
-        .map_err(|_error| "unable to write configuration")?;
-    temporary
-        .as_file()
-        .sync_all()
-        .map_err(|_error| "unable to sync configuration")?;
-    edit.verify().map_err(|error| error.to_string())?;
-    temporary
-        .persist(path)
-        .map_err(|_error| "unable to install configuration")?;
-    fs::File::open(parent)
-        .and_then(|directory| directory.sync_all())
-        .map_err(|_error| "unable to sync configuration directory")?;
-    Ok(())
 }
 
 /// Select the same native source for GUI startup and explicit CLI checks.

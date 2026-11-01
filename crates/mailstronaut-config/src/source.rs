@@ -4,7 +4,7 @@ use core::{error::Error as StdError, fmt};
 use std::{
     ffi::OsString,
     fs,
-    io::{self, Read as _},
+    io::{self, Read as _, Write as _},
     os::unix::fs::{DirBuilderExt as _, MetadataExt as _},
     path::{Path, PathBuf},
     sync::Arc,
@@ -20,6 +20,10 @@ use crate::{
 /// A deliberately redacted loading failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// Ownership does not permit application edits or this transition.
+    Ownership,
+    /// The operating system could not commit the validated source.
+    Write,
     /// A cooperating writer holds the path, or its snapshot changed.
     Conflict,
     /// The selected source is not a regular, readable UTF-8 file.
@@ -33,6 +37,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Ownership => f.write_str("configuration is managed, read-only or user-authored; preserve it and use an app-owned source for UI edits"),
+            Self::Write => f.write_str("unable to save native configuration"),
             Self::Conflict => {
                 f.write_str("configuration changed or is being edited; reload and retry")
             }
@@ -43,6 +49,77 @@ impl fmt::Display for Error {
     }
 }
 impl StdError for Error {}
+
+/// File lifecycle, independent of the declared `managed` flag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Ownership {
+    /// Initialized by the application or mutable module activation.
+    AppOwned,
+    /// The module's known immutable store link.
+    Managed,
+    /// A regular file with no write permission bits.
+    ReadOnly,
+    /// A user-authored expression or an unrelated link.
+    External,
+    /// No source has been initialized.
+    Missing,
+    /// A load failed or the source could not be inspected.
+    Unavailable,
+}
+
+impl Ownership {
+    /// Short ownership description for the native source view.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::AppOwned => "Editable native Nix file",
+            Self::Managed => "Managed by your Nix declaration",
+            Self::ReadOnly => "Read-only native Nix file",
+            Self::External => "User-authored source · edit the expression directly",
+            Self::Missing => "Initialize a native config.nix to get started",
+            Self::Unavailable => "Native source is unavailable",
+        }
+    }
+}
+
+/// Inspect a source without creating a lock or changing its target.
+/// # Errors
+/// Rejects inaccessible, dangling, non-file and oversized sources.
+pub fn ownership(path: &Path) -> Result<Ownership, Error> {
+    ownership_of(path, read(path)?.as_deref())
+}
+
+fn ownership_of(path: &Path, text: Option<&str>) -> Result<Ownership, Error> {
+    let Some(text) = text else {
+        return Ok(Ownership::Missing);
+    };
+    let metadata = fs::symlink_metadata(path).map_err(|_| Error::Read)?;
+    if metadata.file_type().is_symlink() {
+        let target = fs::canonicalize(path).map_err(|_| Error::Read)?;
+        let module_link = target.parent() == Some(Path::new("/nix/store"))
+            && target
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().ends_with("-mailstronaut-config.nix"))
+            && text.starts_with(crate::native::MANAGED_HEADER);
+        return Ok(if module_link {
+            Ownership::Managed
+        } else {
+            Ownership::External
+        });
+    }
+    Ok(if metadata.permissions().readonly() {
+        Ownership::ReadOnly
+    } else if text.starts_with(crate::native::MUTABLE_HEADER) {
+        Ownership::AppOwned
+    } else {
+        Ownership::External
+    })
+}
+
+pub(crate) enum WriteMode {
+    Application,
+    Activation,
+}
 
 /// One cooperating configuration writer, with a checked pre-edit snapshot.
 /// The lock is a persistent sibling; never unlink it while another writer may use it.
@@ -113,6 +190,51 @@ impl Edit {
     #[must_use]
     pub fn current(&self) -> Option<&str> {
         self.text.as_deref()
+    }
+
+    /// Inspect the captured source's current ownership before choosing an edit.
+    /// # Errors
+    /// Rejects inaccessible metadata or a changed link target.
+    pub fn ownership(&self) -> Result<Ownership, Error> {
+        ownership_of(&self.path, self.current())
+    }
+
+    /// Commit a previously validated candidate under this lock.
+    pub(crate) fn commit(self, text: &str, mode: WriteMode) -> Result<(), Error> {
+        if text
+            .len()
+            .saturating_add(crate::native::MUTABLE_HEADER.len())
+            > MAX_SOURCE_BYTES
+        {
+            return Err(Error::TooLarge);
+        }
+        let allowed = matches!(
+            (self.ownership()?, mode),
+            (Ownership::AppOwned, _)
+                | (
+                    Ownership::Missing | Ownership::Managed,
+                    WriteMode::Activation
+                )
+        );
+        if !allowed {
+            return Err(Error::Ownership);
+        }
+        let parent = self
+            .path
+            .parent()
+            .filter(|directory| !directory.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|_| Error::Write)?;
+        temporary
+            .write_all(crate::native::MUTABLE_HEADER.as_bytes())
+            .and_then(|()| temporary.write_all(text.as_bytes()))
+            .and_then(|()| temporary.as_file().sync_all())
+            .map_err(|_| Error::Write)?;
+        self.verify()?;
+        temporary.persist(&self.path).map_err(|_| Error::Write)?;
+        fs::File::open(parent)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|_| Error::Write)
     }
 
     /// Detect atomic replacements and in-place edits before committing.
@@ -254,5 +376,43 @@ impl Runtime {
     #[must_use]
     pub const fn revision(&self) -> u64 {
         self.revision
+    }
+}
+
+#[cfg(test)]
+mod edit_tests {
+    use super::*;
+
+    #[test]
+    fn drop_releases_the_writer_with_a_shared_open_description_still_alive() {
+        let root = tempfile::tempdir().expect("private profile");
+        let path = root.path().join("config.nix");
+        let edit = Edit::begin(&path).expect("writer");
+        let duplicate = edit.lock.try_clone().expect("shared open description");
+        assert!(matches!(Edit::begin(&path), Err(Error::Conflict)));
+        drop(edit);
+        let next =
+            Edit::begin(&path).expect("explicit unlock does not wait for the last descriptor");
+        drop(next);
+        drop(duplicate);
+    }
+
+    #[test]
+    fn the_ownership_marker_counts_toward_the_source_limit_before_replacement() {
+        let root = tempfile::tempdir().expect("private profile");
+        let path = root.path().join("config.nix");
+        let original = format!("{}{{ schemaVersion = 1; }}", crate::native::MUTABLE_HEADER);
+        fs::write(&path, &original).expect("owned source");
+        let body = "{ schemaVersion = 1; }";
+        let text = format!("{}{body}", " ".repeat(MAX_SOURCE_BYTES - body.len()));
+        let edit = Edit::begin(&path).expect("writer");
+        assert!(matches!(
+            edit.commit(&text, WriteMode::Application),
+            Err(Error::TooLarge)
+        ));
+        assert_eq!(
+            fs::read_to_string(&path).expect("preserved source"),
+            original
+        );
     }
 }

@@ -25,7 +25,7 @@ use gpui::component::{
     menu::{DropdownMenu as _, PopupMenuItem},
     notification::{Notification, NotificationDelivery},
     resizable::{h_resizable, resizable_panel},
-    setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
+    setting::{SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
     tab::{Tab, TabBar},
     toolbar::{Toolbar, ToolbarGroup},
@@ -147,6 +147,8 @@ pub struct Workspace {
     pages: crate::mailbox::Pages,
     declaration: source::Runtime,
     config_path: Option<PathBuf>,
+    preferences: Entity<crate::preferences::Preferences>,
+    _preference_events: Subscription,
     loading_config: bool,
     view: View,
     account_access: crate::account_actions::Access,
@@ -307,6 +309,23 @@ impl Workspace {
             }
             cx.notify();
         });
+        let preferences = cx.new(|cx| {
+            crate::preferences::Preferences::new(
+                runtime.clone(),
+                lifetime.child_token(),
+                window,
+                cx,
+            )
+        });
+        let preference_events =
+            cx.subscribe_in(&preferences, window, |this, _, event, window, cx| {
+                if let crate::preferences::Event::Saved(revision) = event
+                    && *revision == this.declaration.revision()
+                {
+                    this.load_configuration(window, cx);
+                }
+                cx.notify();
+            });
         let mut this = Self {
             focus,
             link_focus: cx.focus_handle(),
@@ -319,6 +338,8 @@ impl Workspace {
             pages: crate::mailbox::Pages::default(),
             declaration: source::Runtime::default(),
             config_path: path,
+            preferences,
+            _preference_events: preference_events,
             loading_config: false,
             view: View::Inbox,
             account_access,
@@ -419,11 +440,17 @@ impl Workspace {
         });
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "One existing atomic configuration adoption path also updates its small preference snapshot"
+    )]
     fn load_configuration(&mut self, window: &Window, cx: &mut Context<Self>) {
-        if self.demo || self.loading_config {
+        if self.demo || self.loading_config || self.preferences.read(cx).busy() {
             return;
         }
         self.loading_config = true;
+        self.preferences
+            .update(cx, crate::preferences::Preferences::loading);
         self.status = "Loading native Nix configuration…".into();
         let path = self.config_path.clone();
         let owner = self.owner.clone();
@@ -433,7 +460,12 @@ impl Workspace {
                 path.ok_or_else(|| "Unable to locate native Nix configuration.".to_owned())?;
             let executable =
                 std::env::current_exe().map_err(|_| "Unable to locate configuration helper.")?;
-            let config = source::load(path, &executable, &cancel).await;
+            let config = source::load(path.clone(), &executable, &cancel).await;
+            let ownership = tokio::task::spawn_blocking(move || source::ownership(&path))
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .unwrap_or(source::Ownership::Unavailable);
             let owner = if owner.is_some() || config.is_err() {
                 owner
             } else {
@@ -447,14 +479,14 @@ impl Workspace {
                         .map_err(|error| error.to_string())?,
                 ))
             };
-            Ok::<_, String>((owner, config))
+            Ok::<_, String>((owner, config, ownership))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
                 this.loading_config = false;
                 match result {
-                    Ok(Ok((owner, config))) => {
+                    Ok(Ok((owner, config, ownership))) => {
                         this.owner = owner;
                         if this.declaration.apply(config) {
                             this.retire_open(window, cx);
@@ -502,9 +534,24 @@ impl Workspace {
                         } else {
                             this.refresh(window, cx);
                         }
+                        let snapshot = crate::preferences::Snapshot {
+                            path: this.config_path.clone(),
+                            config: this.declaration.active().cloned(),
+                            revision: this.declaration.revision(),
+                            ownership,
+                            error: this.declaration.error().map(|error| error.to_string()),
+                        };
+                        this.preferences.update(cx, |preferences, cx| {
+                            preferences.configure(snapshot, window, cx);
+                        });
                     }
                     Ok(Err(error)) => this.status = error,
                     Err(_) => this.status = "Unable to open local mail.".into(),
+                }
+                if this.preferences.read(cx).busy() {
+                    let error = this.status.clone();
+                    this.preferences
+                        .update(cx, |preferences, cx| preferences.failed(error, cx));
                 }
                 cx.notify();
             });
@@ -1446,23 +1493,15 @@ impl Workspace {
             |path| path.display().to_string(),
         );
         let loading = self.loading_config;
-        let reload_disabled = loading || self.demo;
+        let reload_disabled = loading || self.demo || self.preferences.read(cx).busy();
         let workspace = cx.entity().downgrade();
         let export_workspace = workspace.clone();
         let export_disabled = self.declaration.active().is_none() || loading;
         let config = self.declaration.active();
-        let ownership = if config.is_some_and(|config| config.managed) {
-            "Managed by your Nix declaration"
-        } else {
-            "Native Nix source · read-only in this view"
-        };
-        let appearance = config.map_or("system", |config| match config.appearance {
-            Appearance::Dark => "dark",
-            Appearance::Light => "light",
-            _ => "system",
-        });
+        let ownership = self.preferences.read(cx).ownership_label();
+        let last_reload = self.preferences.read(cx).last_reload();
         let general = SettingPage::new("Configuration")
-            .description("Your native Nix source is authoritative. Edit it and reload to apply changes.")
+            .description("Preferences use your native Nix source. Managed and user-authored expressions stay read-only here.")
             .resettable(false)
             .group(
                 SettingGroup::new()
@@ -1474,12 +1513,8 @@ impl Workspace {
                                 .child(div().flex_1().min_w_0().child(path.clone()))
                                 .child(Clipboard::new("copy-source").value(path.clone())
                                     .accessibility_label("Copy configuration path").tooltip("Copy configuration path"))
-                                .into_any_element(), 1)
+                                .into_any_element(), 1).item("Last reload", last_reload.clone(), 1)
                     }).keywords(["source", "path", "Nix", "configuration", "Home Manager"]))
-                    .item(SettingItem::new("Appearance", SettingField::dropdown(
-                        vec![("system".into(), "System".into()), ("light".into(), "Light".into()), ("dark".into(), "Dark".into())],
-                        move |_| appearance.into(), |_, _| {},
-                    )).description("Declared appearance. The toolbar toggle is a temporary window preview.").disabled(true))
                     .item(SettingItem::render(move |options, _, _| {
                         let workspace = workspace.clone();
                         Button::new("reload-config")
@@ -1496,31 +1531,63 @@ impl Workspace {
                                 _ = workspace.update(cx, |this, cx| this.export_configuration(window, cx));
                             })
                     }).keywords(["export", "Nix", "Home Manager", "snapshot"])),
-            )
-            .group(SettingGroup::new().title("Account status").item({
-                let status = self.declaration.error().map_or_else(
-                    || if self.account_views.is_empty() {
-                        "No accounts are active. Add an account declaration, then reload.".to_owned()
+            );
+        let general = if config.is_some() {
+            general
+                .group(crate::preferences::Preferences::appearance(
+                    &self.preferences,
+                    cx,
+                ))
+                .group(crate::preferences::Preferences::sync(&self.preferences, cx))
+                .group(crate::preferences::Preferences::notifications(
+                    &self.preferences,
+                    cx,
+                ))
+                .group(crate::preferences::Preferences::times(
+                    &self.preferences,
+                    cx,
+                ))
+        } else {
+            general
+        };
+        let general = general.group(SettingGroup::new().title("Account status").item({
+            let status = self.declaration.error().map_or_else(
+                || {
+                    if self.account_views.is_empty() {
+                        "No accounts are active. Add an account declaration, then reload."
+                            .to_owned()
                     } else {
                         "Choose an account in Settings to sign in or sync mail.".to_owned()
-                    },
-                    |error| if config.is_some() {
+                    }
+                },
+                |error| {
+                    if config.is_some() {
                         format!("{error}. The last valid configuration remains active.")
                     } else {
                         format!("{error}. No accounts have been started.")
-                    },
-                );
-                SettingItem::render(move |_, _, _| div().text_sm().child(status.clone()))
-                    .keywords(["accounts", "status", "errors", "reload"])
-            }));
-        Settings::new(("mail-settings", self.declaration.revision()))
+                    }
+                },
+            );
+            SettingItem::render(move |_, _, _| div().text_sm().child(status.clone()))
+                .keywords(["accounts", "status", "errors", "reload"])
+        }));
+        let settings = Settings::new(("mail-settings", self.declaration.revision()))
             .sidebar_width(px(220.))
             .page(general)
             .pages(
                 self.account_views
                     .iter()
                     .map(|view| crate::accounts::AccountPane::page(view, cx)),
-            )
+            );
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .child(div().flex_1().min_h_0().child(settings))
+            .child(crate::preferences::Preferences::footer(
+                &self.preferences,
+                cx,
+            ))
     }
 
     fn export_configuration(&self, window: &Window, cx: &Context<Self>) {

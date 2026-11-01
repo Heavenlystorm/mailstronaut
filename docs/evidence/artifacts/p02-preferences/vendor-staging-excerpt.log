@@ -1,0 +1,8 @@
+mailstronaut> Fetching https://static.crates.io/crates/windows-sys/0.61.2/download -> tarballs/windows-sys-0.61.2.tar.gz
+error: hash mismatch in fixed-output derivation '/nix/store/0dllxk5fi36m7pplzykkqkzi79rdbpj7-mailstronaut-0.1.0-vendor-staging.drv':
+         specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+            got:    sha256-StiZf0KuQ5eqP0uBNvX81FWQob/4WV2Zbt4CfiWewPo=
+error: Cannot build '/nix/store/kpl1bp7v0f7wp1f116j4bgq2sl6jnxc4-mailstronaut-0.1.0-vendor.drv'.
+       Reason: 1 dependency failed.
+       Output paths:
+         /nix/store/w8d337v01x3nz4g4xfpj1js5iwd76bc0-mailstronaut-0.1.0-vendor

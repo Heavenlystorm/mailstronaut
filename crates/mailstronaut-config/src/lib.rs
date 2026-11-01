@@ -2,6 +2,8 @@
 /// Internal evaluator child protocol.
 pub mod helper;
 pub mod native;
+/// Shared native configuration activation and guarded application saves.
+pub mod persistence;
 
 /// Parent lifecycle for the short-lived configuration evaluator.
 pub mod process;

@@ -1,0 +1,7 @@
+gate-exit=0
+package=/nix/store/whcamjh1wg4bhcrx5sp3r643il465xr5-mailstronaut-0.1.0
+source=/nix/store/z2xm4hz0v5dcfzqadrdvlmf73vfwiwag-source
+installed-native-profile=/builds/mailstronaut-dev/target/p06.G7N0pw
+normal-release-tests=201
+private-checks=6
+filtered-files=154

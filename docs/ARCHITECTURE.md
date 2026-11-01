@@ -395,6 +395,12 @@ snapshot for the user's declarative source. Do not add a hidden format, preferen
 overlay database or automatic dotfile rewriting; CONFIGURATION.md defines the
 ownership and round-trip acceptance contract.
 
+Preferences stage changes in one UI model. The config crate shares activation
+and preference validation/atomic publication; UI saves compare the loaded effective
+snapshot and patch raw explicit keys before defaults. Only marked writable regular
+sources permit edits. Save then uses the existing canonical configuration reload
+and account/runtime reconfiguration path; failures retain the last valid runtime.
+
 See [DELIVERY.md](DELIVERY.md) for reproducible Nix development, minimal Nix
 container CI, Flatpak permissions, build inputs, version pins and release checks.
 No telemetry, cloud classification, remote avatar service, URL preview fetch,

@@ -81,7 +81,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-XnVpAIq78puzCjoclDNrPxtImNgVL0itemkVjH71PNo=";
+          cargoHash = "sha256-StiZf0KuQ5eqP0uBNvX81FWQob/4WV2Zbt4CfiWewPo=";
           cargoDeps =
             (pkgs.rustPlatform.fetchCargoVendor {
               inherit pname version;
@@ -274,6 +274,7 @@
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
                   ${self}/experiments/p02-config/export-gui.sh \
+                  ${self}/experiments/p02-config/preferences-gui.sh \
                   ${self}/experiments/p06-mailbox/wayland.sh \
                   ${self}/experiments/p06-mailbox/navigation.sh \
                   ${self}/experiments/wayland-session.sh \

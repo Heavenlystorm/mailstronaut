@@ -42,8 +42,11 @@ Settings now opens Export to Nix (Ctrl+Shift+E) using Kit's Dialog, persistent
 read-only Textarea, Clipboard, Save Button and in-app Notification. Serialization
 runs off the UI thread and is fenced by the configuration revision and current
 view. Copy/selection/readonly and unavailable-portal behavior have native Wayland
-coverage; successful save-portal and editable preference acceptance remain open.
-See [native Nix evidence](evidence/P02-native-nix.md).
+coverage; successful save-portal acceptance remains open.
+Basic editable preferences now reuse Kit fields, TimeField and a searchable
+Combobox with persistent Save/Discard controls outside the filtered pages.
+See [native Nix evidence](evidence/P02-native-nix.md) and the bounded
+[preferences workflow](evidence/P02-preferences.md).
 
 | Subproblem | Component/API | Boundary |
 | --- | --- | --- |
@@ -132,6 +135,16 @@ proof remains mandatory. Component APIs and aria hooks alone are not accessibili
 acceptance.
 
 ### Pin-specific integration limits
+
+- `Settings` has no footer at this pin. Keep a standard `Toolbar` immediately
+  outside its filtered page body for staged Save/Discard actions and persistent
+  reload/save `Alert`s; a filter must not hide the way to commit or discard edits.
+  Settings fields bind to the staged native source model. Reuse persistent
+  `TimeFieldState` and searchable `ComboboxState<SearchableVec<SharedString>>`
+  for reminder times and the existing Chrono TZ catalogue.
+  Handle both Combobox `Change` and `Confirm`: at this pin a filtered option can
+  reuse the previous selection's row index and omit `Change`, while closing the
+  picker still confirms its actual selected value.
 
 - `SidebarMenu`/`SidebarMenuItem` implement `SidebarItem`, not ordinary
   `IntoElement`. A footer can use a normal Settings `Button`, or explicitly render

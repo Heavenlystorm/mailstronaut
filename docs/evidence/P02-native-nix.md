@@ -102,7 +102,8 @@ The complete current-source release log is retained in
 
 ## Remaining acceptance
 
-Editable native preference fields and onboarding, complete Home Manager activation
+Basic editable preferences were subsequently implemented and tested in
+[P02-preferences.md](P02-preferences.md). Account onboarding, complete Home Manager activation
 and generation collision/backup behavior (not stubbed module plumbing), successful
 desktop FileChooser save/cancel/denial, real desktop accessibility, Flatpak runtime,
 and live provider authorization remain on PLAN.md. The toolbar appearance toggle

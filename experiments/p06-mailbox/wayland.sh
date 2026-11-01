@@ -60,6 +60,14 @@ cat > "$config" <<'NIX'
   ];
 }
 NIX
+if [[ ${MAILSTRONAUT_PREFERENCES_GUI:-0} == 1 ]]; then
+  python3 - "$config" <<'PYMUTABLE'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1])
+p.write_text('# Mailstronaut editable configuration\n' + p.read_text().replace('managed = true;', 'managed = false;'))
+PYMUTABLE
+fi
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
 "$fixture" seed_conversation_gui --ignored --exact --nocapture > "$root/seed.log" 2>&1
 cat > "$root/sway.conf" <<'SWAY'
@@ -135,6 +143,12 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_PREFERENCES_GUI:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=../p02-config/preferences-gui.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../p02-config/preferences-gui.sh"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_EXPORT_GUI:-0} == 1 ]]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=../p02-config/export-gui.sh

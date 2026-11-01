@@ -12,6 +12,7 @@ mod html_worker;
 mod link_portal;
 mod mail_sync;
 mod mailbox;
+mod preferences;
 mod read_gate;
 mod reminders;
 mod thread_reader;

@@ -1,0 +1,45 @@
+mailstronaut> +++++ command cargo clippy --jobs 16 --release --target x86_64-unknown-linux-gnu --workspace --all-targets --all-features --locked --offline -- -D warnings
+mailstronaut>     Finished `release` profile [optimized] target(s) in 6.67s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 2m 27s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 2m 44s
+mailstronaut> test result: ok. 17 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.04s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s
+mailstronaut> test preference_saves_reject_readonly_links_and_cancelled_work ... ok
+mailstronaut> test preference_validation_and_ownership_failures_preserve_the_source ... ok
+mailstronaut> test preference_saves_preserve_raw_omissions_and_reject_a_newer_declaration ... ok
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.02s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.14s
+mailstronaut> test source::edit_tests::drop_releases_the_writer_with_a_shared_open_description_still_alive ... ok
+mailstronaut> test source::edit_tests::the_ownership_marker_counts_toward_the_source_limit_before_replacement ... ok
+mailstronaut> test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+mailstronaut> test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.51s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+mailstronaut> test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+mailstronaut> test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+mailstronaut> test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+mailstronaut> test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.10s
+mailstronaut> test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+mailstronaut> test result: ok. 1 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 30.10s
+mailstronaut> test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.70s
+mailstronaut> test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.07s
+mailstronaut> test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.24s
+mailstronaut> test result: ok. 16 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.11s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+mailstronaut>     Finished `release` profile [optimized] target(s) in 0.40s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.04s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.05s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+mailstronaut> test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.21s
+all checks passed!

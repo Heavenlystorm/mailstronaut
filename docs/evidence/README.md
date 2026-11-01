@@ -29,6 +29,11 @@ module are recorded in [P02-native-nix.md](P02-native-nix.md). Its module check 
 stubbed Home Manager plumbing; it does not claim complete generation activation.
 The older P02 account UI walkthrough remains historical.
 
+Editable native preferences, source ownership, guarded Save/Discard, time/timezone
+controls and edit/restart/export/HM conflict behavior are recorded in
+[P02-preferences.md](P02-preferences.md). Full generation activation and editable
+account onboarding remain separate requirements.
+
 Current GPUI mailbox List, passive selection, explicit confirmation, overlapping
 flag/query/body work and canonical unread repaint results are in
 [P06-gpui-mailbox.md](P06-gpui-mailbox.md). Earlier X11 mailbox walkthroughs remain

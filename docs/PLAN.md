@@ -184,21 +184,28 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   `SettingGroup`, `SettingItem` and existing `SettingField` controls; reuse built-in
   page navigation/search and disabled-state behavior. Use masked `Input` for secret
   entry and explicit foreground keyring/OAuth actions, never a generic stored field.
-- [ ] Show the native source path/ownership/last reload with `DescriptionList`,
+  Basic preference fields and declared-account credential pages are implemented;
+  editable account onboarding remains open.
+- [x] Show the native source path/ownership/last reload with `DescriptionList`,
   a `Clipboard` path-copy action and persistent `Alert` reload errors.
   Protect managed, store-backed, read-only and unadopted user-authored expressions;
   credentials remain editable through the keyring even with managed configuration.
+  [Preferences and ownership evidence](evidence/P02-preferences.md).
 - [x] Provide the native `config export/reconcile` CLI and optional HM module:
   raw declared keys precede defaults, standard Snix serialization preserves data,
   app-owned sources use cooperative locking and checked atomic replacement, and
   invalid/unadopted/read-only/foreign-link changes are rejected. Verify raw helper
   bounds/redaction, native round trips, precedence/omissions/lists and conflicts.
   [Bounded native Nix evidence](evidence/P02-native-nix.md).
-- [ ] Connect editable UI preferences to opt-in HM `mutableSettings` with one writable native `config.nix`:
+- [x] Connect editable UI preferences to opt-in HM `mutableSettings` with one writable native `config.nix`:
   declared attributes win on activation, undeclared UI values survive, lists replace
   as whole values, and removing a declaration does not implicitly delete data.
   Preserve explicitly declared keys before applying schema defaults. Explain that
   UI edits to declared values are reapplied from HM on the next switch.
+  Appearance, automatic sync/polling, notification/privacy, timezone and reminder
+  time fields stage Save/Discard; the shared writer preserves raw omissions and
+  rejects stale sources. [Bounded native acceptance](evidence/P02-preferences.md).
+  Full Home Manager generation activation remains a separate P10 gate.
 - [x] Add **Export to Nix** preview/copy from Settings with a validated secret-free native
   attrset snapshot that can be imported as HM `settings` or installed directly.
   Include supported account declarations and secret references, never credentials
@@ -214,6 +221,8 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
 - [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
+  Basic preference round trips, conflicts and invalid reloads pass the private
+  native workflow above; full HM generation ownership transitions remain open.
 - [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
   configuration cannot replace the last valid account state or expose secrets.
 - [ ] Verify the same `.nix` source through disposable Home Manager integration,
@@ -456,8 +465,11 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   the component's civil time; the widget does not implement DST policy or scheduling.
   [Presets, custom picker, list and cancel](evidence/P08-native-reminders.md);
   the custom picker has no GUI acceptance yet.
-- [ ] Use `TimeField` for configured morning/evening defaults, searchable
-  `Combobox` for editable timezone and `DescriptionList` for scheduled-time details.
+- [x] Use `TimeField` for configured morning/evening defaults and searchable
+  `Combobox` for editable timezone; verify save/discard/restart through the native
+  Settings workflow. [Evidence](evidence/P02-preferences.md).
+- [ ] Use `DescriptionList` for scheduled-time details, including the original
+  timezone and UTC instant.
 - [ ] Reconnect notification delivery and action handling; generation fences,
   earliest-due wake, overdue coalescing and restart/resume/clock changes must be safe.
   Use GPUI `Notification` in explicit `InApp` mode for foreground feedback only.
