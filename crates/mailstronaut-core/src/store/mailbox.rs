@@ -202,9 +202,9 @@ impl Summary {
 
 /// Stored parse metadata; originals remain the authoritative body source.
 #[derive(Serialize, Deserialize)]
-struct Metadata {
-    headers: Headers,
-    status: Status,
+pub(super) struct Metadata {
+    pub(super) headers: Headers,
+    pub(super) status: Status,
 }
 
 impl Store {

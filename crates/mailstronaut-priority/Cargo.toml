@@ -1,0 +1,23 @@
+[package]
+name = "mailstronaut-priority"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Local priority rules and deadline extraction for Mailstronaut"
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+
+[dependencies]
+chrono = { workspace = true, features = ["serde"] }
+chrono-tz.workspace = true
+regex.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

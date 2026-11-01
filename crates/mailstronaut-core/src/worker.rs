@@ -132,6 +132,21 @@ enum Command {
     SearchPending(u32, Reply<store::search::SearchBatch>),
     SearchIndexed(i64, Reply<()>),
     RequeueSearch(Reply<()>),
+    AnalysisPending(
+        Vec<String>,
+        u32,
+        i64,
+        u32,
+        Reply<Vec<store::analysis::AnalysisInput>>,
+    ),
+    StoreAnalysis(Vec<store::analysis::AnalysisResult>, Reply<()>),
+    PriorityItems(
+        Vec<String>,
+        i64,
+        u32,
+        Reply<Vec<store::analysis::PriorityItem>>,
+    ),
+    DismissPriority(i64, Reply<()>),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
     QueueMove(String, i64, Option<i64>, String, String, Reply<u32>),
@@ -382,6 +397,48 @@ impl Handle {
     /// Reports storage failures.
     pub async fn requeue_search(&self) -> Result<(), Error> {
         self.request(Command::RequeueSearch).await
+    }
+    /// Unread inbox mail not yet analyzed by this policy.
+    /// # Errors
+    /// Rejects invalid limits and reports storage failures.
+    pub async fn analysis_pending(
+        &self,
+        accounts: Vec<String>,
+        policy: u32,
+        since: i64,
+        limit: u32,
+    ) -> Result<Vec<store::analysis::AnalysisInput>, Error> {
+        self.request(|reply| Command::AnalysisPending(accounts, policy, since, limit, reply))
+            .await
+    }
+    /// Store priority results. A dismissal survives any later result.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn store_analysis(
+        &self,
+        results: Vec<store::analysis::AnalysisResult>,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::StoreAnalysis(results, reply))
+            .await
+    }
+    /// The priority group right now, soonest to expire first.
+    /// # Errors
+    /// Rejects invalid limits and reports storage failures.
+    pub async fn priority_items(
+        &self,
+        accounts: Vec<String>,
+        now: i64,
+        limit: u32,
+    ) -> Result<Vec<store::analysis::PriorityItem>, Error> {
+        self.request(|reply| Command::PriorityItems(accounts, now, limit, reply))
+            .await
+    }
+    /// Take a message out of the priority group for good, without reading it.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn dismiss_priority(&self, message: i64) -> Result<(), Error> {
+        self.request(|reply| Command::DismissPriority(message, reply))
+            .await
     }
     /// List known folders for enabled accounts without contacting a mail server.
     /// # Errors
@@ -1063,6 +1120,20 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 commit(reply, || store.search_indexed(through));
             }
             Command::RequeueSearch(reply) => commit(reply, || store.requeue_search()),
+            Command::AnalysisPending(accounts, policy, since, limit, reply) => {
+                respond(reply, || {
+                    store.analysis_pending(&accounts, policy, since, limit)
+                });
+            }
+            Command::StoreAnalysis(results, reply) => {
+                commit(reply, || store.store_analysis(&results));
+            }
+            Command::PriorityItems(accounts, now, limit, reply) => {
+                respond(reply, || store.priority_items(&accounts, now, limit));
+            }
+            Command::DismissPriority(message, reply) => {
+                commit(reply, || store.dismiss_priority(message));
+            }
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));
             }

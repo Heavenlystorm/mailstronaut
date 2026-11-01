@@ -3,6 +3,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::PathBuf,
+    rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -192,6 +193,10 @@ pub struct Workspace {
     /// Fuzzy search once the store is open; literal search answers until then.
     fuzzy: Option<crate::mail_search::MailSearch>,
     search_pause: Task<()>,
+    /// Only while `priority.enabled` is set in the configuration.
+    priority: Option<crate::mail_priority::PriorityEngine>,
+    /// Refreshes the list when the first thing in the priority group expires.
+    priority_expiry: Task<()>,
     syncing: BTreeSet<String>,
     sync_errors: BTreeMap<String, String>,
     last_sync: String,
@@ -207,6 +212,41 @@ impl Drop for Workspace {
 }
 
 const SEARCH_PAUSE: Duration = Duration::from_millis(200);
+/// What one list refresh loads: folders, unread counts, the page and the priority group.
+type ListPage = (
+    Vec<Folder>,
+    Vec<(i64, u32)>,
+    Vec<mailstronaut_core::store::conversations::Summary>,
+    Vec<Row>,
+);
+/// More than this much needing attention at once is not a useful group.
+const MAX_PRIORITY_ROWS: u32 = 20;
+
+/// The priority group as list rows, one per conversation, soonest to expire first.
+async fn priority_rows(
+    store: &Handle,
+    accounts: Vec<String>,
+) -> Result<Vec<Row>, mailstronaut_core::worker::Error> {
+    let now = chrono::Utc::now().timestamp();
+    let items = store
+        .priority_items(accounts.clone(), now, MAX_PRIORITY_ROWS)
+        .await?;
+    let ids = items.iter().map(|item| item.id).collect();
+    let rows = store
+        .ranked_conversation_page(accounts, Scope::Inbox, ids, None, MAX_PRIORITY_ROWS)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let mut row = Row::from(row);
+            if let Some(item) = items.iter().find(|item| item.id == row.id) {
+                row.due.clone_from(&item.due);
+                row.expires_at = Some(item.expires_at);
+            }
+            row
+        })
+        .collect())
+}
 
 /// A page of conversations: through the search index when there is a query and it can
 /// answer, and otherwise through the store's own literal search.
@@ -283,10 +323,17 @@ impl Workspace {
                 _ => {}
             }
         });
-        let list = cx.new(|cx| ListState::new(Rows::default(), window, cx).searchable(false));
+        let workspace = cx.entity().downgrade();
+        let rows = Rows {
+            on_dismiss: Some(Rc::new(move |message, window, cx| {
+                _ = workspace.update(cx, |this, cx| this.dismiss_priority(message, window, cx));
+            })),
+            ..Rows::default()
+        };
+        let list = cx.new(|cx| ListState::new(rows, window, cx).searchable(false));
         let list_events = cx.subscribe_in(&list, window, |this, list, event, window, cx| {
             if let ListEvent::Confirm(index) = event
-                && let Some(row) = list.read(cx).delegate().items.get(index.row).cloned()
+                && let Some(row) = list.read(cx).delegate().row(*index).cloned()
             {
                 this.open(row, window, cx);
             }
@@ -438,6 +485,8 @@ impl Workspace {
             engine: None,
             fuzzy: None,
             search_pause: Task::ready(()),
+            priority: None,
+            priority_expiry: Task::ready(()),
             syncing: BTreeSet::new(),
             sync_errors: BTreeMap::new(),
             last_sync: String::new(),
@@ -484,6 +533,8 @@ impl Workspace {
             received_at: 1_700_000_000,
             seen: false,
             starred: false,
+            due: None,
+            expires_at: None,
         })
         .collect();
         if let Some(row) = rows.first().cloned() {
@@ -728,6 +779,76 @@ impl Workspace {
         self.refresh_rows(window, cx);
     }
 
+    /// Nothing else happens when a priority's time runs out, so the list must look again.
+    fn watch_priority_expiry(&mut self, group: &[Row], window: &Window, cx: &Context<Self>) {
+        let now = chrono::Utc::now().timestamp();
+        self.priority_expiry = group
+            .iter()
+            .filter_map(|row| row.expires_at)
+            .min()
+            .map_or_else(
+                || Task::ready(()),
+                |expires_at| {
+                    let wait = u64::try_from(expires_at - now).unwrap_or_default() + 1;
+                    cx.spawn_in(window, async move |this, cx| {
+                        cx.background_executor()
+                            .timer(Duration::from_secs(wait))
+                            .await;
+                        _ = this.update_in(cx, |this, window, cx| this.refresh_rows(window, cx));
+                    })
+                },
+            );
+    }
+
+    fn dismiss_priority(&self, message: i64, window: &Window, cx: &Context<Self>) {
+        let Some(store) = self.handle() else {
+            return;
+        };
+        let job = self
+            .runtime
+            .spawn(async move { store.dismiss_priority(message).await });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if matches!(result, Ok(Ok(()))) {
+                    this.refresh_rows(window, cx);
+                } else {
+                    this.status = "Unable to dismiss this message.".into();
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+
+    fn start_priority(&mut self, config: &Config, window: &Window, cx: &Context<Self>) {
+        self.priority = None;
+        let Some(store) = self.handle().filter(|_| config.priority.enabled) else {
+            return;
+        };
+        let (engine, mut changed) = crate::mail_priority::PriorityEngine::start(
+            &self.runtime,
+            store,
+            config,
+            self.lifetime.child_token(),
+        );
+        self.priority = Some(engine);
+        let revision = self.declaration.revision();
+        cx.spawn_in(window, async move |this, cx| {
+            while changed.recv().await.is_some() {
+                let applied = this.update_in(cx, |this, window, cx| {
+                    if revision == this.declaration.revision() {
+                        this.refresh_rows(window, cx);
+                    }
+                });
+                if applied.is_err() {
+                    return;
+                }
+            }
+        })
+        .detach();
+    }
+
     fn start_search(&mut self) {
         if self.fuzzy.is_some() {
             return;
@@ -766,6 +887,27 @@ impl Workspace {
         }
     }
 
+    fn show_page(&mut self, page: ListPage, window: &mut Window, cx: &mut Context<Self>) {
+        let (folders, unread, rows, group) = page;
+        self.watch_priority_expiry(&group, window, cx);
+        self.folders = folders;
+        self.unread = unread
+            .into_iter()
+            .map(|(folder, count)| (folder, count as usize))
+            .collect();
+        let count = rows.len();
+        self.pages.more = count == 100;
+        let rows = rows.into_iter().map(Row::from).collect();
+        self.list.update(cx, |list, cx| {
+            crate::mailbox::replace_with_priority(list, rows, group, window, cx);
+        });
+        self.status = if self.accounts.is_empty() {
+            "Add accounts in your native Nix configuration.".into()
+        } else {
+            self.page_status(count)
+        };
+    }
+
     fn refresh_rows(&mut self, window: &Window, cx: &mut Context<Self>) {
         let Some(handle) = self.handle() else {
             return;
@@ -781,6 +923,11 @@ impl Workspace {
         let scope = self.scope.clone();
         let after = self.pages.after;
         let fuzzy = self.fuzzy.clone();
+        // The group belongs at the top of the unified view, not in searches or later pages.
+        let show_priority = self.priority.is_some()
+            && self.scope == Scope::Inbox
+            && query.trim().is_empty()
+            && !self.pages.has_previous();
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
             list.delegate_mut().searching = !query.is_empty();
@@ -820,9 +967,16 @@ impl Workspace {
                 .unread_counts(accounts.clone())
                 .await
                 .map_err(|error| error.to_string())?;
+            let group = if show_priority {
+                priority_rows(&handle, accounts.clone())
+                    .await
+                    .map_err(|error| error.to_string())?
+            } else {
+                Vec::new()
+            };
             conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after)
                 .await
-                .map(|rows| (folders, unread, rows))
+                .map(|rows| (folders, unread, rows, group))
                 .map_err(|error| error.to_string())
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -836,24 +990,7 @@ impl Workspace {
                     cx.notify();
                 });
                 match result {
-                    Ok(Ok((folders, unread, rows))) => {
-                        this.folders = folders;
-                        this.unread = unread
-                            .into_iter()
-                            .map(|(folder, count)| (folder, count as usize))
-                            .collect();
-                        let count = rows.len();
-                        this.pages.more = count == 100;
-                        let rows = rows.into_iter().map(Row::from).collect();
-                        this.list.update(cx, |list, cx| {
-                            crate::mailbox::replace(list, rows, window, cx);
-                        });
-                        this.status = if this.accounts.is_empty() {
-                            "Add accounts in your native Nix configuration.".into()
-                        } else {
-                            this.page_status(count)
-                        };
-                    }
+                    Ok(Ok(page)) => this.show_page(page, window, cx),
                     Ok(Err(error)) => this.status = error,
                     Err(_) => this.status = "Local query interrupted.".into(),
                 }
@@ -1279,6 +1416,7 @@ impl Workspace {
     /// Restart per-account polling for the active configuration. Explicit sync in
     /// Settings still works when `sync.automatic` is off.
     fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &Context<Self>) {
+        self.start_priority(config, window, cx);
         self.engine = None;
         self.sync_errors.clear();
         self.syncing.clear();
@@ -1323,6 +1461,9 @@ impl Workspace {
                 self.syncing.remove(&account);
                 if let Some(search) = &self.fuzzy {
                     search.wake();
+                }
+                if let Some(priority) = &self.priority {
+                    priority.wake();
                 }
                 match result {
                     Ok(cycle) => {
@@ -1465,6 +1606,8 @@ impl Workspace {
                 received_at: record.due_at,
                 seen: false,
                 starred: false,
+                due: None,
+                expires_at: None,
             },
             window,
             cx,
@@ -1736,7 +1879,7 @@ impl Workspace {
                 SidebarMenuItem::new("Unified inbox")
                     .icon(IconName::Inbox)
                     .active(self.view == View::Inbox && self.scope == Scope::Inbox)
-                    .suffix(move |_, _| Badge::new().count(unread).child(div().w_3().h_3()))
+                    .suffix(move |_, _| Badge::new().count(unread).child(div().w_6().h_3()))
                     .on_click(cx.listener(|this, _, window, cx| this.show_inbox(window, cx))),
             )
             .child(
@@ -1804,7 +1947,7 @@ impl Workspace {
                                                     .suffix(move |_, _| {
                                                         Badge::new()
                                                             .count(unread)
-                                                            .child(div().w_3().h_3())
+                                                            .child(div().w_6().h_3())
                                                     })
                                                     .accessibility_label(format!(
                                                         "Cached folder · {} · {} · {unread} unread",

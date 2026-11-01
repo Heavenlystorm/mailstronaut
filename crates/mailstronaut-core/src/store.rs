@@ -12,6 +12,7 @@ use rusqlite::{Connection, TransactionBehavior, params};
 use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
+pub mod analysis;
 pub mod browse;
 pub mod conversations;
 pub mod flags;
@@ -23,7 +24,7 @@ pub mod outbox;
 pub mod reminders;
 pub mod search;
 
-const SCHEMA_VERSION: u32 = 10;
+const SCHEMA_VERSION: u32 = 11;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -181,6 +182,7 @@ impl Store {
             M::up(mailbox::ROLE_SCHEMA).foreign_key_check(),
             M::up(moves::SCHEMA).foreign_key_check(),
             M::up(search::SCHEMA).foreign_key_check(),
+            M::up(analysis::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -406,7 +408,7 @@ mod tests {
         let orphan = super::write_blob(&store.blobs, b"unreferenced synthetic blob").unwrap();
         store.connection.execute_batch("INSERT INTO accounts(id) VALUES ('a'); INSERT INTO folders(id,account_id,name,uidvalidity,is_inbox) VALUES (7, 'a', 'INBOX', 42, 1); INSERT INTO drafts(id,content) VALUES ('d', x'01'); INSERT INTO outbox(id,content,phase) VALUES ('o', x'02', 'pending');").unwrap();
         store.connection.execute("INSERT INTO messages (id, account_id, message_id, subject, preview, blob_hash) VALUES (11, 'a', '<synthetic>', 'subject', 'preview', ?1)", params![hash]).unwrap();
-        store.connection.execute_batch("INSERT INTO memberships (account_id, folder_id, uidvalidity, uid, message_id, seen) VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders(id,message_id,due_at,state) VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
+        store.connection.execute_batch("INSERT INTO memberships (account_id, folder_id, uidvalidity, uid, message_id, seen) VALUES ('a', 7, 42, 3, 11, 1); INSERT INTO provider_ids VALUES ('a', 'provider', 11); INSERT INTO reminders(id,message_id,due_at,state) VALUES ('r', 11, 10, 'pending'); INSERT INTO analysis (message_id, data) VALUES (11, x'726561642d636c65617265643b6469736d69737365643b6f76657272696465'); INSERT INTO message_search (rowid, subject, addresses, body) VALUES (11, 'subject', 'synthetic', 'body');").unwrap();
         store.clear_rebuildable_indexes().unwrap();
         drop(store);
         let mut reopened = Store::open(dir.path()).unwrap();

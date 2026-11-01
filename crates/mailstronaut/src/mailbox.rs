@@ -1,15 +1,19 @@
 //! Standard GPUI Kit list; selection never authorizes reading a message.
 
+use std::rc::Rc;
+
 use gpui::base::StyledExt as _;
 use gpui::component::{
-    ActiveTheme as _, IndexPath,
+    ActiveTheme as _, IconName, IndexPath, Sizable as _,
     badge::Badge,
+    button::{Button, ButtonVariants as _},
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle},
     label::Label,
     list::{ListDelegate, ListItem, ListState},
+    tag::Tag,
 };
 use gpui::{
-    App, Context, IntoElement, ParentElement as _, Styled as _, Window, div,
+    App, Context, Hsla, IntoElement, ParentElement as _, Styled as _, Window, div,
     prelude::FluentBuilder as _, px,
 };
 
@@ -27,6 +31,10 @@ pub struct Row {
     /// This original's own flags, separate from the group's unread count.
     pub seen: bool,
     pub starred: bool,
+    /// The deadline that keeps it in the priority group, as an ISO local date and time.
+    pub due: Option<String>,
+    /// When it leaves the priority group, if it is in it.
+    pub expires_at: Option<i64>,
 }
 
 impl From<mailstronaut_core::store::conversations::Summary> for Row {
@@ -43,6 +51,8 @@ impl From<mailstronaut_core::store::conversations::Summary> for Row {
             received_at: row.latest.received_at,
             seen: row.latest.seen,
             starred: row.latest.starred,
+            due: None,
+            expires_at: None,
         }
     }
 }
@@ -115,6 +125,22 @@ pub fn display_text(text: &str) -> String {
     text.replace("\r\n", "\n").replace('\r', "\n")
 }
 
+/// A stored deadline as a person says it, relative to today in the same zone.
+pub fn due_label(due: &str, today: chrono::NaiveDate) -> String {
+    let (date, time) = due
+        .split_once('T')
+        .map_or((due, None), |(date, time)| (date, Some(time)));
+    let Ok(date) = date.parse::<chrono::NaiveDate>() else {
+        return "Has a deadline".into();
+    };
+    let day = match (date - today).num_days() {
+        0 => "today".to_owned(),
+        1 => "tomorrow".to_owned(),
+        _ => date.format("%-d %b").to_string(),
+    };
+    time.map_or_else(|| format!("Due {day}"), |time| format!("Due {day}, {time}"))
+}
+
 pub fn addresses(addresses: &[mailstronaut_core::mime::Mailbox]) -> String {
     if addresses.is_empty() {
         return "—".into();
@@ -131,12 +157,40 @@ pub fn addresses(addresses: &[mailstronaut_core::mime::Mailbox]) -> String {
         .join(", ")
 }
 
+pub type Dismiss = Rc<dyn Fn(i64, &mut Window, &mut App)>;
+
 #[derive(Default)]
 pub struct Rows {
     pub items: Vec<Row>,
+    /// The priority group, shown above the mailbox only when it has something in it.
+    pub priority: Vec<Row>,
     pub loading: bool,
     pub searching: bool,
     pub time_zone: String,
+    /// Called with a row's message when the user dismisses it from the priority group.
+    pub on_dismiss: Option<Dismiss>,
+}
+
+impl Rows {
+    /// The mailbox section comes second whenever the priority group is shown.
+    const fn mailbox_section(&self) -> usize {
+        if self.priority.is_empty() { 0 } else { 1 }
+    }
+
+    pub fn row(&self, index: IndexPath) -> Option<&Row> {
+        if index.section == self.mailbox_section() {
+            self.items.get(index.row)
+        } else {
+            self.priority.get(index.row)
+        }
+    }
+
+    fn position(&self, row: &Row) -> Option<IndexPath> {
+        let find = |rows: &[Row]| rows.iter().position(|other| other.same_group(row));
+        find(&self.priority).map(IndexPath::new).or_else(|| {
+            find(&self.items).map(|found| IndexPath::new(found).section(self.mailbox_section()))
+        })
+    }
 }
 
 /// Keep passive selection by canonical group, without scrolling or confirming it.
@@ -146,21 +200,68 @@ pub fn replace(
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
-    let selected = list.selected_index().and_then(|index| {
-        let old = list.delegate().items.get(index.row)?;
-        rows.iter().position(|row| row.same_group(old))
-    });
+    replace_with_priority(list, rows, Vec::new(), window, cx);
+}
+
+/// Like [`replace`], with a priority group. A conversation in the group is not repeated
+/// in the mailbox below it.
+pub fn replace_with_priority(
+    list: &mut ListState<Rows>,
+    mut rows: Vec<Row>,
+    priority: Vec<Row>,
+    window: &mut Window,
+    cx: &mut Context<ListState<Rows>>,
+) {
+    let old = list
+        .selected_index()
+        .and_then(|index| list.delegate().row(index).cloned());
+    rows.retain(|row| !priority.iter().any(|other| other.same_group(row)));
     list.delegate_mut().items = rows;
+    list.delegate_mut().priority = priority;
     list.delegate_mut().loading = false;
-    list.set_selected_index(selected.map(IndexPath::new), window, cx);
+    let selected = old.and_then(|old| list.delegate().position(&old));
+    list.set_selected_index(selected, window, cx);
     cx.notify();
 }
 
 impl ListDelegate for Rows {
     type Item = ListItem;
 
-    fn items_count(&self, _: usize, _: &App) -> usize {
-        self.items.len()
+    fn sections_count(&self, _: &App) -> usize {
+        self.mailbox_section() + 1
+    }
+
+    fn items_count(&self, section: usize, _: &App) -> usize {
+        if section == self.mailbox_section() {
+            self.items.len()
+        } else {
+            self.priority.len()
+        }
+    }
+
+    fn render_section_header(
+        &mut self,
+        section: usize,
+        _: &mut Window,
+        cx: &mut Context<ListState<Self>>,
+    ) -> Option<impl IntoElement> {
+        if self.priority.is_empty() {
+            return None;
+        }
+        let title = if section == self.mailbox_section() {
+            "Everything else"
+        } else {
+            "Needs attention"
+        };
+        Some(
+            div()
+                .px_4()
+                .py_1()
+                .border_b_1()
+                .border_color(cx.theme().border)
+                .bg(cx.theme().muted)
+                .child(Label::new(title).text_xs().font_semibold()),
+        )
     }
 
     fn render_item(
@@ -169,8 +270,14 @@ impl ListDelegate for Rows {
         _: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) -> Option<Self::Item> {
-        let row = self.items.get(index.row)?;
+        let row = self.row(index)?;
         let muted = cx.theme().muted_foreground;
+        let today = mailbox_today(&self.time_zone);
+        let due = row.due.as_deref().map(|due| due_label(due, today));
+        let dismiss = (index.section != self.mailbox_section())
+            .then(|| self.on_dismiss.clone())
+            .flatten()
+            .map(|dismiss| (dismiss, row.id));
         let unread = row.unread > 0;
         Some(
             ListItem::new(index)
@@ -179,13 +286,15 @@ impl ListDelegate for Rows {
                 .border_b_1()
                 .border_color(cx.theme().border)
                 .accessibility_label(format!(
-                    "{} · {} · {} · {} messages · {} unread{}",
+                    "{} · {} · {} · {} messages · {} unread{}{}",
                     row.sender,
                     row.subject,
                     row.account,
                     row.messages,
                     row.unread,
-                    if row.starred { " · starred" } else { "" }
+                    if row.starred { " · starred" } else { "" },
+                    due.as_deref()
+                        .map_or_else(String::new, |due| format!(" · {due}"))
                 ))
                 .child(
                     div()
@@ -207,7 +316,22 @@ impl ListDelegate for Rows {
                                         .count(row.unread as usize)
                                         .color(cx.theme().primary)
                                         .child(div().w_3().h_3()),
-                                ),
+                                )
+                                .when_some(dismiss, |view, (dismiss, id)| {
+                                    view.child(
+                                        Button::new(("dismiss-priority", index.row))
+                                            .ghost()
+                                            .xsmall()
+                                            .icon(IconName::Close)
+                                            .tooltip("Does not need attention")
+                                            .on_click(move |_, window, cx| {
+                                                // The row underneath must not also open,
+                                                // since opening a message marks it read.
+                                                cx.stop_propagation();
+                                                dismiss(id, window, cx);
+                                            }),
+                                    )
+                                }),
                         )
                         .child(
                             Label::new(row.subject.clone())
@@ -218,33 +342,20 @@ impl ListDelegate for Rows {
                             Label::new(row.preview.clone())
                                 .text_sm()
                                 .text_color(muted)
-                                .line_clamp(2),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap_2()
-                                .w_full()
-                                .child(
-                                    Label::new(if row.messages > 1 {
-                                        format!("{} · {} messages", row.account, row.messages)
+                                .map(|label| {
+                                    // Every row has the same height, so the deadline takes
+                                    // the place of the preview's second line.
+                                    if due.is_some() {
+                                        label.truncate()
                                     } else {
-                                        row.account.clone()
-                                    })
-                                    .text_xs()
-                                    .text_color(muted)
-                                    .flex_1()
-                                    .min_w_0()
-                                    .truncate(),
-                                )
-                                .child(
-                                    Label::new(date(row.received_at, &self.time_zone))
-                                        .text_xs()
-                                        .text_color(muted)
-                                        .flex_none(),
-                                ),
-                        ),
+                                        label.line_clamp(2)
+                                    }
+                                }),
+                        )
+                        .when_some(due, |view, due| {
+                            view.child(div().flex().child(Tag::warning().small().child(due)))
+                        })
+                        .child(row_footer(row, &self.time_zone, muted)),
                 ),
         )
     }
@@ -284,10 +395,52 @@ impl ListDelegate for Rows {
     }
 }
 
+fn row_footer(row: &Row, zone: &str, muted: Hsla) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap_2()
+        .w_full()
+        .child(
+            Label::new(if row.messages > 1 {
+                format!("{} · {} messages", row.account, row.messages)
+            } else {
+                row.account.clone()
+            })
+            .text_xs()
+            .text_color(muted)
+            .flex_1()
+            .min_w_0()
+            .truncate(),
+        )
+        .child(
+            Label::new(date(row.received_at, zone))
+                .text_xs()
+                .text_color(muted)
+                .flex_none(),
+        )
+}
+
+fn mailbox_today(zone: &str) -> chrono::NaiveDate {
+    let zone = zone.parse::<chrono_tz::Tz>().unwrap_or(chrono_tz::UTC);
+    chrono::Utc::now().with_timezone(&zone).date_naive()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Pages, date, display_text};
+    use super::{Pages, date, display_text, due_label};
     use mailstronaut_core::store::mailbox::Cursor;
+
+    #[test]
+    fn deadlines_read_as_a_person_says_them() {
+        let today = "2026-11-04".parse().expect("date");
+        assert_eq!(due_label("2026-11-04", today), "Due today");
+        assert_eq!(due_label("2026-11-05", today), "Due tomorrow");
+        assert_eq!(due_label("2026-11-15", today), "Due 15 Nov");
+        assert_eq!(due_label("2026-11-15T17:30", today), "Due 15 Nov, 17:30");
+        assert_eq!(due_label("2026-11-05T09:00", today), "Due tomorrow, 09:00");
+        assert_eq!(due_label("not a date", today), "Has a deadline");
+    }
 
     #[test]
     fn displayed_text_has_no_carriage_returns_for_the_input_to_draw() {

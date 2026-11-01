@@ -44,6 +44,7 @@ sha2 = "=0.10.9"
 tempfile = "=3.23.0"
 chrono-tz = "=0.10.4"
 chrono = "=0.4.45"
+regex = "=1.13.1"
 iana-time-zone = "0.1"
 url = "=2.5.8"
 serde = { version = "=1.0.228", features = ["derive"] }
@@ -54,6 +55,7 @@ mailstronaut-config = { path = "crates/mailstronaut-config" }
 mailstronaut-core = { path = "crates/mailstronaut-core" }
 mailstronaut-render = { path = "crates/mailstronaut-render" }
 mailstronaut-mail = { path = "crates/mailstronaut-mail" }
+mailstronaut-priority = { path = "crates/mailstronaut-priority" }
 mailstronaut-search = { path = "crates/mailstronaut-search" }
 oo7 = { version = "=0.6.0", default-features = false, features = ["async-std", "native_crypto"] }
 secrecy = "=0.10.3"

@@ -124,6 +124,8 @@ impl ThreadReader {
                     received_at: member.received_at,
                     seen: member.seen,
                     starred: member.starred,
+                    due: None,
+                    expires_at: None,
                 }));
             }
         });

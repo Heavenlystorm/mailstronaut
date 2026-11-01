@@ -135,8 +135,13 @@ PYSEEN
 }
 copy_body() {
   wtype -s 200 -M ctrl -M shift t -m shift -m ctrl -s 200 -M ctrl a -m ctrl -M ctrl c -m ctrl -s 200
-  timeout 5 wl-paste --no-newline > "$root/$1-body.txt"
-  grep -q "$2" "$root/$1-body.txt"
+  # The copy reaches the compositor a moment later, and a slow debug build can lag.
+  for _ in {1..25}; do
+    timeout 5 wl-paste --no-newline > "$root/$1-body.txt" 2> /dev/null || true
+    grep -q "$2" "$root/$1-body.txt" && return 0
+    sleep .2
+  done
+  return 1
 }
 start initial
 sleep 1

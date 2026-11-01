@@ -4462,6 +4462,7 @@ dependencies = [
  "mailstronaut-config",
  "mailstronaut-core",
  "mailstronaut-mail",
+ "mailstronaut-priority",
  "mailstronaut-render",
  "mailstronaut-search",
  "serde_json",
@@ -4543,6 +4544,17 @@ dependencies = [
  "url",
  "uuid",
  "zbus",
+]
+
+[[package]]
+name = "mailstronaut-priority"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "regex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

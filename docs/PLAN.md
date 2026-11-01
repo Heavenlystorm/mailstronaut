@@ -505,35 +505,49 @@ Read CLASSIFIER.md. Use existing small CPU inference/date libraries, not a custo
 transformer, hosted model or summarization service.
 Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-and-models).
 
-- [ ] Implement versioned evidence/result types, pure eligibility/expiry and
+- [x] Implement versioned evidence/result types, pure eligibility/expiry and
   user-dismissed/read-cleared state that late analysis cannot override.
+  [Rules, store and native acceptance](evidence/P09-priority-rules.md).
 - [ ] Run bounded local analysis for newly received readable inbox mail independently
   of opening; explicit opt-in backlog, CPU/memory budgets and unload/cancellation.
+  [The rules run this way](evidence/P09-priority-rules.md); no model exists to budget,
+  and unread mail up to 30 days old is analyzed without asking, because rules are cheap.
 - [ ] Select a pinned/hashed/licensed lightweight EN/FR/IT model after reference
   logits, held-out quality, confidence and resource measurements. Abstain on
   unreadable/encrypted/unsupported/ambiguous input; treat model text as untrusted.
-- [ ] Extract actionable date evidence using existing date parsing and exact spans;
+- [x] Extract actionable date evidence using existing date parsing and exact spans;
   distinguish deadlines from quoted dates, meetings, negation and marketing.
-- [ ] Expire date-only deadlines at exclusive next **local calendar midnight**;
+  [Evidence](evidence/P09-priority-rules.md).
+- [x] Expire date-only deadlines at exclusive next **local calendar midnight**;
   explicit times expire at their instant. "Due tomorrow" remains today/tomorrow,
   never the following day. Past obligations are never newly prioritized.
-- [ ] Choose bounded contextual 24h/3d/7d TTLs without accepted deadlines, anchored
+  [Evidence](evidence/P09-priority-rules.md).
+- [x] Choose bounded contextual 24h/3d/7d TTLs without accepted deadlines, anchored
   to receipt and never sliding on restart/resync; persist reason/time/version.
-- [ ] Remove a priority original immediately on read/dismiss, and do not resurrect
+  [24 and 72 hours](evidence/P09-priority-rules.md); seven days is deliberately not
+  selected, as CLASSIFIER.md requires without a reliable long-lived context detector.
+- [x] Remove a priority original immediately on read/dismiss, and do not resurrect
   it via unread toggling or stale inference. A newly eligible thread member may
   reprioritize that conversation; reading one member does not read all members.
+  [Evidence](evidence/P09-priority-rules.md).
 - [ ] Present priority with `List` sections/headers, `Label`, `Icon`, `Badge::count`
   and semantic theme surfaces, stable ordering and a Show all button. Keep normal
   inbox access without a second custom list engine or independently scrolling inbox.
+  [List sections and ordering pass](evidence/P09-priority-rules.md); the group shows at
+  most 20 rows, and Show all remains open.
 - [ ] Use a small `GroupBox` + `Label`/`Icon` for deadline boxes beneath extracted
   previews; show evidence/timezone/assumptions through a clicked `Popover` or reader
   `DescriptionList`. Use `Dialog`/`Form`/`DatePicker` and Dismiss `Button` for corrections,
   retaining backend persistence/expiry; evidence must not require hover alone.
+  [A `Tag` below the preview and Dismiss pass](evidence/P09-priority-rules.md), since
+  rows must share one height; showing the evidence and correcting a date remain open.
 - [ ] Use Settings `SettingField::switch`, model metadata `DescriptionList`, an
   explicit Import `Button`/portal and `Alert` for absent/unsupported local models.
   Show `Progress` only for measured work; add no model marketplace or dashboards.
-- [ ] Test INTERNALDATE vs Date, delayed delivery, DST, multiple dates, quote tails,
+- [x] Test INTERNALDATE vs Date, delayed delivery, DST, multiple dates, quote tails,
   unsupported languages, stale read races, malicious prompts and missing models.
+  [Evidence](evidence/P09-priority-rules.md). No model exists yet, so these establish
+  the rules alone, which is also what a missing model falls back to.
 - [ ] Keep previews extracted with source/body revision; support a future generated
   summary type without implementing or implying summarization now.
 
