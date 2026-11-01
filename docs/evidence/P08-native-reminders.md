@@ -30,6 +30,55 @@ Run on the CI server through `ci/remote.sh`.
 ## Not established
 
 Real desktop notification servers and their buttons, single-instance D-Bus activation and
-`--background` (no work continues after the window closes), suspend and resume, the custom
-time dialog through the GUI, DST behaviour through the GUI (the policy has unit tests), and
-editable morning/evening/timezone settings.
+`--background` (no work continues after the window closes), suspend and resume,
+evening/tomorrow presets and DST behaviour through the GUI remain unverified
+(the policy has unit tests). Editable morning/evening/timezone settings now have their own
+[native preference acceptance](P02-preferences.md).
+
+## Time details and rescheduling
+
+The reminder list now wires Kit `DescriptionList` to the stored local time,
+original IANA timezone and UTC instant. A Reschedule button opens the existing
+Kit `DatePicker`. Each opening seeds that original's future reminder, or tomorrow's
+configured morning, in the current configured timezone. It no longer carries a
+different original's picker selection into the new dialog. At narrow widths, the
+same component uses one column instead of three. The existing durable
+schedule API still owns generation checks and publication; no second scheduler or
+date editor was introduced.
+
+The pinned server workspace check passed strict Clippy and 259 normal tests before
+the final layout adjustment. Afterwards, targeted app Clippy, all 38 normal app
+tests and the native build passed again, along with formatting, Nix formatting and
+ShellCheck with sourced scripts. No compilation ran on the laptop.
+
+`MAILSTRONAUT_REMINDERS_GUI=1` in `experiments/p06-mailbox/wayland.sh` passed on
+ci-py in private profile `target/p06.yH4KIY`, using synthetic offline mail, DISPLAY
+unset and XWayland disabled. It verifies:
+
+- Opening and cancelling the custom dialog creates no reminder.
+- Native calendar selection and segmented time entry persist the exact original,
+  UTC instant and Europe/Paris timezone.
+- Reschedule retains original/notification identity and increments the generation.
+- A second original starts with tomorrow morning, independently of the previous
+  11:42 selection.
+- Both reminders survive normal last-window-close and offline restart unchanged;
+  the process exits normally with background disabled.
+- Cancellation, list navigation, theme/size changes and restart preserve Seen,
+  the native configuration and the empty drafts/outbox.
+
+Screenshots were inspected at 1280×840 and 960×720 and in both themes; the current
+native app was shown in chat. This private bus intentionally has no notification
+service. A retained withdrawal failure after rescheduling is visible above the
+list; it neither loses nor cancels the reminders. The native test accounts for
+that status line. Actual desktop notification presentation remains unverified.
+
+- [Native runtime receipt](artifacts/p08-native-editor/native-gui.log)
+- [Development checks](artifacts/p08-native-editor/development-excerpt.log)
+- [Custom calendar and time](artifacts/p08-native-editor/calendar.png)
+- [Stored time details](artifacts/p08-native-editor/details.png)
+- [Narrow layout](artifacts/p08-native-editor/narrow.png)
+- [Dark appearance](artifacts/p08-native-editor/dark.png)
+
+The final release/package gate and installed native retest are pending, together
+with the [onboarding package acceptance](P05-onboarding.md). This is bounded
+current-stack UI/runtime evidence; P08 remains incomplete.

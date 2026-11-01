@@ -17,6 +17,7 @@ use gpui::component::{
     alert::Alert,
     button::{Button, ButtonVariants as _},
     date_picker::{DatePicker, DatePickerState, DateTime},
+    description_list::DescriptionList,
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle},
     label::Label,
     time_field::TimePrecision,
@@ -239,6 +240,35 @@ impl Reminders {
     ) {
         let (this, picker) = (cx.entity().downgrade(), self.picker.clone());
         let zone = self.zone.clone();
+        // Each opening starts with this original's future reminder, or tomorrow's
+        // configured morning. Never reuse a previous original's picker value.
+        if let Some(config) = &self.config {
+            let now = now();
+            let at = self
+                .records
+                .iter()
+                .find(|record| record.account == account && record.message == message)
+                .filter(|record| record.due_at > now)
+                .map(|record| record.due_at)
+                .or_else(|| {
+                    reminders::resolve(
+                        now,
+                        &zone,
+                        &When::Tomorrow,
+                        &config.reminders.morning,
+                        &config.reminders.evening,
+                    )
+                    .ok()
+                });
+            if let (Some(at), Ok(zone)) = (
+                at.and_then(|at| chrono::DateTime::from_timestamp(at, 0)),
+                zone.parse::<chrono_tz::Tz>(),
+            ) {
+                picker.update(cx, |picker, cx| {
+                    picker.set_date_time(at.with_timezone(&zone).naive_local(), window, cx);
+                });
+            }
+        }
         window.open_alert_dialog(cx, move |alert, _, _| {
             let (this, picker2, account) = (this.clone(), picker.clone(), account.clone());
             alert
@@ -338,9 +368,13 @@ impl Reminders {
         .detach();
     }
 
-    fn row(index: usize, record: &Reminder, cx: &Context<Self>) -> impl IntoElement {
+    fn row(
+        index: usize,
+        record: &Reminder,
+        columns: usize,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
-        let when = reminders::display(record.due_at, &record.time_zone).unwrap_or_default();
         let state = match record.state {
             State::Pending if record.due_at <= now() => "Overdue",
             State::Pending | State::Delivering => "Scheduled",
@@ -350,6 +384,7 @@ impl Reminders {
             State::Unavailable => "Original unavailable",
         };
         let (open, cancel, retry) = (record.clone(), record.clone(), record.clone());
+        let reschedule = record.clone();
         div()
             .flex()
             .flex_col()
@@ -360,10 +395,11 @@ impl Reminders {
             .border_color(cx.theme().border)
             .child(Label::new(record.title.clone()).truncate())
             .child(
-                Label::new(format!("{state} · {when} · {}", record.account))
+                Label::new(format!("{state} · {}", record.account))
                     .text_xs()
                     .text_color(muted),
             )
+            .child(Self::details(record, columns))
             .when(!record.available, |view| {
                 view.child(
                     Label::new("The original message is no longer available.")
@@ -382,6 +418,20 @@ impl Reminders {
                             .disabled(!record.available)
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.open_current(open.clone(), window, cx);
+                            })),
+                    )
+                    .child(
+                        Button::new(("reschedule-reminder", index))
+                            .ghost()
+                            .label("Reschedule")
+                            .disabled(!record.available)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.ask_custom(
+                                    reschedule.account.clone(),
+                                    reschedule.message,
+                                    window,
+                                    cx,
+                                );
                             })),
                     )
                     .when(record.state == State::Failed, |view| {
@@ -408,10 +458,32 @@ impl Reminders {
                     ),
             )
     }
+
+    fn details(record: &Reminder, columns: usize) -> DescriptionList {
+        let utc = chrono::DateTime::from_timestamp(record.due_at, 0).map_or_else(
+            || "Unavailable".into(),
+            |at| at.format("%Y-%m-%d %H:%M UTC").to_string(),
+        );
+        DescriptionList::vertical()
+            .columns(columns)
+            .item(
+                "Local time",
+                reminders::display(record.due_at, &record.time_zone)
+                    .unwrap_or_else(|_| "Unavailable".into()),
+                1,
+            )
+            .item("Time zone", record.time_zone.clone(), 1)
+            .item("UTC", utc, 1)
+    }
 }
 
 impl Render for Reminders {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let columns = if window.viewport_size().width < gpui::px(1100.) {
+            1
+        } else {
+            3
+        };
         let visible: Vec<_> = self
             .records
             .iter()
@@ -458,7 +530,7 @@ impl Render for Reminders {
                 visible
                     .iter()
                     .enumerate()
-                    .map(|(index, record)| Self::row(index, record, cx)),
+                    .map(|(index, record)| Self::row(index, record, columns, cx)),
             )
     }
 }

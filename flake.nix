@@ -283,6 +283,8 @@
                   ${self}/experiments/p07-compose/gui.sh \
                   ${self}/experiments/p04-sync/gui.sh \
                   ${self}/experiments/p04-sync/dovecot.sh \
+                  ${self}/experiments/p08-reminders/portal.sh \
+                  ${self}/experiments/p08-reminders/gui.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"

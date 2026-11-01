@@ -1,0 +1,14 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: ['unrelated']
+Effective Seen matches explicit opens: ['unrelated']
+Native calendar/time selection persisted the exact original, UTC instant and timezone.
+Effective Seen matches explicit opens: ['unrelated']
+Reschedule retained the original and notification identity, with a new generation.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+A different original received its own default date/time, without sharing the prior selection.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+Both original-specific reminders survived normal close and offline restart unchanged.
+Cancellation preserved both originals, their Seen state, and the empty draft/outbox state.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+Native reminder acceptance: /builds/mailstronaut-dev/target/p06.yH4KIY

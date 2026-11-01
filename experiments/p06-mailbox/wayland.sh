@@ -60,6 +60,9 @@ cat > "$config" <<'NIX'
   ];
 }
 NIX
+if [[ ${MAILSTRONAUT_REMINDERS_GUI:-0} == 1 ]]; then
+  sed -i '/schemaVersion = 1;/a\  timeZone = "Europe/Paris";\n  notifications.enabled = false;' "$config"
+fi
 if [[ ${MAILSTRONAUT_PREFERENCES_GUI:-0} == 1 ]]; then
   python3 - "$config" <<'PYMUTABLE'
 from pathlib import Path
@@ -151,6 +154,12 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_REMINDERS_GUI:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=../p08-reminders/gui.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../p08-reminders/gui.sh"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=../p05-onboarding/gui.sh

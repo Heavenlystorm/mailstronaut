@@ -481,18 +481,24 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
 - [x] Retain durable reminder generations/claims/receipts and store transitions.
   [Backend/historical evidence](evidence/P08.md). The old UI/scheduler walkthrough
   does not establish GPUI acceptance.
-- [ ] Use `DropdownButton`/`PopupMenu` for reminder presets and `DatePicker` with
-  `DatePickerState::time_precision(TimePrecision::Minute)`, `hour_cycle`,
-  `default_time` and `DateRangePreset::date_time` for a custom instant. Retain
+- [x] Use `PopupMenu` for reminder presets and `DatePicker` with
+  `DatePickerState::time_precision(TimePrecision::Minute)` for a custom instant. Retain
   original timezone/UTC, reschedule/cancel and per-message routing. Chrono TZ resolves
   the component's civil time; the widget does not implement DST policy or scheduling.
   [Presets, custom picker, list and cancel](evidence/P08-native-reminders.md);
-  the custom picker has no GUI acceptance yet.
+  native elapsed-hour and custom date/time, reschedule, per-original defaults and
+  restart/cancel checks pass. The picker uses its default 24-hour clock and
+  `set_date_time` for the current reminder or tomorrow morning; avoid duplicating
+  the external preset menu inside it.
+- [ ] Complete native GUI coverage for evening/tomorrow presets, invalid civil
+  times and timezone changes with a reminder already scheduled. DST policy has
+  backend tests; these user-facing cases remain separate acceptance.
 - [x] Use `TimeField` for configured morning/evening defaults and searchable
   `Combobox` for editable timezone; verify save/discard/restart through the native
   Settings workflow. [Evidence](evidence/P02-preferences.md).
-- [ ] Use `DescriptionList` for scheduled-time details, including the original
-  timezone and UTC instant.
+- [x] Use `DescriptionList` for scheduled-time details, including the original
+  timezone and UTC instant. Native light/dark and ordinary/narrow layouts pass
+  [focused acceptance](evidence/P08-native-reminders.md#time-details-and-rescheduling).
 - [ ] Reconnect notification delivery and action handling; generation fences,
   earliest-due wake, overdue coalescing and restart/resume/clock changes must be safe.
   Use GPUI `Notification` in explicit `InApp` mode for foreground feedback only.
