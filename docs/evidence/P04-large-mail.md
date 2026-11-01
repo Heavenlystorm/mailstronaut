@@ -1,7 +1,8 @@
 # P04 — Mail too large to keep, and attachments on demand
 
-Status: native acceptance against a disposable Dovecot with synthetic mail. No live provider
-has been contacted, and saving through a real desktop file chooser has not been run.
+Status: native acceptance against a disposable Dovecot with synthetic mail, with Save driven
+through a protocol-accurate fake file chooser on a private bus. No live provider or real desktop
+portal has been contacted.
 
 ## The problem this fixes
 
@@ -33,11 +34,15 @@ File names come from the part's own MIME headers, so encoded names decode as usu
 - Fetching marks neither as read, and opening the large one does.
 - The store holds 8 MiB after caching 35 MiB of attachments.
 - The large message's text is searchable, and its attachment is listed with its decoded name.
-- Downloading that part from the same server matches the SHA-256 of what was attached.
+- Clicking the attachment with a cancelled dialog signs in to nothing, so nothing is downloaded.
+- A denied dialog writes nothing and says so.
+- Clicking it with a chosen path downloads the part, and the file matches the SHA-256 of what
+  was attached. The dialog was offered the decoded file name.
+- The 5 MiB message's attachment, kept on this device, saves the same way.
 
-That last check runs `crates/mailstronaut-core/tests/large_part.rs`, which calls the same
-connection and decoding functions as the Save action, because the action itself needs a
-desktop portal that the headless session does not have.
+`crates/mailstronaut/src/chooser_fixture.rs` is the file chooser. It implements the portal's
+`FileChooser` interface on the private bus and answers from a file the script writes, so the
+application's real code runs all the way through GPUI's portal client.
 
 `crates/mailstronaut-core/src/outline.rs` tests cover removing the original structure's
 headers, encoded names, a message with no readable text, the store's size limit, and decoding
@@ -45,7 +50,7 @@ base64, quoted-printable and unencoded parts.
 
 ## Not established
 
-Saving through a real file chooser, and a slow or interrupted download: a failed transfer simply
+A real desktop's file chooser, and a slow or interrupted download: a failed transfer simply
 reports an error and leaves nothing behind, but this has not been exercised. Real providers'
 BODYSTRUCTURE output, which is why Gmail and iCloud need checking. Inline images in a message
 this large are listed as attachments rather than shown. A part over 64 MiB cannot be saved.

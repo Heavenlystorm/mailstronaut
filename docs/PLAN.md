@@ -443,7 +443,9 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   reader. Show filename/type/size and real pending/processing/failed/ready states;
   use built-in remove/retry affordances only where the operation supports them.
 - [ ] Connect portal Attach/Remove to owned draft snapshots, and explicit received
-  attachment Save/Open to bounded extraction and safe portal destinations. The
+  attachment Save/Open to bounded extraction and safe portal destinations.
+  [Attach and Save pass through a fake portal on a private
+  bus](evidence/P04-large-mail.md); Remove, Open and real desktop portals remain open. The
   component is presentation, not a downloader or upload service. Never pass an
   email-supplied URL/path to its image source; use generic icons or validated owned
   raster previews. Verify keyboard actions, long names, failures and narrow layouts.

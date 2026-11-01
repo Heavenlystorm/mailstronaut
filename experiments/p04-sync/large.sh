@@ -5,7 +5,7 @@
 set -euo pipefail
 binary=$(realpath "${1:?prebuilt application}")
 root=$(realpath "${2:?private fixture root}")
-part_fixture=$(realpath "${MAILSTRONAUT_PART_FIXTURE:?prebuilt part download test executable}")
+chooser_fixture=$(realpath "${MAILSTRONAUT_CHOOSER_FIXTURE:?prebuilt application test executable}")
 [[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus" ]]
 [[ $XDG_DATA_HOME == "$root/data" ]]
 artifacts="$root/large-gui"
@@ -40,7 +40,7 @@ with open(path, "w", newline="") as out:
     )
 PY
 }
-small_digest=$(generate medium 5 'Rapport moyen')
+medium_digest=$(generate medium 5 'Rapport moyen')
 large_digest=$(generate huge 30 'Rapport énorme')
 seed_message plain <<MAIL
 From: Correspondent plain <plain@example.test>
@@ -82,11 +82,17 @@ printf '%s' "$imap_password" | secret-tool store --label='Synthetic large mail f
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
+chooser=''
 cleanup() {
   session_cleanup
   dovecot_cleanup
+  if [[ -n "$chooser" ]]; then kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
+# A protocol-accurate file chooser on this private bus, answering from a file.
+MAILSTRONAUT_CHOOSER_ROOT=$artifacts "$chooser_fixture" chooser_fixture::serve_file_chooser --ignored --exact > "$artifacts/chooser.log" 2>&1 & chooser=$!
+for _ in {1..100}; do [[ -f "$artifacts/chooser-ready" ]] && break; kill -0 "$chooser"; sleep .1; done
+[[ -f "$artifacts/chooser-ready" ]]
 
 query() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(sys.argv[2]).fetchone()[0])' "$database" "$1" 2>/dev/null; }
 await() {
@@ -111,28 +117,71 @@ await 'the text of the large message is searchable' 1 "SELECT count(*) FROM mess
 sleep 2
 capture listed
 
+requests() { wc -l < "$artifacts/chooser-requests.jsonl" 2> /dev/null || echo 0; }
+# Answer the next dialog, click, and wait until the dialog has been asked.
+choose() {
+  local answer=$1 x=$2 y=$3 before
+  before=$(requests)
+  printf '%s\n' "$answer" > "$artifacts/chooser-answer"
+  click "$x" "$y"
+  for _ in {1..50}; do
+    (( $(requests) > before )) && return 0
+    kill -0 "$app"; sleep .1
+  done
+  printf 'The chooser was never asked, after a click at %s,%s\n' "$x" "$y" >&2
+  return 1
+}
+await_file() {
+  local what=$1 path=$2 digest=$3 found=''
+  for _ in {1..300}; do
+    if [[ -s $path ]]; then
+      found=$(sha256sum "$path" | cut -d' ' -f1)
+      [[ $found == "$digest" ]] && { printf 'OK: %s\n' "$what"; return 0; }
+    fi
+    kill -0 "$app"; sleep .2
+  done
+  printf 'Timed out waiting for: %s (found %s)\n' "$what" "${found:-nothing}" >&2
+  return 1
+}
+
 # The oldest row is the large one. Opening it shows its text and its attachment.
 click 350 380
 sleep 1.5
 capture large-opened
 await 'opening it marked it read' 1 "SELECT count(*) FROM effective_memberships s JOIN messages m ON m.id=s.message_id WHERE s.seen=1 AND m.subject='Rapport énorme'"
+
+# Saving it with the real button: the attachment comes from the server only now.
+sessions=$(grep -c 'Logged in' "$dovecot_root/dovecot.log" || true)
+(( sessions > 0 ))
+choose cancel 708 412
+sleep 2
+[[ $(grep -c 'Logged in' "$dovecot_root/dovecot.log" || true) == "$sessions" ]]
+printf '%s\n' 'OK: a cancelled save asked the server for nothing'
+choose deny 708 412
+sleep 2
+capture save-denied
+saved="$artifacts/saved-huge.pdf"
+choose "file://$saved" 708 412
+sleep 1
+capture downloading
+await_file 'saving downloaded the 30 MiB attachment byte for byte' "$saved" "$large_digest"
+python3 - "$artifacts/chooser-requests.jsonl" <<'PY'
+import json, sys
+last = json.loads(open(sys.argv[1]).read().splitlines()[-1])
+assert last == {"method": "SaveFile", "suggested": "rapport-huge.pdf"}, last
+print("OK: the dialog suggested the decoded file name")
+PY
+sleep 1
+capture saved
+
 # The middle row keeps its attachment on this device, listed the ordinary way.
 click 350 260
 sleep 1.5
 capture medium-opened
+kept="$artifacts/saved-medium.pdf"
+choose "file://$kept" 708 365
+await_file 'saving the kept attachment wrote it byte for byte' "$kept" "$medium_digest"
 close_window
-
-# Downloading the part against the same server. The application's chooser needs a desktop
-# portal, so this drives the same calls that its Save action makes.
-message_uid=$(python3 - "$database" <<'PY'
-import sqlite3, sys
-print(sqlite3.connect(sys.argv[1]).execute("SELECT s.uid FROM memberships s JOIN messages m ON m.id=s.message_id WHERE m.subject='Rapport énorme'").fetchone()[0])
-PY
-)
-MAILSTRONAUT_PART_PORT=$imap_port MAILSTRONAUT_PART_UID=$message_uid MAILSTRONAUT_PART_DIGEST=$large_digest \
-  MAILSTRONAUT_PART_USER=$imap_user MAILSTRONAUT_PART_PASSWORD=$imap_password \
-  "$part_fixture" --ignored --exact a_large_part_downloads_intact_from_a_real_server --nocapture 2>&1 | grep -E '^OK|FAILED|panicked' || exit 1
-: "$small_digest"
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf '%s\n' 'Synthetic credential appeared in an application log' >&2; exit 1

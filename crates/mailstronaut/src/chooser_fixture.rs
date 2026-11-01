@@ -1,0 +1,154 @@
+//! A file chooser on a private bus, so that native acceptance can drive the real Save and
+//! Attach actions in a headless session. It speaks the desktop portal's protocol, and is
+//! not a claim about any real portal.
+
+use std::{collections::HashMap, fs::OpenOptions, io::Write as _, path::PathBuf, time::Duration};
+
+use zbus::{
+    Connection, fdo,
+    message::Header,
+    zvariant::{OwnedObjectPath, OwnedValue, Value},
+};
+
+/// What the next dialog answers comes from a file the harness writes: `cancel`, `deny`, or
+/// one file URI per line. Every request is recorded, including any suggested name.
+struct Chooser(PathBuf);
+
+impl Chooser {
+    fn answer(
+        &self,
+        method: &str,
+        options: &HashMap<String, OwnedValue>,
+        header: &Header<'_>,
+        connection: &Connection,
+    ) -> fdo::Result<OwnedObjectPath> {
+        let suggested = options
+            .get("current_name")
+            .and_then(|value| <&str>::try_from(value).ok())
+            .unwrap_or_default();
+        writeln!(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.0.join("chooser-requests.jsonl"))
+                .map_err(|_| fdo::Error::Failed("fixture receipt".into()))?,
+            "{}",
+            serde_json::json!({"method":method,"suggested":suggested})
+        )
+        .map_err(|_| fdo::Error::Failed("fixture receipt".into()))?;
+        let token = options
+            .get("handle_token")
+            .and_then(|value| <&str>::try_from(value).ok())
+            .ok_or_else(|| fdo::Error::InvalidArgs("missing request handle".into()))?;
+        let sender = header
+            .sender()
+            .ok_or_else(|| fdo::Error::Failed("missing sender".into()))?
+            .as_str()
+            .trim_start_matches(':')
+            .replace('.', "_");
+        let path = OwnedObjectPath::try_from(format!(
+            "/org/freedesktop/portal/desktop/request/{sender}/{token}"
+        ))
+        .map_err(|_| fdo::Error::InvalidArgs("request path".into()))?;
+        let planned = std::fs::read_to_string(self.0.join("chooser-answer")).unwrap_or_default();
+        let (response, uris): (u32, Vec<String>) = match planned.trim() {
+            "cancel" => (1, Vec::new()),
+            "deny" | "" => (2, Vec::new()),
+            lines => (0, lines.lines().map(str::to_owned).collect()),
+        };
+        let mut results = HashMap::new();
+        if response == 0 {
+            let uris = Value::from(uris)
+                .try_to_owned()
+                .map_err(|_| fdo::Error::Failed("fixture answer".into()))?;
+            results.insert("uris".to_owned(), uris);
+        }
+        let (connection, response_path) = (connection.clone(), path.clone());
+        // The client subscribes to the request object after it receives this reply.
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            connection
+                .emit_signal(
+                    None::<&str>,
+                    response_path,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    &(response, results),
+                )
+                .await
+                .expect("synthetic response");
+        });
+        Ok(path)
+    }
+}
+
+#[zbus::interface(name = "org.freedesktop.portal.FileChooser")]
+impl Chooser {
+    #[zbus(property, name = "version")]
+    #[expect(
+        clippy::unused_self,
+        reason = "zbus requires a non-const instance property getter."
+    )]
+    fn version(&self) -> u32 {
+        4
+    }
+
+    #[zbus(name = "OpenFile")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "D-Bus supplies owned decoded options and the message header."
+    )]
+    fn open_file(
+        &self,
+        parent: &str,
+        title: &str,
+        options: HashMap<String, OwnedValue>,
+        #[zbus(header)] header: Header<'_>,
+        #[zbus(connection)] connection: &Connection,
+    ) -> fdo::Result<OwnedObjectPath> {
+        _ = (parent, title);
+        self.answer("OpenFile", &options, &header, connection)
+    }
+
+    #[zbus(name = "SaveFile")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "D-Bus supplies owned decoded options and the message header."
+    )]
+    fn save_file(
+        &self,
+        parent: &str,
+        title: &str,
+        options: HashMap<String, OwnedValue>,
+        #[zbus(header)] header: Header<'_>,
+        #[zbus(connection)] connection: &Connection,
+    ) -> fdo::Result<OwnedObjectPath> {
+        _ = (parent, title);
+        self.answer("SaveFile", &options, &header, connection)
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "explicit private-bus GUI harness only; runs until the harness stops it"]
+async fn serve_file_chooser() {
+    let root =
+        PathBuf::from(std::env::var_os("MAILSTRONAUT_CHOOSER_ROOT").expect("private fixture root"));
+    assert!(root.is_absolute());
+    assert!(
+        std::env::var("DBUS_SESSION_BUS_ADDRESS")
+            .expect("private bus")
+            .contains(root.parent().expect("profile").to_str().expect("path")),
+        "this must never answer on a real session bus"
+    );
+    let _connection = zbus::connection::Builder::session()
+        .expect("private bus")
+        .name("org.freedesktop.portal.Desktop")
+        .expect("portal name")
+        .serve_at("/org/freedesktop/portal/desktop", Chooser(root.clone()))
+        .expect("portal object")
+        .build()
+        .await
+        .expect("private portal");
+    std::fs::write(root.join("chooser-ready"), "").expect("rendezvous");
+    core::future::pending::<()>().await;
+}

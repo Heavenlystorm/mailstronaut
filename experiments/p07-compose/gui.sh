@@ -8,6 +8,7 @@ fixture=$(realpath "${MAILSTRONAUT_SMTP_FIXTURE:?prebuilt smtp test executable}"
 [[ $XDG_DATA_HOME == "$root/data" ]]
 artifacts="$root/compose-gui"
 mkdir -p "$artifacts"
+chooser_fixture=$(realpath "${MAILSTRONAUT_CHOOSER_FIXTURE:?prebuilt application test executable}")
 database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
 export MAILSTRONAUT_SMTP_PORT_FILE="$artifacts/port"
 server=''
@@ -42,11 +43,17 @@ printf 'SYNTHETIC-SMTP-SECRET-NOT-REAL' | secret-tool store --label='Synthetic c
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
+chooser=''
 cleanup() {
   session_cleanup
   if [[ -n "$server" ]]; then kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true; fi
+  if [[ -n "$chooser" ]]; then kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
+# A protocol-accurate file chooser on this private bus, answering from a file.
+MAILSTRONAUT_CHOOSER_ROOT=$artifacts "$chooser_fixture" chooser_fixture::serve_file_chooser --ignored --exact > "$artifacts/chooser.log" 2>&1 & chooser=$!
+for _ in {1..100}; do [[ -f "$artifacts/chooser-ready" ]] && break; kill -0 "$chooser"; sleep .1; done
+[[ -f "$artifacts/chooser-ready" ]]
 
 # A cached synthetic message to reply to would need an inbox; the reply preparation
 # itself has its own tests. This run covers editing, durability and submission.
@@ -105,6 +112,20 @@ c = sqlite3.connect(sys.argv[1])
 assert c.execute('SELECT count(*) FROM outbox').fetchone()[0] == 0
 print('Reopening a draft submitted nothing.')
 PY
+# Attach a file, which is copied into the draft at once: the original can then go away.
+attachment="$artifacts/synthetic report · été.txt"
+printf 'Synthetic attachment contents · été.\n' > "$attachment"
+python3 -c 'import sys,urllib.parse; print("file://"+urllib.parse.quote(sys.argv[1]))' "$attachment" > "$artifacts/chooser-answer"
+click 608 134
+for _ in {1..75}; do
+  [[ $(python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute("SELECT count(*) FROM draft_attachments").fetchone()[0])' "$database") == 1 ]] && break
+  kill -0 "$app"; sleep .2
+done
+[[ $(python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute("SELECT count(*) FROM draft_attachments").fetchone()[0])' "$database") == 1 ]]
+rm "$attachment"
+printf '%s\n' 'Attaching kept a private copy, so the original could be deleted.'
+sleep 1
+capture attached
 # Ctrl+Enter from the focused message body is the only send in this run.
 wtype -s 300 -M ctrl -k Return -m ctrl
 for _ in {1..150}; do
@@ -123,7 +144,13 @@ mail = open(sys.argv[2], 'rb').read().decode()
 assert 'Final edit at close.' in mail and 'to@example.test' in mail and 'copy@example.test' in mail
 assert 'blind@example.test' not in mail and 'Bcc:' not in mail
 assert 'SYNTHETIC-SMTP-SECRET-NOT-REAL' not in mail
-sent = email.message_from_string(mail, policy=email.policy.default).get_content()
+parsed = email.message_from_string(mail, policy=email.policy.default)
+sent = parsed.get_body(preferencelist=('plain',)).get_content()
+parts = list(parsed.iter_attachments())
+assert len(parts) == 1, parts
+assert parts[0].get_filename() == 'synthetic report · été.txt', parts[0].get_filename()
+assert parts[0].get_content() in ('Synthetic attachment contents · été.\n', 'Synthetic attachment contents · été.\n'.encode()), parts[0].get_content()
+print('The attachment arrived with its name and contents intact.')
 assert '\n-- \nSynthetic Sender\nSynthetic Laboratory · Unicode' in sent.replace('\r\n', '\n'), sent
 print('One accepted submission; the blind recipient stayed in the envelope only.')
 print('The signature arrived with its standard delimiter intact.')

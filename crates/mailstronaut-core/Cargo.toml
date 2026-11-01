@@ -28,8 +28,5 @@ tokio-util.workspace = true
 mailstronaut-mail.workspace = true
 uuid.workspace = true
 
-[dev-dependencies]
-secrecy.workspace = true
-
 [lints]
 workspace = true

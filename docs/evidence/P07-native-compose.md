@@ -57,6 +57,13 @@ checks that the received mail decodes to `-- ` plus the signature. Unit tests in
 `crates/mailstronaut-core/tests/reply.rs` cover placement, swapping and the size limit. The
 account swap has not been driven through the GUI.
 
+## Attaching
+
+`experiments/p07-compose/gui.sh` clicks Attach with a protocol-accurate fake file chooser
+answering on the private bus (`crates/mailstronaut/src/chooser_fixture.rs`), chooses a file with
+a Unicode name, and deletes the original straight away. The received mail still carries the
+file with its name and contents intact, because attaching takes a private copy.
+
 ## When a send does not simply succeed
 
 Before starting a mail transaction, submission connects, signs in and leaves. A failure
@@ -84,8 +91,8 @@ and reports a closed port and a refused sign-in as sending nothing.
 
 ## Not established
 
-No live provider or real desktop portal. The GUI path has not yet exercised: attachments
-through a portal, a pending row's Cancel, TLS or sign-in errors while sending, discard,
+No live provider or real desktop portal. The GUI path has not yet exercised: removing an
+attachment, a pending row's Cancel, TLS or sign-in errors while sending, discard,
 identity switching, or Reply/Forward. Backend tests cover several of those states. A
 connection lost between the pre-flight and DATA is still reported
 as unknown, the safe direction.

@@ -219,6 +219,8 @@ impl Drop for Workspace {
 }
 
 const SEARCH_PAUSE: Duration = Duration::from_millis(200);
+/// Identifies the progress notification, so that the result replaces it.
+struct AttachmentDownload;
 /// What one list refresh loads: folders, unread counts, the page and the priority group.
 type ListPage = (
     Vec<Folder>,
@@ -2510,7 +2512,9 @@ impl Workspace {
                     _ = this.update_in(cx, |_, window, cx| {
                         window.push_notification(
                             Notification::new()
+                                .id::<AttachmentDownload>()
                                 .message("Downloading the attachment from the server…")
+                                .autohide(false)
                                 .delivery(NotificationDelivery::InApp),
                             cx,
                         );
@@ -2538,6 +2542,7 @@ impl Workspace {
                 _ = this.update_in(cx, |_, window, cx| {
                     window.push_notification(
                         Notification::new()
+                            .id::<AttachmentDownload>()
                             .message(notice)
                             .delivery(NotificationDelivery::InApp),
                         cx,

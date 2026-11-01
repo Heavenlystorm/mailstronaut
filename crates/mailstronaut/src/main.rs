@@ -4,6 +4,8 @@ extern crate gpui_kit as gpui;
 
 mod account_actions;
 mod accounts;
+#[cfg(test)]
+mod chooser_fixture;
 mod composer;
 mod config_cli;
 mod config_export;
