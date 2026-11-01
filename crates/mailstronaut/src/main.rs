@@ -14,6 +14,7 @@ mod mail_priority;
 mod mail_search;
 mod mail_sync;
 mod mailbox;
+mod onboarding;
 mod preferences;
 mod read_gate;
 mod reminders;

@@ -29,6 +29,7 @@ mailstronaut-priority.workspace = true
 mailstronaut-search.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+uuid.workspace = true
 tokio.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 

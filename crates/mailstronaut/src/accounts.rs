@@ -25,6 +25,7 @@ use crate::account_actions::{self, Access};
 
 pub enum Event {
     CacheChanged,
+    CredentialsChanged,
 }
 
 enum Outcome {
@@ -82,6 +83,12 @@ impl AccountPane {
                 .masked(true)
                 .placeholder("Outgoing password or app password")
         });
+        let status = if config.sync.automatic {
+            "Ready · automatic synchronization is enabled."
+        } else {
+            "Ready · sync starts only when requested."
+        }
+        .into();
         Self {
             config,
             account,
@@ -94,7 +101,7 @@ impl AccountPane {
             smtp_password,
             busy: false,
             before: None,
-            status: "Ready · sync starts only when requested.".into(),
+            status,
         }
     }
 
@@ -178,6 +185,7 @@ impl AccountPane {
                 .unwrap_or_else(|_| Err("Account operation did not finish.".into()));
             _ = this.update(cx, |this, cx| {
                 this.busy = false;
+                let credentials_changed = matches!(result, Ok(Outcome::Saved | Outcome::SignedIn));
                 this.status = match result {
                     Ok(Outcome::Saved) => "Password saved in the encrypted keyring.".into(),
                     Ok(Outcome::SignedIn) => "Signed in. You can now sync mail.".into(),
@@ -197,6 +205,9 @@ impl AccountPane {
                 };
                 if cache_changed {
                     cx.emit(Event::CacheChanged);
+                }
+                if credentials_changed {
+                    cx.emit(Event::CredentialsChanged);
                 }
                 cx.notify();
             });
@@ -246,11 +257,7 @@ impl AccountPane {
 
     pub fn page(view: &Entity<Self>, cx: &App) -> SettingPage {
         let account = &view.read(cx).account;
-        let title = if account.display_name.is_empty() {
-            account.address.clone()
-        } else {
-            account.display_name.clone()
-        };
+        let title = account.id.clone();
         let address = account.address.clone();
         let login = account.user_name.clone();
         let endpoint = account.incoming_endpoint().map_or_else(
@@ -288,7 +295,7 @@ impl AccountPane {
                 SettingGroup::new()
                     .title("Sign-in and synchronization")
                     .description(
-                        "Credentials stay in the encrypted keyring. Sync runs only when requested.",
+                        "Credentials stay in the encrypted keyring. Automatic sync follows your native configuration.",
                     )
                     .item(
                         SettingItem::render(move |_, _, _| controls.clone()).keywords([

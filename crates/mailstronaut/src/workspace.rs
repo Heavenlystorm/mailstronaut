@@ -18,7 +18,6 @@ use gpui::component::{
     },
     badge::Badge,
     button::{Button, ButtonVariants as _},
-    clipboard::Clipboard,
     description_list::DescriptionList,
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
     label::Label,
@@ -149,6 +148,7 @@ pub struct Workspace {
     declaration: source::Runtime,
     config_path: Option<PathBuf>,
     preferences: Entity<crate::preferences::Preferences>,
+    onboarding: Entity<crate::onboarding::Onboarding>,
     _preference_events: Subscription,
     loading_config: bool,
     view: View,
@@ -427,6 +427,8 @@ impl Workspace {
                 }
                 cx.notify();
             });
+        let onboarding =
+            cx.new(|cx| crate::onboarding::Onboarding::new(preferences.clone(), window, cx));
         let mut this = Self {
             focus,
             link_focus: cx.focus_handle(),
@@ -440,6 +442,7 @@ impl Workspace {
             declaration: source::Runtime::default(),
             config_path: path,
             preferences,
+            onboarding,
             _preference_events: preference_events,
             loading_config: false,
             view: View::Inbox,
@@ -653,6 +656,10 @@ impl Workspace {
                         this.preferences.update(cx, |preferences, cx| {
                             preferences.configure(snapshot, window, cx);
                         });
+                        if this.declaration.active().is_none() {
+                            this.view = View::Accounts;
+                            this.read_gate.visibility(false);
+                        }
                     }
                     Ok(Err(error)) => this.status = error,
                     Err(_) => this.status = "Unable to open local mail.".into(),
@@ -684,6 +691,12 @@ impl Workspace {
         };
         let revision = self.declaration.revision();
         for account in &config.accounts {
+            let account_id = account.id.clone();
+            let inbox = account
+                .folders
+                .inbox
+                .clone()
+                .unwrap_or_else(|| "INBOX".into());
             let view = cx.new(|cx| {
                 crate::accounts::AccountPane::new(
                     config.clone(),
@@ -699,9 +712,16 @@ impl Workspace {
             self.account_events.push(cx.subscribe_in(
                 &view,
                 window,
-                move |this, _, _: &crate::accounts::Event, window, cx| {
+                move |this, _, event: &crate::accounts::Event, window, cx| {
                     if revision == this.declaration.revision() {
-                        this.refresh_rows(window, cx);
+                        match event {
+                            crate::accounts::Event::CacheChanged => this.refresh_rows(window, cx),
+                            crate::accounts::Event::CredentialsChanged => {
+                                if let Some(engine) = &this.engine {
+                                    engine.include_folder(&account_id, inbox.clone());
+                                }
+                            }
+                        }
                     }
                 },
             ));
@@ -906,7 +926,7 @@ impl Workspace {
             crate::mailbox::replace_with_priority(list, rows, group, window, cx);
         });
         self.status = if self.accounts.is_empty() {
-            "Add accounts in your native Nix configuration.".into()
+            "Add an account in Settings or your native Nix configuration.".into()
         } else {
             self.page_status(count)
         };
@@ -1635,6 +1655,11 @@ impl Workspace {
     }
 
     fn compose(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if self.accounts.is_empty() || !self.composer.read(cx).has_store() {
+            self.status = "Add an account before composing a message.".into();
+            cx.notify();
+            return;
+        }
         self.show_compose(window, cx);
         self.composer
             .update(cx, |composer, cx| composer.compose_new(window, cx));
@@ -1734,10 +1759,6 @@ impl Workspace {
     }
 
     fn account_settings(&self, cx: &Context<Self>) -> impl IntoElement {
-        let path = self.config_path.as_ref().map_or_else(
-            || "No configuration path is available.".to_owned(),
-            |path| path.display().to_string(),
-        );
         let loading = self.loading_config;
         let reload_disabled = loading || self.demo || self.preferences.read(cx).busy();
         let workspace = cx.entity().downgrade();
@@ -1745,7 +1766,7 @@ impl Workspace {
         let export_disabled = self.declaration.active().is_none() || loading;
         let config = self.declaration.active();
         let ownership = self.preferences.read(cx).ownership_label();
-        let last_reload = self.preferences.read(cx).last_reload();
+        let source_details = self.preferences.clone();
         let general = SettingPage::new("Configuration")
             .description("Preferences use your native Nix source. Managed and user-authored expressions stay read-only here.")
             .resettable(false)
@@ -1753,14 +1774,8 @@ impl Workspace {
                 SettingGroup::new()
                     .title("Native Nix")
                     .description(ownership)
-                    .item(SettingItem::render(move |_, _, _| {
-                        DescriptionList::vertical().columns(1).item("Source",
-                            div().flex().items_center().gap_2()
-                                .child(div().flex_1().min_w_0().child(path.clone()))
-                                .child(Clipboard::new("copy-source").value(path.clone())
-                                    .accessibility_label("Copy configuration path").tooltip("Copy configuration path"))
-                                .into_any_element(), 1).item("Last reload", last_reload.clone(), 1)
-                    }).keywords(["source", "path", "Nix", "configuration", "Home Manager"]))
+                    .item(SettingItem::render(move |_, _, cx| crate::preferences::Preferences::source_details(&source_details, cx))
+                        .keywords(["source", "path", "Nix", "configuration", "Home Manager"]))
                     .item(SettingItem::render(move |options, _, _| {
                         let workspace = workspace.clone();
                         Button::new("reload-config")
@@ -1794,13 +1809,16 @@ impl Workspace {
                     cx,
                 ))
         } else {
-            general
+            general.group(crate::preferences::Preferences::setup(
+                &self.preferences,
+                cx,
+            ))
         };
         let general = general.group(SettingGroup::new().title("Account status").item({
             let status = self.declaration.error().map_or_else(
                 || {
                     if self.account_views.is_empty() {
-                        "No accounts are active. Add an account declaration, then reload."
+                        "No accounts are active. Add an account here or in your Nix declaration."
                             .to_owned()
                     } else {
                         "Choose an account in Settings to sign in or sync mail.".to_owned()
@@ -1817,14 +1835,17 @@ impl Workspace {
             SettingItem::render(move |_, _, _| div().text_sm().child(status.clone()))
                 .keywords(["accounts", "status", "errors", "reload"])
         }));
+        let editor = self.preferences.read(cx);
         let settings = Settings::new(("mail-settings", self.declaration.revision()))
+            .default_selected_index(editor.page_after_reload())
             .sidebar_width(px(220.))
             .page(general)
             .pages(
                 self.account_views
                     .iter()
                     .map(|view| crate::accounts::AccountPane::page(view, cx)),
-            );
+            )
+            .page(crate::onboarding::Onboarding::page(&self.onboarding));
         div()
             .size_full()
             .flex()
@@ -2046,7 +2067,7 @@ impl Workspace {
                     .primary()
                     .label("Compose")
                     .tooltip("Ctrl+N")
-                    .disabled(!self.composer.read(cx).has_store())
+                    .disabled(self.accounts.is_empty() || !self.composer.read(cx).has_store())
                     .on_click(cx.listener(|this, _, window, cx| this.compose(window, cx))),
             )
             .when(self.view == View::Inbox, |view| {

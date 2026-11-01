@@ -49,13 +49,17 @@ unrelated links require explicit adoption; activation preserves them.
 App-owned sources expose staged appearance, sync, notification, timezone and
 reminder preferences with Save/Discard. Managed sources stay read-only. A stale
 save is rejected; export lets you retain the saved values in your HM declaration.
+On a missing source, Settings can create the native configuration and add Google,
+iCloud or manual accounts. Save the declaration, then use the account's encrypted
+password or browser sign-in controls. Home Manager users can export these values
+before adding them to their authoritative account declaration.
 
 The sidebar opens each account's cached mail and individual known folders without
 starting a sync. Newer/Older controls page through 100 conversations at a time.
 Expand a thread's message count to choose a cached original, including Sent
 ancestry; arrows select passively and Enter or a click opens only that original.
-Details shows parsed recipients and dates in the declared timezone (UTC when
-unset). Folder changes, thread expansion and paging never mark mail Seen.
+Details shows parsed recipients and dates in the declared timezone, with UTC as
+the fallback. Folder changes, thread expansion and paging never mark mail Seen.
 
 The native text reader uses GPUI Kit's read-only multiline component. Use
 Ctrl+Shift+T to focus message text, Ctrl+A/C to select/copy, and the usual

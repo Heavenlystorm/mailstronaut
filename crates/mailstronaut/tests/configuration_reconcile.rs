@@ -399,3 +399,101 @@ async fn preference_saves_reject_readonly_links_and_cancelled_work() {
         original
     );
 }
+
+#[test]
+fn initialization_cooperates_with_writers_and_never_replaces_an_existing_source() {
+    let root = tempfile::tempdir().expect("private profile");
+    let path = root.path().join("config.nix");
+    let edit = source::Edit::begin(&path).expect("another writer");
+    let args = [
+        OsStr::new("config"),
+        OsStr::new("init"),
+        OsStr::new("--path"),
+        path.as_os_str(),
+    ];
+    assert!(!command(&args).status.success());
+    assert!(!path.exists());
+    drop(edit);
+    assert!(command(&args).status.success());
+    let original = fs::read(&path).expect("initialized file");
+    assert!(!command(&args).status.success());
+    assert_eq!(fs::read(&path).expect("preserved source"), original);
+    assert_eq!(
+        source::ownership(&path).expect("ownership"),
+        source::Ownership::AppOwned
+    );
+    assert_eq!(
+        fs::metadata(&path)
+            .expect("private file")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+}
+
+#[tokio::test]
+async fn adding_an_account_preserves_existing_raw_declarations_and_rejects_duplicates() {
+    use mailstronaut_config::persistence;
+    let root = tempfile::tempdir().expect("private profile");
+    let path = root.path().join("config.nix");
+    let source = format!(
+        "{}{{ schemaVersion = 1; sync.automatic = false; accounts = [ {{ id = \"existing\"; provider = \"icloud\"; address = \"old@icloud.com\"; displayName = \"Existing\"; userName = \"old\"; auth = {{ kind = \"password\"; secretRef = \"old-key\"; }}; }} ]; }}",
+        native::MUTABLE_HEADER
+    );
+    fs::write(&path, &source).expect("owned source");
+    let cancel = CancellationToken::new();
+    let expected = process::evaluate(Path::new(BINARY), &source, &cancel)
+        .await
+        .expect("loaded source");
+    let added = serde_json::from_value(serde_json::json!({
+        "id": "new", "provider": "icloud", "address": "new@icloud.com",
+        "displayName": "New", "userName": "new", "auth": {"kind": "password", "secretRef": "new-key"}
+    })).expect("typed account");
+    let saved = persistence::add_account(Path::new(BINARY), &path, &expected, added, &cancel)
+        .await
+        .expect("add account");
+    assert_eq!(saved.accounts.len(), 2);
+    let bytes = fs::read(&path).expect("saved source");
+    let text = fs::read_to_string(&path).expect("saved Nix");
+    let raw = process::evaluate_raw(Path::new(BINARY), &text, &cancel)
+        .await
+        .expect("raw source");
+    for key in [
+        "aliases",
+        "signature",
+        "tls",
+        "folders",
+        "smtpUserName",
+        "smtpAuth",
+    ] {
+        assert!(
+            raw["accounts"][0].get(key).is_none(),
+            "untouched account key {key}"
+        );
+    }
+    assert!(raw["sync"].get("initialDays").is_none());
+    assert!(matches!(
+        persistence::add_account(
+            Path::new(BINARY),
+            &path,
+            &saved,
+            saved.accounts[1].clone(),
+            &cancel
+        )
+        .await,
+        Err(persistence::Error::Validation(_))
+    ));
+    assert!(matches!(
+        persistence::add_account(
+            Path::new(BINARY),
+            &path,
+            &expected,
+            saved.accounts[1].clone(),
+            &cancel
+        )
+        .await,
+        Err(persistence::Error::Changed)
+    ));
+    assert_eq!(fs::read(&path).expect("preserved source"), bytes);
+}

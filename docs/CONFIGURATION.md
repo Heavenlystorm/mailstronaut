@@ -6,8 +6,8 @@ public-client OAuth/refresh. GPUI Settings now connects declared accounts to
 foreground password storage and explicit bounded TLS inbox sync; native last-valid
 reload and offline reading passed the private synthetic workflow in
 [current account evidence](evidence/P02-gpui-accounts.md). Native export and the optional
-HM module and basic editable preferences are implemented; their acceptance scope
-is recorded in PLAN.md. Editable account onboarding, full Home Manager activation
+HM module, basic editable preferences and native account declarations are implemented;
+their acceptance scope is recorded in PLAN.md. Full Home Manager activation
 and real-provider/portal acceptance remain open. Canonical user configuration
 is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
 Flatpak uses its usual application-specific XDG config directory. A `.nix` file is
@@ -376,8 +376,21 @@ separate runtime actions, not serializable preference fields.
 `managed = true` or a read-only/Nix-store-backed config prevents the GUI from
 rewriting it. Account rows and static preferences are displayed with their source;
 Connect/Reauthenticate remains available because credentials are runtime secrets.
-Adding an account produces a reviewable native Nix snippet to put into the user's
-configuration. Removing it from config disables its connection without silently
+On a missing source, Configuration offers Create native configuration; it shares
+the CLI's locked, no-clobber initialization and creates no account or credential.
+The Add account page uses standard GPUI Kit form fields for Google, iCloud and
+manual connections. Save appends a validated declaration to an app-owned source,
+preserving explicit keys and omissions in existing accounts, then opens that
+account's encrypted credential controls. Manual connections support distinct
+incoming/outgoing logins and passwords, additional PEM trust roots, aliases and
+Sent/Archive/Trash overrides. Google and Microsoft require the user's registered
+public desktop client; custom OAuth requires explicit HTTPS endpoints/scopes.
+Neither account declaration nor Export to Nix contains a password or token.
+Each new declaration receives fresh random credential references, including after
+reusing an account ID. Managed sources remain editable through their Nix declaration.
+Export the effective values before importing UI-created accounts into Home Manager:
+its declared account list replaces the mutable list on activation.
+Removing an account from config disables its connection without silently
 deleting mail/drafts/reminders. Provide a separate local-data purge operation.
 
 For app-owned unmanaged config, setup can serialize typed values with

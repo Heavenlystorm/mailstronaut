@@ -81,7 +81,7 @@ pub async fn evaluate(
     )
     .await?
     {
-        helper::Response::Success(config) if config.validate().is_empty() => Ok(config),
+        helper::Response::Success(config) if config.validate().is_empty() => Ok(*config),
         helper::Response::Success(_) | helper::Response::Rejected => Err(EvaluationError::Rejected),
         helper::Response::Raw(_) => Err(EvaluationError::InvalidResponse),
     }

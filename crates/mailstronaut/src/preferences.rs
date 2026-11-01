@@ -6,17 +6,19 @@ use gpui::component::{
     Disableable as _,
     alert::Alert,
     button::{Button, ButtonVariants as _},
+    clipboard::Clipboard,
     combobox::{Combobox, ComboboxEvent, ComboboxState},
+    description_list::DescriptionList,
     searchable_list::SearchableVec,
-    setting::{NumberFieldOptions, SettingField, SettingGroup, SettingItem},
+    setting::{NumberFieldOptions, SelectIndex, SettingField, SettingGroup, SettingItem},
     time_field::{HourCycle, TimeField, TimeFieldEvent, TimeFieldState},
     toolbar::Toolbar,
 };
 use gpui::{
-    App, AppContext as _, Context, Entity, EventEmitter, ParentElement as _, SharedString,
-    Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
+    App, AppContext as _, Context, Entity, EventEmitter, IntoElement as _, ParentElement as _,
+    SharedString, Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
-use mailstronaut_config::{Appearance, Config, native, persistence, source::Ownership};
+use mailstronaut_config::{Account, Appearance, Config, native, persistence, source::Ownership};
 use serde_json::{Value, json};
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
@@ -129,6 +131,19 @@ enum Operation {
     Idle,
     Loading,
     Saving,
+    AddingAccount,
+    Initializing,
+}
+
+enum Destination {
+    Account(String),
+    AddAccount,
+}
+
+enum WriteRequest {
+    Preferences(Value),
+    Account(Box<Account>),
+    Initialize,
 }
 
 pub struct Preferences {
@@ -142,6 +157,7 @@ pub struct Preferences {
     error: Option<String>,
     last_reload: Option<i64>,
     generation: u64,
+    destination: Option<Destination>,
     morning: Entity<TimeFieldState>,
     evening: Entity<TimeFieldState>,
     zone: Entity<ComboboxState<SearchableVec<SharedString>>>,
@@ -224,6 +240,7 @@ impl Preferences {
             error: None,
             last_reload: None,
             generation: 0,
+            destination: None,
             morning,
             evening,
             zone,
@@ -289,7 +306,7 @@ impl Preferences {
         self.operation != Operation::Idle
     }
 
-    fn editable(&self) -> bool {
+    pub fn editable(&self) -> bool {
         self.snapshot.error.is_none()
             && self.snapshot.ownership == Ownership::AppOwned
             && self
@@ -297,6 +314,102 @@ impl Preferences {
                 .config
                 .as_ref()
                 .is_some_and(|config| !config.managed)
+    }
+
+    pub fn dirty(&self) -> bool {
+        self.initial != self.draft
+    }
+
+    pub fn can_initialize(&self) -> bool {
+        !self.busy()
+            && self.snapshot.ownership == Ownership::Missing
+            && self.snapshot.config.is_none()
+            && self.snapshot.error.is_none()
+    }
+
+    pub fn preferred_account(&self) -> Option<&str> {
+        match &self.destination {
+            Some(Destination::Account(id)) => Some(id),
+            _ => None,
+        }
+    }
+
+    const fn prefers_setup(&self) -> bool {
+        matches!(self.destination, Some(Destination::AddAccount))
+    }
+
+    pub fn page_after_reload(&self) -> SelectIndex {
+        let page_ix = self.snapshot.config.as_ref().map_or(0, |config| {
+            self.preferred_account()
+                .and_then(|id| config.accounts.iter().position(|account| account.id == id))
+                .map_or_else(
+                    || {
+                        if self.prefers_setup() && self.editable() {
+                            config.accounts.len() + 1
+                        } else {
+                            0
+                        }
+                    },
+                    |index| index + 1,
+                )
+        });
+        SelectIndex {
+            page_ix,
+            group_ix: None,
+        }
+    }
+
+    pub fn source_details(view: &Entity<Self>, cx: &App) -> DescriptionList {
+        let state = view.read(cx);
+        let path = state.snapshot.path.as_ref().map_or_else(
+            || "No configuration path is available.".to_owned(),
+            |path| path.display().to_string(),
+        );
+        DescriptionList::vertical()
+            .columns(1)
+            .item(
+                "Source",
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(div().flex_1().min_w_0().child(path.clone()))
+                    .child(
+                        Clipboard::new("copy-source")
+                            .value(path)
+                            .accessibility_label("Copy configuration path")
+                            .tooltip("Copy configuration path"),
+                    )
+                    .into_any_element(),
+                1,
+            )
+            .item("Last reload", state.last_reload(), 1)
+    }
+
+    pub fn add_account(&mut self, account: Account, window: &Window, cx: &mut Context<Self>) {
+        if self.dirty() {
+            self.error =
+                Some("Save or discard pending preferences before adding an account.".into());
+            cx.emit(Event::Changed);
+            return;
+        }
+        self.submit(WriteRequest::Account(Box::new(account)), window, cx);
+    }
+
+    pub fn setup(view: &Entity<Self>, cx: &App) -> SettingGroup {
+        let state = view.read(cx);
+        let disabled = !state.can_initialize();
+        let creating = state.operation == Operation::Initializing;
+        let editor = view.clone();
+        SettingGroup::new().title("Get started")
+            .description("Install your Home Manager declaration, or create an app-owned native Nix file and add accounts here.")
+            .item(SettingItem::render(move |options, _, _| {
+                let editor = editor.clone();
+                Button::new("initialize-config")
+                    .label(if creating { "Creating…" } else { "Create native configuration" })
+                    .disabled(disabled || options.is_disabled())
+                    .on_click(move |_, window, cx| editor.update(cx, |this, cx| this.submit(WriteRequest::Initialize, window, cx)))
+            }).keywords(["create", "initialize", "setup", "configuration"]))
     }
 
     pub fn ownership_label(&self) -> &'static str {
@@ -524,15 +637,7 @@ impl Preferences {
     }
 
     fn save(&mut self, window: &Window, cx: &mut Context<Self>) {
-        if !self.editable() || self.busy() {
-            return;
-        }
-        let (Some(path), Some(expected), Some(draft), Some(initial)) = (
-            self.snapshot.path.clone(),
-            self.snapshot.config.clone(),
-            &self.draft,
-            &self.initial,
-        ) else {
+        let (Some(draft), Some(initial)) = (&self.draft, &self.initial) else {
             return;
         };
         let changes = match draft.patch(initial) {
@@ -543,18 +648,74 @@ impl Preferences {
                 return;
             }
         };
+        self.submit(WriteRequest::Preferences(changes), window, cx);
+    }
+
+    fn submit(&mut self, request: WriteRequest, window: &Window, cx: &mut Context<Self>) {
+        let initializing = matches!(request, WriteRequest::Initialize);
+        if self.busy()
+            || if initializing {
+                !self.can_initialize()
+            } else {
+                !self.editable()
+            }
+        {
+            return;
+        }
+        let Some(path) = self.snapshot.path.clone() else {
+            return;
+        };
         let Ok(executable) = std::env::current_exe() else {
             self.error = Some("Unable to locate the configuration helper.".into());
             cx.emit(Event::Changed);
             return;
         };
+        let expected = self.snapshot.config.clone();
+        let preferred = match &request {
+            WriteRequest::Account(account) => Some(Destination::Account(account.id.clone())),
+            WriteRequest::Initialize => Some(Destination::AddAccount),
+            WriteRequest::Preferences(_) => None,
+        };
+        self.operation = match &request {
+            WriteRequest::Initialize => Operation::Initializing,
+            WriteRequest::Account(_) => Operation::AddingAccount,
+            WriteRequest::Preferences(_) => Operation::Saving,
+        };
         let work = self.lifetime.child_token();
         self.work = Some(work.clone());
-        self.operation = Operation::Saving;
         self.error = None;
         let (generation, revision) = (self.generation, self.snapshot.revision);
         let job = self.runtime.spawn(async move {
-            persistence::preferences(&executable, &path, &expected, changes, &work).await
+            match request {
+                WriteRequest::Initialize => {
+                    if work.is_cancelled() {
+                        return Err(persistence::Error::Evaluation(
+                            mailstronaut_config::process::EvaluationError::Cancelled,
+                        ));
+                    }
+                    tokio::task::spawn_blocking(move || persistence::initialize(&path))
+                        .await
+                        .map_err(|_| persistence::Error::Task)?
+                }
+                WriteRequest::Account(account) => persistence::add_account(
+                    &executable,
+                    &path,
+                    expected.as_deref().ok_or(persistence::Error::Task)?,
+                    *account,
+                    &work,
+                )
+                .await
+                .map(|_| ()),
+                WriteRequest::Preferences(changes) => persistence::preferences(
+                    &executable,
+                    &path,
+                    expected.as_deref().ok_or(persistence::Error::Task)?,
+                    changes,
+                    &work,
+                )
+                .await
+                .map(|_| ()),
+            }
         });
         cx.emit(Event::Changed);
         cx.spawn_in(window, async move |this, cx| {
@@ -566,13 +727,16 @@ impl Preferences {
                 this.operation = Operation::Idle;
                 this.work = None;
                 match result {
-                    Ok(Ok(_)) => cx.emit(Event::Saved(revision)),
+                    Ok(Ok(())) => {
+                        this.destination = preferred;
+                        cx.emit(Event::Saved(revision));
+                    }
                     Ok(Err(error)) => {
                         this.error = Some(error.to_string());
                         cx.emit(Event::Changed);
                     }
                     Err(_) => {
-                        this.error = Some("Saving preferences was interrupted.".into());
+                        this.error = Some("Saving native configuration was interrupted.".into());
                         cx.emit(Event::Changed);
                     }
                 }

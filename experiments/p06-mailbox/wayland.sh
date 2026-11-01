@@ -70,6 +70,9 @@ PYMUTABLE
 fi
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
 "$fixture" seed_conversation_gui --ignored --exact --nocapture > "$root/seed.log" 2>&1
+if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
+  mv "$config" "$root/seeded-config.nix"
+fi
 cat > "$root/sway.conf" <<'SWAY'
 xwayland disable
 output HEADLESS-1 mode 1280x840
@@ -148,6 +151,12 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=../p05-onboarding/gui.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../p05-onboarding/gui.sh"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_PREFERENCES_GUI:-0} == 1 ]]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=../p02-config/preferences-gui.sh

@@ -1,0 +1,16 @@
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Configuration is valid.
+Applied declared configuration.
+Configuration is valid.
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Native first-run, manual/Google/iCloud declarations, keyboard Save, auth routing, duplicate refusal, native export and restart passed: /builds/mailstronaut-dev/target/p06.CJHMDJ

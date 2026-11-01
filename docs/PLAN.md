@@ -180,12 +180,14 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   restart and disable-without-purge in the private Wayland fixture.
   [Bounded current-stack evidence](evidence/P02-gpui-accounts.md).
   This does not complete editable onboarding, provider login or all P02/P04 gates.
-- [ ] Build settings/onboarding with GPUI Kit `Settings`, `SettingPage`,
+- [x] Build settings/onboarding with GPUI Kit `Settings`, `SettingPage`,
   `SettingGroup`, `SettingItem` and existing `SettingField` controls; reuse built-in
   page navigation/search and disabled-state behavior. Use masked `Input` for secret
   entry and explicit foreground keyring/OAuth actions, never a generic stored field.
-  Basic preference fields and declared-account credential pages are implemented;
-  editable account onboarding remains open.
+  Basic preferences, encrypted credential pages and native first-run/manual/
+  Google/iCloud declaration forms passed private Wayland workflows.
+  [Scoped onboarding evidence](evidence/P05-onboarding.md); live-provider and
+  installed-package acceptance are separate requirements.
 - [x] Show the native source path/ownership/last reload with `DescriptionList`,
   a `Clipboard` path-copy action and persistent `Alert` reload errors.
   Protect managed, store-backed, read-only and unadopted user-authored expressions;
@@ -298,11 +300,20 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 - [x] Retain public-client OAuth S256/CSRF/code exchange, external portal browser,
   scoped encrypted refresh/rotation and shared IMAP/SMTP sessions. The mock IdP,
   keyring and callback backend tests remain valid. [Evidence](evidence/P05.md).
-- [ ] Port onboarding/account status to GPUI Kit; isolate account errors, token
-  refresh and cancellation. Never render a provider login form inside email HTML.
+- [x] Build first-run/account declarations and status with GPUI Kit. Never render
+  a provider login form inside email HTML. Shared checked Nix persistence appends
+  accounts, rejects duplicates/stale sources and generates fresh credential refs.
   Use `Form`/`Field`, `Select`/`SelectState` for provider/auth/TLS, `Input` for
   address/login/host and `NumberInput` for ports. Typed schema validation remains
   authoritative; `Field::required` alone does not validate a connection.
+  Private native tests cover advanced manual values, Google/iCloud declarations,
+  keyboard submission, credential routing, export/restart and unchanged Seen.
+  A private encrypted-keyring/Dovecot test verifies that saving a password wakes
+  a stopped automatic-sync worker. [Evidence](evidence/P05-onboarding.md).
+- [ ] Verify native browser authorization, per-account refresh errors/cancellation
+  and reauthentication across provider changes and pending configuration reloads.
+  Existing backend mock tests remain valid; declarations/controls alone do not
+  establish successful native browser consent.
 - [ ] Verify Google public desktop-client ownership, consent/scopes, OAuth IMAP/SMTP,
   revoked/expired tokens and actual login/sync/controlled send with authorization.
 - [ ] Verify iCloud account/app-specific password flows and provider endpoints.

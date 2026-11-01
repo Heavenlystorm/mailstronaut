@@ -3,10 +3,7 @@
 use std::{
     env,
     ffi::{OsStr, OsString},
-    fs,
-    io::Write as _,
-    os::unix::fs::DirBuilderExt as _,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::ExitCode,
 };
 
@@ -14,10 +11,6 @@ use directories::BaseDirs;
 use mailstronaut_config::{helper, native, persistence, process, source};
 use tokio::runtime;
 use tokio_util::sync::CancellationToken;
-
-/// An inert native template: initialization must never add real account logins.
-const INITIAL_CONFIG: &str =
-    "# Mailstronaut editable configuration\n{\n  schemaVersion = 1;\n  accounts = [ ];\n}\n";
 
 /// Handle the finite CLI surface before toolkit or session initialization.
 pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
@@ -81,7 +74,7 @@ fn configuration_command(arguments: &[OsString]) -> Result<String, String> {
         .or_else(|| BaseDirs::new().map(|base| base.config_dir().join("mailstronaut/config.nix")));
     let path = selected_path.ok_or("unable to locate the configuration directory")?;
     if command == OsStr::new("init") && declared.is_none() {
-        initialize(&path)?;
+        persistence::initialize(&path).map_err(|error| error.to_string())?;
         return Ok("Created native Nix configuration.\n".into());
     }
     let executable = env::current_exe().map_err(|_error| "unable to locate this executable")?;
@@ -129,33 +122,4 @@ pub fn selected_path(arguments: &[OsString]) -> Option<PathBuf> {
         return Some(PathBuf::from(path));
     }
     BaseDirs::new().map(|base| base.config_dir().join("mailstronaut/config.nix"))
-}
-
-/// Install a private native template atomically, without overwriting any path.
-fn initialize(path: &Path) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .filter(|directory| !directory.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(parent)
-        .map_err(|_error| "unable to create configuration directory")?;
-    let mut temporary = tempfile::NamedTempFile::new_in(parent)
-        .map_err(|_error| "unable to create configuration")?;
-    temporary
-        .write_all(INITIAL_CONFIG.as_bytes())
-        .map_err(|_error| "unable to write configuration")?;
-    temporary
-        .as_file()
-        .sync_all()
-        .map_err(|_error| "unable to sync configuration")?;
-    let _persisted = temporary
-        .persist_noclobber(path)
-        .map_err(|_error| "configuration already exists or could not be installed")?;
-    fs::File::open(parent)
-        .and_then(|directory| directory.sync_all())
-        .map_err(|_error| "unable to sync configuration directory")?;
-    Ok(())
 }

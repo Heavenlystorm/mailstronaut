@@ -116,9 +116,11 @@ fn ownership_of(path: &Path, text: Option<&str>) -> Result<Ownership, Error> {
     })
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum WriteMode {
     Application,
     Activation,
+    Initialize,
 }
 
 /// One cooperating configuration writer, with a checked pre-edit snapshot.
@@ -210,11 +212,13 @@ impl Edit {
         }
         let allowed = matches!(
             (self.ownership()?, mode),
-            (Ownership::AppOwned, _)
-                | (
-                    Ownership::Missing | Ownership::Managed,
-                    WriteMode::Activation
-                )
+            (
+                Ownership::AppOwned,
+                WriteMode::Application | WriteMode::Activation
+            ) | (
+                Ownership::Missing | Ownership::Managed,
+                WriteMode::Activation
+            ) | (Ownership::Missing, WriteMode::Initialize)
         );
         if !allowed {
             return Err(Error::Ownership);
@@ -231,7 +235,12 @@ impl Edit {
             .and_then(|()| temporary.as_file().sync_all())
             .map_err(|_| Error::Write)?;
         self.verify()?;
-        temporary.persist(&self.path).map_err(|_| Error::Write)?;
+        if matches!(mode, WriteMode::Initialize) {
+            temporary.persist_noclobber(&self.path)
+        } else {
+            temporary.persist(&self.path)
+        }
+        .map_err(|_| Error::Write)?;
         fs::File::open(parent)
             .and_then(|directory| directory.sync_all())
             .map_err(|_| Error::Write)

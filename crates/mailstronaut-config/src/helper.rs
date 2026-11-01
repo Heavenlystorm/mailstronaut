@@ -19,7 +19,7 @@ pub const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 #[non_exhaustive]
 pub enum Response {
     /// A successfully evaluated and validated configuration.
-    Success(Config),
+    Success(Box<Config>),
     /// Plain evaluated data, before schema defaults, for reconciling declarations.
     Raw(serde_json::Value),
     /// The source or expanded configuration was rejected.
@@ -117,7 +117,7 @@ fn evaluate(source: &[u8]) -> Response {
     if !config.validate().is_empty() {
         return Response::Rejected;
     }
-    Response::Success(config)
+    Response::Success(Box::new(config))
 }
 
 /// Evaluate only bounded UTF-8 input to plain data, redacting errors.

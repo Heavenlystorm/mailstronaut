@@ -47,6 +47,12 @@ Basic editable preferences now reuse Kit fields, TimeField and a searchable
 Combobox with persistent Save/Discard controls outside the filtered pages.
 See [native Nix evidence](evidence/P02-native-nix.md) and the bounded
 [preferences workflow](evidence/P02-preferences.md).
+Native first-run and account declarations now use the Form/Field, Select,
+NumberInput and Collapsible mapping below. Saving app-owned Nix declarations opens
+the new account's existing encrypted controls. Advanced fields preserve separate
+logins/password references, aliases, CA paths and folder overrides; no secret is
+a serialized setting. [Scoped onboarding evidence](evidence/P05-onboarding.md)
+records the native synthetic tests and the remaining live-provider/portal gates.
 
 | Subproblem | Component/API | Boundary |
 | --- | --- | --- |
