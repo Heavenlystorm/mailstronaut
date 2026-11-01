@@ -51,6 +51,32 @@ nix flake check --no-update-lock-file --print-build-logs
 nix build --no-update-lock-file
 ```
 
+## Builds and concurrent threads
+
+Compile on the CI server, not the laptop. `ci/remote.sh` syncs the working tree to
+`ci-py` and runs a command there; each checkout needs its own
+`MAILSTRONAUT_REMOTE_DIR` (the main checkout uses the default, `mailstronaut-dev`):
+
+```sh
+bash ci/remote.sh nix develop --command bash ci/check.sh
+bash ci/remote.sh --fetch 'target/p06.*/*.png' nix develop .#gui-test --command ...
+```
+
+Several agent threads may work here at once. Before editing, check `git status` and
+this ownership split; work in your own `git worktree` and branch unless you hold the
+main checkout. Run one full Nix package gate at a time across threads.
+
+| Owner | Scope |
+| --- | --- |
+| Claude thread `dfe3b9b7-a6cc-4329-a809-b3719e9f66f3`, main checkout on branch `claude/mail-client` | `crates/mailstronaut/src/**`, `crates/mailstronaut-core/**`, `crates/mailstronaut-mail/**`, `crates/mailstronaut-config/**`, `experiments/p0[2-8]-*`: P02 settings, P05 onboarding, P06 mailbox UI, P07 compose/actions, P08 reminders |
+| Codex thread, own worktree (`MAILSTRONAUT_REMOTE_DIR=mailstronaut-codex`) | New crates and `experiments/p09-*`, `experiments/p01-flatpak`, `experiments/p01-nix`: P09 classifier, P06 fuzzy/semantic search, P10 Flatpak/Home Manager |
+| Shared, one small commit at a time | `Cargo.toml`, `Cargo.lock`, `flake.nix`, `docs/PLAN.md`: re-read immediately before editing |
+
+The Codex thread's uncommitted navigation slice was taken over by the Claude thread
+when it hit a usage limit on 2026-11-01. Do not revert, stash or re-commit it; it
+continues on `claude/mail-client`. Branch worktrees from there, and do not push or
+merge to `main` until the user says so.
+
 Once implemented, add milestone-specific tests from PLAN.md. Tests must establish
 behavior, not merely repeat implementation internals. Keep evidence honest about
 unrun remote or user-session acceptance.
