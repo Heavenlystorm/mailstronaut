@@ -119,6 +119,7 @@ requirements, not a claim that all those controls exist today.
 | Background/autostart/notification preferences | `SettingField::switch` with ownership/disabled text | Independent preferences; a switch is not portal permission or control of HM-managed services. |
 | Foreground feedback versus background reminders | GPUI `Notification` explicitly InApp for foreground status | The pinned system path cannot provide the durable reminder actions; retain existing stable IDs/portal/backend route. |
 | Single-instance foreground activation | Existing `zbus` connection/name ownership and `org.freedesktop.Application.Activate`; GPUI `Window::activate_window` | No selection/open action or new UI component. Coalesce requests; refuse source conflicts. GPUI's pinned public API cannot consume a forwarded caller token; real compositor policy and headless reopening need separate acceptance. |
+| Releasing/reopening native windows | `WindowingModes::WAYLAND | HEADLESS`, `QuitMode::Explicit`, `WindowingRequest::Headless`, `App::request_windowing` | Close every window before changing mode. The native feasibility probe releases the actual mailbox view and HTML worker; production sync/reminder ownership still needs extraction. |
 
 ### P09: priority, deadlines and models
 

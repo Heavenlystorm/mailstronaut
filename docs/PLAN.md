@@ -524,10 +524,15 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   desktops. The current public GPUI API requests attention from its own seat;
   private Sway retains the other workspace. Do not equate routed Activate with
   successful focus or mark the desktop entry D-Bus activatable yet.
+- [x] Prove GPUI's existing native headless attach/detach lifecycle before moving
+  backend ownership: failed attachment/retry, two distinct windows in one process,
+  retained state and headless event-loop progress, released workspace entities and
+  HTML workers. [Bounded native feasibility evidence](evidence/P08-headless.md).
 - [ ] Move backend ownership outside the window and implement `--background` and
   window reopening without a second DB writer. Prefer GPUI's existing
-  `WindowingRequest::Headless`/`App::request_windowing` lifecycle after a native
-  attach/detach proof; no hidden GPU window or custom daemon. Explicit Quit stops work.
+  `WindowingRequest::Headless`/`App::request_windowing` lifecycle proved above;
+  no hidden GPU window or custom daemon. Explicit Quit stops work. Automatic
+  credential access must neither create a collection nor request foreground unlock.
 - [ ] Implement independent background/autostart/notification settings and zero
   hidden work when disabled; unload renderer/models while headless when enabled.
   Reuse `SettingField::switch` and ownership/disabled-state text for each setting;

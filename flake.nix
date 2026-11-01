@@ -290,6 +290,7 @@
                   ${self}/experiments/p08-reminders/gui.sh \
                   ${self}/experiments/p08-reminders/instance.sh \
                   ${self}/experiments/p08-reminders/instance-gui.sh \
+                  ${self}/experiments/p08-reminders/lifecycle.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"

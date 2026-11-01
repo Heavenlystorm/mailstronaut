@@ -10,6 +10,8 @@ mod config_export;
 mod html_reader;
 mod html_worker;
 mod instance;
+#[cfg(test)]
+mod lifecycle_tests;
 mod link_portal;
 mod mail_notify;
 mod mail_priority;
