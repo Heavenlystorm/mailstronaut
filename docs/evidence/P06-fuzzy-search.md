@@ -71,8 +71,8 @@ unusually well. Times are for 30 warm queries with a limit of 1,000.
 | Index size | 6 MiB | 55 MiB |
 | Peak process memory | 48 MiB | 133 MiB |
 
-These measure the index alone. The conversation query that turns hits into rows has not
-been timed at this scale.
+These measure the index alone. Turning 1,000 hits into a page of rows takes another 73 ms
+at this scale; [the store's measurements](P03-scale.md) are recorded separately.
 
 ## Not established
 

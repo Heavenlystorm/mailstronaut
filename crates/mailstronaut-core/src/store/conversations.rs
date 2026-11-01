@@ -94,6 +94,8 @@ impl Store {
     /// All cached messages participate, allowing Sent/Archive and missing-inbox
     /// ancestors to connect replies without treating subjects as identity.
     ///
+    /// An account with more mail than grouping supports has nothing to project.
+    ///
     /// # Errors
     /// Rejects excess metadata, malformed stored routing and storage failures.
     pub fn conversation_snapshot(&self, account: &str) -> Result<Option<Snapshot>, Error> {
@@ -119,8 +121,10 @@ impl Store {
         let mut messages = Vec::new();
         let mut bytes = 0_usize;
         while let Some(row) = rows.next()? {
+            // Too many to group: the list shows every message on its own, which is
+            // what it does for any account without a current projection.
             if messages.len() == threads::MAX_MESSAGES {
-                return Err(Error::InvalidInput);
+                return Ok(None);
             }
             let raw: String = row.get(3)?;
             // Each identifier was limited before persistence. Also refuse corrupt

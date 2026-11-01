@@ -61,9 +61,57 @@ fn search_expression(input: &str) -> Result<Option<String>, Error> {
     }))
 }
 
+/// A message's copies within the requested scope, for a query over `{m}`.
+fn scoped_copies(message: &str, account: &str) -> String {
+    format!(
+        "effective_memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
+         WHERE s.message_id={message} AND s.account_id={account} AND (?6 IS NULL OR f.id=?6) AND (?8=0 OR f.is_inbox=1)"
+    )
+}
+
+/// A page with no search: the conversations whose newest in-scope message comes next.
+/// Walking messages newest first stops as soon as the page is full, where the complete
+/// query has to rank a whole mailbox first. `page_without_a_search_agrees_with_the_complete_query`
+/// holds the two together.
+fn browse_page() -> String {
+    let scoped = scoped_copies("m.id", "m.account_id");
+    let newer = scoped_copies("newer.id", "newer.account_id");
+    let own = scoped_copies("p.id", "p.account_id");
+    let member = scoped_copies("g.id", "p.account_id");
+    let members = "(SELECT other.message_id AS id FROM conversation_members other WHERE other.account_id=p.account_id AND other.conversation_id=p.conversation UNION ALL SELECT p.id WHERE p.conversation IS NULL) g";
+    format!("
+WITH page AS (
+ SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,
+ CASE WHEN a.projected_thread_revision=a.thread_revision THEN cm.conversation_id END AS conversation
+ FROM messages m INDEXED BY inbox_order
+ JOIN accounts a ON a.id=m.account_id
+ LEFT JOIN conversation_members cm ON cm.account_id=m.account_id AND cm.message_id=m.id
+ WHERE m.account_id IN (SELECT value FROM json_each(?1)) AND (?5 IS NULL OR m.account_id=?5)
+ AND (?2 IS NULL OR m.received_at<?2 OR (m.received_at=?2 AND m.id<?3))
+ AND EXISTS(SELECT 1 FROM {scoped})
+ AND NOT EXISTS(
+  SELECT 1 FROM conversation_members other JOIN messages newer ON newer.id=other.message_id
+  WHERE a.projected_thread_revision=a.thread_revision
+  AND other.account_id=cm.account_id AND other.conversation_id=cm.conversation_id
+  AND (newer.received_at>m.received_at OR (newer.received_at=m.received_at AND newer.id>m.id))
+  AND EXISTS(SELECT 1 FROM {newer}))
+ ORDER BY m.received_at DESC,m.id DESC LIMIT ?4
+)
+SELECT p.id,p.account_id,p.subject,p.sender,p.preview,p.received_at,
+ (SELECT MIN(s.seen) FROM {own}),(SELECT MAX(s.starred) FROM {own}),p.conversation,
+ CASE WHEN p.conversation IS NULL THEN 1 ELSE (
+ SELECT COUNT(*) FROM conversation_members cm WHERE cm.account_id=p.account_id AND cm.conversation_id=p.conversation
+ AND EXISTS(SELECT 1 FROM memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity WHERE s.account_id=cm.account_id AND s.message_id=cm.message_id)) END,
+ (SELECT COUNT(*) FROM {members} WHERE EXISTS(SELECT 1 FROM {member} AND s.seen=0)),
+ (SELECT COALESCE(MAX(EXISTS(SELECT 1 FROM {member} AND s.starred=1)),0) FROM {members}),
+ (SELECT MAX(f.is_inbox) FROM {own})
+FROM page p ORDER BY p.received_at DESC,p.id DESC")
+}
+
 /// One conversation page, by how it selects and orders the matching messages.
 struct PageQuery {
     hits: &'static str,
+    source: &'static str,
     matches: &'static str,
     join: &'static str,
     member_order: &'static str,
@@ -72,6 +120,7 @@ struct PageQuery {
 }
 const LITERAL_PAGE: PageQuery = PageQuery {
     hits: "",
+    source: "messages m",
     matches: "CASE WHEN ?7 IS NULL THEN 1 ELSE m.id IN (SELECT rowid FROM message_search WHERE message_search MATCH ?7) END AS matches,0 AS hit_rank",
     join: "",
     member_order: "",
@@ -79,7 +128,15 @@ const LITERAL_PAGE: PageQuery = PageQuery {
     order: "received_at DESC,id DESC",
 };
 const RANKED_PAGE: PageQuery = PageQuery {
-    hits: "hits(id,hit_rank) AS MATERIALIZED (SELECT value,key FROM json_each(?7)),",
+    // Only the hits and their conversations, rather than ranking a whole mailbox.
+    hits: "hits(id,hit_rank) AS MATERIALIZED (SELECT value,key FROM json_each(?7)),
+ wanted(id) AS MATERIALIZED (
+  SELECT id FROM hits UNION
+  SELECT others.message_id FROM hits h CROSS JOIN messages hit ON hit.id=h.id
+  CROSS JOIN conversation_members mine ON mine.account_id=hit.account_id AND mine.message_id=hit.id
+  CROSS JOIN conversation_members others ON others.account_id=mine.account_id AND others.conversation_id=mine.conversation_id
+ ),",
+    source: "wanted w CROSS JOIN messages m ON m.id=w.id",
     matches: "h.id IS NOT NULL AS matches,h.hit_rank AS hit_rank",
     join: "LEFT JOIN hits h ON h.id=m.id",
     member_order: "hit_rank ASC,",
@@ -92,7 +149,7 @@ impl PageQuery {
 WITH {hits}inbox AS (
  SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen) AS seen,MAX(s.starred) AS starred,MAX(f.is_inbox) AS inbox,
  {matches}
- FROM messages m JOIN effective_memberships s ON s.message_id=m.id AND s.account_id=m.account_id
+ FROM {source} JOIN effective_memberships s ON s.message_id=m.id AND s.account_id=m.account_id
  JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
  {join}
  WHERE m.account_id IN (SELECT value FROM json_each(?1))
@@ -116,6 +173,7 @@ SELECT id,account_id,subject,sender,preview,received_at,seen,starred,conversatio
 WHERE position=1 AND any_match=1 AND {after}
 ORDER BY {order} LIMIT ?4",
             hits = self.hits,
+            source = self.source,
             matches = self.matches,
             join = self.join,
             member_order = self.member_order,
@@ -219,10 +277,13 @@ impl Store {
         limit: u32,
     ) -> Result<Vec<super::conversations::Summary>, Error> {
         let search = search_expression(query)?;
+        if search.is_none() {
+            return self.page(accounts, scope, &browse_page(), None, after, limit);
+        }
         self.page(
             accounts,
             scope,
-            &LITERAL_PAGE,
+            &LITERAL_PAGE.sql(),
             search.as_deref(),
             after,
             limit,
@@ -245,14 +306,21 @@ impl Store {
             return Ok(Vec::new());
         }
         let hits = serde_json::to_string(hits)?;
-        self.page(accounts, scope, &RANKED_PAGE, Some(&hits), after, limit)
+        self.page(
+            accounts,
+            scope,
+            &RANKED_PAGE.sql(),
+            Some(&hits),
+            after,
+            limit,
+        )
     }
 
     fn page(
         &self,
         accounts: &[String],
         scope: &Scope,
-        statement: &PageQuery,
+        statement: &str,
         search: Option<&str>,
         after: Option<Cursor>,
         limit: u32,
@@ -272,7 +340,7 @@ impl Store {
             }
         }
         let selected = serde_json::to_string(accounts)?;
-        let mut statement = self.connection.prepare_cached(&statement.sql())?;
+        let mut statement = self.connection.prepare_cached(statement)?;
         statement
             .query_map(
                 params![
@@ -517,6 +585,202 @@ mod tests {
             folders
         );
     }
+    /// Everything the list shows for a row.
+    fn summary(row: &crate::store::conversations::Summary) -> impl PartialEq + core::fmt::Debug {
+        (
+            (
+                row.latest.id,
+                row.latest.account.clone(),
+                row.latest.subject.clone(),
+                row.latest.sender.clone(),
+                row.latest.preview.clone(),
+                row.latest.received_at,
+            ),
+            (
+                row.latest.seen,
+                row.latest.starred,
+                row.latest.inbox,
+                row.conversation,
+                row.cached_messages,
+                row.unread,
+                row.starred,
+            ),
+        )
+    }
+
+    fn agree(store: &Store, accounts: &[String], scope: &Scope) {
+        for limit in [100, 7] {
+            let mut after = None;
+            loop {
+                let fast = store
+                    .conversation_page(accounts, scope, "", after, limit)
+                    .expect("page");
+                let complete = store
+                    .page(accounts, scope, &LITERAL_PAGE.sql(), None, after, limit)
+                    .expect("complete");
+                assert_eq!(
+                    fast.iter().map(summary).collect::<Vec<_>>(),
+                    complete.iter().map(summary).collect::<Vec<_>>(),
+                    "{scope:?} after {after:?}"
+                );
+                let Some(last) = fast.last() else { break };
+                after = Some(Cursor {
+                    received_at: last.latest.received_at,
+                    message_id: last.latest.id,
+                });
+            }
+        }
+    }
+
+    /// Intentions that are not on the server yet change what the list shows.
+    fn add_pending_intentions(store: &mut Store, messages: &[(&str, i64)]) {
+        const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        for (index, (account, id)) in messages.iter().enumerate() {
+            match index % 11 {
+                0 => store
+                    .set_flag(
+                        account,
+                        *id,
+                        mailstronaut_mail::imap::FlagChange::Seen,
+                        true,
+                        CONTEXT,
+                    )
+                    .expect("read"),
+                3 => store
+                    .set_flag(
+                        account,
+                        *id,
+                        mailstronaut_mail::imap::FlagChange::Starred,
+                        true,
+                        CONTEXT,
+                    )
+                    .expect("star"),
+                7 => {
+                    // A message with nothing left to move is fine here.
+                    _ = store.queue_move(account, *id, None, "Archive", CONTEXT);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Random conversations, copies, ties, pending flags and moves in two accounts.
+    fn random_mailbox(seed: u64) -> (tempfile::TempDir, Store, Vec<(&'static str, i64)>) {
+        use crate::store::mailbox::FolderRole;
+        const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let root = tempfile::tempdir().expect("profile");
+        let mut store = Store::open(root.path()).expect("store");
+        let mut folders = Vec::new();
+        for account in ["a", "b"] {
+            store.ensure_account(account).expect("account");
+            store
+                .bind_mailbox_context(account, CONTEXT)
+                .expect("context");
+            for (name, inbox) in [("INBOX", true), ("Archive", false), ("Sent", false)] {
+                let id = store
+                    .ensure_folder(account, name, inbox)
+                    .expect("folder")
+                    .id;
+                store
+                    .select_folder(account, id, NonZeroU32::new(42).expect("namespace"))
+                    .expect("generation");
+                folders.push((account, id));
+            }
+            store
+                .assign_folder_roles(account, &[("Archive".into(), FolderRole::Archive)])
+                .expect("role");
+        }
+        let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut messages = Vec::new();
+        for uid in 1..=180_u32 {
+            let (account, folder) = folders[usize::try_from(next() % 6).expect("index")];
+            // Equal dates, so ties have to break the same way too.
+            let received_at = i64::try_from(next() % 40).expect("date");
+            let thread = next() % 12;
+            let raw = format!(
+                "From: sender@example.test\r\nTo: reader@example.test\r\nSubject: Thread {thread}\r\nMessage-ID: <{uid}@{account}.test>\r\nReferences: <root{thread}@{account}.test>\r\n\r\nBody {uid}."
+            );
+            let flags = Flags {
+                seen: next() % 3 == 0,
+                starred: next() % 5 == 0,
+            };
+            let id = store
+                .cache_message(
+                    account,
+                    Membership {
+                        folder,
+                        uid_validity: NonZeroU32::new(42).expect("namespace"),
+                        uid: NonZeroU32::new(uid).expect("UID"),
+                        flags,
+                    },
+                    received_at,
+                    None,
+                    raw.as_bytes(),
+                )
+                .expect("message");
+            // Some originals have a second copy elsewhere with its own flags.
+            if next() % 4 == 0 {
+                let copy = folders
+                    .iter()
+                    .find(|(owner, other)| *owner == account && *other != folder)
+                    .expect("another folder");
+                store
+                    .cache_message(
+                        account,
+                        Membership {
+                            folder: copy.1,
+                            uid_validity: NonZeroU32::new(42).expect("namespace"),
+                            uid: NonZeroU32::new(uid + 1000).expect("UID"),
+                            flags: Flags {
+                                seen: next() % 2 == 0,
+                                starred: false,
+                            },
+                        },
+                        received_at,
+                        None,
+                        raw.as_bytes(),
+                    )
+                    .expect("copy");
+            }
+            messages.push((account, id));
+        }
+        project(&mut store, "a");
+        // Leave account b with a stale projection on odd seeds, so it lists ungrouped.
+        if seed % 2 == 0 {
+            project(&mut store, "b");
+        }
+        add_pending_intentions(&mut store, &messages);
+        (root, store, folders)
+    }
+
+    #[test]
+    fn page_without_a_search_agrees_with_the_complete_query() {
+        for seed in [1_u64, 2, 3, 4] {
+            let (_root, store, folders) = random_mailbox(seed);
+            let accounts = ["a".to_owned(), "b".to_owned()];
+            agree(&store, &accounts, &Scope::Inbox);
+            agree(&store, &accounts, &Scope::Account("a".into()));
+            agree(&store, &accounts, &Scope::Account("b".into()));
+            for (account, folder) in &folders {
+                agree(
+                    &store,
+                    &accounts,
+                    &Scope::Folder {
+                        account: (*account).to_owned(),
+                        folder: *folder,
+                    },
+                );
+            }
+            agree(&store, &["a".to_owned()], &Scope::Inbox);
+        }
+    }
+
     #[test]
     fn ranked_pages_keep_the_given_order_group_conversations_and_respect_scope() {
         let (_root, store, [needle, latest, ancestor, foreign], [sent]) = fixture();

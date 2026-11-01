@@ -254,6 +254,8 @@ new dependency graph before claiming current-package acceptance.
   at measured mailbox scale; sequence numbers never become persistent identity.
 - [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
   partial-cache states and bounded 100k-message behavior. See P06 for strong search.
+  [Queries are measured at 100k and an over-limit account still lists its
+  mail](evidence/P03-scale.md); partial-cache states remain open.
   Rebuild progress uses `Spinner`, or `Progress` only with a known bounded total;
   [components present store state](INTERFACE.md#p03-store-and-p04-synchronization), not persistence logic.
 
