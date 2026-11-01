@@ -752,7 +752,7 @@ mod tests {
         }
         project(&mut store, "a");
         // Leave account b with a stale projection on odd seeds, so it lists ungrouped.
-        if seed % 2 == 0 {
+        if seed.is_multiple_of(2) {
             project(&mut store, "b");
         }
         add_pending_intentions(&mut store, &messages);
