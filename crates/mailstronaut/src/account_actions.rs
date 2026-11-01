@@ -26,6 +26,10 @@ const CANCELLED: &str = "Account operation cancelled.";
 const MAX_CONNECTIONS: usize = 4;
 /// A cycle fetches back through recent mail at most this many UID windows per folder.
 const CYCLE_PAGES: u32 = 8;
+/// One request for older mail stops after this many new messages.
+const OLDER_MESSAGES: u32 = 50;
+/// Or after this many UID windows, so that a folder of cached mail cannot hold it for long.
+const OLDER_WINDOWS: u32 = 64;
 
 #[derive(Clone)]
 struct Open {
@@ -46,6 +50,14 @@ pub struct Cycle {
     pub downloaded: u32,
     pub refreshed: u32,
     pub actions: u32,
+}
+
+/// What one request for older mail did.
+#[derive(Clone, Copy, Debug)]
+pub struct Older {
+    pub downloaded: u32,
+    /// Where the next request continues, or `None` at the beginning of the folder.
+    pub resume: Option<sync::Position>,
 }
 
 /// Whether trying again later could help without the user changing anything.
@@ -324,6 +336,64 @@ impl Access {
                 Err(SyncFailure::from_imap(error))
             }
         }
+    }
+
+    /// Fetch mail from before the automatic sync window, for an explicit request. It walks
+    /// back through the whole folder rather than starting below the oldest cached UID,
+    /// since UID order is not date order in mail that has been moved or imported.
+    pub async fn fetch_older(
+        &self,
+        store: &Handle,
+        account: &Account,
+        folder: &str,
+        inbox: bool,
+        resume: Option<sync::Position>,
+        cancel: &CancellationToken,
+    ) -> Result<Older, String> {
+        let failed = |failure| match failure {
+            SyncFailure::Retry(error) | SyncFailure::Stop(error) => error,
+        };
+        let opened = self.foreground(cancel).await?;
+        let _permit = cancel
+            .run_until_cancelled(self.connections.acquire())
+            .await
+            .ok_or(CANCELLED)?
+            .map_err(|_| "Mail connection queue is unavailable.")?;
+        let context = flags::context(account).map_err(|error| error.to_string())?;
+        let mut connection = Self::connect(&opened, account, cancel)
+            .await
+            .map_err(failed)?;
+        let mut request = sync::Request {
+            account: &account.id,
+            context: &context,
+            folder,
+            inbox,
+            before: resume,
+            earliest: 0,
+            max_original: imap::MAX_ORIGINAL,
+        };
+        let mut older = Older {
+            downloaded: 0,
+            resume,
+        };
+        for _ in 0..OLDER_WINDOWS {
+            let page = sync::page(store, &mut connection, &request, cancel)
+                .await
+                .map_err(|error| error.to_string())?;
+            older.downloaded += page.downloaded;
+            older.resume = page.next_before;
+            request.before = page.next_before;
+            if page.next_before.is_none() || older.downloaded >= OLDER_MESSAGES {
+                break;
+            }
+            // One connection's receive budget is smaller than several windows of mail.
+            if page.downloaded > 0 {
+                connection = Self::connect(&opened, account, cancel)
+                    .await
+                    .map_err(failed)?;
+            }
+        }
+        Ok(older)
     }
 
     /// Download one attachment that stayed on the server, for an explicit request. Its

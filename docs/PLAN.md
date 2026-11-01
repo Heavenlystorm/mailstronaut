@@ -280,8 +280,9 @@ new dependency graph before claiming current-package acceptance.
   UTF8=ACCEPT is not enabled; invalid names display as sent.
 - [ ] Complete bounded recent sync, older paging, partial-cache status, on-demand
   bodies/attachments and safe UIDVALIDITY/gap/reset reconciliation.
-  [On-demand attachments pass on a real server](evidence/P04-large-mail.md); fetching
-  older mail from the mailbox itself remains open.
+  [On-demand attachments](evidence/P04-large-mail.md) and [older mail from the
+  mailbox](evidence/P04-older-mail.md) pass on a real server; partial-cache status
+  and gap reconciliation remain open.
   Use `ListDelegate::has_more/load_more` or an explicit Load older `Button` for
   backend paging; never report an invented progress percentage.
 - [x] Implement IDLE/DONE/renew/reselect with polling fallback, non-INBOX flags,

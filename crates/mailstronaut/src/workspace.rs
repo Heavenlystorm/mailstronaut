@@ -35,7 +35,7 @@ use gpui::{
     KeyBinding, ParentElement as _, Render, StatefulInteractiveElement as _, Styled as _,
     Subscription, Task, Window, div, prelude::FluentBuilder as _, px,
 };
-use mailstronaut_config::{Appearance, Config, source};
+use mailstronaut_config::{Account, Appearance, Config, source};
 use mailstronaut_core::{
     reminders::When,
     reply::Kind,
@@ -199,6 +199,11 @@ pub struct Workspace {
     priority: Option<crate::mail_priority::PriorityEngine>,
     /// Refreshes the list when the first thing in the priority group expires.
     priority_expiry: Task<()>,
+    /// How far back older mail has been fetched, by account and folder wire name. Absent
+    /// means not yet asked for, and `None` means the beginning of the folder was reached.
+    older_reached: HashMap<(String, String), Option<mailstronaut_core::sync::Position>>,
+    /// Present while older mail is being fetched.
+    older_fetch: Option<CancellationToken>,
     syncing: BTreeSet<String>,
     sync_errors: BTreeMap<String, String>,
     last_sync: String,
@@ -493,6 +498,8 @@ impl Workspace {
             search_pause: Task::ready(()),
             priority: None,
             priority_expiry: Task::ready(()),
+            older_reached: HashMap::new(),
+            older_fetch: None,
             syncing: BTreeSet::new(),
             sync_errors: BTreeMap::new(),
             last_sync: String::new(),
@@ -2106,37 +2113,166 @@ impl Workspace {
                     .min_h_0()
                     .child(List::new(&self.list).size_full()),
             )
-            .when(self.pages.more || self.pages.has_previous(), |view| {
-                view.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .gap_2()
-                        .p_2()
-                        .border_t_1()
-                        .border_color(cx.theme().border)
-                        .child(
-                            Button::new("newer-conversations")
-                                .ghost()
-                                .label("Newer")
-                                .disabled(loading || !self.pages.has_previous())
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.turn_page(false, window, cx);
-                                })),
-                        )
-                        .child(Label::new(format!("Page {}", self.pages.number())).text_xs())
-                        .child(
-                            Button::new("older-conversations")
-                                .ghost()
-                                .label("Older")
-                                .disabled(loading || !self.pages.more)
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.turn_page(true, window, cx);
-                                })),
-                        ),
+            .when(
+                self.pages.more || self.pages.has_previous() || self.can_fetch_older(),
+                |view| {
+                    view.child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .gap_2()
+                            .p_2()
+                            .border_t_1()
+                            .border_color(cx.theme().border)
+                            .child(
+                                Button::new("newer-conversations")
+                                    .ghost()
+                                    .label("Newer")
+                                    .disabled(loading || !self.pages.has_previous())
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.turn_page(false, window, cx);
+                                    })),
+                            )
+                            .child(Label::new(format!("Page {}", self.pages.number())).text_xs())
+                            .child(if !self.pages.more && self.can_fetch_older() {
+                                Button::new("fetch-older-mail")
+                                    .ghost()
+                                    .label("Fetch older mail")
+                                    .tooltip("Download older mail from the server")
+                                    .loading(self.older_fetch.is_some())
+                                    .disabled(loading || self.older_fetch.is_some())
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.fetch_older(window, cx);
+                                    }))
+                            } else {
+                                Button::new("older-conversations")
+                                    .ghost()
+                                    .label("Older")
+                                    .disabled(loading || !self.pages.more)
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.turn_page(true, window, cx);
+                                    }))
+                            }),
+                    )
+                },
+            )
+    }
+
+    /// Where older mail for the current view would come from, leaving out folders already
+    /// fetched back to their beginning.
+    fn older_targets(&self) -> Vec<(Account, String, bool)> {
+        let Some(config) = self.declaration.active() else {
+            return Vec::new();
+        };
+        let inbox_of = |account: &Account| {
+            let folder = account
+                .folders
+                .inbox
+                .clone()
+                .unwrap_or_else(|| "INBOX".into());
+            (account.clone(), folder, true)
+        };
+        let targets: Vec<_> = match &self.scope {
+            Scope::Inbox => config.accounts.iter().map(inbox_of).collect(),
+            Scope::Account(id) => config
+                .accounts
+                .iter()
+                .filter(|account| &account.id == id)
+                .map(inbox_of)
+                .collect(),
+            Scope::Folder { account, folder } => config
+                .accounts
+                .iter()
+                .filter(|item| &item.id == account)
+                .filter_map(|item| {
+                    let found = self.folders.iter().find(|row| &row.id == folder)?;
+                    Some((item.clone(), found.name.clone(), found.inbox))
+                })
+                .collect(),
+        };
+        targets
+            .into_iter()
+            .filter(|(account, folder, _)| {
+                !matches!(
+                    self.older_reached
+                        .get(&(account.id.clone(), folder.clone())),
+                    Some(None)
                 )
             })
+            .collect()
+    }
+
+    fn can_fetch_older(&self) -> bool {
+        self.view == View::Inbox
+            && self.query.trim().is_empty()
+            && self.handle().is_some()
+            && !self.older_targets().is_empty()
+    }
+
+    fn fetch_older(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let Some(store) = self.handle() else {
+            return;
+        };
+        if self.older_fetch.is_some() {
+            return;
+        }
+        let cancel = self.lifetime.child_token();
+        self.older_fetch = Some(cancel.clone());
+        let targets = self.older_targets();
+        let reached = self.older_reached.clone();
+        let access = self.account_access.clone();
+        let job = self.runtime.spawn(async move {
+            let mut progress = Vec::new();
+            let mut downloaded = 0;
+            for (account, folder, inbox) in targets {
+                let key = (account.id.clone(), folder.clone());
+                let resume = reached.get(&key).copied().flatten();
+                match access
+                    .fetch_older(&store, &account, &folder, inbox, resume, &cancel)
+                    .await
+                {
+                    Ok(older) => {
+                        downloaded += older.downloaded;
+                        progress.push((key, older.resume));
+                    }
+                    Err(error) => return (progress, downloaded, Some(error)),
+                }
+            }
+            (progress, downloaded, None)
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                this.older_fetch = None;
+                let notice = match result {
+                    Ok((progress, downloaded, failure)) => {
+                        this.older_reached.extend(progress);
+                        if let Some(search) = &this.fuzzy {
+                            search.wake();
+                        }
+                        if let Some(priority) = &this.priority {
+                            priority.wake();
+                        }
+                        failure.unwrap_or_else(|| match downloaded {
+                            0 => "There is no older mail on the server.".to_owned(),
+                            1 => "Fetched 1 older message.".to_owned(),
+                            count => format!("Fetched {count} older messages."),
+                        })
+                    }
+                    Err(_) => "Fetching older mail was interrupted.".to_owned(),
+                };
+                window.push_notification(
+                    Notification::new()
+                        .message(notice)
+                        .delivery(NotificationDelivery::InApp),
+                    cx,
+                );
+                this.refresh_rows(window, cx);
+            });
+        })
+        .detach();
+        cx.notify();
     }
     fn reader(&self, cx: &Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
