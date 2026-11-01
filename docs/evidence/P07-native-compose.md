@@ -45,10 +45,35 @@ loopback TLS SMTP fixture. It uses real keyboard input and asserts durable state
 - The synthetic credential appears in no application or server log.
 - A further restart still shows the accepted entry and offers no resend.
 
+## When a send does not simply succeed
+
+Before starting a mail transaction, submission connects, signs in and leaves. A failure
+there proves nothing was sent, which a failure during submission cannot, because lettre
+reports a refused connection and a lost DATA acknowledgment the same way. It costs one extra
+connection per send. Without it, sending while offline warned that the mail might already
+have been delivered.
+
+`experiments/p07-compose/delivery.sh`, called by `credentials.sh` with
+`MAILSTRONAUT_DELIVERY_GUI_BINARY`, takes one message through each case in a private sway
+session, with real input and the SMTP fixture on a fixed port:
+
+- No server listening: "Not sent", with Retry and no duplicate warning.
+- 451 after DATA: still "Not sent", with Retry and no duplicate warning.
+- Connection dropped after DATA: "Delivery unknown" with one warning and "Send again…".
+- With a server ready to accept, neither waiting nor a restart sent anything.
+- "Send again…" opens a confirmation, and dismissing it sends nothing.
+- Confirming while the server is unreachable keeps the warning, because the earlier attempt
+  may still have delivered.
+- Confirming with the server back is accepted.
+- All three attempts that reached DATA carried byte-identical mail, so the Message-ID is the same.
+
+`crates/mailstronaut-mail/tests/smtp.rs` checks that the pre-flight starts no transaction
+and reports a closed port and a refused sign-in as sending nothing.
+
 ## Not established
 
 No live provider or real desktop portal. The GUI path has not yet exercised: attachments
-through a portal, failed or unknown delivery with its resend dialog, discard, identity
-switching, or Reply/Forward. Backend tests cover several of those states. There is no
-signature field yet, and Sent APPEND is not implemented, so the Sent-copy state stays
-pending for non-Google accounts.
+through a portal, a pending row's Cancel, TLS or sign-in errors while sending, discard,
+identity switching, or Reply/Forward. Backend tests cover several of those states. There is
+no signature field yet. A connection lost between the pre-flight and DATA is still reported
+as unknown, the safe direction.

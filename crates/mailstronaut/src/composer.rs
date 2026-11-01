@@ -1135,6 +1135,9 @@ fn outcome_text(result: &Result<Outcome, String>) -> String {
         Ok(Outcome::CancelledBeforeSubmission) => {
             "Cancelled before anything was sent. The draft was restored.".into()
         }
+        Ok(Outcome::Unreachable) => {
+            "Could not reach the mail server, so nothing was sent. Retry it from the outbox.".into()
+        }
         Ok(Outcome::Rejected { temporary: true }) => {
             "The server temporarily rejected this message. Retry it from the outbox.".into()
         }
@@ -1168,6 +1171,7 @@ mod tests {
             Outcome::TlsFailed,
             Outcome::CapabilityUnavailable,
             Outcome::CancelledBeforeSubmission,
+            Outcome::Unreachable,
         ] {
             assert!(!outcome_text(&Ok(refused)).contains("accepted"));
         }

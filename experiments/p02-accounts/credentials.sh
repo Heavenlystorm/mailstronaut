@@ -62,6 +62,9 @@ fi
 if [[ -n ${MAILSTRONAUT_IDLE_GUI_BINARY:-} ]]; then
   bash experiments/p04-sync/idle.sh "$MAILSTRONAUT_IDLE_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_DELIVERY_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/delivery.sh "$MAILSTRONAUT_DELIVERY_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"
 fi

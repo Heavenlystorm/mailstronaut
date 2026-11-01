@@ -420,12 +420,13 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   Expose draft/save/outbox state in `StatusBar`, with persistent `Alert` failures.
 - [ ] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
   Preserve fixed frozen bytes and Message-ID; no automatic ambiguous-delivery retry.
-  [Accepted path passes natively](evidence/P07-native-compose.md); failed and unknown
-  delivery still need GUI acceptance.
+  [Accepted, unreachable, rejected and unknown delivery pass natively](evidence/P07-native-compose.md);
+  Cancel and TLS or sign-in errors still need GUI acceptance.
 - [ ] Complete accepted-DATA/drop reconciliation, provider Sent auto-save and
   separately retriable Sent APPEND. Sent-copy failure must never trigger SMTP resend.
-  [Sent APPEND passes against a real server](evidence/P04-background-sync.md);
-  drop reconciliation in the GUI remains open.
+  [Sent APPEND passes against a real server](evidence/P04-background-sync.md), and a lost
+  acknowledgment [waits for an explicit decision](evidence/P07-native-compose.md); a failed
+  Sent copy has not been exercised.
 - [ ] Port native flag/undo controls and implement safe archive/trash/move with
   pending operations, UID MOVE/UIDPLUS fallbacks and no unrelated global EXPUNGE.
   Reuse `Toolbar`/`ToolbarGroup`, `Button`, `DropdownButton`/`PopupMenu` and

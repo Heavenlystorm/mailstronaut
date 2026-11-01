@@ -146,9 +146,11 @@ impl Composer {
                     .text_xs()
                     .text_color(muted),
             )
-            .when_some(entry.error.clone(), |view, error| {
-                view.child(Label::new(error).text_xs().text_color(muted))
-            })
+            // The stored error for a possibly delivered message says the same as this.
+            .when_some(
+                entry.error.clone().filter(|_| !may_duplicate),
+                |view, error| view.child(Label::new(error).text_xs().text_color(muted)),
+            )
             .when(may_duplicate, |view| {
                 view.child(
                     Label::new("An earlier attempt may have delivered this. Check Sent first.")

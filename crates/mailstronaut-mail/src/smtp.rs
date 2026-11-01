@@ -55,6 +55,8 @@ pub enum Outcome {
     TlsFailed,
     /// Cancellation was already requested before submitting anything.
     CancelledBeforeSubmission,
+    /// The server could not be reached or signed in to, and no mail transaction began.
+    Unreachable,
     /// Connection loss, cancellation or timeout after submission was attempted.
     /// The server might have accepted DATA. Persist and reconcile; do not resend.
     DeliveryUnknown,
@@ -143,6 +145,22 @@ impl Transport {
         .map_err(|_| Error::Trust)?
     }
 
+    /// Connect, sign in and leave, without starting a mail transaction. A failure here
+    /// proves nothing was submitted, which a failure in `submit` cannot: the library
+    /// reports a refused connection and a lost DATA acknowledgment the same way.
+    ///
+    /// # Errors
+    /// Returns the outcome to record instead of submitting.
+    pub async fn check(&self, cancel: &CancellationToken) -> Result<(), Outcome> {
+        let operation = tokio::time::timeout(Duration::from_secs(30), self.0.test_connection());
+        match cancel.run_until_cancelled(operation).await {
+            None => Err(Outcome::CancelledBeforeSubmission),
+            Some(Ok(Ok(true))) => Ok(()),
+            Some(Ok(Err(error))) => Err(refusal(&error).unwrap_or(Outcome::Unreachable)),
+            Some(_) => Err(Outcome::Unreachable),
+        }
+    }
+
     /// Submit exactly the stored MIME/envelope once. Call only after durable
     /// outbox intent is committed, and persist this result before offering retry.
     pub async fn submit(&self, message: &Frozen, cancel: &CancellationToken) -> Outcome {
@@ -161,22 +179,29 @@ impl Transport {
         );
         match cancel.run_until_cancelled(operation).await {
             Some(Ok(Ok(_))) => Outcome::Accepted,
-            Some(Ok(Err(error))) if certificate_failure(&error) => Outcome::TlsFailed,
-            Some(Ok(Err(error))) if error.is_client() => Outcome::CapabilityUnavailable,
-            Some(Ok(Err(error)))
-                if error
-                    .status()
-                    .is_some_and(|code| matches!(code.to_string().as_str(), "534" | "535")) =>
-            {
-                Outcome::AuthenticationRequired
-            }
-            Some(Ok(Err(error))) if error.is_permanent() || error.is_transient() => {
-                Outcome::Rejected {
-                    temporary: error.is_transient(),
-                }
-            }
+            Some(Ok(Err(error))) => refusal(&error).unwrap_or(Outcome::DeliveryUnknown),
             _ => Outcome::DeliveryUnknown,
         }
+    }
+}
+
+/// What the server or the client definitely refused; `None` when the error says nothing.
+fn refusal(error: &lettre::transport::smtp::Error) -> Option<Outcome> {
+    if certificate_failure(error) {
+        Some(Outcome::TlsFailed)
+    } else if error.is_client() {
+        Some(Outcome::CapabilityUnavailable)
+    } else if error
+        .status()
+        .is_some_and(|code| matches!(code.to_string().as_str(), "534" | "535"))
+    {
+        Some(Outcome::AuthenticationRequired)
+    } else if error.is_permanent() || error.is_transient() {
+        Some(Outcome::Rejected {
+            temporary: error.is_transient(),
+        })
+    } else {
+        None
     }
 }
 

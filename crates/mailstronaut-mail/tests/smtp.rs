@@ -81,6 +81,36 @@ async fn fixture(starttls: bool, advertise_tls: bool, mode: Mode) -> (u16, JoinH
     let port = listener.local_addr().expect("address").port();
     let server = tokio::spawn(async move {
         let (socket, _) = listener.accept().await.expect("accept");
+        connection(socket, starttls, advertise_tls, mode).await
+    });
+    (port, server)
+}
+/// The application checks the server first and submits on a second connection, so this
+/// keeps accepting until a connection carries DATA.
+async fn fixture_until_data(port: u16, mode: Mode) -> (u16, JoinHandle<Observed>) {
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .await
+        .expect("loopback");
+    let port = listener.local_addr().expect("address").port();
+    let server = tokio::spawn(async move {
+        let mut observed = Observed::default();
+        while !observed.commands.iter().any(|line| line == "DATA\r\n") {
+            let (socket, _) = listener.accept().await.expect("accept");
+            let next = connection(socket, false, true, mode).await;
+            observed.commands.extend(next.commands);
+            observed.data.extend(next.data);
+        }
+        observed
+    });
+    (port, server)
+}
+async fn connection(
+    socket: TcpStream,
+    starttls: bool,
+    advertise_tls: bool,
+    mode: Mode,
+) -> Observed {
+    {
         let mut observed = Observed::default();
         let socket = if starttls {
             let mut socket = BufReader::new(socket);
@@ -129,8 +159,23 @@ async fn fixture(starttls: bool, advertise_tls: bool, mode: Mode) -> (u16, JoinH
             Ok(socket) => serve(socket, observed, !starttls, mode).await,
             Err(_) => observed,
         }
-    });
-    (port, server)
+    }
+}
+async fn read_body(socket: &mut BufReader<TlsStream<TcpStream>>, observed: &mut Observed) {
+    loop {
+        let mut line = Vec::new();
+        assert!(
+            socket.read_until(b'\n', &mut line).await.expect("body") > 0,
+            "client disconnected before DATA terminator"
+        );
+        if line == b".\r\n" {
+            return;
+        }
+        if line.starts_with(b"..") {
+            line.remove(0);
+        }
+        observed.data.extend(line);
+    }
 }
 async fn serve(
     socket: TlsStream<TcpStream>,
@@ -192,26 +237,22 @@ async fn serve(
             "235 2.7.0 authenticated\r\n"
         } else if line.starts_with("MAIL FROM:") || line.starts_with("RCPT TO:") {
             "250 2.1.0 accepted\r\n"
+        } else if line == "NOOP\r\n" {
+            "250 2.0.0 fine\r\n"
+        } else if line == "QUIT\r\n" {
+            socket
+                .get_mut()
+                .write_all(b"221 2.0.0 goodbye\r\n")
+                .await
+                .expect("QUIT");
+            return observed;
         } else if line == "DATA\r\n" {
             socket
                 .get_mut()
                 .write_all(b"354 Send data\r\n")
                 .await
                 .expect("DATA");
-            loop {
-                let mut line = Vec::new();
-                assert!(
-                    socket.read_until(b'\n', &mut line).await.expect("body") > 0,
-                    "client disconnected before DATA terminator"
-                );
-                if line == b".\r\n" {
-                    break;
-                }
-                if line.starts_with(b"..") {
-                    line.remove(0);
-                }
-                observed.data.extend(line);
-            }
+            read_body(&mut socket, &mut observed).await;
             if !matches!(mode, Mode::DropAfterData) {
                 let response = if matches!(mode, Mode::RejectData) {
                     b"451 4.3.0 synthetic temporary rejection\r\n".as_slice()
@@ -452,10 +493,14 @@ async fn gui_loopback_server() {
         Mode::AcceptOAuth
     } else if std::env::var("MAILSTRONAUT_SMTP_DROP_ACK").as_deref() == Ok("1") {
         Mode::DropAfterData
+    } else if std::env::var("MAILSTRONAUT_SMTP_REJECT_DATA").as_deref() == Ok("1") {
+        Mode::RejectData
     } else {
         Mode::Accept
     };
-    let (port, server) = fixture(false, true, mode).await;
+    let bind = std::env::var("MAILSTRONAUT_SMTP_BIND_PORT")
+        .map_or(0, |port| port.parse().expect("numeric port"));
+    let (port, server) = fixture_until_data(bind, mode).await;
     std::fs::write(output, port.to_string()).expect("rendezvous");
     let observed = tokio::time::timeout(std::time::Duration::from_secs(180), server)
         .await
@@ -479,6 +524,121 @@ async fn gui_loopback_server() {
     std::fs::write(directory.join("received.eml"), observed.data)
         .expect("synthetic received original");
     println!("One SMTP DATA received; Bcc recipient was envelope-only.");
+}
+
+#[tokio::test]
+async fn the_check_signs_in_and_starts_no_mail_transaction() {
+    let (port, server) = fixture(false, true, Mode::Accept).await;
+    let password = SecretString::from(PASSWORD);
+    let transport = Transport::prepare(
+        &endpoint("localhost", port, false),
+        &roots(),
+        USER,
+        Authentication::Password(&password),
+    )
+    .await
+    .expect("prepare");
+    assert_eq!(transport.check(&CancellationToken::new()).await, Ok(()));
+    let observed = server.await.expect("server");
+    assert!(
+        observed
+            .commands
+            .iter()
+            .any(|line| line.starts_with("AUTH "))
+    );
+    assert!(observed.commands.iter().any(|line| line == "QUIT\r\n"));
+    assert!(!observed.commands.iter().any(|line| {
+        line.starts_with("MAIL FROM:") || line.starts_with("RCPT TO:") || line == "DATA\r\n"
+    }));
+    assert_eq!(observed.data, b"");
+}
+
+#[tokio::test]
+async fn an_unreachable_server_or_refused_sign_in_is_known_to_have_sent_nothing() {
+    let closed = {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.expect("loopback");
+        listener.local_addr().expect("address").port()
+    };
+    let password = SecretString::from(PASSWORD);
+    let transport = Transport::prepare(
+        &endpoint("localhost", closed, false),
+        &roots(),
+        USER,
+        Authentication::Password(&password),
+    )
+    .await
+    .expect("prepare");
+    assert_eq!(
+        transport.check(&CancellationToken::new()).await,
+        Err(Outcome::Unreachable)
+    );
+    let (port, server) = fixture(false, true, Mode::RejectAuth).await;
+    let transport = Transport::prepare(
+        &endpoint("localhost", port, false),
+        &roots(),
+        USER,
+        Authentication::Password(&password),
+    )
+    .await
+    .expect("prepare");
+    assert_eq!(
+        transport.check(&CancellationToken::new()).await,
+        Err(Outcome::AuthenticationRequired)
+    );
+    assert_eq!(server.await.expect("server").data, b"");
+}
+
+#[tokio::test]
+async fn an_unreachable_retry_cannot_erase_that_an_earlier_attempt_may_have_delivered() {
+    use mailstronaut_core::{
+        store::outbox::{Draft, Phase},
+        worker::Worker,
+    };
+    let root = tempfile::tempdir().expect("disposable outbox");
+    let worker = Worker::open(root.path().to_owned()).await.expect("owner");
+    let store = worker.handle();
+    store.ensure_account("a".into()).await.expect("account");
+    let mut draft = Draft::new("a".into(), "sender@example.test".into());
+    draft.content.to = "to@example.test".into();
+    draft.content.body = "Synthetic retry.".into();
+    store.save_draft(draft.clone()).await.expect("draft");
+    let queued = store
+        .queue_draft("a".into(), draft.id, draft.revision, false)
+        .await
+        .expect("freeze");
+    let finish = async |outcome| {
+        let submission = store
+            .begin_submission("a".into(), queued.id.clone())
+            .await
+            .expect("attempt");
+        store
+            .finish_submission(submission, outcome)
+            .await
+            .expect("durable outcome");
+        store.outbox(vec!["a".into()]).await.expect("outbox")[0].clone()
+    };
+    let entry = finish(Outcome::Unreachable).await;
+    assert_eq!(entry.phase, Phase::Failed);
+    assert!(!entry.uncertain, "nothing was sent, so no warning is due");
+    store
+        .retry_submission("a".into(), queued.id.clone(), false)
+        .await
+        .expect("an ordinary retry needs no consent");
+    assert_eq!(
+        finish(Outcome::DeliveryUnknown).await.phase,
+        Phase::DeliveryUnknown
+    );
+    store
+        .retry_submission("a".into(), queued.id.clone(), true)
+        .await
+        .expect("explicit consent");
+    let entry = finish(Outcome::Unreachable).await;
+    assert_eq!(entry.phase, Phase::DeliveryUnknown);
+    assert!(
+        entry.uncertain,
+        "the earlier attempt may still have delivered"
+    );
+    worker.shutdown().await.expect("shutdown");
 }
 
 #[tokio::test]

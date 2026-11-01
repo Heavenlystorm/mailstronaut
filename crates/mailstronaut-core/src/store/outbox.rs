@@ -450,6 +450,10 @@ impl Store {
                 Some("TLS validation failed before submission"),
             ),
             Outcome::CancelledBeforeSubmission => (Phase::Cancelled, None),
+            Outcome::Unreachable => (
+                Phase::Failed,
+                Some("could not reach the mail server; nothing was sent"),
+            ),
             Outcome::DeliveryUnknown => (
                 Phase::DeliveryUnknown,
                 Some("delivery unknown; check Sent before deciding whether to resend"),

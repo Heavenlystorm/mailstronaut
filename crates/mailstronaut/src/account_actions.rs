@@ -558,6 +558,7 @@ async fn submit_frozen(
     .await
     .map_err(|error| error.to_string())?;
     drop(credential);
+    let checked = transport.check(cancel).await;
     if cancel.is_cancelled() {
         store
             .cancel_submission(account.id.clone(), id.into())
@@ -572,10 +573,10 @@ async fn submit_frozen(
     let allowed = std::iter::once(&account.address)
         .chain(&account.aliases)
         .any(|address| submission.message.sender_is(address));
-    let outcome = if allowed {
-        transport.submit(&submission.message, cancel).await
-    } else {
-        Outcome::CancelledBeforeSubmission
+    let outcome = match (allowed, checked) {
+        (false, _) => Outcome::CancelledBeforeSubmission,
+        (true, Err(outcome)) => outcome,
+        (true, Ok(())) => transport.submit(&submission.message, cancel).await,
     };
     store
         .finish_submission(submission, outcome)
