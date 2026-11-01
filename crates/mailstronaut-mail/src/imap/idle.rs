@@ -15,6 +15,14 @@ pub struct Position {
     exists: u32,
 }
 
+impl Position {
+    /// The folder's UID namespace, which every stored UID is only valid within.
+    #[must_use]
+    pub const fn uid_validity(self) -> Option<u32> {
+        self.uid_validity
+    }
+}
+
 /// Why one IDLE period ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Wake {

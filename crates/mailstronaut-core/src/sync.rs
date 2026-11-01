@@ -43,7 +43,7 @@ pub struct Request<'a> {
     pub before: Option<Position>,
     /// Skip downloading older originals, while still reconciling cached flags.
     pub earliest: i64,
-    /// User's configured original-size budget, no greater than 8 MiB.
+    /// Larger originals are not kept: only their headers and text are, no greater than 8 MiB.
     pub max_original: u32,
 }
 
@@ -260,12 +260,7 @@ pub async fn page(
         )
         .await?;
     let mut page = Page {
-        next_before: (first.get() > 1).then_some(Position {
-            context: Sha256::digest(request.context.as_bytes()).into(),
-            folder: folder.id,
-            uid_validity: validity,
-            before: first,
-        }),
+        next_before: (first.get() > 1).then(|| position(request, folder.id, validity, first)),
         ..Page::default()
     };
     let mut downloaded_bytes = 0;
@@ -287,11 +282,21 @@ pub async fn page(
                 page.refreshed += 1;
                 continue;
             }
-            if observed.received_at < request.earliest
-                || observed.size == 0
-                || observed.size > request.max_original
-            {
+            if observed.received_at < request.earliest || observed.size == 0 {
                 page.skipped += 1;
+                continue;
+            }
+            if observed.size > request.max_original {
+                // Too large to keep, but it still arrived: show what can be read.
+                if cache_reduced(
+                    store, connection, request, folder.id, validity, &observed, cancel,
+                )
+                .await?
+                {
+                    page.downloaded += 1;
+                } else {
+                    page.skipped += 1;
+                }
                 continue;
             }
             if downloaded_bytes + observed.size > BODY_BUDGET {
@@ -301,12 +306,7 @@ pub async fn page(
                     .get()
                     .checked_add(1)
                     .and_then(NonZeroU32::new)
-                    .map(|before| Position {
-                        context: Sha256::digest(request.context.as_bytes()).into(),
-                        folder: folder.id,
-                        uid_validity: validity,
-                        before,
-                    });
+                    .map(|before| position(request, folder.id, validity, before));
                 return Ok(page);
             }
             let Some(message) = connection.peek(&observed, cancel).await? else {
@@ -332,6 +332,54 @@ pub async fn page(
     }
     Ok(page)
 }
+fn position(
+    request: &Request<'_>,
+    folder: i64,
+    uid_validity: NonZeroU32,
+    before: NonZeroU32,
+) -> Position {
+    Position {
+        context: Sha256::digest(request.context.as_bytes()).into(),
+        folder,
+        uid_validity,
+        before,
+    }
+}
+
+/// Returns whether a reduced copy was stored. An expunged message or one whose headers
+/// the parser refuses is simply not cached, like any other unsupported message.
+async fn cache_reduced(
+    store: &worker::Handle,
+    connection: &mut Connection,
+    request: &Request<'_>,
+    folder: i64,
+    validity: NonZeroU32,
+    observed: &Metadata,
+    cancel: &CancellationToken,
+) -> Result<bool, Error> {
+    let Some(outline) = connection.outline(observed, cancel).await? else {
+        return Ok(false);
+    };
+    let Some((reduced, omitted)) = crate::outline::reduce(&outline) else {
+        return Ok(false);
+    };
+    match store
+        .cache_reduced(
+            request.account.into(),
+            membership(folder, validity, &outline.metadata),
+            outline.metadata.received_at,
+            outline.metadata.gmail_id.map(GmailId),
+            reduced,
+            omitted,
+        )
+        .await
+    {
+        Ok(_) => Ok(true),
+        Err(worker::Error::UnsupportedMessage) => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
 async fn prepare(
     store: &worker::Handle,
     connection: &mut Connection,

@@ -40,6 +40,9 @@ CREATE INDEX message_memberships ON memberships(message_id);
 CREATE INDEX inbox_folders ON folders(account_id, is_inbox);
 ";
 
+/// Messages too large to keep record what stayed on the server.
+pub(super) const OUTLINE_SCHEMA: &str = "ALTER TABLE messages ADD COLUMN omitted TEXT;";
+
 /// A discovered mailbox and its current server generation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Folder {
@@ -371,6 +374,93 @@ impl Store {
         gmail: Option<GmailId>,
         original: &[u8],
     ) -> Result<i64, Error> {
+        self.cache(account, membership, received_at, gmail, original, None)
+    }
+
+    /// Cache the small copy of a message too large to keep, and what it leaves out, in one
+    /// transaction: a message cannot appear without knowing that it is incomplete.
+    ///
+    /// # Errors
+    /// As [`Self::cache_message`].
+    pub fn cache_reduced(
+        &mut self,
+        account: &str,
+        membership: Membership,
+        received_at: i64,
+        gmail: Option<GmailId>,
+        reduced: &[u8],
+        omitted: &crate::outline::Omitted,
+    ) -> Result<i64, Error> {
+        let omitted = serde_json::to_string(omitted)?;
+        self.cache(
+            account,
+            membership,
+            received_at,
+            gmail,
+            reduced,
+            Some(&omitted),
+        )
+    }
+
+    /// What a stored message leaves on the server, if anything.
+    ///
+    /// # Errors
+    /// Reports storage failures and unreadable stored data.
+    pub fn omitted(
+        &self,
+        account: &str,
+        message: i64,
+    ) -> Result<Option<crate::outline::Omitted>, Error> {
+        let stored: Option<Option<String>> = self
+            .connection
+            .query_row(
+                "SELECT omitted FROM messages WHERE account_id=?1 AND id=?2",
+                params![account, message],
+                |row| row.get(0),
+            )
+            .optional()?;
+        stored
+            .flatten()
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()
+            .map_err(Error::from)
+    }
+
+    /// Where the server has a message now: its folder's wire name, UID namespace and UID.
+    /// An inbox copy is preferred, as the one most likely to still be there.
+    ///
+    /// # Errors
+    /// Reports storage failures.
+    pub fn location(
+        &self,
+        account: &str,
+        message: i64,
+    ) -> Result<Option<(String, NonZeroU32, NonZeroU32)>, Error> {
+        let found: Option<(String, u32, u32)> = self
+            .connection
+            .query_row(
+                "SELECT f.name,s.uidvalidity,s.uid FROM memberships s
+                 JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
+                 WHERE s.account_id=?1 AND s.message_id=?2 ORDER BY f.is_inbox DESC,s.uid LIMIT 1",
+                params![account, message],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?;
+        Ok(found.and_then(|(name, validity, uid)| {
+            Some((name, NonZeroU32::new(validity)?, NonZeroU32::new(uid)?))
+        }))
+    }
+
+    fn cache(
+        &mut self,
+        account: &str,
+        membership: Membership,
+        received_at: i64,
+        gmail: Option<GmailId>,
+        original: &[u8],
+        omitted: Option<&str>,
+    ) -> Result<i64, Error> {
         let projection = mime::project(original).map_err(Error::Mime)?;
         let metadata = serde_json::to_string(&Metadata {
             headers: projection.headers.clone(),
@@ -422,6 +512,12 @@ impl Store {
             "INSERT OR REPLACE INTO search_pending(message_id) VALUES (?1)",
             params![id],
         )?;
+        if omitted.is_some() {
+            tx.execute(
+                "UPDATE messages SET omitted=?2 WHERE id=?1",
+                params![id, omitted],
+            )?;
+        }
         tx.commit()?;
         Ok(id)
     }

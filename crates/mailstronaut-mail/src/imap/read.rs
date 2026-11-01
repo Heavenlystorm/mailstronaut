@@ -255,7 +255,7 @@ impl Connection {
     }
 }
 
-fn metadata(fetch: &Fetch, gmail: bool) -> Result<Metadata, Error> {
+pub(super) fn metadata(fetch: &Fetch, gmail: bool) -> Result<Metadata, Error> {
     let uid = fetch.uid.and_then(NonZeroU32::new).ok_or(Error::Protocol)?;
     let size = fetch.size.ok_or(Error::Protocol)?;
     let received_at = fetch.internal_date().ok_or(Error::Protocol)?.timestamp();

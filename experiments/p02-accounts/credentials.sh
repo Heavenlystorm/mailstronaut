@@ -71,6 +71,9 @@ fi
 if [[ -n ${MAILSTRONAUT_PRIORITY_GUI_BINARY:-} ]]; then
   bash experiments/p09-priority/gui.sh "$MAILSTRONAUT_PRIORITY_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_LARGE_GUI_BINARY:-} ]]; then
+  bash experiments/p04-sync/large.sh "$MAILSTRONAUT_LARGE_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"
 fi

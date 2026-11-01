@@ -174,6 +174,8 @@ pub struct Workspace {
     html_reader: Entity<crate::html_reader::HtmlReader>,
     _html_events: Subscription,
     opened_message: Option<Arc<mailstronaut_core::mime::Projection>>,
+    /// What the opened message left on the server, if it is too large to keep.
+    opened_omitted: Option<mailstronaut_core::outline::Omitted>,
     preferred_reader: ReaderMode,
     reader_notice: String,
     headers_open: bool,
@@ -467,6 +469,7 @@ impl Workspace {
             html_reader,
             _html_events: html_events,
             opened_message: None,
+            opened_omitted: None,
             preferred_reader: ReaderMode::Html,
             reader_notice: String::new(),
             headers_open: false,
@@ -758,6 +761,7 @@ impl Workspace {
         self.html_reader
             .update(cx, crate::html_reader::HtmlReader::hide);
         self.opened_message = None;
+        self.opened_omitted = None;
         self.headers_open = false;
         self.reader_notice.clear();
         self.read_gate
@@ -1041,9 +1045,11 @@ impl Workspace {
                 self.present_html(cx);
             }
         } else if let Some(handle) = self.handle() {
-            let job = self
-                .runtime
-                .spawn(async move { handle.message(row.account.clone(), row.id).await });
+            let job = self.runtime.spawn(async move {
+                let message = handle.message(row.account.clone(), row.id).await?;
+                let omitted = handle.omitted(row.account.clone(), row.id).await?;
+                Ok::<_, mailstronaut_core::worker::Error>((message, omitted))
+            });
             cx.spawn_in(window, async move |this, cx| {
                 let result = job.await;
                 _ = this.update_in(cx, |this, window, cx| {
@@ -1053,7 +1059,8 @@ impl Workspace {
                         return;
                     }
                     match result {
-                        Ok(Ok(message)) => {
+                        Ok(Ok((message, omitted))) => {
+                            this.opened_omitted = omitted;
                             let readable = message.readable_text();
                             let text = readable.map_or_else(
                                 || "No readable body is cached.".into(),
@@ -2148,6 +2155,7 @@ impl Workspace {
             .when_some(self.opened_message.as_ref(), |view, message| {
                 view.child(self.message_details(message, cx))
                     .child(Self::received_attachments(message, cx))
+                    .child(self.remote_attachments(cx))
             })
             .when(!self.reader_notice.is_empty(), |view| {
                 view.child(
@@ -2213,6 +2221,130 @@ impl Workspace {
                     }),
                 ))
         })
+    }
+
+    /// Attachments of a message too large to keep are listed like any others, and
+    /// downloaded from the server only when saved.
+    fn remote_attachments(&self, cx: &Context<Self>) -> impl IntoElement {
+        let omitted = self.opened_omitted.as_ref();
+        div().when_some(omitted, |view, omitted| {
+            let muted = cx.theme().muted_foreground;
+            view.mb_3()
+                .child(
+                    Label::new(format!(
+                        "This message is {}, too large to keep on this device. Its attachments stay on the server until you save them.",
+                        crate::composer::size_label(omitted.size as usize)
+                    ))
+                    .text_sm()
+                    .text_color(muted)
+                    .mb_2(),
+                )
+                .when(!omitted.attachments.is_empty(), |view| {
+                    view.child(AttachmentGroup::new("remote-attachments").children(
+                        omitted.attachments.iter().enumerate().map(|(index, part)| {
+                            let name = part.name.clone().unwrap_or_else(|| "Attachment".into());
+                            let size = usize::try_from(part.size).unwrap_or(usize::MAX);
+                            Attachment::new()
+                                .id(("remote-attachment", index))
+                                .tooltip("Download and save a copy")
+                                .content(
+                                    AttachmentContent::new()
+                                        .title(AttachmentTitle::new(name))
+                                        .description(AttachmentDescription::new(format!(
+                                            "On the server · about {}",
+                                            crate::composer::size_label(size)
+                                        ))),
+                                )
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.save_remote_attachment(index, window, cx);
+                                }))
+                        }),
+                    ))
+                })
+        })
+    }
+
+    /// The chooser comes first, so that nothing is downloaded for a save that is cancelled.
+    fn save_remote_attachment(&self, index: usize, window: &Window, cx: &Context<Self>) {
+        let (Some(row), Some(part), Some(store)) = (
+            self.selected.clone(),
+            self.opened_omitted
+                .as_ref()
+                .and_then(|omitted| omitted.attachments.get(index))
+                .cloned(),
+            self.handle(),
+        ) else {
+            return;
+        };
+        let Some(account) = self
+            .declaration
+            .active()
+            .and_then(|config| config.accounts.iter().find(|item| item.id == row.account))
+            .cloned()
+        else {
+            return;
+        };
+        let suggested = part
+            .name
+            .as_deref()
+            .filter(|name| mailstronaut_mail::compose::valid_attachment_name(name))
+            .unwrap_or("attachment")
+            .to_owned();
+        let directory = directories::UserDirs::new()
+            .and_then(|dirs| {
+                dirs.download_dir()
+                    .map(std::path::Path::to_path_buf)
+                    .or_else(|| Some(dirs.home_dir().to_path_buf()))
+            })
+            .unwrap_or_default();
+        let chosen = cx.prompt_for_new_path(&directory, Some(&suggested));
+        let (runtime, access, cancel) = (
+            self.runtime.clone(),
+            self.account_access.clone(),
+            self.lifetime.child_token(),
+        );
+        cx.spawn_in(window, async move |this, cx| {
+            let notice = match chosen.await {
+                Ok(Ok(Some(path))) => {
+                    _ = this.update_in(cx, |_, window, cx| {
+                        window.push_notification(
+                            Notification::new()
+                                .message("Downloading the attachment from the server…")
+                                .delivery(NotificationDelivery::InApp),
+                            cx,
+                        );
+                    });
+                    let saved = runtime
+                        .spawn(async move {
+                            let bytes = access
+                                .fetch_attachment(&store, &account, row.id, &part.section, &cancel)
+                                .await?;
+                            tokio::fs::write(path, bytes).await.map_err(|_| {
+                                "The attachment could not be written there.".to_owned()
+                            })
+                        })
+                        .await;
+                    Some(match saved {
+                        Ok(Ok(())) => "Attachment saved.".to_owned(),
+                        Ok(Err(error)) => error,
+                        Err(_) => "Saving the attachment was interrupted.".to_owned(),
+                    })
+                }
+                Ok(Ok(None)) => None,
+                _ => Some("The file chooser is unavailable. Nothing was saved.".to_owned()),
+            };
+            if let Some(notice) = notice {
+                _ = this.update_in(cx, |_, window, cx| {
+                    window.push_notification(
+                        Notification::new()
+                            .message(notice)
+                            .delivery(NotificationDelivery::InApp),
+                        cx,
+                    );
+                });
+            }
+        })
+        .detach();
     }
 
     /// Saving is explicit and goes through the portal's chooser. Attachments are never

@@ -2,6 +2,7 @@
 
 pub mod attachments;
 pub mod mime;
+pub mod outline;
 pub mod store;
 
 /// Bounded asynchronous access to one dedicated database owner.

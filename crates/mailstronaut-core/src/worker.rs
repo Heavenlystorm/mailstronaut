@@ -147,6 +147,21 @@ enum Command {
         Reply<Vec<store::analysis::PriorityItem>>,
     ),
     DismissPriority(i64, Reply<()>),
+    CacheReduced {
+        account: String,
+        membership: Membership,
+        received_at: i64,
+        gmail: Option<GmailId>,
+        reduced: Vec<u8>,
+        omitted: crate::outline::Omitted,
+        reply: Reply<i64>,
+    },
+    Omitted(String, i64, Reply<Option<crate::outline::Omitted>>),
+    Location(
+        String,
+        i64,
+        Reply<Option<(String, core::num::NonZeroU32, core::num::NonZeroU32)>>,
+    ),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
     QueueMove(String, i64, Option<i64>, String, String, Reply<u32>),
@@ -438,6 +453,54 @@ impl Handle {
     /// Reports storage failures.
     pub async fn dismiss_priority(&self, message: i64) -> Result<(), Error> {
         self.request(|reply| Command::DismissPriority(message, reply))
+            .await
+    }
+    /// Cache the small copy of a message too large to keep, with what it leaves out.
+    /// # Errors
+    /// As [`Self::cache_message`].
+    pub async fn cache_reduced(
+        &self,
+        account: String,
+        membership: Membership,
+        received_at: i64,
+        gmail: Option<GmailId>,
+        reduced: Vec<u8>,
+        omitted: crate::outline::Omitted,
+    ) -> Result<i64, Error> {
+        if reduced.len() > mime::MAX_INPUT_BYTES {
+            return Err(Error::InvalidRequest);
+        }
+        self.request(|reply| Command::CacheReduced {
+            account,
+            membership,
+            received_at,
+            gmail,
+            reduced,
+            omitted,
+            reply,
+        })
+        .await
+    }
+    /// What a stored message leaves on the server, if anything.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn omitted(
+        &self,
+        account: String,
+        message: i64,
+    ) -> Result<Option<crate::outline::Omitted>, Error> {
+        self.request(|reply| Command::Omitted(account, message, reply))
+            .await
+    }
+    /// Where the server has a message now.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn location(
+        &self,
+        account: String,
+        message: i64,
+    ) -> Result<Option<(String, core::num::NonZeroU32, core::num::NonZeroU32)>, Error> {
+        self.request(|reply| Command::Location(account, message, reply))
             .await
     }
     /// List known folders for enabled accounts without contacting a mail server.
@@ -1133,6 +1196,32 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::DismissPriority(message, reply) => {
                 commit(reply, || store.dismiss_priority(message));
+            }
+            Command::CacheReduced {
+                account,
+                membership,
+                received_at,
+                gmail,
+                reduced,
+                omitted,
+                reply,
+            } => {
+                commit(reply, || {
+                    store.cache_reduced(
+                        &account,
+                        membership,
+                        received_at,
+                        gmail,
+                        &reduced,
+                        &omitted,
+                    )
+                });
+            }
+            Command::Omitted(account, message, reply) => {
+                respond(reply, || store.omitted(&account, message));
+            }
+            Command::Location(account, message, reply) => {
+                respond(reply, || store.location(&account, message));
             }
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));

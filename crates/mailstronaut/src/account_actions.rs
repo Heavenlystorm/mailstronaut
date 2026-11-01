@@ -285,7 +285,7 @@ impl Access {
             before: if older { before } else { None },
             earliest: i64::try_from(earliest)
                 .map_err(|_| "System time is outside the supported range.")?,
-            max_original: config.sync.max_body_bytes.min(8 * 1024 * 1024),
+            max_original: imap::MAX_ORIGINAL,
         };
         sync::page(store, &mut connection, &request, cancel)
             .await
@@ -324,6 +324,65 @@ impl Access {
                 Err(SyncFailure::from_imap(error))
             }
         }
+    }
+
+    /// Download one attachment that stayed on the server, for an explicit request. Its
+    /// UID is only trusted if the folder's UID namespace is still the one it came from.
+    pub async fn fetch_attachment(
+        &self,
+        store: &Handle,
+        account: &Account,
+        message: i64,
+        section: &str,
+        cancel: &CancellationToken,
+    ) -> Result<Vec<u8>, String> {
+        let (folder, validity, uid) = store
+            .location(account.id.clone(), message)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or("This message is no longer on the server.")?;
+        let opened = self.foreground(cancel).await?;
+        let _permit = cancel
+            .run_until_cancelled(self.connections.acquire())
+            .await
+            .ok_or(CANCELLED)?
+            .map_err(|_| "Mail connection queue is unavailable.")?;
+        let credential = opened
+            .session
+            .resolve(account, false, cancel)
+            .await
+            .map_err(|error| error.to_string())?;
+        let endpoint = account
+            .incoming_endpoint()
+            .ok_or("Incoming server is not configured.")?;
+        let mut connection = imap::Connection::connect_for_download(
+            &endpoint,
+            &account.tls,
+            &account.user_name,
+            credential.authentication(),
+            cancel,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+        let position = connection
+            .examine(&folder, cancel)
+            .await
+            .map_err(|error| error.to_string())?;
+        if position.uid_validity() != Some(validity.get()) {
+            return Err("This folder changed on the server. Sync, then try again.".into());
+        }
+        let (mime, content) = connection
+            .part(uid, section, cancel)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or("This attachment is no longer on the server.")?;
+        tokio::task::spawn_blocking(move || {
+            mailstronaut_core::outline::decode_part(&mime, &content)
+        })
+        .await
+        .ok()
+        .flatten()
+        .ok_or_else(|| "This attachment could not be decoded.".to_owned())
     }
 
     /// A connection for watching a folder. The permit covers only sign-in: an idling
@@ -433,7 +492,7 @@ impl Access {
                 inbox: is_inbox,
                 before: None,
                 earliest,
-                max_original: config.sync.max_body_bytes.min(8 * 1024 * 1024),
+                max_original: imap::MAX_ORIGINAL,
             };
             connection = Self::recent_pages(
                 &opened, account, store, connection, request, &mut cycle, cancel,

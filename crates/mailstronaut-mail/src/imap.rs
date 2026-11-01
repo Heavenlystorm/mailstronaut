@@ -17,7 +17,7 @@ use tokio_rustls::TlsConnector;
 use tokio_util::sync::CancellationToken;
 
 mod read;
-pub use read::{Folder, MessageData, Metadata};
+pub use read::{Folder, MAX_ORIGINAL, MessageData, Metadata};
 
 mod flags;
 pub use flags::FlagChange;
@@ -29,6 +29,9 @@ pub use idle::{Position, Wake};
 
 mod names;
 pub use names::display_name;
+
+mod outline;
+pub use outline::{MAX_PART_OCTETS, Outline, RemotePart};
 
 /// Total received bytes for one connection, including protocol framing. A worker
 /// reconnects/reconciles when this budget is exhausted rather than reading forever.
@@ -132,6 +135,47 @@ impl Connection {
         authentication: Authentication<'_>,
         cancellation: &CancellationToken,
     ) -> Result<Self, Error> {
+        Self::connect_with_budget(
+            endpoint,
+            certificates,
+            username,
+            authentication,
+            MAX_SESSION_BYTES,
+            cancellation,
+        )
+        .await
+    }
+
+    /// Like [`Self::connect`], for a session that exists to download one large part.
+    ///
+    /// # Errors
+    /// Returns a redacted configuration, TLS, network, cancellation or auth error.
+    pub async fn connect_for_download(
+        endpoint: &Endpoint,
+        certificates: &Tls,
+        username: &str,
+        authentication: Authentication<'_>,
+        cancellation: &CancellationToken,
+    ) -> Result<Self, Error> {
+        Self::connect_with_budget(
+            endpoint,
+            certificates,
+            username,
+            authentication,
+            outline::DOWNLOAD_SESSION_BYTES,
+            cancellation,
+        )
+        .await
+    }
+
+    async fn connect_with_budget(
+        endpoint: &Endpoint,
+        certificates: &Tls,
+        username: &str,
+        authentication: Authentication<'_>,
+        budget: u64,
+        cancellation: &CancellationToken,
+    ) -> Result<Self, Error> {
         limited(cancellation, async {
             if username.is_empty()
                 || username.len() > 4096
@@ -139,7 +183,7 @@ impl Connection {
             {
                 return Err(Error::Configuration);
             }
-            let (client, capabilities) = secure_client(endpoint, certificates).await?;
+            let (client, capabilities) = secure_client(endpoint, certificates, budget).await?;
             let session = match authentication {
                 Authentication::Password(password) => {
                     validate_secret(password)?;
@@ -237,6 +281,7 @@ impl Connection {
 async fn secure_client(
     endpoint: &Endpoint,
     certificates: &Tls,
+    budget: u64,
 ) -> Result<(Client<Wire>, BTreeSet<String>), Error> {
     let host = match url::Host::parse(&endpoint.host).map_err(|_| Error::Configuration)? {
         url::Host::Domain(host) => host,
@@ -255,7 +300,7 @@ async fn secure_client(
     let mut initial = tokio::io::join(reader.take(64 * 1024), writer);
     let (wire, greeting_read) = match endpoint.security {
         Security::Tls => {
-            initial.reader_mut().set_limit(MAX_SESSION_BYTES);
+            initial.reader_mut().set_limit(budget);
             (initial, false)
         }
         Security::Starttls => {
@@ -270,7 +315,7 @@ async fn secure_client(
                 .await
                 .map_err(|_| Error::StarttlsRequired)?;
             let mut wire = plain.into_inner();
-            wire.reader_mut().set_limit(MAX_SESSION_BYTES);
+            wire.reader_mut().set_limit(budget);
             (wire, true)
         }
         _ => return Err(Error::Configuration),
@@ -282,7 +327,7 @@ async fn secure_client(
         .map_err(|_| Error::Tls)?;
     // Standard Tokio adapters bound reads while retaining normal writes.
     let (reader, writer) = tokio::io::split(tls);
-    let wire: Wire = Box::new(tokio::io::join(reader.take(MAX_SESSION_BYTES), writer));
+    let wire: Wire = Box::new(tokio::io::join(reader.take(budget), writer));
     let mut client = Client::new(wire);
     if !greeting_read {
         greeting(&mut client).await?;
