@@ -132,6 +132,15 @@ v0.1. Unified inbox is a query across memberships in designated inbox folders, n
 a special server folder. Show account badges; conversation rows belong to one
 account even when addresses/subjects match another account.
 
+The native Sidebar routes unified, account and known-folder queries through the
+same canonical store. Mailbox and thread lists retain at most one 100-row keyset
+page each; Newer/Older keeps only cursor history. Refreshes retain the current
+page, while changing scope/query retires and clears the previous original. The
+thread's Collapsible List reads metadata only until an original is confirmed.
+Parsed From/To/Cc and sent/received dates use DescriptionList, with Chrono formatting
+in the declared timezone (explicit UTC fallback). None of these controls starts
+folder synchronization or implicitly opens another message.
+
 Use `mail-threading::thread_messages_with`, initially `subject_merge = false`, on
 metadata decoded by `mail-parser`. Prefer verified provider thread IDs within the
 same account. For other mail use References, then In-Reply-To; missing ancestors,
@@ -195,6 +204,10 @@ keyboard activation) opens that message and its content is available. Listing,
 preview loading, restored selection, page entry and focus changes do not count as
 opening it. Preserve explicit Mark unread until another explicit open. An open
 marks only the selected message, never every member of its conversation.
+Its canonical read intention targets current copies of that same original in all
+folders, including Sent/Archive. Each durable UID operation remains bound to the
+authenticated account context, exact folder and current UIDVALIDITY; unread
+siblings and other accounts acquire no intention.
 
 Record a cursor only in the transaction that commits the fetched batch. On
 UIDVALIDITY change invalidate that folder's UID mapping and pending UID operations,

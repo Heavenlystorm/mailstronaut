@@ -4310,6 +4310,8 @@ name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
  "ashpd",
+ "chrono",
+ "chrono-tz",
  "directories",
  "gpui-kit",
  "image",

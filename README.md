@@ -40,6 +40,13 @@ bounded page; Load older continues it. Ctrl+1 returns to the unified inbox and
 Ctrl+Shift+R reloads the declaration. Saving credentials never rewrites the Nix
 source. Browser-provider and real desktop portal acceptance are still pending.
 
+The sidebar opens each account's cached mail and individual known folders without
+starting a sync. Newer/Older controls page through 100 conversations at a time.
+Expand a thread's message count to choose a cached original, including Sent
+ancestry; arrows select passively and Enter or a click opens only that original.
+Details shows parsed recipients and dates in the declared timezone (UTC when
+unset). Folder changes, thread expansion and paging never mark mail Seen.
+
 The native text reader uses GPUI Kit's read-only multiline component. Use
 Ctrl+Shift+T to focus message text, Ctrl+A/C to select/copy, and the usual
 Home/End/Page keys to navigate. Ctrl+K focuses search; Ctrl+Shift+D toggles

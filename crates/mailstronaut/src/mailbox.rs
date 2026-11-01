@@ -23,10 +23,17 @@ pub struct Row {
     pub preview: String,
     pub unread: u32,
     pub messages: u32,
+    pub received_at: i64,
 }
 
 impl Row {
-    fn same_group(&self, other: &Self) -> bool {
+    pub const fn cursor(&self) -> mailstronaut_core::store::mailbox::Cursor {
+        mailstronaut_core::store::mailbox::Cursor {
+            received_at: self.received_at,
+            message_id: self.id,
+        }
+    }
+    pub fn same_group(&self, other: &Self) -> bool {
         self.account == other.account
             && match (self.conversation, other.conversation) {
                 (Some(a), Some(b)) => a == b,
@@ -35,11 +42,70 @@ impl Row {
     }
 }
 
+/// Bounded keyset pages; refreshing flags never resets the current page.
+#[derive(Default)]
+pub struct Pages {
+    pub after: Option<mailstronaut_core::store::mailbox::Cursor>,
+    previous: Vec<Option<mailstronaut_core::store::mailbox::Cursor>>,
+    pub more: bool,
+}
+impl Pages {
+    pub fn next(&mut self, cursor: mailstronaut_core::store::mailbox::Cursor) {
+        self.previous.push(self.after);
+        self.after = Some(cursor);
+    }
+    pub fn previous(&mut self) {
+        if let Some(after) = self.previous.pop() {
+            self.after = after;
+        }
+    }
+    pub const fn has_previous(&self) -> bool {
+        !self.previous.is_empty()
+    }
+    pub const fn number(&self) -> usize {
+        self.previous.len() + 1
+    }
+}
+
+/// Native display follows the declared timezone; date formatting stays in Chrono.
+pub fn date(timestamp: i64, zone: &str) -> String {
+    let Some(date) = chrono::DateTime::from_timestamp(timestamp, 0) else {
+        return "Date unavailable".into();
+    };
+    let zone = zone.parse::<chrono_tz::Tz>().unwrap_or(chrono_tz::UTC);
+    date.with_timezone(&zone)
+        .format("%d %b %Y · %H:%M %Z")
+        .to_string()
+}
+
+/// Kit's text input draws a stray carriage return as a missing glyph, and MIME text
+/// is normally CRLF. This changes only the displayed copy, never the cached original.
+pub fn display_text(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+pub fn addresses(addresses: &[mailstronaut_core::mime::Mailbox]) -> String {
+    if addresses.is_empty() {
+        return "—".into();
+    }
+    addresses
+        .iter()
+        .map(|mailbox| match (&mailbox.name, &mailbox.address) {
+            (Some(name), Some(address)) => format!("{name} <{address}>"),
+            (Some(name), None) => name.clone(),
+            (None, Some(address)) => address.clone(),
+            (None, None) => "—".into(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 #[derive(Default)]
 pub struct Rows {
     pub items: Vec<Row>,
     pub loading: bool,
     pub searching: bool,
+    pub time_zone: String,
 }
 
 /// Keep passive selection by canonical group, without scrolling or confirming it.
@@ -111,17 +177,32 @@ impl ListDelegate for Rows {
                             Label::new(row.preview.clone())
                                 .text_sm()
                                 .text_color(muted)
-                                .truncate(),
+                                .line_clamp(2),
                         )
                         .child(
-                            Label::new(if row.messages > 1 {
-                                format!("{} · {} messages", row.account, row.messages)
-                            } else {
-                                row.account.clone()
-                            })
-                            .text_xs()
-                            .text_color(muted)
-                            .truncate(),
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .w_full()
+                                .child(
+                                    Label::new(if row.messages > 1 {
+                                        format!("{} · {} messages", row.account, row.messages)
+                                    } else {
+                                        row.account.clone()
+                                    })
+                                    .text_xs()
+                                    .text_color(muted)
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate(),
+                                )
+                                .child(
+                                    Label::new(date(row.received_at, &self.time_zone))
+                                        .text_xs()
+                                        .text_color(muted)
+                                        .flex_none(),
+                                ),
                         ),
                 ),
         )
@@ -159,5 +240,53 @@ impl ListDelegate for Rows {
                     "Open Settings to connect an account and sync its inbox."
                 })),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Pages, date, display_text};
+    use mailstronaut_core::store::mailbox::Cursor;
+
+    #[test]
+    fn displayed_text_has_no_carriage_returns_for_the_input_to_draw() {
+        assert_eq!(display_text("one\r\ntwo\rthree\n"), "one\ntwo\nthree\n");
+        assert_eq!(display_text("Bonjour · 世界"), "Bonjour · 世界");
+    }
+
+    #[test]
+    fn received_dates_use_declared_zone_across_the_autumn_clock_change() {
+        // Two UTC instants map to the repeated Paris 02:30, with distinct offsets.
+        let before = chrono::DateTime::parse_from_rfc3339("2026-10-25T00:30:00Z")
+            .expect("instant")
+            .timestamp();
+        let after = before + 3600;
+        assert_eq!(date(before, "Europe/Paris"), "25 Oct 2026 · 02:30 CEST");
+        assert_eq!(date(after, "Europe/Paris"), "25 Oct 2026 · 02:30 CET");
+        assert_eq!(date(after, "UTC"), "25 Oct 2026 · 01:30 UTC");
+        assert_eq!(date(i64::MAX, "UTC"), "Date unavailable");
+    }
+
+    #[test]
+    fn bounded_pages_can_return_to_the_first_page_without_changing_the_anchor() {
+        let mut pages = Pages::default();
+        let first = Cursor {
+            received_at: 100,
+            message_id: 200,
+        };
+        let second = Cursor {
+            received_at: 50,
+            message_id: 100,
+        };
+        pages.next(first);
+        pages.next(second);
+        assert_eq!(pages.number(), 3);
+        pages.previous();
+        assert_eq!(pages.after, Some(first));
+        assert!(pages.has_previous());
+        pages.previous();
+        assert!(pages.after.is_none());
+        assert!(!pages.has_previous());
+        assert_eq!(pages.number(), 1);
     }
 }

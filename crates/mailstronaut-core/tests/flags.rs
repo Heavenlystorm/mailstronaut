@@ -54,6 +54,121 @@ fn observation(uid: u32, seen: bool, starred: bool) -> Metadata {
     }
 }
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "One regression follows the same originals through copy coalescing, exact folder/UID acknowledgement and server namespace replacement."
+)]
+fn explicit_read_targets_current_copies_and_sent_original_without_marking_siblings() {
+    use mailstronaut_core::store::browse::Scope;
+    let (_root, mut store, original, _) = setup();
+    let archive = store
+        .ensure_folder("a", "Archive", false)
+        .expect("archive")
+        .id;
+    let sent = store.ensure_folder("a", "Sent", false).expect("sent").id;
+    for folder in [archive, sent] {
+        store.select_folder("a", folder, nz(42)).expect("select");
+    }
+    let copy = store
+        .cache_message(
+            "a",
+            Membership {
+                folder: archive,
+                uid_validity: nz(42),
+                uid: nz(7),
+                flags: Flags::default(),
+            },
+            100,
+            None,
+            RAW,
+        )
+        .expect("canonical archive copy");
+    assert_eq!(copy, original);
+    let sent_raw = b"From: reader@example.test\r\nTo: sender@example.test\r\nMessage-ID: <sent@example.test>\r\nSubject: Sent original\r\n\r\nSynthetic sent original.\r\n";
+    let sent_message = store
+        .cache_message(
+            "a",
+            Membership {
+                folder: sent,
+                uid_validity: nz(42),
+                uid: nz(9),
+                flags: Flags::default(),
+            },
+            101,
+            None,
+            sent_raw,
+        )
+        .expect("sent original");
+    let sibling = store
+        .cache_message(
+            "a",
+            Membership {
+                folder: sent,
+                uid_validity: nz(42),
+                uid: nz(10),
+                flags: Flags::default(),
+            },
+            102,
+            None,
+            b"Message-ID: <sibling@example.test>\r\n\r\nUnread sibling.",
+        )
+        .expect("unread sibling");
+    store
+        .set_flag("a", original, FlagChange::Seen, true, CONTEXT)
+        .expect("explicit read");
+    store
+        .set_flag("a", sent_message, FlagChange::Seen, true, CONTEXT)
+        .expect("explicit Sent read");
+    let rows = store
+        .conversation_page(&["a".into()], &Scope::Account("a".into()), "", None, 100)
+        .expect("all cached originals");
+    assert!(
+        rows.iter()
+            .filter(|row| [original, sent_message].contains(&row.latest.id))
+            .all(|row| row.latest.seen)
+    );
+    assert!(
+        !rows
+            .iter()
+            .find(|row| row.latest.id == sibling)
+            .expect("sibling")
+            .latest
+            .seen
+    );
+    let mut targets = Vec::new();
+    while let Some(attempt) = store.begin_flag("a", CONTEXT).expect("claim") {
+        targets.push((attempt.folder.clone(), attempt.uid.get()));
+        assert_eq!(attempt.validity, nz(42));
+        store
+            .confirm_flag(&attempt, &observation(attempt.uid.get(), true, false))
+            .expect("exact namespace acknowledgement");
+    }
+    targets.sort();
+    assert_eq!(
+        targets,
+        [
+            ("Archive".into(), 7),
+            ("INBOX".into(), 11),
+            ("INBOX".into(), 12),
+            ("Sent".into(), 9)
+        ]
+    );
+    store
+        .select_folder("a", sent, nz(43))
+        .expect("server replaces UID namespace");
+    assert!(matches!(
+        store.set_flag("a", sent_message, FlagChange::Seen, false, CONTEXT),
+        Err(Error::MissingMessage)
+    ));
+    assert_eq!(
+        store
+            .flag_counts(&["b".into()])
+            .expect("other account")
+            .pending,
+        0
+    );
+}
+#[test]
 fn offline_flags_overlay_all_inbox_copies_and_survive_restart_without_touching_other_accounts() {
     let (root, mut store, message, _) = setup();
     assert!(matches!(

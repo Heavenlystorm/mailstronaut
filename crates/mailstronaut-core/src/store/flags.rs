@@ -116,8 +116,8 @@ impl Store {
         Ok(changed)
     }
 
-    /// Queue/coalesce a read/star intention for every inbox copy of this canonical
-    /// message. Local inbox queries overlay it immediately, including offline.
+    /// Queue/coalesce a read/star intention for every current folder copy of this
+    /// canonical message. Local queries overlay it immediately, including offline.
     /// No network I/O occurs and another account can never acquire its UIDs.
     ///
     /// # Errors
@@ -138,7 +138,7 @@ impl Store {
             return Err(Error::StaleMailbox);
         }
         let targets = {
-            let mut query = tx.prepare("SELECT s.folder_id,s.uidvalidity,s.uid FROM memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id WHERE s.account_id=?1 AND s.message_id=?2 AND f.is_inbox=1 AND f.uidvalidity=s.uidvalidity LIMIT 257")?;
+            let mut query = tx.prepare("SELECT s.folder_id,s.uidvalidity,s.uid FROM memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id WHERE s.account_id=?1 AND s.message_id=?2 AND f.uidvalidity=s.uidvalidity LIMIT 257")?;
             query
                 .query_map(params![account, message], |row| {
                     Ok((

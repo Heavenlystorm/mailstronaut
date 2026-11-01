@@ -119,8 +119,8 @@ pub struct Summary {
     pub seen: bool,
     /// True when any participating inbox membership is Flagged.
     pub starred: bool,
-    /// This snapshot has a participating INBOX membership; ancestor-only flags
-    /// remain read-only until general folder actions are implemented.
+    /// This snapshot has a participating INBOX membership. This role is display
+    /// metadata; UID namespace and authenticated context govern flag authority.
     pub inbox: bool,
 }
 impl Summary {

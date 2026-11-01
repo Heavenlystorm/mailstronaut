@@ -10,6 +10,7 @@ mod html_worker;
 mod link_portal;
 mod mailbox;
 mod read_gate;
+mod thread_reader;
 mod workspace;
 
 use std::{env, process::ExitCode, sync::Arc};

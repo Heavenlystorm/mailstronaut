@@ -4,11 +4,12 @@ use std::{path::PathBuf, sync::Arc};
 
 use gpui::base::StyledExt as _;
 use gpui::component::{
-    ActiveTheme as _, Disableable as _, IconName, Selectable as _, Theme, ThemeMode,
+    ActiveTheme as _, Disableable as _, IconName, IndexPath, Selectable as _, Theme, ThemeMode,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     description_list::DescriptionList,
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
+    label::Label,
     list::{List, ListEvent, ListState},
     menu::{DropdownMenu as _, PopupMenuItem},
     resizable::{h_resizable, resizable_panel},
@@ -19,12 +20,13 @@ use gpui::component::{
 };
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
-    KeyBinding, ParentElement as _, Render, Styled as _, Subscription, Window, div,
-    prelude::FluentBuilder as _, px,
+    KeyBinding, ParentElement as _, Render, StatefulInteractiveElement as _, Styled as _,
+    Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
     store::browse::Scope,
+    store::mailbox::Folder,
     worker::{Handle, Worker},
 };
 use tokio::runtime::Runtime;
@@ -83,6 +85,9 @@ pub struct Workspace {
     runtime: Arc<Runtime>,
     owner: Option<Arc<Worker>>,
     accounts: Vec<String>,
+    folders: Vec<Folder>,
+    scope: Scope,
+    pages: crate::mailbox::Pages,
     declaration: source::Runtime,
     config_path: Option<PathBuf>,
     loading_config: bool,
@@ -96,6 +101,8 @@ pub struct Workspace {
     read_gate: crate::read_gate::Gate,
     list: Entity<ListState<Rows>>,
     _list_events: Subscription,
+    thread_reader: Entity<crate::thread_reader::ThreadReader>,
+    _thread_events: Subscription,
     selected: Option<Row>,
     body: String,
     text_reader: Entity<TextareaState>,
@@ -105,6 +112,7 @@ pub struct Workspace {
     opened_message: Option<Arc<mailstronaut_core::mime::Projection>>,
     preferred_reader: ReaderMode,
     reader_notice: String,
+    headers_open: bool,
     link_cancel: Option<CancellationToken>,
     search: Entity<InputState>,
     status: String,
@@ -115,6 +123,7 @@ pub struct Workspace {
     _search_events: Subscription,
     _activation: Subscription,
     _appearance: Subscription,
+    _focus_lost: Subscription,
     theme_override: Option<ThemeMode>,
 }
 
@@ -127,6 +136,10 @@ impl Drop for Workspace {
 }
 
 impl Workspace {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Construct native entities and their subscriptions together before initializing the workspace that owns them."
+    )]
     pub fn new(
         path: Option<PathBuf>,
         demo: bool,
@@ -135,17 +148,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Self {
         Theme::sync_system_appearance(Some(window), cx);
-        cx.bind_keys([
-            KeyBinding::new("ctrl-k", FocusSearch, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-r", RefreshCache, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-shift-d", ToggleAppearance, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-shift-t", FocusReader, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-shift-l", FocusLinks, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-l", FocusMessages, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
-            KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
-        ]);
+        Self::bind_keys(cx);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search cached mail"));
@@ -172,11 +175,32 @@ impl Workspace {
             this.read_gate
                 .visibility(window.is_window_active() && this.view != View::Accounts);
         });
+        let thread_reader =
+            cx.new(|cx| crate::thread_reader::ThreadReader::new(runtime.clone(), window, cx));
+        let thread_events = cx.subscribe_in(
+            &thread_reader,
+            window,
+            |this, _, event: &crate::thread_reader::Open, window, cx| {
+                if this.view == View::Inbox
+                    && this
+                        .selected
+                        .as_ref()
+                        .is_some_and(|row| row.same_group(&event.0))
+                {
+                    this.open(event.0.clone(), window, cx);
+                }
+            },
+        );
         let appearance = cx.observe_window_appearance(window, |this, window, cx| {
             if this.theme_override.is_none() {
                 Theme::sync_system_appearance(Some(window), cx);
                 cx.notify();
             }
+        });
+        // A focused control can leave the tree (a disabled pager button, a retired
+        // thread list). Global bindings need the workspace back in the focus path.
+        let focus_lost = cx.on_focus_lost(window, |this, window, cx| {
+            window.focus(&this.focus, cx);
         });
         let mut read_gate = crate::read_gate::Gate::default();
         read_gate.visibility(window.is_window_active());
@@ -186,6 +210,9 @@ impl Workspace {
             runtime,
             owner: None,
             accounts: Vec::new(),
+            folders: Vec::new(),
+            scope: Scope::Inbox,
+            pages: crate::mailbox::Pages::default(),
             declaration: source::Runtime::default(),
             config_path: path,
             loading_config: false,
@@ -199,6 +226,8 @@ impl Workspace {
             read_gate,
             list,
             _list_events: list_events,
+            thread_reader,
+            _thread_events: thread_events,
             selected: None,
             body: String::new(),
             text_reader,
@@ -212,6 +241,7 @@ impl Workspace {
             opened_message: None,
             preferred_reader: ReaderMode::Html,
             reader_notice: String::new(),
+            headers_open: false,
             link_cancel: None,
             search,
             status: "Opening local mail…".into(),
@@ -222,6 +252,7 @@ impl Workspace {
             _search_events: events,
             _activation: activation,
             _appearance: appearance,
+            _focus_lost: focus_lost,
             theme_override: None,
         };
         if demo {
@@ -262,6 +293,7 @@ impl Workspace {
             preview: preview.into(),
             unread: 1,
             messages: 1,
+            received_at: 1_700_000_000,
         })
         .collect();
         if let Some(row) = rows.first().cloned() {
@@ -310,18 +342,29 @@ impl Workspace {
                     Ok(Ok((owner, config))) => {
                         this.owner = owner;
                         if this.declaration.apply(config) {
-                            this.retire_open(cx);
+                            this.retire_open(window, cx);
                             this.list.update(cx, |list, cx| {
                                 crate::mailbox::replace(list, Vec::new(), window, cx);
                             });
-                            this.text_reader
-                                .update(cx, |reader, cx| reader.set_value("", window, cx));
                             if let Some(config) = this.declaration.active().cloned() {
                                 this.accounts = config
                                     .accounts
                                     .iter()
                                     .map(|account| account.id.clone())
                                     .collect();
+                                if match &this.scope {
+                                    Scope::Inbox => false,
+                                    Scope::Account(account) | Scope::Folder { account, .. } => {
+                                        !this.accounts.contains(account)
+                                    }
+                                } {
+                                    this.scope = Scope::Inbox;
+                                }
+                                this.pages = crate::mailbox::Pages::default();
+                                this.list.update(cx, |list, _| {
+                                    list.delegate_mut().time_zone =
+                                        config.time_zone.clone().unwrap_or_else(|| "UTC".into());
+                                });
                                 this.apply_appearance(&config, window, cx);
                                 this.rebuild_accounts(&config, window, cx);
                             }
@@ -428,12 +471,17 @@ impl Workspace {
         self.owner.as_ref().map(|owner| owner.handle())
     }
 
-    fn retire_open(&mut self, cx: &mut Context<Self>) {
+    fn retire_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.text_reader
+            .update(cx, |reader, cx| reader.set_value("", window, cx));
+        self.thread_reader
+            .update(cx, crate::thread_reader::ThreadReader::clear);
         self.cancel_link();
         self.reading_generation = self.reading_generation.wrapping_add(1);
         self.html_reader
             .update(cx, crate::html_reader::HtmlReader::hide);
         self.opened_message = None;
+        self.headers_open = false;
         self.reader_notice.clear();
         self.read_gate
             .suppress(self.declaration.revision(), self.reading_generation);
@@ -445,7 +493,8 @@ impl Workspace {
         let query = self.search.read(cx).value().to_string();
         if query != self.query {
             self.query = query;
-            self.retire_open(cx);
+            self.pages = crate::mailbox::Pages::default();
+            self.retire_open(window, cx);
             self.list.update(cx, |list, cx| {
                 crate::mailbox::replace(list, Vec::new(), window, cx);
             });
@@ -465,6 +514,8 @@ impl Workspace {
         self.query_cancel = self.lifetime.child_token();
         let cancel = self.query_cancel.clone();
         let query = self.query.clone();
+        let scope = self.scope.clone();
+        let after = self.pages.after;
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
             list.delegate_mut().searching = !query.is_empty();
@@ -496,9 +547,14 @@ impl Workspace {
             if cancel.is_cancelled() {
                 return Err("Local query cancelled.".into());
             }
-            handle
-                .conversation_page(accounts, Scope::Inbox, query, None, 100)
+            let folders = handle
+                .folders(accounts.clone())
                 .await
+                .map_err(|error| error.to_string())?;
+            handle
+                .conversation_page(accounts, scope, query, after, 100)
+                .await
+                .map(|rows| (folders, rows))
                 .map_err(|error| error.to_string())
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -512,8 +568,10 @@ impl Workspace {
                     cx.notify();
                 });
                 match result {
-                    Ok(Ok(rows)) => {
+                    Ok(Ok((folders, rows))) => {
+                        this.folders = folders;
                         let count = rows.len();
+                        this.pages.more = count == 100;
                         let rows = rows
                             .into_iter()
                             .map(|row| Row {
@@ -525,6 +583,7 @@ impl Workspace {
                                 sender: row.latest.sender,
                                 subject: row.latest.subject,
                                 preview: row.latest.preview,
+                                received_at: row.latest.received_at,
                             })
                             .collect();
                         this.list.update(cx, |list, cx| {
@@ -533,7 +592,7 @@ impl Workspace {
                         this.status = if this.accounts.is_empty() {
                             "Add accounts in your native Nix configuration.".into()
                         } else {
-                            format!("{count} cached conversations · local search")
+                            format!("{count} cached conversations · page {} · local cache / literal search", this.pages.number())
                         };
                     }
                     Ok(Err(error)) => this.status = error,
@@ -547,6 +606,13 @@ impl Workspace {
     }
 
     fn open(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
+        self.headers_open = false;
+        if let Some(handle) = self.handle() {
+            let zone = self.list.read(cx).delegate().time_zone.clone();
+            self.thread_reader.update(cx, |thread, cx| {
+                thread.show(row.clone(), handle, zone, window, cx);
+            });
+        }
         self.cancel_link();
         self.reading_generation = self.reading_generation.wrapping_add(1);
         let generation = self.reading_generation;
@@ -595,7 +661,7 @@ impl Workspace {
                             let readable = message.readable_text();
                             let text = readable.map_or_else(
                                 || "No readable body is cached.".into(),
-                                std::borrow::Cow::into_owned,
+                                |text| crate::mailbox::display_text(&text),
                             );
                             this.text_reader
                                 .update(cx, |reader, cx| reader.set_value(text, window, cx));
@@ -783,7 +849,11 @@ impl Workspace {
                     return;
                 }
                 match result {
-                    Ok(Ok(())) => this.refresh_rows(window, cx),
+                    Ok(Ok(())) => {
+                        this.refresh_rows(window, cx);
+                        this.thread_reader
+                            .update(cx, |thread, cx| thread.refresh(window, cx));
+                    }
                     Ok(Err(error)) => this.status = error.to_string(),
                     Err(_) => this.status = "Unable to save the message's read state.".into(),
                 }
@@ -795,6 +865,20 @@ impl Workspace {
 }
 
 impl Workspace {
+    fn bind_keys(cx: &mut Context<Self>) {
+        cx.bind_keys([
+            KeyBinding::new("ctrl-k", FocusSearch, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-r", RefreshCache, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-d", ToggleAppearance, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-t", FocusReader, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-l", FocusLinks, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-l", FocusMessages, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
+        ]);
+    }
+
     fn show_accounts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.cancel_link();
         self.view = View::Accounts;
@@ -806,6 +890,15 @@ impl Workspace {
     }
 
     fn show_inbox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.navigate(Scope::Inbox, window, cx);
+    }
+
+    fn navigate(&mut self, scope: Scope, window: &mut Window, cx: &mut Context<Self>) {
+        if self.scope != scope {
+            self.scope = scope;
+            self.pages = crate::mailbox::Pages::default();
+            self.clear_page(window, cx);
+        }
         self.view = View::Inbox;
         self.read_gate.visibility(window.is_window_active());
         window.focus(&self.focus, cx);
@@ -814,6 +907,54 @@ impl Workspace {
             self.present_html(cx);
         }
         cx.notify();
+    }
+
+    fn clear_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.retire_open(window, cx);
+        self.list.update(cx, |list, cx| {
+            crate::mailbox::replace(list, Vec::new(), window, cx);
+            list.scroll_to_item(IndexPath::new(0), gpui::ScrollStrategy::Top, window, cx);
+        });
+    }
+
+    fn turn_page(&mut self, older: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let rows = self.list.read(cx).delegate();
+        if rows.loading {
+            return;
+        }
+        if older {
+            let Some(cursor) = rows
+                .items
+                .last()
+                .filter(|_| self.pages.more)
+                .map(Row::cursor)
+            else {
+                return;
+            };
+            self.pages.next(cursor);
+        } else if self.pages.has_previous() {
+            self.pages.previous();
+        } else {
+            return;
+        }
+        self.clear_page(window, cx);
+        self.refresh_rows(window, cx);
+    }
+
+    fn scope_label(&self) -> String {
+        match &self.scope {
+            Scope::Inbox => "Unified inbox".into(),
+            Scope::Account(id) => self
+                .declaration
+                .active()
+                .and_then(|config| config.accounts.iter().find(|account| &account.id == id))
+                .map_or_else(|| id.clone(), |account| account.display_name.clone()),
+            Scope::Folder { account, folder } => self
+                .folders
+                .iter()
+                .find(|row| &row.account == account && &row.id == folder)
+                .map_or_else(|| "Cached folder".into(), |row| row.name.clone()),
+        }
     }
 
     fn account_settings(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -900,10 +1041,70 @@ impl Workspace {
                     SidebarMenu::new().child(
                         SidebarMenuItem::new("Unified inbox")
                             .icon(IconName::Inbox)
-                            .active(self.view == View::Inbox)
+                            .active(self.view == View::Inbox && self.scope == Scope::Inbox)
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.show_inbox(window, cx)),
                             ),
+                    ),
+                ),
+            )
+            .child(
+                SidebarGroup::new("Accounts").child(
+                    SidebarMenu::new().children(
+                        self.declaration
+                            .active()
+                            .into_iter()
+                            .flat_map(|config| &config.accounts)
+                            .map(|account| {
+                                let scope = Scope::Account(account.id.clone());
+                                SidebarMenuItem::new(account.display_name.clone())
+                                    .icon(IconName::Inbox)
+                                    .accessibility_label(format!(
+                                        "All cached mail · {} · {}",
+                                        account.display_name, account.id
+                                    ))
+                                    .active(self.view == View::Inbox && self.scope == scope)
+                                    .default_open(true)
+                                    .click_to_open(true)
+                                    .click_to_toggle(false)
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.navigate(scope.clone(), window, cx);
+                                    }))
+                                    .children(
+                                        self.folders
+                                            .iter()
+                                            .filter(|folder| folder.account == account.id)
+                                            .map(|folder| {
+                                                let scope = Scope::Folder {
+                                                    account: account.id.clone(),
+                                                    folder: folder.id,
+                                                };
+                                                SidebarMenuItem::new(folder.name.clone())
+                                                    .icon(if folder.inbox {
+                                                        IconName::Inbox
+                                                    } else {
+                                                        IconName::Folder
+                                                    })
+                                                    .accessibility_label(format!(
+                                                        "Cached folder · {} · {}",
+                                                        account.display_name, folder.name
+                                                    ))
+                                                    .active(
+                                                        self.view == View::Inbox
+                                                            && self.scope == scope,
+                                                    )
+                                                    .on_click(cx.listener(
+                                                        move |this, _, window, cx| {
+                                                            this.navigate(
+                                                                scope.clone(),
+                                                                window,
+                                                                cx,
+                                                            );
+                                                        },
+                                                    ))
+                                            }),
+                                    )
+                            }),
                     ),
                 ),
             )
@@ -943,14 +1144,14 @@ impl Workspace {
             .border_b_1()
             .border_color(border)
             .child(
-                div()
-                    .w(px(190.))
-                    .font_semibold()
-                    .child(if self.view == View::Accounts {
-                        "Settings"
+                div().w(px(190.)).font_semibold().child(
+                    Label::new(if self.view == View::Accounts {
+                        "Settings".into()
                     } else {
-                        "Unified inbox"
-                    }),
+                        self.scope_label()
+                    })
+                    .truncate(),
+                ),
             )
             .child(div().flex_1().when(self.view == View::Inbox, |view| {
                 view.child(Input::new(&self.search))
@@ -972,8 +1173,49 @@ impl Workspace {
             )
     }
 
-    fn message_list(&self, _: &Context<Self>) -> impl IntoElement {
-        List::new(&self.list).size_full()
+    fn message_list(&self, cx: &Context<Self>) -> impl IntoElement {
+        let loading = self.list.read(cx).delegate().loading;
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .child(List::new(&self.list).size_full()),
+            )
+            .when(self.pages.more || self.pages.has_previous(), |view| {
+                view.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .gap_2()
+                        .p_2()
+                        .border_t_1()
+                        .border_color(cx.theme().border)
+                        .child(
+                            Button::new("newer-conversations")
+                                .ghost()
+                                .label("Newer")
+                                .disabled(loading || !self.pages.has_previous())
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.turn_page(false, window, cx);
+                                })),
+                        )
+                        .child(Label::new(format!("Page {}", self.pages.number())).text_xs())
+                        .child(
+                            Button::new("older-conversations")
+                                .ghost()
+                                .label("Older")
+                                .disabled(loading || !self.pages.more)
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.turn_page(true, window, cx);
+                                })),
+                        ),
+                )
+            })
     }
     fn reader(&self, cx: &Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
@@ -1006,38 +1248,11 @@ impl Workspace {
                 },
             ))
             .when_some(self.selected.as_ref(), |view, _| {
-                view.child(
-                    Toolbar::new("reader-tools")
-                        .mb_4()
-                        .content(
-                            TabBar::new("reader-mode")
-                                .segmented()
-                                .selected_index(usize::from(self.reader_mode == ReaderMode::Html))
-                                .on_click(cx.listener(|this, index, window, cx| {
-                                    if *index == 0 {
-                                        this.focus_reader(window, cx);
-                                    } else {
-                                        this.present_html(cx);
-                                    }
-                                }))
-                                .child(Tab::new().label("Text"))
-                                .child(Tab::new().label("HTML").disabled(!self.has_html())),
-                        )
-                        .content(
-                            ToolbarGroup::new("reader-text-actions")
-                                .label("Message text")
-                                .child(
-                                    Button::new("select-message-text")
-                                        .ghost()
-                                        .label("Select text")
-                                        .tooltip("Text selection and copy · Ctrl+Shift+T")
-                                        .on_click(cx.listener(|this, _, window, cx| {
-                                            this.focus_reader(window, cx);
-                                        })),
-                                ),
-                        )
-                        .content(self.link_menu(cx)),
-                )
+                view.child(self.thread_reader.clone())
+                    .child(self.reader_tools(cx))
+            })
+            .when_some(self.opened_message.as_ref(), |view, message| {
+                view.child(self.message_details(message, cx))
             })
             .when(!self.reader_notice.is_empty(), |view| {
                 view.child(
@@ -1048,7 +1263,9 @@ impl Workspace {
                 )
             })
             .when(
-                self.reader_mode == ReaderMode::Text && self.body.is_empty(),
+                self.selected.is_some()
+                    && self.reader_mode == ReaderMode::Text
+                    && self.body.is_empty(),
                 |view| {
                     view.child(
                         div().flex_1().min_h_0().child(
@@ -1065,10 +1282,98 @@ impl Workspace {
                 },
             )
             .when(
-                self.reader_mode == ReaderMode::Html && self.body.is_empty(),
+                self.selected.is_some()
+                    && self.reader_mode == ReaderMode::Html
+                    && self.body.is_empty(),
                 |view| view.child(div().flex_1().min_h_0().child(self.html_reader.clone())),
             )
             .when(!self.body.is_empty(), |view| view.child(self.body.clone()))
+    }
+
+    fn message_details(
+        &self,
+        message: &mailstronaut_core::mime::Projection,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let headers = &message.headers;
+        let zone = &self.list.read(cx).delegate().time_zone;
+        gpui::component::collapsible::Collapsible::new()
+            .open(self.headers_open)
+            .content(
+                div()
+                    .id("message-details-scroll")
+                    .max_h(px(180.))
+                    .overflow_y_scroll()
+                    .mb_3()
+                    .child(
+                        DescriptionList::new()
+                            .columns(1)
+                            .bordered(false)
+                            .item("From", crate::mailbox::addresses(&headers.from), 1)
+                            .item("To", crate::mailbox::addresses(&headers.to), 1)
+                            .item("Cc", crate::mailbox::addresses(&headers.cc), 1)
+                            .item(
+                                "Sent",
+                                headers.date.map_or_else(
+                                    || "Date unavailable".into(),
+                                    |date| crate::mailbox::date(date, zone),
+                                ),
+                                1,
+                            )
+                            .item(
+                                "Received",
+                                self.selected.as_ref().map_or_else(
+                                    || "Date unavailable".into(),
+                                    |row| crate::mailbox::date(row.received_at, zone),
+                                ),
+                                1,
+                            ),
+                    ),
+            )
+    }
+
+    fn reader_tools(&self, cx: &Context<Self>) -> impl IntoElement {
+        Toolbar::new("reader-tools")
+            .mb_4()
+            .content(
+                TabBar::new("reader-mode")
+                    .segmented()
+                    .selected_index(usize::from(self.reader_mode == ReaderMode::Html))
+                    .on_click(cx.listener(|this, index, window, cx| {
+                        if *index == 0 {
+                            this.focus_reader(window, cx);
+                        } else {
+                            this.present_html(cx);
+                        }
+                    }))
+                    .child(Tab::new().label("Text"))
+                    .child(Tab::new().label("HTML").disabled(!self.has_html())),
+            )
+            .content(
+                ToolbarGroup::new("reader-text-actions")
+                    .label("Message text")
+                    .child(
+                        Button::new("select-message-text")
+                            .ghost()
+                            .label("Select text")
+                            .tooltip("Text selection and copy · Ctrl+Shift+T")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.focus_reader(window, cx);
+                            })),
+                    ),
+            )
+            .content(self.link_menu(cx))
+            .content(
+                Button::new("message-details")
+                    .ghost()
+                    .label("Details")
+                    .selected(self.headers_open)
+                    .disabled(self.opened_message.is_none())
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.headers_open = !this.headers_open;
+                        cx.notify();
+                    })),
+            )
     }
 
     fn link_menu(&self, cx: &Context<Self>) -> impl IntoElement {

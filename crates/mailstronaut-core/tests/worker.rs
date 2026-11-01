@@ -222,6 +222,23 @@ async fn seed_conversation_gui() {
         include_str!("fixtures/conversation-gui.json")
     })
     .expect("synthetic mail fixture");
+    if std::env::var("MAILSTRONAUT_MAILBOX_NAVIGATION").is_ok_and(|value| value == "1") {
+        assert!(!html, "separate synthetic navigation fixture");
+        messages.extend((1..=105).map(|number| GuiMessage {
+            account: 0,
+            key: format!("page-{number:03}"),
+            mid: format!("page-{number}@example.test"),
+            references: String::new(),
+            uid: 100 + number,
+            sent: false,
+            seen: false,
+            body: format!("Synthetic cached letter {number:03}."),
+            subject: Some(format!("Cached letter {number:03}")),
+            mime: None,
+            from: "Correspondent <writer@example.test>".into(),
+            order: -i64::from(number),
+        }));
+    }
     if html {
         let port: u16 = std::env::var("MAILSTRONAUT_HTML_HTTP_PORT")
             .expect("loopback observer port")

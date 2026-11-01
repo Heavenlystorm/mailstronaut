@@ -121,6 +121,7 @@ enum Command {
     Folders(Vec<String>, Reply<Vec<Folder>>),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     ConversationMessages(String, i64, Reply<Vec<Summary>>),
+    ConversationMemberPage(String, i64, Option<Cursor>, u32, Reply<Vec<Summary>>),
     BindContext(String, String, Reply<bool>),
     UndoFlags(String, i64, Reply<()>),
     SetFlag(String, i64, FlagChange, bool, String, Reply<()>),
@@ -354,6 +355,20 @@ impl Handle {
         message: i64,
     ) -> Result<Vec<Summary>, Error> {
         self.request(|reply| Command::ConversationMessages(account, message, reply))
+            .await
+    }
+
+    /// Read a bounded keyset page of cached originals, without opening any body.
+    /// # Errors
+    /// Rejects invalid/foreign identities, excessive pages and storage failures.
+    pub async fn conversation_member_page(
+        &self,
+        account: String,
+        message: i64,
+        after: Option<Cursor>,
+        limit: u32,
+    ) -> Result<Vec<Summary>, Error> {
+        self.request(|reply| Command::ConversationMemberPage(account, message, after, limit, reply))
             .await
     }
 
@@ -890,6 +905,13 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::ConversationMessages(account, message, reply) => {
                 respond(reply, || store.conversation_messages(&account, message));
+            }
+            Command::ConversationMemberPage(account, message, after, limit, reply) => {
+                _ = reply.send(
+                    store
+                        .conversation_member_page(&account, message, after, limit)
+                        .map_err(Into::into),
+                );
             }
             Command::BindContext(account, context, reply) => {
                 commit(reply, || store.bind_mailbox_context(&account, &context));

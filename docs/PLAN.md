@@ -303,6 +303,8 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   Reuse active/collapsed states, icons and `Badge::count`; show only implemented
   mail routes. Prefer Sidebar nesting; evaluate `Tree`/`TreeState` only if actual
   folder scale requires it, without maintaining two navigation models.
+  [Routes, active states and nesting pass](evidence/P06-navigation.md); unread
+  `Badge::count` on sidebar rows remains open.
 - [ ] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
   `List`/`ListState`/`ListDelegate`/`ListItem` virtualized rows. Disable the list's
   extra query field with `ListState::searchable(false)`. Use `v_virtual_list` only
@@ -326,6 +328,8 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   the matching original and allow per-message selection/actions.
   Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)
   and `DescriptionList` for From/To/Cc/date; do not adopt chat/tail-following behavior.
+  [Selection and opening pass](evidence/P06-navigation.md); per-message actions
+  arrive with P07.
 - [ ] Mark Seen only after an **explicit open action loads that original's content**.
   Passive focus/selection/restoration/search/previews/refresh never mark read;
   opening one member does not mark its whole thread. Preserve explicit unread.

@@ -1,0 +1,46 @@
+# P06 — Native sidebar routes, thread originals and paging
+
+Status: bounded current-stack implementation; **P06 and the full client remain
+incomplete**. Everything below uses synthetic accounts and mail.
+
+## Behavior
+
+Kit's `Sidebar` routes the unified inbox, each account and each known cached folder
+through the existing store query, without starting a sync. Mailbox and thread lists
+keep one 100-row keyset page; Newer/Older retain only cursor history. Expanding a
+thread's message count (`Collapsible` + Kit `List`) reads metadata only: arrows
+select passively and Enter or a click opens exactly that original. `DescriptionList`
+shows parsed From/To/Cc and sent/received dates in the declared timezone (UTC when
+unset). Changing scope, query or page retires the previous original and its reader.
+
+A local read intention now targets every current folder copy of the opened original,
+so opening a cached Sent or Archive message can be recorded. Unread siblings and other
+accounts acquire no intention, and each UID stays bound to its folder and UIDVALIDITY.
+
+Two defects were found and fixed while validating this slice:
+
+- A focused control leaving the tree (a pager button becoming disabled, a retired
+  thread list) emptied the focus path, so global key bindings stopped working. The
+  workspace now reclaims focus through GPUI's `on_focus_lost`.
+- The read-only `Textarea` drew each carriage return in CRLF mail as a missing glyph.
+  Only the displayed copy is normalized; the cached original is unchanged.
+
+## Checks
+
+Run on the CI server through `ci/remote.sh`, not the laptop. `bash ci/check.sh` in
+the pinned `nix develop` shell passes formatting, tool lints, strict Clippy and the
+normal workspace tests.
+
+`MAILSTRONAUT_MAILBOX_NAVIGATION=1 experiments/p06-mailbox/wayland.sh` passes in a
+private headless sway session with `DISPLAY` unset, a software Vulkan driver and a
+private bus. It drives real keyboard and pointer input and asserts SQLite Seen state
+after each step: passive selection, thread expansion and paging; one original marked
+per explicit open; Older followed by Ctrl+L/Down/Enter; refresh retaining the page;
+Sent and other-account routes; a declaratively disabled account retiring its open
+message while keeping its cache; and an offline restart.
+
+## Not established
+
+No live provider, real desktop session, assistive-technology, large-mailbox timing or
+Flatpak acceptance. Sidebar rows have no unread `Badge::count` yet, and folder-specific
+sync is not implemented, so a folder lists only what is already cached.

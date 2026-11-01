@@ -330,19 +330,58 @@ impl Store {
         account: &str,
         message: i64,
     ) -> Result<Vec<super::mailbox::Summary>, Error> {
-        let conversation:Option<Option<i64>>=self.connection.query_row("SELECT CASE WHEN a.projected_thread_revision=a.thread_revision THEN cm.conversation_id ELSE NULL END FROM messages m JOIN accounts a ON a.id=m.account_id LEFT JOIN conversation_members cm ON cm.account_id=m.account_id AND cm.message_id=m.id WHERE m.account_id=?1 AND m.id=?2",params![account,message],|row|row.get(0)).optional()?;
-        let conversation = conversation.ok_or(Error::MissingMessage)?;
-        let mut statement=self.connection.prepare_cached("SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen),MAX(s.starred),MAX(f.is_inbox) FROM messages m JOIN effective_memberships s ON s.account_id=m.account_id AND s.message_id=m.id JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity LEFT JOIN conversation_members cm ON cm.account_id=m.account_id AND cm.message_id=m.id WHERE m.account_id=?1 AND ((?3 IS NULL AND m.id=?2) OR (?3 IS NOT NULL AND cm.conversation_id=?3)) GROUP BY m.id ORDER BY CASE WHEN m.id=?2 THEN 0 ELSE 1 END,m.received_at DESC,m.id DESC LIMIT 200")?;
-        let mut messages = statement
-            .query_map(params![account, message, conversation], |row| {
-                let mut message = super::mailbox::read_summary(row)?;
-                message.inbox = row.get(8)?;
-                Ok(message)
-            })?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(Error::from)?;
+        let mut messages = self.conversation_members(account, message, None, 200, true)?;
         messages.sort_unstable_by_key(|message| (message.received_at, message.id));
         Ok(messages)
+    }
+
+    /// Page every cached original in the selected account-local conversation,
+    /// including Sent/Archive ancestry, without loading bodies or changing flags.
+    /// # Errors
+    /// Rejects invalid page sizes/cursors, unknown or cross-account originals.
+    pub fn conversation_member_page(
+        &self,
+        account: &str,
+        message: i64,
+        after: Option<super::mailbox::Cursor>,
+        limit: u32,
+    ) -> Result<Vec<super::mailbox::Summary>, Error> {
+        if !(1..=100).contains(&limit) || after.is_some_and(|cursor| cursor.message_id <= 0) {
+            return Err(Error::InvalidInput);
+        }
+        self.conversation_members(account, message, after, limit, false)
+    }
+
+    fn conversation_members(
+        &self,
+        account: &str,
+        message: i64,
+        after: Option<super::mailbox::Cursor>,
+        limit: u32,
+        selected_first: bool,
+    ) -> Result<Vec<super::mailbox::Summary>, Error> {
+        let conversation:Option<Option<i64>>=self.connection.query_row("SELECT CASE WHEN a.projected_thread_revision=a.thread_revision THEN cm.conversation_id ELSE NULL END FROM messages m JOIN accounts a ON a.id=m.account_id LEFT JOIN conversation_members cm ON cm.account_id=m.account_id AND cm.message_id=m.id WHERE m.account_id=?1 AND m.id=?2",params![account,message],|row|row.get(0)).optional()?;
+        let conversation = conversation.ok_or(Error::MissingMessage)?;
+        let mut statement=self.connection.prepare_cached("SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen),MAX(s.starred),MAX(f.is_inbox) FROM messages m JOIN effective_memberships s ON s.account_id=m.account_id AND s.message_id=m.id JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity LEFT JOIN conversation_members cm ON cm.account_id=m.account_id AND cm.message_id=m.id WHERE m.account_id=?1 AND ((?3 IS NULL AND m.id=?2) OR (?3 IS NOT NULL AND cm.conversation_id=?3)) AND (?4 IS NULL OR m.received_at<?4 OR (m.received_at=?4 AND m.id<?5)) GROUP BY m.id ORDER BY CASE WHEN ?7 AND m.id=?2 THEN 0 ELSE 1 END,m.received_at DESC,m.id DESC LIMIT ?6")?;
+        statement
+            .query_map(
+                params![
+                    account,
+                    message,
+                    conversation,
+                    after.map(|cursor| cursor.received_at),
+                    after.map(|cursor| cursor.message_id),
+                    limit,
+                    selected_first
+                ],
+                |row| {
+                    let mut message = super::mailbox::read_summary(row)?;
+                    message.inbox = row.get(8)?;
+                    Ok(message)
+                },
+            )?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Error::from)
     }
 }
 
@@ -419,6 +458,76 @@ mod tests {
     }
     fn identity(store: &Store, account: &str, message: i64) -> i64 {
         store.connection.query_row("SELECT conversation_id FROM conversation_members WHERE account_id=?1 AND message_id=?2",params![account,message],|row|row.get(0)).expect("conversation identity")
+    }
+    #[test]
+    fn original_pages_reach_every_member_with_tied_dates_and_isolate_accounts() {
+        let (_root, mut store, inbox, sent, other) = setup();
+        let parent = add(&mut store, "a", sent, 1, "parent@example.test", &[], 100);
+        let mut expected = vec![parent];
+        for uid in 2..=211 {
+            expected.push(add(
+                &mut store,
+                "a",
+                inbox,
+                uid,
+                &format!("reply-{uid}@example.test"),
+                &["parent@example.test"],
+                100,
+            ));
+        }
+        let foreign = add(&mut store, "b", other, 1, "parent@example.test", &[], 100);
+        group(&mut store, "a");
+        group(&mut store, "b");
+        let mut cursor = None;
+        let mut actual = Vec::new();
+        let mut sizes = Vec::new();
+        loop {
+            let page = store
+                .conversation_member_page("a", parent, cursor, 100)
+                .expect("bounded metadata page");
+            if page.is_empty() {
+                break;
+            }
+            sizes.push(page.len());
+            assert!(page.iter().all(|row| row.account == "a" && !row.seen));
+            cursor = page.last().map(super::super::mailbox::Summary::cursor);
+            actual.extend(page.iter().map(|row| row.id));
+        }
+        expected.reverse();
+        assert_eq!(
+            actual, expected,
+            "no gap/duplicate at equal-date page boundaries"
+        );
+        assert_eq!(sizes, [100, 100, 11]);
+        assert_eq!(
+            store
+                .flag_counts(&["a".into(), "b".into()])
+                .expect("passive counts")
+                .pending,
+            0
+        );
+        assert!(matches!(
+            store.conversation_member_page("a", foreign, None, 100),
+            Err(Error::MissingMessage)
+        ));
+        for limit in [0, 101] {
+            assert!(matches!(
+                store.conversation_member_page("a", parent, None, limit),
+                Err(Error::InvalidInput)
+            ));
+        }
+        assert!(matches!(
+            store.conversation_member_page(
+                "a",
+                parent,
+                Some(super::super::mailbox::Cursor {
+                    received_at: 100,
+                    message_id: 0
+                }),
+                100
+            ),
+            Err(Error::InvalidInput)
+        ));
     }
     #[test]
     fn conversation_inbox_is_account_local_includes_sent_and_updates_flags_per_message() {

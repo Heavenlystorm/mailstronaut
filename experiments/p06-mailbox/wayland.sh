@@ -132,6 +132,12 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_MAILBOX_NAVIGATION:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=navigation.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/navigation.sh"
+  exit 0
+fi
 # Arrow selection, refresh and page return are passive, never a content open.
 wtype -s 200 -M ctrl l -m ctrl -k Down -s 200 -M ctrl r -m ctrl -s 600
 check_seen

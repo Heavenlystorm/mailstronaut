@@ -81,7 +81,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-cH8i/Y4P8Ms72wArUgp5d/+XY6vGoZ4GSUUPFSzpNRs=";
+          cargoHash = "sha256-QXhhwDIc/uUsnTyaiuLA6BPUzJ+xBIynbrTRFvdZIoE=";
           cargoDeps =
             (pkgs.rustPlatform.fetchCargoVendor {
               inherit pname version;
@@ -261,7 +261,7 @@
               }
               ''
                 actionlint ${self}/.github/workflows/ci.yml
-                shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh \
+                shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh ${self}/ci/remote.sh \
                   ${self}/experiments/p01-blitz/privacy.sh \
                   ${self}/experiments/p01-blitz/reader.sh \
                   ${self}/experiments/p01-blitz/portal.sh \
@@ -269,6 +269,7 @@
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
                   ${self}/experiments/p06-mailbox/wayland.sh \
+                  ${self}/experiments/p06-mailbox/navigation.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"
