@@ -283,7 +283,15 @@ fn upgrading_schema_six_preserves_editable_drafts_and_creates_backup() {
     let connection =
         rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("database");
     connection
-        .execute_batch("DROP TABLE draft_attachments; PRAGMA user_version=6;")
+        .execute_batch(
+            "DROP TABLE draft_attachments;
+             DROP VIEW effective_memberships;
+             DROP TABLE pending_moves;
+             CREATE VIEW effective_memberships AS SELECT 1 AS placeholder;
+             DROP INDEX one_folder_per_role;
+             ALTER TABLE folders DROP COLUMN role;
+             PRAGMA user_version=6;",
+        )
         .expect("schema six fixture");
     drop(connection);
     let upgraded = Store::open(root.path()).expect("upgrade");

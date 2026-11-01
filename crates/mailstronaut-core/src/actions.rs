@@ -5,7 +5,11 @@ use core::num::NonZeroU32;
 use mailstronaut_mail::imap::{self, Connection};
 use tokio_util::sync::CancellationToken;
 
-use crate::{store::flags::Attempt, sync::Error, worker};
+use crate::{
+    store::{flags::Attempt, moves::MoveAttempt},
+    sync::Error,
+    worker,
+};
 
 /// One explicit account-local action batch; SMTP is never included.
 pub struct Request<'a> {
@@ -63,6 +67,105 @@ pub async fn apply(
         }
     }
     Ok(confirmed)
+}
+
+/// Apply at most 20 queued moves using one authenticated connection. A failure is
+/// recorded and stops the batch, leaving the message visible in its source folder.
+///
+/// # Errors
+/// Returns static transport/storage failures.
+pub async fn apply_moves(
+    store: &worker::Handle,
+    connection: &mut Connection,
+    request: &Request<'_>,
+    cancel: &CancellationToken,
+) -> Result<u32, Error> {
+    if request.retry {
+        store.retry_moves(request.account.into()).await?;
+    }
+    let mut moved = 0;
+    for _ in 0..20 {
+        if cancel.is_cancelled() {
+            return Err(imap::Error::Cancelled.into());
+        }
+        let Some(attempt) = store
+            .begin_move(request.account.into(), request.context.into())
+            .await?
+        else {
+            break;
+        };
+        match transfer(connection, &attempt, cancel).await {
+            Ok(done) => {
+                store.finish_move(attempt, done).await?;
+                if done {
+                    moved += 1;
+                } else {
+                    return Err(worker::Error::StaleMailbox.into());
+                }
+            }
+            Err(error) => {
+                store.finish_move(attempt, false).await?;
+                return Err(error.into());
+            }
+        }
+    }
+    Ok(moved)
+}
+
+async fn transfer(
+    connection: &mut Connection,
+    attempt: &MoveAttempt,
+    cancel: &CancellationToken,
+) -> Result<bool, imap::Error> {
+    let selected = connection.select(&attempt.folder, cancel).await?;
+    let validity = selected
+        .uid_validity
+        .and_then(NonZeroU32::new)
+        .ok_or(imap::Error::Protocol)?;
+    if validity != attempt.validity {
+        return Ok(false);
+    }
+    // An interrupted earlier attempt may have moved it. A vanished UID is complete.
+    if connection
+        .metadata(&[attempt.uid], cancel)
+        .await?
+        .is_empty()
+    {
+        return Ok(true);
+    }
+    connection
+        .move_message(attempt.uid, &attempt.destination, cancel)
+        .await?;
+    Ok(true)
+}
+
+/// Copy at most 20 accepted messages to the Sent folder. Never resubmits anything.
+///
+/// # Errors
+/// Returns static transport/storage failures; the copy stays pending for a later cycle.
+pub async fn append_sent(
+    store: &worker::Handle,
+    connection: &mut Connection,
+    account: &str,
+    sent_folder: &str,
+    cancel: &CancellationToken,
+) -> Result<u32, Error> {
+    let mut copied = 0;
+    for _ in 0..20 {
+        let Some(copy) = store.pending_sent_copy(account.into()).await? else {
+            break;
+        };
+        // A crash after APPEND must not leave a second copy on the next run.
+        connection.select(sent_folder, cancel).await?;
+        if !connection.has_message_id(&copy.message_id, cancel).await? {
+            connection
+                .append(sent_folder, &copy.original, cancel)
+                .await?;
+        }
+        store.finish_sent_copy(account.into(), copy.id).await?;
+        copied += 1;
+    }
+    Ok(copied)
 }
 
 async fn perform(

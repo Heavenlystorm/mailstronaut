@@ -141,6 +141,16 @@ pub struct Summary {
     pub uncertain: bool,
 }
 
+/// An accepted message whose exact frozen bytes still belong in the Sent folder.
+pub struct SentCopy {
+    /// Sending intent ID.
+    pub id: String,
+    /// Original Message-ID without angle brackets, used to avoid a duplicate copy.
+    pub message_id: String,
+    /// Exactly the bytes given to SMTP.
+    pub original: Vec<u8>,
+}
+
 /// A claimed network attempt. Its token fences callbacks from earlier attempts.
 #[derive(Clone, Debug)]
 pub struct Submission {
@@ -537,6 +547,44 @@ impl Store {
             })
         })
         .collect()
+    }
+
+    /// The next accepted message still owing a copy in the Sent folder.
+    ///
+    /// # Errors
+    /// Rejects damaged stored originals and storage failures.
+    pub fn pending_sent_copy(&self, account: &str) -> Result<Option<SentCopy>, Error> {
+        let row: Option<(String, String, String)> = self
+            .connection
+            .query_row(
+                "SELECT id,message_id,blob_hash FROM outbox WHERE account_id=?1 AND phase='accepted' AND sent_copy='pending' ORDER BY updated_at,id LIMIT 1",
+                [account],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()?;
+        row.map(|(id, message_id, hash)| {
+            Ok(SentCopy {
+                id,
+                message_id,
+                original: super::read_blob(&self.blobs, &hash)?,
+            })
+        })
+        .transpose()
+    }
+
+    /// Record a completed Sent copy. This never affects SMTP delivery state.
+    ///
+    /// # Errors
+    /// Rejects a record that no longer owes a copy and storage failures.
+    pub fn finish_sent_copy(&mut self, account: &str, id: &str) -> Result<(), Error> {
+        let changed = self.connection.execute(
+            "UPDATE outbox SET sent_copy='done',updated_at=?3 WHERE id=?1 AND account_id=?2 AND phase='accepted' AND sent_copy='pending'",
+            params![id, account, now()],
+        )?;
+        if changed != 1 {
+            return Err(Error::OperationConflict);
+        }
+        Ok(())
     }
 
     // Called only by the exclusive Worker owner, never by arbitrary Store::open.

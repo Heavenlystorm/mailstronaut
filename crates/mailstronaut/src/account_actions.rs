@@ -372,6 +372,23 @@ impl Access {
             .map_err(SyncFailure::from_sync)?,
             ..Cycle::default()
         };
+        cycle.actions += actions::apply_moves(
+            store,
+            &mut connection,
+            &actions::Request {
+                account: &account.id,
+                context: &context,
+                retry: true,
+            },
+            cancel,
+        )
+        .await
+        .map_err(SyncFailure::from_sync)?;
+        if let Some((sent, _)) = roles.iter().find(|(_, role)| *role == FolderRole::Sent) {
+            actions::append_sent(store, &mut connection, &account.id, sent, cancel)
+                .await
+                .map_err(SyncFailure::from_sync)?;
+        }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()

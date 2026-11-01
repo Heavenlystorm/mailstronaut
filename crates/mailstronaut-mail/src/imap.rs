@@ -22,6 +22,8 @@ pub use read::{Folder, MessageData, Metadata};
 mod flags;
 pub use flags::FlagChange;
 
+mod transfer;
+
 /// Total received bytes for one connection, including protocol framing. A worker
 /// reconnects/reconciles when this budget is exhausted rather than reading forever.
 pub const MAX_SESSION_BYTES: u64 = 32 * 1024 * 1024;
@@ -45,6 +47,9 @@ pub enum Error {
     FlagUnavailable,
     /// Network operation failed.
     Network,
+    /// The server offers neither MOVE nor UIDPLUS, so one message cannot be moved
+    /// without risking other clients' messages marked for deletion.
+    MoveUnavailable,
     /// Malformed or unexpected protocol response.
     Protocol,
     /// A response exceeded the local budget.
@@ -70,6 +75,7 @@ impl fmt::Display for Error {
                 "server did not advertise permanent support for this mail flag"
             }
             Self::Network => "mail network operation failed",
+            Self::MoveUnavailable => "this mail server cannot safely move a single message",
             Self::Protocol => "unexpected mail server response",
             Self::ResponseLimit => "mail server response exceeds the supported limit",
             Self::StarttlsRequired => "required STARTTLS unavailable; credentials were not sent",

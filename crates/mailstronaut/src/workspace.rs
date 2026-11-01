@@ -36,7 +36,7 @@ use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
     reply::Kind,
     store::browse::Scope,
-    store::mailbox::Folder,
+    store::mailbox::{Folder, FolderRole},
     worker::{Handle, Worker},
 };
 use mailstronaut_mail::imap::FlagChange;
@@ -98,7 +98,13 @@ gpui::actions!(
         ToggleRead,
         #[derive(Eq)]
         /// Toggle the star on the open original.
-        ToggleStar
+        ToggleStar,
+        #[derive(Eq)]
+        /// Move the open conversation to the account's archive.
+        Archive,
+        #[derive(Eq)]
+        /// Move the open conversation to the account's trash.
+        Trash
     ]
 );
 
@@ -961,6 +967,124 @@ impl Workspace {
         .detach();
     }
 
+    fn account_folders(&self, account: &str) -> impl Iterator<Item = &Folder> {
+        self.folders
+            .iter()
+            .filter(move |folder| folder.account == account)
+    }
+
+    fn role_folder(&self, role: FolderRole) -> Option<&Folder> {
+        let row = self.selected.as_ref()?;
+        self.folders
+            .iter()
+            .find(|folder| folder.account == row.account && folder.role == Some(role))
+    }
+
+    fn move_to_role(&mut self, role: FolderRole, window: &Window, cx: &mut Context<Self>) {
+        let Some(destination) = self.role_folder(role).map(|folder| folder.name.clone()) else {
+            self.reader_notice = format!(
+                "This account has no {} folder. Set one in your Nix configuration.",
+                role.label()
+            );
+            cx.notify();
+            return;
+        };
+        self.move_open(destination, role.label().to_owned(), window, cx);
+    }
+
+    /// Hide the open conversation now and report it with Undo. The server is told on
+    /// the account's next cycle, and only copies in the current folder move.
+    fn move_open(&self, destination: String, label: String, window: &Window, cx: &Context<Self>) {
+        let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
+            return;
+        };
+        let Some(context) = self.declaration.active().and_then(|config| {
+            let account = config.accounts.iter().find(|item| item.id == row.account)?;
+            mailstronaut_core::store::flags::context(account).ok()
+        }) else {
+            return;
+        };
+        let source = match &self.scope {
+            Scope::Folder { folder, .. } => Some(*folder),
+            _ => None,
+        };
+        let revision = self.declaration.revision();
+        let (account, id) = (row.account.clone(), row.id);
+        let job = self.runtime.spawn(async move {
+            handle
+                .queue_move(account, id, source, destination, context)
+                .await
+        });
+        let undo = (row.account, row.id);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if revision != this.declaration.revision() {
+                    return;
+                }
+                match result {
+                    Ok(Ok(_)) => this.after_move(undo, &label, window, cx),
+                    Ok(Err(error)) => this.reader_notice = error.to_string(),
+                    Err(_) => this.reader_notice = "Unable to move this message.".into(),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn after_move(
+        &mut self,
+        undo: (String, i64),
+        label: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.retire_open(window, cx);
+        self.refresh_rows(window, cx);
+        if let Some(engine) = &self.engine {
+            engine.wake_all();
+        }
+        let workspace = cx.entity().downgrade();
+        window.push_notification(
+            Notification::info(format!("Moved to {label}"))
+                .delivery(NotificationDelivery::InApp)
+                .action(move |_, _, cx| {
+                    let (workspace, undo) = (workspace.clone(), undo.clone());
+                    Button::new("undo-move").label("Undo").on_click(cx.listener(
+                        move |notification, _, window, cx| {
+                            _ = workspace.update(cx, |this, cx| {
+                                this.undo_move(undo.clone(), window, cx);
+                            });
+                            notification.dismiss(window, cx);
+                        },
+                    ))
+                }),
+            cx,
+        );
+    }
+
+    fn undo_move(&self, (account, id): (String, i64), window: &Window, cx: &Context<Self>) {
+        let Some(handle) = self.handle() else {
+            return;
+        };
+        let job = self
+            .runtime
+            .spawn(async move { handle.undo_move(account, id).await });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if matches!(result, Ok(Ok(()))) {
+                    this.refresh_rows(window, cx);
+                } else {
+                    this.status = "Too late to undo: the server already has this change.".into();
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     /// Restart per-account polling for the active configuration. Explicit sync in
     /// Settings still works when `sync.automatic` is off.
     fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &Context<Self>) {
@@ -1086,6 +1210,8 @@ impl Workspace {
             KeyBinding::new("alt-f", Forward, Some("Mailstronaut")),
             KeyBinding::new("alt-u", ToggleRead, Some("Mailstronaut")),
             KeyBinding::new("alt-s", ToggleStar, Some("Mailstronaut")),
+            KeyBinding::new("alt-e", Archive, Some("Mailstronaut")),
+            KeyBinding::new("alt-d", Trash, Some("Mailstronaut")),
         ]);
     }
 
@@ -1667,6 +1793,7 @@ impl Workspace {
                             })),
                     ),
             )
+            .content(self.move_controls(cx))
             .content(
                 ToolbarGroup::new("message-state")
                     .label("Message state")
@@ -1690,6 +1817,65 @@ impl Workspace {
                                 this.toggle_flag(FlagChange::Starred, window, cx);
                             })),
                     ),
+            )
+    }
+
+    fn move_controls(&self, cx: &Context<Self>) -> impl IntoElement {
+        let targets: Vec<(String, String)> = self
+            .selected
+            .as_ref()
+            .into_iter()
+            .flat_map(|row| self.account_folders(&row.account))
+            .filter(|folder| !folder.inbox)
+            .map(|folder| {
+                let label = folder
+                    .role
+                    .map_or_else(|| folder.name.clone(), |role| role.label().to_owned());
+                (folder.name.clone(), label)
+            })
+            .collect();
+        let workspace = cx.entity().downgrade();
+        ToolbarGroup::new("message-move")
+            .label("Move")
+            .child(
+                Button::new("archive")
+                    .ghost()
+                    .label("Archive")
+                    .tooltip("Alt+E · the whole conversation")
+                    .disabled(self.demo)
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.move_to_role(FolderRole::Archive, window, cx);
+                    })),
+            )
+            .child(
+                Button::new("trash")
+                    .ghost()
+                    .label("Trash")
+                    .tooltip("Alt+D · the whole conversation")
+                    .disabled(self.demo)
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.move_to_role(FolderRole::Trash, window, cx);
+                    })),
+            )
+            .content(
+                Button::new("move-to")
+                    .ghost()
+                    .label("Move to")
+                    .disabled(self.demo || targets.is_empty())
+                    .dropdown_menu(move |mut menu, _, _| {
+                        for (name, label) in &targets {
+                            let (workspace, name, title) =
+                                (workspace.clone(), name.clone(), label.clone());
+                            menu = menu.item(PopupMenuItem::new(label.clone()).on_click(
+                                move |_, window, cx| {
+                                    _ = workspace.update(cx, |this, cx| {
+                                        this.move_open(name.clone(), title.clone(), window, cx);
+                                    });
+                                },
+                            ));
+                        }
+                        menu
+                    }),
             )
     }
 
@@ -1820,6 +2006,16 @@ impl Workspace {
         .on_action(cx.listener(|this, _: &ToggleStar, window, cx| {
             if this.view == View::Inbox {
                 this.toggle_flag(FlagChange::Starred, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &Archive, window, cx| {
+            if this.view == View::Inbox {
+                this.move_to_role(FolderRole::Archive, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &Trash, window, cx| {
+            if this.view == View::Inbox {
+                this.move_to_role(FolderRole::Trash, window, cx);
             }
         }))
         .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {

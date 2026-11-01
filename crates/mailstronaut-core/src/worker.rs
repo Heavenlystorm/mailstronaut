@@ -15,6 +15,7 @@ use crate::{
     store::{
         self, Store,
         mailbox::{Cursor, Folder, FolderRole, GmailId, Membership, Summary, UidSnapshot},
+        moves::MoveAttempt,
         outbox::{self, Draft, DraftSummary, Submission},
     },
 };
@@ -121,6 +122,13 @@ enum Command {
     Folders(Vec<String>, Reply<Vec<Folder>>),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
+    QueueMove(String, i64, Option<i64>, String, String, Reply<u32>),
+    UndoMove(String, i64, Reply<()>),
+    BeginMove(String, String, Reply<Option<MoveAttempt>>),
+    FinishMove(MoveAttempt, bool, Reply<()>),
+    RetryMoves(String, Reply<()>),
+    PendingSentCopy(String, Reply<Option<outbox::SentCopy>>),
+    FinishSentCopy(String, String, Reply<()>),
     ConversationMessages(String, i64, Reply<Vec<Summary>>),
     ConversationMemberPage(String, i64, Option<Cursor>, u32, Reply<Vec<Summary>>),
     BindContext(String, String, Reply<bool>),
@@ -346,6 +354,71 @@ impl Handle {
         inbox: String,
     ) -> Result<(), Error> {
         self.request(|reply| Command::RememberFolders(account, names, inbox, reply))
+            .await
+    }
+    /// Queue moving a conversation out of a folder (or the inbox), hiding it locally.
+    /// # Errors
+    /// Rejects unknown destinations, nothing to move and stale context.
+    pub async fn queue_move(
+        &self,
+        account: String,
+        message: i64,
+        source: Option<i64>,
+        destination: String,
+        context: String,
+    ) -> Result<u32, Error> {
+        self.request(|reply| {
+            Command::QueueMove(account, message, source, destination, context, reply)
+        })
+        .await
+    }
+    /// Cancel a conversation's queued moves if none reached the server.
+    /// # Errors
+    /// Rejects moves already attempted and storage failures.
+    pub async fn undo_move(&self, account: String, message: i64) -> Result<(), Error> {
+        self.request(|reply| Command::UndoMove(account, message, reply))
+            .await
+    }
+    /// Claim the next queued move.
+    /// # Errors
+    /// Rejects concurrent claims and storage failures.
+    pub async fn begin_move(
+        &self,
+        account: String,
+        context: String,
+    ) -> Result<Option<MoveAttempt>, Error> {
+        self.request(|reply| Command::BeginMove(account, context, reply))
+            .await
+    }
+    /// Commit the exact attempt's result.
+    /// # Errors
+    /// Rejects stale attempts and storage failures.
+    pub async fn finish_move(&self, attempt: MoveAttempt, moved: bool) -> Result<(), Error> {
+        self.request(|reply| Command::FinishMove(attempt, moved, reply))
+            .await
+    }
+    /// Requeue this account's failed moves.
+    /// # Errors
+    /// Returns storage failures.
+    pub async fn retry_moves(&self, account: String) -> Result<(), Error> {
+        self.request(|reply| Command::RetryMoves(account, reply))
+            .await
+    }
+    /// The next accepted message still owing a copy in the Sent folder.
+    /// # Errors
+    /// Rejects damaged originals and storage failures.
+    pub async fn pending_sent_copy(
+        &self,
+        account: String,
+    ) -> Result<Option<outbox::SentCopy>, Error> {
+        self.request(|reply| Command::PendingSentCopy(account, reply))
+            .await
+    }
+    /// Record a completed Sent copy, without touching SMTP delivery state.
+    /// # Errors
+    /// Rejects a record that owes no copy and storage failures.
+    pub async fn finish_sent_copy(&self, account: String, id: String) -> Result<(), Error> {
+        self.request(|reply| Command::FinishSentCopy(account, id, reply))
             .await
     }
     /// Record which folders serve the standard mail roles.
@@ -828,6 +901,7 @@ fn open_profile(root: &Path) -> Result<(fs::File, Store), Error> {
     store.recover_submissions().map_err(Error::from)?;
     store.recover_flags().map_err(Error::from)?;
     store.recover_reminders().map_err(Error::from)?;
+    store.recover_moves().map_err(Error::from)?;
     Ok((lock, store))
 }
 
@@ -923,6 +997,34 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));
+            }
+            Command::QueueMove(account, message, source, destination, context, reply) => {
+                commit(reply, || {
+                    store.queue_move(&account, message, source, &destination, &context)
+                });
+            }
+            Command::UndoMove(account, message, reply) => {
+                commit(reply, || store.undo_move(&account, message));
+            }
+            Command::BeginMove(account, context, reply) => {
+                if !reply.is_closed() {
+                    let result = store.begin_move(&account, &context).map_err(Error::from);
+                    if let Err(Ok(Some(attempt))) = reply.send(result) {
+                        let _failed = store.finish_move(&attempt, false);
+                    }
+                }
+            }
+            Command::FinishMove(attempt, moved, reply) => {
+                commit(reply, || store.finish_move(&attempt, moved));
+            }
+            Command::RetryMoves(account, reply) => {
+                commit(reply, || store.retry_moves(&account));
+            }
+            Command::PendingSentCopy(account, reply) => {
+                respond(reply, || store.pending_sent_copy(&account));
+            }
+            Command::FinishSentCopy(account, id, reply) => {
+                commit(reply, || store.finish_sent_copy(&account, &id));
             }
             Command::AssignFolderRoles(account, roles, reply) => {
                 commit(reply, || store.assign_folder_roles(&account, &roles));
