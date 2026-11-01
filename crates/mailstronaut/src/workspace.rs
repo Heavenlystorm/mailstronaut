@@ -5,6 +5,8 @@ use std::{path::PathBuf, sync::Arc};
 use gpui::base::StyledExt as _;
 use gpui::component::{
     ActiveTheme as _, Disableable as _, IconName, IndexPath, Selectable as _, Theme, ThemeMode,
+    WindowExt as _,
+    badge::Badge,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
     description_list::DescriptionList,
@@ -12,6 +14,7 @@ use gpui::component::{
     label::Label,
     list::{List, ListEvent, ListState},
     menu::{DropdownMenu as _, PopupMenuItem},
+    notification::{Notification, NotificationDelivery},
     resizable::{h_resizable, resizable_panel},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
@@ -25,6 +28,7 @@ use gpui::{
 };
 use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
+    reply::Kind,
     store::browse::Scope,
     store::mailbox::Folder,
     worker::{Handle, Worker},
@@ -63,7 +67,22 @@ gpui::actions!(
         ShowInbox,
         #[derive(Eq)]
         /// Explicitly reload the canonical native Nix source.
-        ReloadConfiguration
+        ReloadConfiguration,
+        #[derive(Eq)]
+        /// Start a new local draft.
+        ComposeMessage,
+        #[derive(Eq)]
+        /// Show saved drafts and the outbox.
+        ShowDrafts,
+        #[derive(Eq)]
+        /// Prepare a reply to the open original.
+        Reply,
+        #[derive(Eq)]
+        /// Prepare a reply to every visible recipient of the open original.
+        ReplyAll,
+        #[derive(Eq)]
+        /// Prepare a plain-text forward of the open original.
+        Forward
     ]
 );
 
@@ -71,6 +90,7 @@ gpui::actions!(
 enum View {
     Inbox,
     Accounts,
+    Compose,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -93,6 +113,8 @@ pub struct Workspace {
     loading_config: bool,
     view: View,
     account_access: crate::account_actions::Access,
+    composer: Entity<crate::composer::Composer>,
+    _composer_events: Subscription,
     account_views: Vec<Entity<crate::accounts::AccountPane>>,
     account_events: Vec<Subscription>,
     account_lifetime: CancellationToken,
@@ -173,7 +195,7 @@ impl Workspace {
         });
         let activation = cx.observe_window_activation(window, |this, window, _| {
             this.read_gate
-                .visibility(window.is_window_active() && this.view != View::Accounts);
+                .visibility(window.is_window_active() && this.view == View::Inbox);
         });
         let thread_reader =
             cx.new(|cx| crate::thread_reader::ThreadReader::new(runtime.clone(), window, cx));
@@ -204,6 +226,27 @@ impl Workspace {
         });
         let mut read_gate = crate::read_gate::Gate::default();
         read_gate.visibility(window.is_window_active());
+        let lifetime = CancellationToken::new();
+        let account_access = crate::account_actions::Access::default();
+        let composer = cx.new(|cx| {
+            crate::composer::Composer::new(
+                runtime.clone(),
+                account_access.clone(),
+                lifetime.child_token(),
+                window,
+                cx,
+            )
+        });
+        let composer_events = cx.subscribe_in(&composer, window, |this, _, event, window, cx| {
+            if let crate::composer::Event::Closed(message) = event {
+                window.push_notification(
+                    Notification::success(message.clone()).delivery(NotificationDelivery::InApp),
+                    cx,
+                );
+                this.navigate(this.scope.clone(), window, cx);
+            }
+            cx.notify();
+        });
         let mut this = Self {
             focus,
             link_focus: cx.focus_handle(),
@@ -217,11 +260,13 @@ impl Workspace {
             config_path: path,
             loading_config: false,
             view: View::Inbox,
-            account_access: crate::account_actions::Access::default(),
+            account_access,
+            composer,
+            _composer_events: composer_events,
             account_views: Vec::new(),
             account_events: Vec::new(),
             account_lifetime: CancellationToken::new(),
-            lifetime: CancellationToken::new(),
+            lifetime,
             query_cancel: CancellationToken::new(),
             read_gate,
             list,
@@ -367,6 +412,10 @@ impl Workspace {
                                 });
                                 this.apply_appearance(&config, window, cx);
                                 this.rebuild_accounts(&config, window, cx);
+                                let handle = this.handle();
+                                this.composer.update(cx, |composer, cx| {
+                                    composer.configure(&config, handle, window, cx);
+                                });
                             }
                         }
                         if let Some(error) = this.declaration.error() {
@@ -454,7 +503,7 @@ impl Workspace {
     }
 
     fn focus_reader(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.selected.is_some() && self.view != View::Accounts {
+        if self.selected.is_some() && self.view == View::Inbox {
             self.cancel_link();
             self.reader_mode = ReaderMode::Text;
             self.preferred_reader = ReaderMode::Text;
@@ -876,6 +925,11 @@ impl Workspace {
             KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
             KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-n", ComposeMessage, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-2", ShowDrafts, Some("Mailstronaut")),
+            KeyBinding::new("alt-r", Reply, Some("Mailstronaut")),
+            KeyBinding::new("alt-a", ReplyAll, Some("Mailstronaut")),
+            KeyBinding::new("alt-f", Forward, Some("Mailstronaut")),
         ]);
     }
 
@@ -885,8 +939,50 @@ impl Workspace {
         self.read_gate.visibility(false);
         self.html_reader
             .update(cx, crate::html_reader::HtmlReader::hide);
+        self.composer.update(cx, |composer, cx| composer.flush(cx));
         window.focus(&self.focus, cx);
         cx.notify();
+    }
+
+    fn show_compose(&mut self, window: &Window, cx: &mut Context<Self>) {
+        self.cancel_link();
+        self.view = View::Compose;
+        self.read_gate.visibility(false);
+        self.html_reader
+            .update(cx, crate::html_reader::HtmlReader::hide);
+        self.composer
+            .update(cx, |composer, cx| composer.refresh_lists(window, cx));
+        cx.notify();
+    }
+
+    fn compose(&mut self, window: &Window, cx: &mut Context<Self>) {
+        self.show_compose(window, cx);
+        self.composer
+            .update(cx, |composer, cx| composer.compose_new(window, cx));
+    }
+
+    fn respond(&mut self, kind: Kind, window: &Window, cx: &mut Context<Self>) {
+        let (Some(row), Some(message), Some(config)) = (
+            self.selected.as_ref(),
+            self.opened_message.as_ref(),
+            self.declaration.active(),
+        ) else {
+            return;
+        };
+        let Some(account) = config.accounts.iter().find(|item| item.id == row.account) else {
+            return;
+        };
+        match mailstronaut_core::reply::prepare(account, &config.accounts, message, kind) {
+            Ok(draft) => {
+                self.show_compose(window, cx);
+                self.composer
+                    .update(cx, |composer, cx| composer.open_prepared(draft, window, cx));
+            }
+            Err(error) => {
+                self.reader_notice = error.to_string();
+                cx.notify();
+            }
+        }
     }
 
     fn show_inbox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -900,6 +996,7 @@ impl Workspace {
             self.clear_page(window, cx);
         }
         self.view = View::Inbox;
+        self.composer.update(cx, |composer, cx| composer.flush(cx));
         self.read_gate.visibility(window.is_window_active());
         window.focus(&self.focus, cx);
         self.refresh(window, cx);
@@ -1031,23 +1128,30 @@ impl Workspace {
             )
     }
 
+    fn mail_routes(&self, attention: usize, cx: &Context<Self>) -> SidebarMenu {
+        SidebarMenu::new()
+            .child(
+                SidebarMenuItem::new("Unified inbox")
+                    .icon(IconName::Inbox)
+                    .active(self.view == View::Inbox && self.scope == Scope::Inbox)
+                    .on_click(cx.listener(|this, _, window, cx| this.show_inbox(window, cx))),
+            )
+            .child(
+                SidebarMenuItem::new("Drafts & outbox")
+                    .icon(IconName::Folder)
+                    .active(self.view == View::Compose)
+                    .suffix(move |_, _| Badge::new().count(attention).child(div().w_3().h_3()))
+                    .on_click(cx.listener(|this, _, window, cx| this.show_compose(window, cx))),
+            )
+    }
+
     fn sidebar(&self, cx: &Context<Self>) -> impl IntoElement {
+        let attention = self.composer.read(cx).attention();
         Sidebar::new("mail-sidebar")
             .w_full()
             .collapsible(false)
             .header(SidebarHeader::new().child(div().font_semibold().child("Mailstronaut")))
-            .child(
-                SidebarGroup::new("Mail").child(
-                    SidebarMenu::new().child(
-                        SidebarMenuItem::new("Unified inbox")
-                            .icon(IconName::Inbox)
-                            .active(self.view == View::Inbox && self.scope == Scope::Inbox)
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.show_inbox(window, cx)),
-                            ),
-                    ),
-                ),
-            )
+            .child(SidebarGroup::new("Mail").child(self.mail_routes(attention, cx)))
             .child(
                 SidebarGroup::new("Accounts").child(
                     SidebarMenu::new().children(
@@ -1145,10 +1249,10 @@ impl Workspace {
             .border_color(border)
             .child(
                 div().w(px(190.)).font_semibold().child(
-                    Label::new(if self.view == View::Accounts {
-                        "Settings".into()
-                    } else {
-                        self.scope_label()
+                    Label::new(match self.view {
+                        View::Accounts => "Settings".into(),
+                        View::Compose => "Drafts & outbox".into(),
+                        View::Inbox => self.scope_label(),
                     })
                     .truncate(),
                 ),
@@ -1156,6 +1260,14 @@ impl Workspace {
             .child(div().flex_1().when(self.view == View::Inbox, |view| {
                 view.child(Input::new(&self.search))
             }))
+            .child(
+                Button::new("compose")
+                    .primary()
+                    .label("Compose")
+                    .tooltip("Ctrl+N")
+                    .disabled(!self.composer.read(cx).has_store())
+                    .on_click(cx.listener(|this, _, window, cx| this.compose(window, cx))),
+            )
             .when(self.view == View::Inbox, |view| {
                 view.child(
                     Button::new("refresh")
@@ -1248,7 +1360,8 @@ impl Workspace {
                 },
             ))
             .when_some(self.selected.as_ref(), |view, _| {
-                view.child(self.thread_reader.clone())
+                view.child(self.message_actions(cx))
+                    .child(self.thread_reader.clone())
                     .child(self.reader_tools(cx))
             })
             .when_some(self.opened_message.as_ref(), |view, message| {
@@ -1330,6 +1443,44 @@ impl Workspace {
                             ),
                     ),
             )
+    }
+
+    fn message_actions(&self, cx: &Context<Self>) -> impl IntoElement {
+        let unavailable = self.opened_message.is_none() || self.demo;
+        Toolbar::new("message-actions").mb_3().content(
+            ToolbarGroup::new("message-respond")
+                .label("Respond")
+                .child(
+                    Button::new("reply")
+                        .outline()
+                        .label("Reply")
+                        .tooltip("Alt+R")
+                        .disabled(unavailable)
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.respond(Kind::Reply, window, cx);
+                        })),
+                )
+                .child(
+                    Button::new("reply-all")
+                        .ghost()
+                        .label("Reply all")
+                        .tooltip("Alt+A")
+                        .disabled(unavailable)
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.respond(Kind::ReplyAll, window, cx);
+                        })),
+                )
+                .child(
+                    Button::new("forward")
+                        .ghost()
+                        .label("Forward")
+                        .tooltip("Alt+F · plain text, without attachments")
+                        .disabled(unavailable)
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.respond(Kind::ForwardText, window, cx);
+                        })),
+                ),
+        )
     }
 
     fn reader_tools(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1426,51 +1577,77 @@ impl Workspace {
     }
 }
 
+impl Workspace {
+    fn with_actions(root: gpui::Div, cx: &Context<Self>) -> gpui::Div {
+        root.on_action(cx.listener(|this, _: &ComposeMessage, window, cx| {
+            if this.composer.read(cx).has_store() {
+                this.compose(window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &ShowDrafts, window, cx| {
+            this.show_compose(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &Reply, window, cx| {
+            if this.view == View::Inbox {
+                this.respond(Kind::Reply, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &ReplyAll, window, cx| {
+            if this.view == View::Inbox {
+                this.respond(Kind::ReplyAll, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &Forward, window, cx| {
+            if this.view == View::Inbox {
+                this.respond(Kind::ForwardText, window, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {
+            if this.view != View::Inbox {
+                this.show_inbox(window, cx);
+            }
+            this.search.update(cx, |input, cx| input.focus(window, cx));
+        }))
+        .on_action(cx.listener(|this, _: &RefreshCache, window, cx| this.refresh(window, cx)))
+        .on_action(cx.listener(|this, _: &ToggleAppearance, window, cx| {
+            this.toggle_appearance(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &FocusMessages, window, cx| {
+            if this.view != View::Inbox {
+                this.show_inbox(window, cx);
+            }
+            this.list.update(cx, |list, cx| list.focus(window, cx));
+        }))
+        .on_action(cx.listener(|this, _: &FocusReader, window, cx| {
+            this.focus_reader(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &FocusLinks, window, cx| {
+            if this.view == View::Inbox
+                && this.reader_mode == ReaderMode::Html
+                && this.link_cancel.is_none()
+                && !this.html_reader.read(cx).links().is_empty()
+            {
+                window.focus(&this.link_focus, cx);
+            }
+        }))
+        .on_action(cx.listener(|this, _: &ShowAccounts, window, cx| this.show_accounts(window, cx)))
+        .on_action(cx.listener(|this, _: &ShowInbox, window, cx| this.show_inbox(window, cx)))
+        .on_action(cx.listener(|this, _: &ReloadConfiguration, window, cx| {
+            this.load_configuration(window, cx);
+        }))
+    }
+}
+
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let background = cx.theme().background;
         let foreground = cx.theme().foreground;
         let muted = cx.theme().muted_foreground;
         let border = cx.theme().border;
-        div()
+        Self::with_actions(div(), cx)
             .size_full()
             .key_context("Mailstronaut")
             .track_focus(&self.focus)
-            .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {
-                if this.view == View::Accounts {
-                    this.show_inbox(window, cx);
-                }
-                this.search.update(cx, |input, cx| input.focus(window, cx));
-            }))
-            .on_action(cx.listener(|this, _: &RefreshCache, window, cx| this.refresh(window, cx)))
-            .on_action(cx.listener(|this, _: &ToggleAppearance, window, cx| {
-                this.toggle_appearance(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &FocusMessages, window, cx| {
-                if this.view == View::Accounts {
-                    this.show_inbox(window, cx);
-                }
-                this.list.update(cx, |list, cx| list.focus(window, cx));
-            }))
-            .on_action(cx.listener(|this, _: &FocusReader, window, cx| {
-                this.focus_reader(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &FocusLinks, window, cx| {
-                if this.view == View::Inbox
-                    && this.reader_mode == ReaderMode::Html
-                    && this.link_cancel.is_none()
-                    && !this.html_reader.read(cx).links().is_empty()
-                {
-                    window.focus(&this.link_focus, cx);
-                }
-            }))
-            .on_action(
-                cx.listener(|this, _: &ShowAccounts, window, cx| this.show_accounts(window, cx)),
-            )
-            .on_action(cx.listener(|this, _: &ShowInbox, window, cx| this.show_inbox(window, cx)))
-            .on_action(cx.listener(|this, _: &ReloadConfiguration, window, cx| {
-                this.load_configuration(window, cx);
-            }))
             .flex()
             .flex_col()
             .bg(background)
@@ -1495,20 +1672,26 @@ impl Render for Workspace {
                                     })
                                     .when(self.view == View::Inbox, |view| {
                                         view.child(self.mailbox(cx))
+                                    })
+                                    .when(self.view == View::Compose, |view| {
+                                        view.child(self.composer.clone())
                                     }),
                             ),
                         ),
                 ),
             )
-            .child(
-                div()
-                    .px_4()
-                    .py_2()
-                    .text_xs()
-                    .text_color(muted)
-                    .border_t_1()
-                    .border_color(border)
-                    .child(self.status.clone()),
-            )
+            // The composer reports its own draft state; mailbox counts would mislead there.
+            .when(self.view != View::Compose, |view| {
+                view.child(
+                    div()
+                        .px_4()
+                        .py_2()
+                        .text_xs()
+                        .text_color(muted)
+                        .border_t_1()
+                        .border_color(border)
+                        .child(self.status.clone()),
+                )
+            })
     }
 }

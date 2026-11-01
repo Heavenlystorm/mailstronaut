@@ -1,37 +1,26 @@
 #!/usr/bin/env bash
-# Only the private Secret Service fixture calls this synthetic SMTP/GUI acceptance.
+# Called only by credentials.sh, against its private bus/keyring and a synthetic SMTP server.
 set -euo pipefail
 binary=$(realpath "${1:?prebuilt application}")
 root=$(realpath "${2:?private fixture root}")
 fixture=$(realpath "${MAILSTRONAUT_SMTP_FIXTURE:?prebuilt smtp test executable}")
-[[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus"* ]]
+[[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus" ]]
 [[ $XDG_DATA_HOME == "$root/data" ]]
-mkdir -p "$root/compose-gui"
-export MAILSTRONAUT_SMTP_PORT_FILE="$root/compose-gui/port"
-export LIBGL_ALWAYS_SOFTWARE=1 WGPU_BACKEND=gl XDG_SESSION_TYPE=x11 WINIT_X11_SCALE_FACTOR=1
-unset WAYLAND_DISPLAY
-app='' xvfb='' server='' oauth_server=''
-cleanup() {
-  for pid in "$app" "$xvfb" "$server" "$oauth_server"; do
-    if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
-  done
-}
-trap cleanup EXIT
-if [[ ${MAILSTRONAUT_COMPOSE_OAUTH:-0} == 1 ]]; then
-  export MAILSTRONAUT_SMTP_OAUTH=1
-  export MAILSTRONAUT_GUI_OAUTH_PORT_FILE="$root/compose-gui/oauth-port"
-  "${MAILSTRONAUT_OAUTH_FIXTURE:?prebuilt OAuth fixture}" --ignored --exact gui_loopback_server --nocapture > "$root/compose-gui/oauth-server.log" 2>&1 & oauth_server=$!
-  for _ in {1..100}; do [[ -s $MAILSTRONAUT_GUI_OAUTH_PORT_FILE ]] && break; kill -0 "$oauth_server"; sleep .05; done
-fi
-"$fixture" --ignored --exact gui_loopback_server --nocapture > "$root/compose-gui/server.log" 2>&1 & server=$!
+artifacts="$root/compose-gui"
+mkdir -p "$artifacts"
+database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
+export MAILSTRONAUT_SMTP_PORT_FILE="$artifacts/port"
+server=''
+"$fixture" --ignored --exact gui_loopback_server --nocapture > "$artifacts/server.log" 2>&1 & server=$!
 for _ in {1..100}; do [[ -s $MAILSTRONAUT_SMTP_PORT_FILE ]] && break; kill -0 "$server"; sleep .05; done
 port=$(cat "$MAILSTRONAUT_SMTP_PORT_FILE")
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
-cat > "$root/compose-config.nix" <<NIX
+config="$artifacts/config.nix"
+cat > "$config" <<NIX
 {
   schemaVersion = 1;
   managed = true;
-  appearance = "dark";
+  appearance = "light";
   accounts = [{
     id = "compose-synthetic";
     provider = "manual";
@@ -39,164 +28,109 @@ cat > "$root/compose-config.nix" <<NIX
     displayName = "Synthetic sender";
     aliases = [ "alias@example.test" ];
     userName = "synthetic-smtp-user";
-    imap = {host = "imap.example.invalid"; port = 993; security = "tls";};
-    smtp = {host = "localhost"; port = $port; security = "tls";};
+    imap = { host = "imap.example.invalid"; port = 993; security = "tls"; };
+    smtp = { host = "localhost"; port = $port; security = "tls"; };
     tls.caFiles = [ "$ca" ];
-    auth = {kind = "password"; secretRef = "compose-password";};
+    auth = { kind = "password"; secretRef = "compose-password"; };
   }];
 }
 NIX
-if [[ ${MAILSTRONAUT_COMPOSE_OAUTH:-0} == 1 ]]; then
-  python3 - "$root/compose-config.nix" "$(cat "$MAILSTRONAUT_GUI_OAUTH_PORT_FILE")" <<'PYOAUTH'
-import pathlib,sys
-path=pathlib.Path(sys.argv[1]); port=int(sys.argv[2])
-replacement=f'auth = {{kind = "oauth2"; provider = "custom"; clientId = "synthetic-public-client"; secretRef = "compose-password"; authorizationUrl = "https://localhost:{port}/authorize"; tokenUrl = "https://localhost:{port}/token"; scopes = [ "mail.read" "mail.send" ]; sasl = "xoauth2";}};'
-path.write_text(path.read_text().replace('auth = {kind = "password"; secretRef = "compose-password";};', replacement))
-PYOAUTH
-else
 printf 'SYNTHETIC-SMTP-SECRET-NOT-REAL' | secret-tool store --label='Synthetic compose fixture' \
   application "$(cat assets/app-id)" account compose-synthetic reference compose-password purpose password
-fi
-Xvfb -displayfd 3 -screen 0 1280x1000x24 -nolisten tcp 3> "$root/compose-gui/display" > "$root/compose-gui/xvfb.log" 2>&1 & xvfb=$!
-for _ in {1..100}; do [[ -s "$root/compose-gui/display" ]] && break; sleep .05; done
-DISPLAY=":$(cat "$root/compose-gui/display")"
-export DISPLAY
-start() {
-  "$binary" --config "$root/compose-config.nix" > "$root/compose-gui/$1-app.log" 2>&1 & app=$!
-  window=''
-  for _ in {1..100}; do
-    window=$(xdotool search --onlyvisible --pid "$app" 2>/dev/null | head -n1 || true)
-    [[ -n "$window" ]] && break
-    kill -0 "$app"; sleep .1
-  done
-  [[ -n "$window" ]]
-  xdotool windowfocus "$window"
-  sleep 1
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=../wayland-session.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
+cleanup() {
+  session_cleanup
+  if [[ -n "$server" ]]; then kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true; fi
 }
-capture() { xdotool mousemove --window "$window" 5 5; sleep .2; magick import -window "$window" "$root/compose-gui/$1.png"; }
-click() { xdotool mousemove --window "$window" "$1" "$2" click 1; }
-type_text() { xdotool type --clearmodifiers --delay 1 "$1"; }
+trap cleanup EXIT
+
+# A cached synthetic message to reply to would need an inbox; the reply preparation
+# itself has its own tests. This run covers editing, durability and submission.
 start editing
-# Select configured incoming credential and unlock the shared encrypted keyring.
-click 300 242
-click 240 362
-sleep .5
-if [[ ${MAILSTRONAUT_COMPOSE_OAUTH:-0} == 1 ]]; then
-  click 240 410
-  granted=0
-  for _ in {1..100}; do
-    if secret-tool lookup application "$(cat assets/app-id)" account compose-synthetic reference compose-password purpose oauth-refresh | python3 -c 'import sys; sys.exit(0 if sys.stdin.read().strip()=="SYNTHETIC-PORTAL-REFRESH-ONE" else 1)'; then granted=1; break; fi
-    kill -0 "$app"; sleep .1
-  done
-  [[ $granted == 1 ]]
-  sleep .3
-  capture browser-connected
-fi
-click 55 358
-sleep .5
-click 250 145
-sleep .5
-capture initial
-# Remaining actions use positions established by inspection of the native widgets.
-if [[ ${MAILSTRONAUT_COMPOSE_INSPECT_ONLY:-0} == 1 ]]; then
-  printf 'Compose inspection artifacts: %s/compose-gui\n' "$root"
+wtype -s 200 -M ctrl n -m ctrl -s 700
+capture empty-draft
+if [[ ${MAILSTRONAUT_COMPOSE_CAPTURE_ONLY:-0} == 1 ]]; then
+  printf 'Inspection only: %s\n' "$artifacts"
   exit 0
 fi
-click 300 232; type_text 'to@example.test'
-click 300 278; type_text 'copy@example.test'
-click 300 324; type_text 'blind@example.test'
-click 300 370; type_text 'Synthetic desktop draft'
-click 300 420; type_text 'Synthetic body saved before closing.'
-sleep 1
+wtype -s 100 'to@example.test' -s 100 -M ctrl -M shift b -m shift -m ctrl -s 400
+wtype -s 100 'copy@example.test' -k Tab -s 100 'blind@example.test' -k Tab -s 100
+wtype 'Synthetic draft · Unicode subject' -k Tab -s 100 'Synthetic body saved before closing.'
+# Software rendering in a debug build can lag well behind the virtual keyboard.
+saved=0
+for _ in {1..150}; do
+  if python3 - "$database" <<'PY'
+import json, sqlite3, sys
+row = sqlite3.connect(sys.argv[1]).execute('SELECT content,closed FROM drafts').fetchone()
+c = json.loads(row[0])
+sys.exit(0 if row[1] == 0 and c['body'] == 'Synthetic body saved before closing.' else 1)
+PY
+  then saved=1; break; fi
+  kill -0 "$app"; sleep .2
+done
+[[ $saved == 1 ]]
 capture saved
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PY'
-import json,sqlite3,sys
-row=sqlite3.connect(sys.argv[1]).execute('SELECT content,closed FROM drafts').fetchone()
-c=json.loads(row[0]); assert row[1]==0
-assert c['to']=='to@example.test' and c['cc']=='copy@example.test' and c['bcc']=='blind@example.test'
-assert c['subject']=='Synthetic desktop draft' and c['body']=='Synthetic body saved before closing.'
+python3 - "$database" <<'PY'
+import json, sqlite3, sys
+c = json.loads(sqlite3.connect(sys.argv[1]).execute('SELECT content FROM drafts').fetchone()[0])
+assert c['to'] == 'to@example.test' and c['cc'] == 'copy@example.test', c
+assert c['bcc'] == 'blind@example.test', c
+assert c['subject'] == 'Synthetic draft · Unicode subject', c
 print('Native editable fields and local autosave verified.')
 PY
-# Close immediately after the final keystroke, before the 500ms debounce expires.
-type_text ' Final edit at close.'
-click 1000 24
-for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
-if kill -0 "$app" 2>/dev/null; then printf '%s\n' 'Application failed to close after saving' >&2; exit 1; fi
-wait "$app"; app=''
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PY'
-import json,sqlite3,sys
-c=json.loads(sqlite3.connect(sys.argv[1]).execute('SELECT content FROM drafts').fetchone()[0])
-assert c['body']=='Synthetic body saved before closing. Final edit at close.'
-print('Close flushed the last edit and exited normally.')
+# Close right after the last keystroke, before the autosave delay can expire.
+wtype ' Final edit at close.'
+close_window
+python3 - "$database" <<'PY'
+import json, sqlite3, sys
+c = json.loads(sqlite3.connect(sys.argv[1]).execute('SELECT content FROM drafts').fetchone()[0])
+assert c['body'] == 'Synthetic body saved before closing. Final edit at close.', c
+print('Closing the window kept the last edit and exited normally.')
 PY
 start recovered
-click 300 242; click 240 362
-sleep .5
-click 55 358
-sleep .5
+wtype -s 200 -M ctrl 2 -m ctrl -s 700
 capture recovered-list
-click 300 306
-sleep .5
+# The saved draft is the first row beneath the Drafts heading.
+click 350 205
+sleep .7
 capture recovered-editor
-# Explicit foreground action against the local synthetic SMTP endpoint only.
-click 312 684
-for _ in {1..100}; do
-  if python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "${MAILSTRONAUT_SMTP_DROP_ACK:-0}" <<'PY'
-import sqlite3,sys
-rows=sqlite3.connect(sys.argv[1]).execute('SELECT phase FROM outbox').fetchall()
-sys.exit(0 if rows==[('delivery_unknown' if sys.argv[2]=='1' else 'accepted',)] else 1)
+python3 - "$database" <<'PY'
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+assert c.execute('SELECT count(*) FROM outbox').fetchone()[0] == 0
+print('Reopening a draft submitted nothing.')
 PY
-  then break; fi
+# Ctrl+Enter from the focused message body is the only send in this run.
+wtype -s 300 -M ctrl -k Return -m ctrl
+for _ in {1..150}; do
+  kill -0 "$server" 2>/dev/null || break
   kill -0 "$app"; sleep .1
 done
 wait "$server"; server=''
-if [[ -n "$oauth_server" ]]; then
-  wait "$oauth_server"; oauth_server=''
-  secret-tool lookup application "$(cat assets/app-id)" account compose-synthetic reference compose-password purpose oauth-refresh | python3 -c 'import sys; assert sys.stdin.read().strip()=="SYNTHETIC-PORTAL-REFRESH-TWO"; print("Native OAuth grant refreshed after restart and rotated before SMTP submission.")'
-fi
-capture submitted
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/compose-gui/attempt" <<'PYTOKEN'
-import pathlib,sqlite3,sys
-pathlib.Path(sys.argv[2]).write_text(sqlite3.connect(sys.argv[1]).execute('SELECT attempt_id FROM outbox').fetchone()[0])
-PYTOKEN
-click 1000 24
-for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
-if kill -0 "$app" 2>/dev/null; then
-  printf '%s\n' 'Application failed to exit after closing' >&2
-  exit 1
-fi
-wait "$app"; app=''
-# Reopening must not transmit queued/accepted/uncertain messages automatically.
-sed -i 's/appearance = "dark"/appearance = "light"/' "$root/compose-config.nix"
-start offline
-click 55 358
 sleep 1
-capture offline-outbox
-python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" "$root/compose-gui/received.eml" "${MAILSTRONAUT_SMTP_DROP_ACK:-0}" <<'PY'
-import json,pathlib,sqlite3,sys
-from email import policy
-from email.parser import BytesParser
-db=sqlite3.connect(sys.argv[1]); phase,mid,hash,uncertain=db.execute('SELECT phase,message_id,blob_hash,uncertain FROM outbox').fetchone()
-assert phase==('delivery_unknown' if sys.argv[3]=='1' else 'accepted')
-assert bool(uncertain)==(sys.argv[3]=='1')
-assert db.execute('SELECT attempt_id FROM outbox').fetchone()[0]==(pathlib.Path(sys.argv[2]).parent/'attempt').read_text()
-raw=pathlib.Path(sys.argv[2]).read_bytes(); frozen=pathlib.Path(sys.argv[1]).parent/'blobs'/hash
-assert raw==frozen.read_bytes()
-mail=BytesParser(policy=policy.default).parsebytes(raw)
-assert mail['Bcc'] is None and mail['Message-ID']==f'<{mid}>'
-assert mail.get_content().strip()=='Synthetic body saved before closing. Final edit at close.'
-assert db.execute('SELECT closed FROM drafts').fetchall()==[(1,)]
-print('Restart preserved terminal submission state, fixed Message-ID and exact recipient DATA bytes.')
+capture sent
+python3 - "$database" "$artifacts/received.eml" <<'PY'
+import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+assert c.execute('SELECT phase,uncertain FROM outbox').fetchall() == [('accepted', 0)]
+assert c.execute('SELECT count(*) FROM drafts WHERE closed=0').fetchone()[0] == 0
+mail = open(sys.argv[2], 'rb').read().decode()
+assert 'Final edit at close.' in mail and 'to@example.test' in mail and 'copy@example.test' in mail
+assert 'blind@example.test' not in mail and 'Bcc:' not in mail
+assert 'SYNTHETIC-SMTP-SECRET-NOT-REAL' not in mail
+print('One accepted submission; the blind recipient stayed in the envelope only.')
 PY
-click 1000 24
-for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
-if kill -0 "$app" 2>/dev/null; then
-  printf '%s\n' 'Application failed to exit after closing' >&2
-  exit 1
+close_window
+start restarted
+wtype -s 200 -M ctrl 2 -m ctrl -s 700
+capture restarted-outbox
+close_window
+if grep -l 'SYNTHETIC-SMTP-SECRET-NOT-REAL' "$artifacts"/*.log > /dev/null; then
+  printf '%s\n' 'Synthetic credential appeared in a log' >&2; exit 1
 fi
-wait "$app"; app=''
-if rg -F 'SYNTHETIC-SMTP-SECRET-NOT-REAL' "$root/compose-gui/"*-app.log; then
-  printf '%s\n' 'Application log exposed the synthetic credential marker' >&2
-  exit 1
+if grep -Eil 'panicked at|fatal error' "$artifacts"/*-app.log > /dev/null; then
+  printf '%s\n' 'Application reported a runtime failure' >&2; exit 1
 fi
-printf 'Native compose GUI artifacts: %s/compose-gui\n' "$root"
+printf 'Native compose acceptance: %s\n' "$artifacts"

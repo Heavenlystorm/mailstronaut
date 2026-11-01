@@ -5,12 +5,13 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use mailstronaut_config::{Account, Auth, Config};
-use mailstronaut_core::{actions, store::flags, sync, worker::Handle};
+use mailstronaut_config::{Account, Auth, Config, Provider};
+use mailstronaut_core::{actions, store::flags, store::outbox::Draft, sync, worker::Handle};
 use mailstronaut_mail::{
     auth,
     credentials::{Key, Purpose, Store},
     imap, oauth,
+    smtp::{Outcome, Transport},
 };
 use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -21,6 +22,13 @@ const CANCELLED: &str = "Account operation cancelled.";
 struct Open {
     store: Store,
     session: auth::Session,
+}
+
+/// Whether a send froze the draft. An unfrozen draft stays editable; a frozen one
+/// lives in the outbox and is only ever resubmitted by an explicit user action.
+pub enum Sent {
+    NotQueued(String),
+    Queued(Result<Outcome, String>),
 }
 
 /// One encrypted backend and shared IMAP/SMTP refresh session for the workspace.
@@ -230,6 +238,126 @@ impl Access {
             .await
             .map_err(|error| error.to_string())
     }
+}
+
+impl Access {
+    /// Unlock before freezing, so a locked keyring leaves the draft editable.
+    pub async fn send_draft(
+        &self,
+        store: &Handle,
+        account: &Account,
+        draft: Draft,
+        cancel: &CancellationToken,
+    ) -> Sent {
+        let opened = match self.foreground(cancel).await {
+            Ok(opened) => opened,
+            Err(error) => return Sent::NotQueued(error),
+        };
+        let saved = async {
+            store.ensure_account(draft.account.clone()).await?;
+            store.save_draft(draft.clone()).await
+        };
+        if let Err(error) = saved.await {
+            return Sent::NotQueued(error.to_string());
+        }
+        if cancel.is_cancelled() {
+            return Sent::NotQueued("Sending cancelled. The draft was kept.".into());
+        }
+        let queued = store
+            .queue_draft(
+                draft.account.clone(),
+                draft.id.clone(),
+                draft.revision,
+                matches!(account.provider, Provider::Google),
+            )
+            .await;
+        match queued {
+            Ok(queued) => Sent::Queued(
+                submit_frozen(store, account, &queued.id, &opened.session, cancel).await,
+            ),
+            Err(error) => Sent::NotQueued(error.to_string()),
+        }
+    }
+
+    /// Submit an existing outbox entry. `retry` is `None` for a pending entry, and
+    /// otherwise records whether the user accepted a possible duplicate.
+    pub async fn submit_queued(
+        &self,
+        store: &Handle,
+        account: &Account,
+        id: String,
+        retry: Option<bool>,
+        cancel: &CancellationToken,
+    ) -> Result<Outcome, String> {
+        let opened = self.foreground(cancel).await?;
+        if let Some(confirm_unknown) = retry {
+            store
+                .retry_submission(account.id.clone(), id.clone(), confirm_unknown)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        submit_frozen(store, account, &id, &opened.session, cancel).await
+    }
+}
+
+async fn submit_frozen(
+    store: &Handle,
+    account: &Account,
+    id: &str,
+    session: &auth::Session,
+    cancel: &CancellationToken,
+) -> Result<Outcome, String> {
+    let resolved = session.resolve(account, true, cancel).await;
+    if cancel.is_cancelled() {
+        store
+            .cancel_submission(account.id.clone(), id.into())
+            .await
+            .map_err(|error| error.to_string())?;
+        return Ok(Outcome::CancelledBeforeSubmission);
+    }
+    let credential = resolved.map_err(|error| error.to_string())?;
+    let endpoint = account
+        .outgoing_endpoint()
+        .ok_or("Outgoing server is not configured.")?;
+    let transport = Transport::prepare(
+        &endpoint,
+        &account.tls,
+        account.outgoing_user_name(),
+        credential.authentication(),
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    drop(credential);
+    if cancel.is_cancelled() {
+        store
+            .cancel_submission(account.id.clone(), id.into())
+            .await
+            .map_err(|error| error.to_string())?;
+        return Ok(Outcome::CancelledBeforeSubmission);
+    }
+    let submission = store
+        .begin_submission(account.id.clone(), id.into())
+        .await
+        .map_err(|error| error.to_string())?;
+    let allowed = std::iter::once(&account.address)
+        .chain(&account.aliases)
+        .any(|address| submission.message.sender_is(address));
+    let outcome = if allowed {
+        transport.submit(&submission.message, cancel).await
+    } else {
+        Outcome::CancelledBeforeSubmission
+    };
+    store
+        .finish_submission(submission, outcome)
+        .await
+        .map_err(|error| error.to_string())?;
+    if outcome == Outcome::AuthenticationRequired {
+        session.invalidate(account, true).await;
+    }
+    if !allowed {
+        return Err("Sender identity is no longer enabled. Nothing was submitted.".into());
+    }
+    Ok(outcome)
 }
 
 pub fn selected_auth(account: &Account, outgoing: bool) -> &Auth {

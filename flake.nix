@@ -270,6 +270,8 @@
                   ${self}/experiments/p02-accounts/gui.sh \
                   ${self}/experiments/p06-mailbox/wayland.sh \
                   ${self}/experiments/p06-mailbox/navigation.sh \
+                  ${self}/experiments/wayland-session.sh \
+                  ${self}/experiments/p07-compose/gui.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"

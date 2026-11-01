@@ -271,6 +271,27 @@ impl Store {
         })
     }
 
+    /// Stop offering an editable draft and release its attachment references. The
+    /// closed tombstone remains, so a late autosave cannot recreate discarded text.
+    ///
+    /// # Errors
+    /// Rejects missing, closed or other accounts' drafts and storage failures.
+    pub fn discard_draft(&mut self, account: &str, id: &str) -> Result<(), Error> {
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let changed = tx.execute(
+            "UPDATE drafts SET closed=1,updated_at=?3 WHERE id=?1 AND account_id=?2 AND closed=0",
+            params![id, account, now()],
+        )?;
+        if changed != 1 {
+            return Err(Error::OperationConflict);
+        }
+        tx.execute("DELETE FROM draft_attachments WHERE draft_id=?1", [id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     /// At most 100 editable drafts for enabled accounts.
     ///
     /// # Errors

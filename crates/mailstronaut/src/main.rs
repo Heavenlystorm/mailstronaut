@@ -4,6 +4,7 @@ extern crate gpui_kit as gpui;
 
 mod account_actions;
 mod accounts;
+mod composer;
 mod config_cli;
 mod html_reader;
 mod html_worker;

@@ -139,6 +139,7 @@ enum Command {
     ),
     RemoveAttachment(Draft, String, Reply<Draft>),
     CopyDraft(Draft, String, String, Reply<Draft>),
+    DiscardDraft(String, String, Reply<()>),
     Draft(String, String, Reply<Draft>),
     Drafts(Vec<String>, Reply<Vec<DraftSummary>>),
     QueueDraft(String, String, u64, bool, Reply<outbox::Summary>),
@@ -510,6 +511,14 @@ impl Handle {
         from: String,
     ) -> Result<Draft, Error> {
         self.request(|reply| Command::CopyDraft(draft, account, from, reply))
+            .await
+    }
+    /// Close an editable draft without sending it, retaining its tombstone.
+    ///
+    /// # Errors
+    /// Rejects missing/closed/foreign drafts and storage failures.
+    pub async fn discard_draft(&self, account: String, id: String) -> Result<(), Error> {
+        self.request(|reply| Command::DiscardDraft(account, id, reply))
             .await
     }
     /// Load an editable, account-scoped saved draft.
@@ -949,6 +958,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::CopyDraft(draft, account, from, reply) => {
                 commit(reply, || store.copy_draft(&draft, &account, from));
+            }
+            Command::DiscardDraft(account, id, reply) => {
+                commit(reply, || store.discard_draft(&account, &id));
             }
             Command::Draft(account, id, reply) => respond(reply, || store.draft(&account, &id)),
             Command::Drafts(accounts, reply) => respond(reply, || store.drafts(&accounts)),
