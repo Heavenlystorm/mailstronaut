@@ -27,6 +27,28 @@ Content-Type: text/plain; charset=utf-8
 Synthetic body marker-$key.
 MAIL
 done
+seed_message echo <<MAIL
+From: Correspondent echo <echo@example.test>
+To: reader@example.test
+Subject: Synthetic echo with a file
+Message-ID: <echo@example.test>
+Date: $(date -R)
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=synthetic
+
+--synthetic
+Content-Type: text/plain; charset=utf-8
+
+Synthetic body marker-echo.
+--synthetic
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="synthetic report.pdf"
+Content-Transfer-Encoding: base64
+
+U3ludGhldGljIGZpbGU=
+--synthetic--
+MAIL
+touch -d '4 hours ago' "$mail_root/new/echo.synthetic"
 # Maildir INTERNALDATE is the file's mtime: fix the list order, newest first.
 touch -d '3 hours ago' "$mail_root/new/alpha.synthetic"
 touch -d '2 hours ago' "$mail_root/new/bravo.synthetic"
@@ -92,7 +114,7 @@ await_server() {
 
 start initial
 # Nothing is pressed: starting the application fetches the inbox by itself.
-await 'automatic sync cached the inbox' 3 'SELECT count(*) FROM messages'
+await 'automatic sync cached the inbox' 4 'SELECT count(*) FROM messages'
 await 'SPECIAL-USE gave the Sent role' Sent "SELECT name FROM folders WHERE role='sent'"
 await 'SPECIAL-USE gave the Trash role' Trash "SELECT name FROM folders WHERE role='trash'"
 await 'SPECIAL-USE gave the Archive role' Archive "SELECT name FROM folders WHERE role='archive'"
@@ -102,6 +124,10 @@ capture synced
 [[ $(server_flags INBOX marker-charlie) != *S* ]]
 printf '%s\n' 'OK: PEEK left the server copy unread'
 
+# The oldest row carries a file: it is listed, and saving would go through the portal.
+click 350 500
+sleep .9
+capture attachment
 # Open the newest row: Seen reaches the real server without any manual sync.
 wtype -s 300 -M ctrl l -m ctrl -k Down -k Return -s 900
 capture opened
@@ -121,7 +147,7 @@ Content-Type: text/plain; charset=utf-8
 
 Synthetic body marker-delta.
 MAIL
-await 'polling found a new delivery' 4 'SELECT count(*) FROM messages'
+await 'polling found a new delivery' 5 'SELECT count(*) FROM messages'
 
 # Reply from the open message, with a blind recipient for the SMTP fixture's check.
 wtype -s 300 -M alt r -m alt -s 1200

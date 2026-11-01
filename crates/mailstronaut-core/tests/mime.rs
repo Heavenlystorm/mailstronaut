@@ -258,3 +258,35 @@ mod tests {
         assert_eq!(result.text.as_deref(), Some("Readable body."));
     }
 }
+
+#[test]
+fn listed_attachments_decode_exactly_and_skip_inline_body_images() {
+    let original = concat!(
+        "From: a@example.test\r\nTo: b@example.test\r\nSubject: Files\r\n",
+        "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n",
+        "--b\r\nContent-Type: text/plain\r\n\r\nBody.\r\n",
+        "--b\r\nContent-Type: application/pdf; name=\"r\u{e9}sum\u{e9}.pdf\"\r\n",
+        "Content-Disposition: attachment; filename=\"report.pdf\"\r\n",
+        "Content-Transfer-Encoding: base64\r\n\r\nU3ludGhldGljIGZpbGU=\r\n",
+        "--b\r\nContent-Type: image/png\r\nContent-ID: <logo@example.test>\r\n",
+        "Content-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw==\r\n",
+        "--b--\r\n",
+    );
+    let message = mailstronaut_core::mime::project(original.as_bytes()).expect("projection");
+    let listed = message.listed_attachments();
+    assert_eq!(
+        listed.len(),
+        1,
+        "the inline body image is not a listed file"
+    );
+    let (index, part) = listed[0];
+    assert_eq!(part.name.as_deref(), Some("report.pdf"));
+    assert_eq!(
+        message.attachment_bytes(index).expect("decoded"),
+        b"Synthetic file"
+    );
+    assert!(message.attachment_bytes(99).is_err());
+    let mut changed = message.clone();
+    changed.original.push(b' ');
+    assert!(changed.attachment_bytes(index).is_err(), "changed original");
+}

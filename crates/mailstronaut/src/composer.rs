@@ -1105,7 +1105,7 @@ async fn save_snapshot(store: &Handle, draft: Draft) -> Result<(), worker::Error
     store.save_draft(draft).await
 }
 
-fn size_label(bytes: usize) -> String {
+pub fn size_label(bytes: usize) -> String {
     const KIB: usize = 1024;
     if bytes < KIB {
         format!("{bytes} B")

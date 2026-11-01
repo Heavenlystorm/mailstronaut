@@ -12,6 +12,9 @@ use gpui::component::{
     ActiveTheme as _, Disableable as _, IconName, IndexPath, Selectable as _, Theme, ThemeMode,
     WindowExt as _,
     alert::Alert,
+    attachment::{
+        Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentTitle,
+    },
     badge::Badge,
     button::{Button, ButtonVariants as _},
     clipboard::Clipboard,
@@ -1767,6 +1770,7 @@ impl Workspace {
             })
             .when_some(self.opened_message.as_ref(), |view, message| {
                 view.child(self.message_details(message, cx))
+                    .child(Self::received_attachments(message, cx))
             })
             .when(!self.reader_notice.is_empty(), |view| {
                 view.child(
@@ -1802,6 +1806,89 @@ impl Workspace {
                 |view| view.child(div().flex_1().min_h_0().child(self.html_reader.clone())),
             )
             .when(!self.body.is_empty(), |view| view.child(self.body.clone()))
+    }
+
+    fn received_attachments(
+        message: &mailstronaut_core::mime::Projection,
+        cx: &Context<Self>,
+    ) -> impl IntoElement {
+        let listed = message.listed_attachments();
+        div().when(!listed.is_empty(), |view| {
+            view.mb_3()
+                .child(AttachmentGroup::new("received-attachments").children(
+                    listed.into_iter().map(|(index, part)| {
+                        let name = part.name.clone().unwrap_or_else(|| "Attachment".into());
+                        let kind = part.media_type.clone().unwrap_or_default();
+                        Attachment::new()
+                            .id(("received-attachment", index))
+                            .tooltip("Save a copy")
+                            .content(
+                                AttachmentContent::new()
+                                    .title(AttachmentTitle::new(name))
+                                    .description(AttachmentDescription::new(format!(
+                                        "{} · {kind}",
+                                        crate::composer::size_label(part.decoded_size)
+                                    ))),
+                            )
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.save_attachment(index, window, cx);
+                            }))
+                    }),
+                ))
+        })
+    }
+
+    /// Saving is explicit and goes through the portal's chooser. Attachments are never
+    /// opened automatically, and a sender-supplied name is only a suggestion.
+    fn save_attachment(&self, index: usize, window: &Window, cx: &Context<Self>) {
+        let Some(message) = self.opened_message.clone() else {
+            return;
+        };
+        let suggested = message
+            .attachments
+            .get(index)
+            .and_then(|part| part.name.as_deref())
+            .filter(|name| mailstronaut_mail::compose::valid_attachment_name(name))
+            .unwrap_or("attachment")
+            .to_owned();
+        let directory = directories::UserDirs::new()
+            .and_then(|dirs| {
+                dirs.download_dir()
+                    .map(std::path::Path::to_path_buf)
+                    .or_else(|| Some(dirs.home_dir().to_path_buf()))
+            })
+            .unwrap_or_default();
+        let chosen = cx.prompt_for_new_path(&directory, Some(&suggested));
+        let runtime = self.runtime.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let notice = match chosen.await {
+                Ok(Ok(Some(path))) => {
+                    let saved = runtime
+                        .spawn_blocking(move || {
+                            let bytes = message
+                                .attachment_bytes(index)
+                                .map_err(|_| "This attachment could not be decoded.")?;
+                            std::fs::write(path, bytes)
+                                .map_err(|_| "The attachment could not be written there.")
+                        })
+                        .await;
+                    match saved {
+                        Ok(Ok(())) => Some("Attachment saved.".to_owned()),
+                        Ok(Err(error)) => Some(error.to_owned()),
+                        Err(_) => Some("Saving the attachment was interrupted.".to_owned()),
+                    }
+                }
+                Ok(Ok(None)) => None,
+                _ => Some("The file chooser is unavailable. Nothing was saved.".to_owned()),
+            };
+            if let Some(notice) = notice {
+                _ = this.update(cx, |this, cx| {
+                    this.reader_notice = notice;
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
     }
 
     fn message_details(

@@ -228,6 +228,52 @@ impl Projection {
         Ok(images)
     }
 
+    /// Attachments a person would expect to see listed. Inline images referenced by
+    /// the HTML body are part of the message, not separate files.
+    #[must_use]
+    pub fn listed_attachments(&self) -> Vec<(usize, &Attachment)> {
+        self.attachments
+            .iter()
+            .enumerate()
+            .filter(|(_, part)| !part.inline || part.content_id.is_none())
+            .collect()
+    }
+
+    /// Decode one attachment by its index in [`Self::attachments`], for an explicit
+    /// save. This is blocking work; the bytes are untrusted and are never opened here.
+    ///
+    /// # Errors
+    /// Rejects a changed original, an unknown index, a part that no longer matches its
+    /// descriptor and invalid transfer encoding.
+    pub fn attachment_bytes(&self, index: usize) -> Result<Vec<u8>, Error> {
+        let descriptor = self.attachments.get(index).ok_or(Error::InlineResources)?;
+        if self.original.len() > MAX_INPUT_BYTES
+            || <[u8; 32]>::from(Sha256::digest(&self.original)) != self.revision
+        {
+            return Err(Error::InlineResources);
+        }
+        let message = MessageParser::new()
+            .max_parts(MAX_PARTS)
+            .max_depth(32)
+            .max_encoded_nesting(0)
+            .parse(&self.original)
+            .ok_or(Error::Unparseable)?;
+        let part = message
+            .attachments()
+            .nth(index)
+            .ok_or(Error::InlineResources)?;
+        if usize::try_from(part.offset_body()).ok() != Some(descriptor.raw_body.start)
+            || usize::try_from(part.offset_end()).ok() != Some(descriptor.raw_body.end)
+        {
+            return Err(Error::InlineResources);
+        }
+        let (bytes, problems) = part.decoded_checked();
+        if !problems.is_empty() {
+            return Err(Error::InlineResources);
+        }
+        Ok(bytes.into_owned())
+    }
+
     /// Native text-reader content. HTML is converted to inert Unicode text by
     /// the existing MIME library; no browser or remote resource is invoked.
     #[must_use]
