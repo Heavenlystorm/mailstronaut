@@ -210,6 +210,8 @@ pub struct Account {
     /// Additional sender identities.
     #[serde(default)]
     pub aliases: Vec<String>,
+    /// Plain text added to new messages, without the `-- ` delimiter.
+    pub signature: Option<String>,
     /// Incoming endpoint (required for manual accounts).
     pub imap: Option<Endpoint>,
     /// Outgoing endpoint (required for manual accounts).
@@ -595,6 +597,11 @@ fn validate_accounts(
             "accounts.aliases",
             "invalid alias",
         );
+        check(
+            account.signature.as_deref().is_none_or(valid_signature),
+            "accounts.signature",
+            "invalid signature",
+        );
         if matches!(account.provider, Provider::Manual) {
             check(
                 account.imap.is_some() && account.smtp.is_some(),
@@ -726,6 +733,14 @@ fn validate_auth(account: &Account, check: &mut impl FnMut(bool, &'static str, &
 }
 
 /// Check text for empty or control characters.
+/// Several lines are the point of a signature, but other control characters are not.
+fn valid_signature(value: &str) -> bool {
+    !value.trim().is_empty()
+        && value.len() <= 4096
+        && value
+            .chars()
+            .all(|character| !character.is_control() || matches!(character, '\n' | '\t'))
+}
 fn valid_text(value: &str) -> bool {
     !value.trim().is_empty() && !value.chars().any(char::is_control)
 }
@@ -824,6 +839,33 @@ mod tests {
         assert!(!config.priority.enabled);
         assert!(config.notifications.enabled);
         assert_eq!(config.sync.poll_seconds, 300);
+    }
+
+    #[test]
+    fn a_signature_may_span_lines_but_not_carry_other_control_characters() {
+        let config = |signature: &str| {
+            let signature = signature
+                .replace('\\', "\\\\")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r");
+            evaluate_unisolated(&format!(
+                r#"{{ schemaVersion = 1; accounts = [{{
+                  id = "work"; provider = "manual"; address = "person@example.test";
+                  displayName = "Work"; userName = "person"; signature = "{signature}";
+                  imap = {{ host = "imap.example.test"; port = 993; security = "tls"; }};
+                  smtp = {{ host = "smtp.example.test"; port = 587; security = "starttls"; }};
+                  auth = {{ kind = "password"; secretRef = "work-password"; }};
+                }}]; }}"#
+            ))
+        };
+        let accepted = config("Person Example\nLaboratoire · Università").expect("multiline");
+        assert_eq!(
+            accepted.accounts[0].signature.as_deref(),
+            Some("Person Example\nLaboratoire · Università")
+        );
+        for rejected in ["  \n ", "carriage\rreturn", &"x".repeat(4097)] {
+            assert!(config(rejected).is_err(), "{rejected:?}");
+        }
     }
 
     #[test]

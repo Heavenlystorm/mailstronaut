@@ -171,3 +171,66 @@ fn reply_all_excludes_other_configured_accounts_without_changing_the_receiving_s
     assert!(draft.content.from.contains("alias@example.test"));
     assert_eq!(draft.account, "receiving-account");
 }
+#[test]
+fn a_signature_sits_above_the_quote_and_reaches_the_frozen_message() {
+    let source = source(
+        "From: Author <author@example.test>\r\nTo: me@example.test\r\nSubject: Topic\r\nMessage-ID: <child@example.test>",
+    );
+    let mut signed = account();
+    signed.signature = Some("My Name\nMy Laboratory".into());
+    for kind in [Kind::Reply, Kind::ReplyAll, Kind::ForwardText] {
+        let draft = reply::prepare(&signed, &[], &source, kind).expect("prepared");
+        let body = &draft.content.body;
+        assert!(
+            body.starts_with("\n\n-- \nMy Name\nMy Laboratory\n\n"),
+            "{body}"
+        );
+        assert!(body.contains("Café body."), "{body}");
+    }
+    let unsigned = reply::prepare(&account(), &[], &source, Kind::Reply).expect("prepared");
+    assert!(!unsigned.content.body.contains("-- \n"));
+}
+#[test]
+fn a_new_message_leaves_room_above_its_signature_and_no_signature_means_no_delimiter() {
+    assert_eq!(reply::with_signature("", Some("Me")), "\n\n-- \nMe");
+    assert_eq!(reply::with_signature("", None), "");
+    assert_eq!(reply::with_signature("\n\nquote", None), "\n\nquote");
+}
+#[test]
+fn moving_a_draft_swaps_an_untouched_signature_and_keeps_an_edited_one() {
+    let body = reply::with_signature("\n\n> quote", Some("Work"));
+    assert_eq!(
+        reply::replace_signature(&body, Some("Work"), Some("Home")),
+        "\n\n-- \nHome\n\n> quote"
+    );
+    assert_eq!(
+        reply::replace_signature(&body, Some("Work"), None),
+        "\n\n> quote"
+    );
+    let edited = "\n\n-- \nWork, as I rewrote it";
+    assert_eq!(
+        reply::replace_signature(edited, Some("Different"), Some("Home")),
+        edited
+    );
+    assert_eq!(reply::replace_signature("text", None, Some("Home")), "text");
+}
+#[test]
+fn a_signature_cannot_push_a_large_quote_past_the_composer_limit() {
+    let line = "x".repeat(70);
+    let text = format!("{line}\r\n")
+        .repeat((mailstronaut_mail::compose::MAX_BODY_BYTES - 200) / (line.len() + 4));
+    let source = mime::project(
+        format!(
+            "From: Author <author@example.test>\r\nTo: me@example.test\r\nSubject: Topic\r\nMessage-ID: <child@example.test>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}"
+        )
+        .as_bytes(),
+    )
+    .expect("MIME");
+    reply::prepare(&account(), &[], &source, Kind::Reply).expect("fits without a signature");
+    let mut signed = account();
+    signed.signature = Some("s".repeat(4096));
+    assert!(matches!(
+        reply::prepare(&signed, &[], &source, Kind::Reply),
+        Err(reply::Error::TooLarge)
+    ));
+}

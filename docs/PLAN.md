@@ -398,14 +398,13 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   rejection recovery and freeze/hash integrity. [Evidence](evidence/P07-attachments.md).
 - [x] Retain read/unread/star/unstar intentions, unsent-only undo, TLS application
   and exact UID/configuration fences. [Evidence](evidence/P07-actions.md).
-- [ ] Build the composer with `Form`/`Field`, an identity `Select`, recipient/subject
+- [x] Build the composer with `Form`/`Field`, an identity `Select`, recipient/subject
   `Input`s and body/signature `Textarea`; no source-code editor or custom text editor.
   Support To/Cc/Bcc, signature, reply/forward and validation. Keep identity and save/send
   state unambiguous. Use `Collapsible` for Cc/Bcc. Start with plain address input;
   if recipient chips are needed, reuse `InlineToken`/`InputToken` and existing
   replacement APIs rather than custom token editing or a contacts subsystem.
-  [Editor, identity, Cc/Bcc, reply/forward and validation](evidence/P07-native-compose.md);
-  signature remains open.
+  [Editor, identity, Cc/Bcc, reply/forward, validation and signature](evidence/P07-native-compose.md).
 - [ ] Reuse `Attachment`, `AttachmentGroup`, `AttachmentMedia`, `AttachmentContent`,
   `AttachmentTitle`, `AttachmentDescription` and `AttachmentActions` in composer and
   reader. Show filename/type/size and real pending/processing/failed/ready states;

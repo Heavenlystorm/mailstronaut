@@ -27,6 +27,7 @@ use gpui::{
 use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
     attachments::read_files,
+    reply,
     store::outbox::{Draft, DraftSummary, Summary},
     worker::{self, Handle},
 };
@@ -58,6 +59,7 @@ struct Identity {
     label: SharedString,
     account: String,
     from: String,
+    signature: Option<String>,
 }
 
 /// At most one store or network operation owns the editor at a time.
@@ -239,6 +241,7 @@ impl Composer {
                             label: format!("{from} · {}", account.id).into(),
                             account: account.id.clone(),
                             from,
+                            signature: account.signature.clone(),
                         })
                     })
             })
@@ -443,7 +446,8 @@ impl Composer {
             }
             match target {
                 Target::New(identity) => {
-                    let draft = Draft::new(identity.account, identity.from);
+                    let mut draft = Draft::new(identity.account, identity.from);
+                    draft.content.body = reply::with_signature("", identity.signature.as_deref());
                     save_snapshot(&store, draft.clone()).await?;
                     Ok(draft)
                 }
@@ -539,6 +543,14 @@ impl Composer {
         let Some(store) = self.store.clone() else {
             return;
         };
+        let mut moved = draft.clone();
+        moved.content.body = reply::replace_signature(
+            &draft.content.body,
+            self.account(&draft.account)
+                .and_then(|account| account.signature)
+                .as_deref(),
+            choice.signature.as_deref(),
+        );
         // Another account owns different UIDs and credentials: move the content, not
         // the identity. Files are retained and the source draft stops being offered.
         self.autosave.cancel();
@@ -547,9 +559,7 @@ impl Composer {
         self.activity = Activity::Loading;
         let job = self.runtime.spawn(async move {
             store.ensure_account(choice.account.clone()).await?;
-            let copy = store
-                .copy_draft(draft.clone(), choice.account, choice.from)
-                .await?;
+            let copy = store.copy_draft(moved, choice.account, choice.from).await?;
             store.discard_draft(draft.account, draft.id).await?;
             Ok(copy)
         });

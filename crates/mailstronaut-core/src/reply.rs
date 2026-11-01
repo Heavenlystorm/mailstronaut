@@ -115,7 +115,10 @@ pub fn prepare(
         recipients(message, kind, sent_by_self, from, &is_self, &mut content)?;
         ancestry(message, &mut content);
     }
-    content.body = quoted(message, kind)?;
+    content.body = with_signature(&quoted(message, kind)?, account.signature.as_deref());
+    if content.body.len() > compose::MAX_BODY_BYTES {
+        return Err(Error::TooLarge);
+    }
     let mut draft = Draft::new(account.id.clone(), content.from.clone());
     draft.content = content;
     Ok(draft)
@@ -255,6 +258,38 @@ fn ancestry(message: &Projection, content: &mut Content) {
         content.references.remove(0);
     }
 }
+/// Add a signature to a message being created: below where the user types, and above any
+/// quote, so that a reply's signature stays with the reply.
+#[must_use]
+pub fn with_signature(body: &str, signature: Option<&str>) -> String {
+    signature.map_or_else(
+        || body.to_owned(),
+        |signature| {
+            let block = signature_block(signature);
+            match body.trim_start_matches('\n') {
+                "" => format!("\n\n{block}"),
+                rest => format!("\n\n{block}\n\n{rest}"),
+            }
+        },
+    )
+}
+
+/// Swap the signature when a message moves to another account. One the user has edited
+/// is their text now and stays, and an account without a signature does not gain one
+/// in the middle of what they wrote.
+#[must_use]
+pub fn replace_signature(body: &str, from: Option<&str>, to: Option<&str>) -> String {
+    match (from.map(signature_block), to) {
+        (None, _) => body.to_owned(),
+        (Some(current), Some(to)) => body.replacen(&current, &signature_block(to), 1),
+        (Some(current), None) => body.replacen(&format!("\n\n{current}"), "", 1),
+    }
+}
+
+fn signature_block(signature: &str) -> String {
+    format!("-- \n{signature}")
+}
+
 fn quoted(message: &Projection, kind: Kind) -> Result<String, Error> {
     let text = message.readable_text().ok_or(Error::Incomplete)?;
     let mut body = String::from("\n\n");

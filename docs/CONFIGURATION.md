@@ -115,6 +115,7 @@ in
       displayName = "Personal";
       userName = personalAddress;
       aliases = [ ];
+      signature = "Person Example\nDepartment of Examples";
       auth = {
         kind = "oauth2";
         provider = "google";
@@ -152,7 +153,7 @@ in
 ```
 
 Define Rust structs with `#[serde(rename_all = "camelCase", deny_unknown_fields)]`
-and explicit tagged enums. Fields omitted above take these defaults: aliases `[]`,
+and explicit tagged enums. Fields omitted above take these defaults: aliases `[]`, no signature,
 smtpUserName inherits userName, notifications enabled with private previews,
 background disabled/autostart false, theme system, privacy ask, 30-day initial sync,
 five-minute polling, 2 MiB analysis-body cap, model absent/rules only, 72-hour normal

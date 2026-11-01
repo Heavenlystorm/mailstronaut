@@ -45,6 +45,18 @@ loopback TLS SMTP fixture. It uses real keyboard input and asserts durable state
 - The synthetic credential appears in no application or server log.
 - A further restart still shows the accepted entry and offers no resend.
 
+## Signature
+
+`accounts[].signature` in the native configuration is plain text without the delimiter, up
+to 4 KiB, and may span lines. New messages start with the cursor above it, and replies and
+forwards place it above the quote. It is ordinary editable body text, not a separate field.
+Moving a draft to another account swaps an untouched signature and leaves an edited one.
+
+`experiments/p07-compose/gui.sh` types above a configured signature with real input, and
+checks that the received mail decodes to `-- ` plus the signature. Unit tests in
+`crates/mailstronaut-core/tests/reply.rs` cover placement, swapping and the size limit. The
+account swap has not been driven through the GUI.
+
 ## When a send does not simply succeed
 
 Before starting a mail transaction, submission connects, signs in and leaves. A failure
@@ -74,6 +86,6 @@ and reports a closed port and a refused sign-in as sending nothing.
 
 No live provider or real desktop portal. The GUI path has not yet exercised: attachments
 through a portal, a pending row's Cancel, TLS or sign-in errors while sending, discard,
-identity switching, or Reply/Forward. Backend tests cover several of those states. There is
-no signature field yet. A connection lost between the pre-flight and DATA is still reported
+identity switching, or Reply/Forward. Backend tests cover several of those states. A
+connection lost between the pre-flight and DATA is still reported
 as unknown, the safe direction.

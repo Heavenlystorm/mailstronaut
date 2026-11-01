@@ -28,6 +28,7 @@ cat > "$config" <<NIX
     address = "sender@example.test";
     displayName = "Synthetic sender";
     aliases = [ "alias@example.test" ];
+    signature = "Synthetic Sender\nSynthetic Laboratory · Unicode";
     userName = "synthetic-smtp-user";
     imap = { host = "imap.example.invalid"; port = 993; security = "tls"; };
     smtp = { host = "localhost"; port = $port; security = "tls"; };
@@ -66,7 +67,7 @@ for _ in {1..150}; do
 import json, sqlite3, sys
 row = sqlite3.connect(sys.argv[1]).execute('SELECT content,closed FROM drafts').fetchone()
 c = json.loads(row[0])
-sys.exit(0 if row[1] == 0 and c['body'] == 'Synthetic body saved before closing.' else 1)
+sys.exit(0 if row[1] == 0 and c['body'].startswith('Synthetic body saved before closing.') else 1)
 PY
   then saved=1; break; fi
   kill -0 "$app"; sleep .2
@@ -79,7 +80,8 @@ c = json.loads(sqlite3.connect(sys.argv[1]).execute('SELECT content FROM drafts'
 assert c['to'] == 'to@example.test' and c['cc'] == 'copy@example.test', c
 assert c['bcc'] == 'blind@example.test', c
 assert c['subject'] == 'Synthetic draft · Unicode subject', c
-print('Native editable fields and local autosave verified.')
+assert c['body'] == 'Synthetic body saved before closing.\n\n-- \nSynthetic Sender\nSynthetic Laboratory · Unicode', c
+print('Native editable fields and local autosave verified, typing above the signature.')
 PY
 # Close right after the last keystroke, before the autosave delay can expire.
 wtype ' Final edit at close.'
@@ -87,7 +89,7 @@ close_window
 python3 - "$database" <<'PY'
 import json, sqlite3, sys
 c = json.loads(sqlite3.connect(sys.argv[1]).execute('SELECT content FROM drafts').fetchone()[0])
-assert c['body'] == 'Synthetic body saved before closing. Final edit at close.', c
+assert c['body'].startswith('Synthetic body saved before closing. Final edit at close.\n\n-- \n'), c
 print('Closing the window kept the last edit and exited normally.')
 PY
 start recovered
@@ -113,7 +115,7 @@ wait "$server"; server=''
 sleep 1
 capture sent
 python3 - "$database" "$artifacts/received.eml" <<'PY'
-import sqlite3, sys
+import email, email.policy, sqlite3, sys
 c = sqlite3.connect(sys.argv[1])
 assert c.execute('SELECT phase,uncertain FROM outbox').fetchall() == [('accepted', 0)]
 assert c.execute('SELECT count(*) FROM drafts WHERE closed=0').fetchone()[0] == 0
@@ -121,7 +123,10 @@ mail = open(sys.argv[2], 'rb').read().decode()
 assert 'Final edit at close.' in mail and 'to@example.test' in mail and 'copy@example.test' in mail
 assert 'blind@example.test' not in mail and 'Bcc:' not in mail
 assert 'SYNTHETIC-SMTP-SECRET-NOT-REAL' not in mail
+sent = email.message_from_string(mail, policy=email.policy.default).get_content()
+assert '\n-- \nSynthetic Sender\nSynthetic Laboratory · Unicode' in sent.replace('\r\n', '\n'), sent
 print('One accepted submission; the blind recipient stayed in the envelope only.')
+print('The signature arrived with its standard delimiter intact.')
 PY
 close_window
 start restarted
