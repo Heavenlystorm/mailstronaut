@@ -15,6 +15,17 @@ ALTER TABLE analysis ADD COLUMN dismissed INTEGER NOT NULL DEFAULT 0 CHECK(dismi
 CREATE INDEX analysis_expiry ON analysis(expires_at) WHERE expires_at IS NOT NULL;
 ";
 
+/// A newly arrived message, as far as announcing it needs.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NewMail {
+    /// Canonical message ID.
+    pub id: i64,
+    /// Displayed sender.
+    pub sender: String,
+    /// Decoded subject.
+    pub subject: String,
+}
+
 /// A message waiting for analysis.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AnalysisInput {
@@ -187,6 +198,46 @@ impl Store {
             [message],
         )?;
         Ok(())
+    }
+
+    /// The account's newest message, and any unread inbox mail after a given one that
+    /// arrived since a moment, newest first. The moment keeps older mail fetched on request
+    /// from being announced as new. With nothing to compare against, it lists nothing.
+    /// # Errors
+    /// Rejects an empty limit and reports storage failures.
+    pub fn new_inbox_mail(
+        &self,
+        account: &str,
+        after: Option<i64>,
+        since: i64,
+        limit: u32,
+    ) -> Result<(i64, Vec<NewMail>), Error> {
+        if limit == 0 {
+            return Err(Error::InvalidInput);
+        }
+        let newest: i64 = self.connection.query_row(
+            "SELECT COALESCE(MAX(id),0) FROM messages WHERE account_id=?1",
+            [account],
+            |row| row.get(0),
+        )?;
+        let Some(after) = after else {
+            return Ok((newest, Vec::new()));
+        };
+        let mut query = self.connection.prepare_cached(&format!(
+            "SELECT m.id,m.sender,m.subject FROM messages m
+             WHERE m.account_id=?1 AND m.id>?2 AND m.id<=?3 AND m.received_at>=?4 AND m.read_cleared=0
+             AND {IN_INBOX} ORDER BY m.received_at DESC,m.id DESC LIMIT ?5"
+        ))?;
+        let mail = query
+            .query_map(params![account, after, newest, since, limit], |row| {
+                Ok(NewMail {
+                    id: row.get(0)?,
+                    sender: row.get(1)?,
+                    subject: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok((newest, mail))
     }
 
     /// The complete stored result for a message, if it has one.
@@ -457,6 +508,50 @@ mod tests {
             }])
             .expect("ignored");
         assert_eq!(group(&fixture, 1_000), Vec::<i64>::new());
+    }
+
+    #[test]
+    fn new_mail_is_what_arrived_after_a_baseline_and_is_still_unread_in_the_inbox() {
+        use mailstronaut_mail::imap::FlagChange;
+        let mut fixture = fixture();
+        let (inbox, archive) = (fixture.inbox, fixture.archive);
+        let existing = cache(&mut fixture, inbox, 1, false, 1_000);
+        let ids = |(_, mail): (i64, Vec<NewMail>)| {
+            mail.into_iter().map(|item| item.id).collect::<Vec<_>>()
+        };
+        // The first look only records where things stand.
+        let (baseline, mail) = fixture
+            .store
+            .new_inbox_mail("a", None, 0, 100)
+            .expect("baseline");
+        assert_eq!(baseline, existing);
+        assert_eq!(mail, []);
+        let new = cache(&mut fixture, inbox, 2, false, 2_000);
+        let newer = cache(&mut fixture, inbox, 3, false, 3_000);
+        cache(&mut fixture, inbox, 4, true, 3_000);
+        cache(&mut fixture, archive, 5, false, 3_000);
+        let found = |fixture: &Fixture, since| {
+            ids(fixture
+                .store
+                .new_inbox_mail("a", Some(baseline), since, 100)
+                .expect("new mail"))
+        };
+        assert_eq!(found(&fixture, 0), [newer, new], "newest first");
+        // Older mail fetched on request gets a new ID, and is still not new mail.
+        assert_eq!(found(&fixture, 2_500), [newer]);
+        fixture
+            .store
+            .set_flag("a", newer, FlagChange::Seen, true, CONTEXT)
+            .expect("read");
+        assert_eq!(found(&fixture, 0), [new], "already read elsewhere");
+        assert_eq!(
+            ids(fixture
+                .store
+                .new_inbox_mail("b", Some(0), 0, 100)
+                .expect("other account")),
+            Vec::<i64>::new()
+        );
+        assert!(fixture.store.new_inbox_mail("a", None, 0, 0).is_err());
     }
 
     #[test]

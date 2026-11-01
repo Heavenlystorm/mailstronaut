@@ -85,6 +85,11 @@ if [[ -n ${MAILSTRONAUT_ACTIONS_GUI_BINARY:-} ]]; then
     bash experiments/p07-compose/actions.sh "$MAILSTRONAUT_ACTIONS_GUI_BINARY" "$root" "$variant"
   done
 fi
+if [[ -n ${MAILSTRONAUT_NOTIFY_GUI_BINARY:-} ]]; then
+  for variant in private preview disabled; do
+    bash experiments/p04-sync/notify.sh "$MAILSTRONAUT_NOTIFY_GUI_BINARY" "$root" "$variant"
+  done
+fi
 if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"
 fi

@@ -1,6 +1,6 @@
-//! A file chooser on a private bus, so that native acceptance can drive the real Save and
-//! Attach actions in a headless session. It speaks the desktop portal's protocol, and is
-//! not a claim about any real portal.
+//! A file chooser and notification server on a private bus, so that native acceptance can
+//! drive the real Save, Attach and notification paths in a headless session. It speaks the
+//! desktop portal's protocol, and is not a claim about any real portal.
 
 use std::{collections::HashMap, fs::OpenOptions, io::Write as _, path::PathBuf, time::Duration};
 
@@ -128,11 +128,67 @@ impl Chooser {
     }
 }
 
+/// Records what the application asks the desktop to show.
+struct Notifier(PathBuf);
+
+impl Notifier {
+    fn record(&self, entry: &serde_json::Value) -> fdo::Result<()> {
+        writeln!(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.0.join("notifications.jsonl"))
+                .map_err(|_| fdo::Error::Failed("fixture receipt".into()))?,
+            "{entry}"
+        )
+        .map_err(|_| fdo::Error::Failed("fixture receipt".into()))
+    }
+}
+
+#[zbus::interface(name = "org.freedesktop.portal.Notification")]
+impl Notifier {
+    #[zbus(property, name = "version")]
+    #[expect(
+        clippy::unused_self,
+        reason = "zbus requires a non-const instance property getter."
+    )]
+    fn version(&self) -> u32 {
+        1
+    }
+
+    #[zbus(name = "AddNotification")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "zbus deserializes an owned notification dictionary."
+    )]
+    fn add(&self, id: &str, notification: HashMap<String, OwnedValue>) -> fdo::Result<()> {
+        let text = |key: &str| {
+            notification
+                .get(key)
+                .and_then(|value| <&str>::try_from(value).ok())
+                .unwrap_or_default()
+        };
+        self.record(&serde_json::json!({
+            "add": id,
+            "title": text("title"),
+            "body": text("body"),
+            "action": text("default-action"),
+        }))
+    }
+
+    #[zbus(name = "RemoveNotification")]
+    fn remove(&self, id: &str) -> fdo::Result<()> {
+        self.record(&serde_json::json!({"remove": id}))
+    }
+}
+
+const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "explicit private-bus GUI harness only; runs until the harness stops it"]
-async fn serve_file_chooser() {
+async fn serve_portals() {
     let root =
-        PathBuf::from(std::env::var_os("MAILSTRONAUT_CHOOSER_ROOT").expect("private fixture root"));
+        PathBuf::from(std::env::var_os("MAILSTRONAUT_PORTAL_ROOT").expect("private fixture root"));
     assert!(root.is_absolute());
     assert!(
         std::env::var("DBUS_SESSION_BUS_ADDRESS")
@@ -140,15 +196,36 @@ async fn serve_file_chooser() {
             .contains(root.parent().expect("profile").to_str().expect("path")),
         "this must never answer on a real session bus"
     );
-    let _connection = zbus::connection::Builder::session()
+    let connection = zbus::connection::Builder::session()
         .expect("private bus")
         .name("org.freedesktop.portal.Desktop")
         .expect("portal name")
-        .serve_at("/org/freedesktop/portal/desktop", Chooser(root.clone()))
-        .expect("portal object")
+        .serve_at(PORTAL_PATH, Chooser(root.clone()))
+        .expect("file chooser")
+        .serve_at(PORTAL_PATH, Notifier(root.clone()))
+        .expect("notifications")
         .build()
         .await
         .expect("private portal");
-    std::fs::write(root.join("chooser-ready"), "").expect("rendezvous");
-    core::future::pending::<()>().await;
+    std::fs::write(root.join("portal-ready"), "").expect("rendezvous");
+    // The harness clicks a notification by writing its ID and action to a file.
+    let invoke = root.join("notification-invoke");
+    loop {
+        if let Ok(text) = std::fs::read_to_string(&invoke)
+            && let Some((id, action)) = text.trim().split_once(' ')
+        {
+            std::fs::remove_file(&invoke).expect("consumed");
+            connection
+                .emit_signal(
+                    None::<&str>,
+                    PORTAL_PATH,
+                    "org.freedesktop.portal.Notification",
+                    "ActionInvoked",
+                    &(id, action, Vec::<Value<'_>>::new()),
+                )
+                .await
+                .expect("synthetic click");
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }

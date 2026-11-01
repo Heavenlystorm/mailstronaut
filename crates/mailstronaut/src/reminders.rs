@@ -4,7 +4,7 @@
 //! earliest due instant. A muted or missing notification service leaves the reminder
 //! visible here, so a reminder is never silently lost to the desktop.
 
-mod desktop;
+pub mod desktop;
 
 use std::{
     sync::Arc,

@@ -40,7 +40,7 @@ File names come from the part's own MIME headers, so encoded names decode as usu
   was attached. The dialog was offered the decoded file name.
 - The 5 MiB message's attachment, kept on this device, saves the same way.
 
-`crates/mailstronaut/src/chooser_fixture.rs` is the file chooser. It implements the portal's
+`crates/mailstronaut/src/portal_fixture.rs` is the file chooser. It implements the portal's
 `FileChooser` interface on the private bus and answers from a file the script writes, so the
 application's real code runs all the way through GPUI's portal client.
 

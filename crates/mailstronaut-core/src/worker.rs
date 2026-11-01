@@ -148,6 +148,13 @@ enum Command {
     ),
     DismissPriority(i64, Reply<()>),
     AnalysisData(i64, Reply<Option<String>>),
+    NewInboxMail(
+        String,
+        Option<i64>,
+        i64,
+        u32,
+        Reply<(i64, Vec<store::analysis::NewMail>)>,
+    ),
     CacheReduced {
         account: String,
         membership: Membership,
@@ -448,6 +455,19 @@ impl Handle {
         limit: u32,
     ) -> Result<Vec<store::analysis::PriorityItem>, Error> {
         self.request(|reply| Command::PriorityItems(accounts, now, limit, reply))
+            .await
+    }
+    /// The account's newest message, and unread inbox mail after a given one.
+    /// # Errors
+    /// Rejects an empty limit and reports storage failures.
+    pub async fn new_inbox_mail(
+        &self,
+        account: String,
+        after: Option<i64>,
+        since: i64,
+        limit: u32,
+    ) -> Result<(i64, Vec<store::analysis::NewMail>), Error> {
+        self.request(|reply| Command::NewInboxMail(account, after, since, limit, reply))
             .await
     }
     /// The complete stored priority result for a message, if it has one.
@@ -1225,6 +1245,11 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::AnalysisData(message, reply) => {
                 respond(reply, || store.analysis_data(message));
+            }
+            Command::NewInboxMail(account, after, since, limit, reply) => {
+                respond(reply, || {
+                    store.new_inbox_mail(&account, after, since, limit)
+                });
             }
             Command::CacheReduced {
                 account,

@@ -5,7 +5,7 @@
 set -euo pipefail
 binary=$(realpath "${1:?prebuilt application}")
 root=$(realpath "${2:?private fixture root}")
-chooser_fixture=$(realpath "${MAILSTRONAUT_CHOOSER_FIXTURE:?prebuilt application test executable}")
+chooser_fixture=$(realpath "${MAILSTRONAUT_PORTAL_FIXTURE:?prebuilt application test executable}")
 [[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus" ]]
 [[ $XDG_DATA_HOME == "$root/data" ]]
 artifacts="$root/large-gui"
@@ -90,9 +90,9 @@ cleanup() {
 }
 trap cleanup EXIT
 # A protocol-accurate file chooser on this private bus, answering from a file.
-MAILSTRONAUT_CHOOSER_ROOT=$artifacts "$chooser_fixture" chooser_fixture::serve_file_chooser --ignored --exact > "$artifacts/chooser.log" 2>&1 & chooser=$!
-for _ in {1..100}; do [[ -f "$artifacts/chooser-ready" ]] && break; kill -0 "$chooser"; sleep .1; done
-[[ -f "$artifacts/chooser-ready" ]]
+MAILSTRONAUT_PORTAL_ROOT=$artifacts "$chooser_fixture" portal_fixture::serve_portals --ignored --exact > "$artifacts/chooser.log" 2>&1 & chooser=$!
+for _ in {1..100}; do [[ -f "$artifacts/portal-ready" ]] && break; kill -0 "$chooser"; sleep .1; done
+[[ -f "$artifacts/portal-ready" ]]
 
 query() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(sys.argv[2]).fetchone()[0])' "$database" "$1" 2>/dev/null; }
 await() {

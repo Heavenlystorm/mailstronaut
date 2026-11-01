@@ -502,6 +502,10 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
 - [x] Use `DescriptionList` for scheduled-time details, including the original
   timezone and UTC instant. Native light/dark and ordinary/narrow layouts pass
   [focused acceptance](evidence/P08-native-reminders.md#time-details-and-rescheduling).
+- [x] Announce new inbox mail through the notification portal while no window is in
+  front: one replaced notification per account, revealing only a count unless
+  `notifications.showPreview` is set. [Evidence](evidence/P08-new-mail.md); real desktop
+  servers remain open.
 - [ ] Reconnect notification delivery and action handling; generation fences,
   earliest-due wake, overdue coalescing and restart/resume/clock changes must be safe.
   Use GPUI `Notification` in explicit `InApp` mode for foreground feedback only.

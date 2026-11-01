@@ -8,7 +8,7 @@ fixture=$(realpath "${MAILSTRONAUT_SMTP_FIXTURE:?prebuilt smtp test executable}"
 [[ $XDG_DATA_HOME == "$root/data" ]]
 artifacts="$root/compose-gui"
 mkdir -p "$artifacts"
-chooser_fixture=$(realpath "${MAILSTRONAUT_CHOOSER_FIXTURE:?prebuilt application test executable}")
+chooser_fixture=$(realpath "${MAILSTRONAUT_PORTAL_FIXTURE:?prebuilt application test executable}")
 database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
 export MAILSTRONAUT_SMTP_PORT_FILE="$artifacts/port"
 server=''
@@ -51,9 +51,9 @@ cleanup() {
 }
 trap cleanup EXIT
 # A protocol-accurate file chooser on this private bus, answering from a file.
-MAILSTRONAUT_CHOOSER_ROOT=$artifacts "$chooser_fixture" chooser_fixture::serve_file_chooser --ignored --exact > "$artifacts/chooser.log" 2>&1 & chooser=$!
-for _ in {1..100}; do [[ -f "$artifacts/chooser-ready" ]] && break; kill -0 "$chooser"; sleep .1; done
-[[ -f "$artifacts/chooser-ready" ]]
+MAILSTRONAUT_PORTAL_ROOT=$artifacts "$chooser_fixture" portal_fixture::serve_portals --ignored --exact > "$artifacts/chooser.log" 2>&1 & chooser=$!
+for _ in {1..100}; do [[ -f "$artifacts/portal-ready" ]] && break; kill -0 "$chooser"; sleep .1; done
+[[ -f "$artifacts/portal-ready" ]]
 
 # A cached synthetic message to reply to would need an inbox; the reply preparation
 # itself has its own tests. This run covers editing, durability and submission.

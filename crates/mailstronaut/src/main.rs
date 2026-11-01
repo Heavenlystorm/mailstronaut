@@ -4,8 +4,6 @@ extern crate gpui_kit as gpui;
 
 mod account_actions;
 mod accounts;
-#[cfg(test)]
-mod chooser_fixture;
 mod composer;
 mod config_cli;
 mod config_export;
@@ -13,11 +11,14 @@ mod html_reader;
 mod html_worker;
 mod instance;
 mod link_portal;
+mod mail_notify;
 mod mail_priority;
 mod mail_search;
 mod mail_sync;
 mod mailbox;
 mod onboarding;
+#[cfg(test)]
+mod portal_fixture;
 mod preferences;
 mod read_gate;
 mod reminders;

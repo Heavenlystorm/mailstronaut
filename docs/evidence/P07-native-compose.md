@@ -60,7 +60,7 @@ account swap has not been driven through the GUI.
 ## Attaching
 
 `experiments/p07-compose/gui.sh` clicks Attach with a protocol-accurate fake file chooser
-answering on the private bus (`crates/mailstronaut/src/chooser_fixture.rs`), chooses a file with
+answering on the private bus (`crates/mailstronaut/src/portal_fixture.rs`), chooses a file with
 a Unicode name, and deletes the original straight away. The received mail still carries the
 file with its name and contents intact, because attaching takes a private copy.
 
