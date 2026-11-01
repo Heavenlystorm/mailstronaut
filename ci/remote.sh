@@ -17,7 +17,17 @@ if [[ ${1:-} == --fetch ]]; then
 fi
 root=$(git rev-parse --show-toplevel)
 mkdir -p "$root/target/remote"
-ssh -o BatchMode=yes "$host" "mkdir -p '$dir'" 2> /dev/null
+# Share authentication across mkdir, rsync and execution, including jump hosts.
+# The private socket belongs only to this invocation and is inside this project.
+control=$(mktemp -d "$root/target/remote/ssh.XXXXXX")
+trap '
+  ssh -S "$control/c" -O exit "$host" > /dev/null 2>&1 || true
+  rmdir "$control" 2> /dev/null || true
+' EXIT
+remote_ssh=(ssh -o BatchMode=yes -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o LogLevel=ERROR
+  -o ControlMaster=auto -o ControlPersist=60 -o "ControlPath=$control/c")
+printf -v transport '%q ' "${remote_ssh[@]}"
+"${remote_ssh[@]}" "$host" "mkdir -p '$dir'"
 excludes=(--exclude /target --exclude /result --exclude '/result-*')
 index=''
 if [[ -f $root/.git ]]; then
@@ -26,15 +36,15 @@ if [[ -f $root/.git ]]; then
   index="{ [ -d .git ] || { git init -q . && echo /target >> .git/info/exclude; }; } && git add -A . && "
 fi
 rsync -az --delete "${excludes[@]}" \
-  -e 'ssh -o BatchMode=yes -o LogLevel=ERROR' "$root/" "$host:$dir/"
+  -e "$transport" "$root/" "$host:$dir/"
 # The server's nix.conf predates flakes; this enables them for one invocation only.
 printf -v command '%q ' "$@"
 status=0
-ssh -o BatchMode=yes -o LogLevel=ERROR "$host" \
+"${remote_ssh[@]}" "$host" \
   "cd '$dir' && ${index}NIX_CONFIG='experimental-features = nix-command flakes
 max-jobs = auto' ${command}" || status=$?
 if [[ -n $fetch ]]; then
-  rsync -az -e 'ssh -o BatchMode=yes -o LogLevel=ERROR' \
+  rsync -az -e "$transport" \
     "$host:$dir/$fetch" "$root/target/remote/" || status=$((status == 0 ? 1 : status))
 fi
 exit "$status"
