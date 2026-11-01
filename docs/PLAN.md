@@ -245,12 +245,13 @@ new dependency graph before claiming current-package acceptance.
   independent account state, configuration generations and useful offline reading.
   Reuse `Button::loading`/`Spinner`, Cancel/Retry `Button`s and persistent per-account
   `Alert`s; show offline/partial coverage in `StatusBar`, retaining cached rows.
-  [Automatic engine implemented](evidence/P04-background-sync.md); native acceptance
-  against a real IMAP server remains open.
+  [Automatic sync passes against a real Dovecot](evidence/P04-background-sync.md);
+  live providers remain open.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
   capability discovery, account cancellation/backoff and fair connection/work budgets.
 - [ ] Complete SPECIAL-USE discovery, explicit folder overrides and verified
   UTF-7/UTF-8 names, without lossy folder identity.
+  [SPECIAL-USE and overrides pass](evidence/P04-background-sync.md); UTF-7 display remains open.
 - [ ] Complete bounded recent sync, older paging, partial-cache status, on-demand
   bodies/attachments and safe UIDVALIDITY/gap/reset reconciliation.
   Use `ListDelegate::has_more/load_more` or an explicit Load older `Button` for
@@ -408,11 +409,15 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   delivery still need GUI acceptance.
 - [ ] Complete accepted-DATA/drop reconciliation, provider Sent auto-save and
   separately retriable Sent APPEND. Sent-copy failure must never trigger SMTP resend.
+  [Sent APPEND passes against a real server](evidence/P04-background-sync.md);
+  drop reconciliation in the GUI remains open.
 - [ ] Port native flag/undo controls and implement safe archive/trash/move with
   pending operations, UID MOVE/UIDPLUS fallbacks and no unrelated global EXPUNGE.
   Reuse `Toolbar`/`ToolbarGroup`, `Button`, `DropdownButton`/`PopupMenu` and
   `ContextMenuExt`; use searchable `Combobox` for move destinations and explicit
   in-app `Notification::action` for Undo. Keep durable errors beyond toast lifetime.
+  [Read, star, archive, trash and move with Undo](evidence/P04-background-sync.md);
+  servers without MOVE or UIDPLUS, and Undo through the GUI, remain unverified.
 - [ ] Recover interrupted operations and reconcile real server state, retaining
   local reminder/analysis identity and visible permanent failure/undo behavior.
   Use `AlertDialog`/`Dialog` for discard, destructive purge or ambiguous-delivery

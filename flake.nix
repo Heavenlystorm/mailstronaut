@@ -272,6 +272,8 @@
                   ${self}/experiments/p06-mailbox/navigation.sh \
                   ${self}/experiments/wayland-session.sh \
                   ${self}/experiments/p07-compose/gui.sh \
+                  ${self}/experiments/p04-sync/gui.sh \
+                  ${self}/experiments/p04-sync/dovecot.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"
@@ -333,6 +335,8 @@
               pkgs.zenity
               pkgs.gnome-keyring
               pkgs.libsecret
+              # A disposable real IMAP server for sync, flag and move acceptance.
+              pkgs.dovecot
             ];
           });
           default = pkgs.mkShell {

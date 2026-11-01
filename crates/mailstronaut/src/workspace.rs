@@ -45,6 +45,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::mailbox::{Row, Rows};
 
+/// How long a queued move can be undone before the server is told about it.
+const UNDO_GRACE: Duration = Duration::from_secs(8);
 /// Returning to the window checks for mail, at most this often.
 const ACTIVATION_WAKE_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -1042,9 +1044,17 @@ impl Workspace {
     ) {
         self.retire_open(window, cx);
         self.refresh_rows(window, cx);
-        if let Some(engine) = &self.engine {
-            engine.wake_all();
-        }
+        // Waking the account at once would claim the move before Undo could be pressed.
+        let grace = cx.background_executor().timer(UNDO_GRACE);
+        cx.spawn(async move |this, cx| {
+            grace.await;
+            _ = this.update(cx, |this, _| {
+                if let Some(engine) = &this.engine {
+                    engine.wake_all();
+                }
+            });
+        })
+        .detach();
         let workspace = cx.entity().downgrade();
         window.push_notification(
             Notification::info(format!("Moved to {label}"))
@@ -1059,7 +1069,9 @@ impl Workspace {
                             notification.dismiss(window, cx);
                         },
                     ))
-                }),
+                })
+                // `action` turns autohide off; Undo is only useful during the grace period.
+                .autohide(true),
             cx,
         );
     }

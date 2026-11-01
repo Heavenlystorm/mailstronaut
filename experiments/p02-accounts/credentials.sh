@@ -56,6 +56,9 @@ fi
 if [[ -n ${MAILSTRONAUT_THREADS_GUI_BINARY:-} ]]; then
   bash experiments/p06-conversations/gui.sh "$MAILSTRONAUT_THREADS_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_SYNC_GUI_BINARY:-} ]]; then
+  bash experiments/p04-sync/gui.sh "$MAILSTRONAUT_SYNC_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"
 fi
