@@ -7,19 +7,13 @@ export XDG_RUNTIME_DIR="$root/runtime" XDG_CONFIG_HOME="$root/config"
 export XDG_DATA_HOME="$root/data" XDG_CACHE_HOME="$root/cache" XDG_STATE_HOME="$root/state"
 mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
 chmod 700 "$XDG_RUNTIME_DIR"
-unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET
-if DISPLAY=:9876 "$binary" --demo > "$root/no-wayland.log" 2>&1; then
-  printf '%s\n' 'Application incorrectly accepted an X11-only session' >&2
-  exit 1
-fi
-grep -q 'requires a native Wayland session' "$root/no-wayland.log"
-export WAYLAND_DISPLAY=mailstronaut-test
+unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET DBUS_SESSION_BUS_ADDRESS AT_SPI_BUS_ADDRESS
 export VK_DRIVER_FILES="${MAILSTRONAUT_TEST_VULKAN_ICD:?pinned software Vulkan driver}"
 export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway
 export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
-compositor='' app='' bus=''
+compositor='' app='' bus='' keyboard=''
 cleanup() {
-  for pid in "$app" "$compositor" "$bus"; do
+  for pid in "$app" "$keyboard" "$compositor" "$bus"; do
     if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   done
 }
@@ -40,6 +34,12 @@ CONFIG
 dbus-daemon --nofork --nopidfile --config-file="$root/bus.conf" > "$root/bus.log" 2>&1 & bus=$!
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$root/runtime/bus"
 for _ in {1..100}; do [[ -S $root/runtime/bus ]] && break; sleep .05; done
+if DISPLAY=:9876 "$binary" --demo > "$root/no-wayland.log" 2>&1; then
+  printf '%s\n' 'Application incorrectly accepted an X11-only session' >&2
+  exit 1
+fi
+grep -q 'requires a native Wayland session' "$root/no-wayland.log"
+export WAYLAND_DISPLAY=mailstronaut-test
 # A standard headless compositor supplies the seat GPUI requires. XWayland is disabled.
 cat > "$root/sway.conf" <<'SWAY'
 xwayland disable
@@ -56,6 +56,10 @@ for _ in {1..200}; do
 done
 [[ -S $socket ]]
 export WAYLAND_DISPLAY="$socket"
+# Retain the seat's keyboard capability before GPUI binds its input objects,
+# matching the other native harnesses. One-shot devices can lose the first binding.
+wtype -k Escape -s 300000 > "$root/keyboard.log" 2>&1 & keyboard=$!
+sleep .3
 WAYLAND_DEBUG=client "$binary" --demo > "$root/client.log" 2>&1 & app=$!
 for _ in {1..300}; do
   grep -q 'wl_surface.*commit' "$root/client.log" && break
@@ -69,15 +73,15 @@ kill -0 "$app"
 timeout 15 grim "$root/window.png" > "$root/capture.log" 2>&1
 [[ -s $root/window.png ]]
 # Keep the virtual keyboard alive while GPUI binds its seat and input objects.
-wtype -s 400 -M ctrl k -m ctrl -s 200 synthetic-query -s 300
-timeout 15 grim "$root/search.png"
 wtype -s 400 -M ctrl -M shift d -m shift -m ctrl -s 2000
 timeout 15 grim "$root/dark.png"
-[[ -s $root/search.png && -s $root/dark.png ]]
+[[ -s $root/dark.png ]]
 # Verify actual appearance changes, rather than treating input-command exit as proof.
 [[ $(magick "$root/window.png" -format '%[fx:p{10,80}.r>0.5]' info:) == 1 ]]
 [[ $(magick "$root/dark.png" -format '%[fx:p{10,80}.r<0.5]' info:) == 1 ]]
-[[ $(magick "$root/dark.png" -format '%[fx:p{700,550}.r<0.5]' info:) == 1 ]]
+# A blank area inside the HTML body; y=550 now intersects its Unicode text.
+[[ $(magick "$root/window.png" -format '%[fx:p{700,700}.r>0.5]' info:) == 1 ]]
+[[ $(magick "$root/dark.png" -format '%[fx:p{700,700}.r<0.5]' info:) == 1 ]]
 # The versioned inline PNG is three bands: red, green, blue. Observe real
 # image pixels and their order in both themes, including the RGBA/BGRA bridge.
 for capture in window dark; do
@@ -99,7 +103,14 @@ done
 printf 'clipboard observer control' | wl-copy
 [[ $(timeout 5 wl-paste --no-newline) == 'clipboard observer control' ]]
 wtype -s 400 -M ctrl -M shift t -m shift -m ctrl -s 300 -M ctrl a -m ctrl -M ctrl c -m ctrl -s 300
-timeout 5 wl-paste --no-newline > "$root/reader-all.txt"
+# Clipboard ownership changes asynchronously; use the same bounded observer as
+# the mailbox harness rather than treating a virtual-keyboard exit as completion.
+for _ in {1..25}; do
+  timeout 5 wl-paste --no-newline > "$root/reader-all.txt"
+  grep -q 'Synthetic reader line 001' "$root/reader-all.txt" && break
+  sleep .2
+done
+timeout 15 grim "$root/reader-selected.png"
 grep -q 'Synthetic reader line 001' "$root/reader-all.txt"
 grep -q 'Synthetic reader line 120' "$root/reader-all.txt"
 grep -q 'Bonjour · Ciao · 世界' "$root/reader-all.txt"
@@ -120,6 +131,11 @@ printf 'theme copy observer control' | wl-copy
 wtype -s 400 -M ctrl c -m ctrl -s 300
 timeout 5 wl-paste --no-newline > "$root/reader-after-theme.txt"
 cmp "$root/reader-end.txt" "$root/reader-after-theme.txt"
+# Search deliberately retires an open message, so exercise it after the reader
+# assertions instead of expecting that old HTML to survive a changed query.
+wtype -s 400 -M ctrl k -m ctrl -s 200 synthetic-query -s 300
+timeout 15 grim "$root/search.png"
+[[ -s $root/search.png ]]
 if grep -Eiq 'panic|error:|fatal' "$root/client.log"; then
   printf '%s\n' 'Application reported a runtime failure; inspect client.log' >&2
   exit 1

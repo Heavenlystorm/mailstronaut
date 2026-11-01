@@ -32,9 +32,9 @@ tempfile.workspace = true
 uuid.workspace = true
 tokio.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
+zbus.workspace = true
 
 [dev-dependencies]
-zbus.workspace = true
 wait-timeout.workspace = true
 
 [lints]

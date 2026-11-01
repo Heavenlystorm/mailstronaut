@@ -1,0 +1,7 @@
+running 1 test
+Single-instance bus: exclusive ownership, concurrent forwarding, coalescing, standard Activate, source conflicts, closed receiver, restart and timeout passed.
+test instance::tests::private_ownership_activation_conflicts_shutdown_and_timeout ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.18s
+
+Private single-instance ownership and activation passed: /builds/mailstronaut-dev/target/p08-instance.bfmSBK

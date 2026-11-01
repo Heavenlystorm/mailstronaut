@@ -118,6 +118,7 @@ requirements, not a claim that all those controls exist today.
 | Morning/evening defaults, timezone, reschedule/cancel | [`TimeField`](https://gpui-kit.com/component/time-field/), searchable timezone `Combobox`, `DescriptionList`, Save/Cancel `Button`s | Keep generation and ambiguous/nonexistent local-time checks in the backend. |
 | Background/autostart/notification preferences | `SettingField::switch` with ownership/disabled text | Independent preferences; a switch is not portal permission or control of HM-managed services. |
 | Foreground feedback versus background reminders | GPUI `Notification` explicitly InApp for foreground status | The pinned system path cannot provide the durable reminder actions; retain existing stable IDs/portal/backend route. |
+| Single-instance foreground activation | Existing `zbus` connection/name ownership and `org.freedesktop.Application.Activate`; GPUI `Window::activate_window` | No selection/open action or new UI component. Coalesce requests; refuse source conflicts. GPUI's pinned public API cannot consume a forwarded caller token; real compositor policy and headless reopening need separate acceptance. |
 
 ### P09: priority, deadlines and models
 

@@ -509,8 +509,19 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   real desktop servers remain open.
 - [ ] Verify stable replacement, both crash windows, Open/Remind again/Dismiss,
   denied/disabled notifications, DST/ambiguous times and deleted-message cases.
-- [ ] Implement single-instance D-Bus activation/window reopening and `--background`
-  without a second DB writer. Explicit Quit must stop work.
+- [x] Claim single-instance session ownership before UI/backend startup and route
+  passive `org.freedesktop.Application.Activate` requests to the existing window.
+  Test concurrent forwarding/coalescing, source/demo conflicts, timeout, normal
+  close/restart, bus loss and unchanged Seen with the independent store profile
+  lock retained. [Bounded native and bus evidence](evidence/P08-instance.md).
+- [ ] Complete foreground activation with a fresh caller token on real Wayland
+  desktops. The current public GPUI API requests attention from its own seat;
+  private Sway retains the other workspace. Do not equate routed Activate with
+  successful focus or mark the desktop entry D-Bus activatable yet.
+- [ ] Move backend ownership outside the window and implement `--background` and
+  window reopening without a second DB writer. Prefer GPUI's existing
+  `WindowingRequest::Headless`/`App::request_windowing` lifecycle after a native
+  attach/detach proof; no hidden GPU window or custom daemon. Explicit Quit stops work.
 - [ ] Implement independent background/autostart/notification settings and zero
   hidden work when disabled; unload renderer/models while headless when enabled.
   Reuse `SettingField::switch` and ownership/disabled-state text for each setting;

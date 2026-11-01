@@ -77,6 +77,7 @@
               ./docs/CONFIGURATION.md
               ./experiments/p02-accounts/credentials.sh
               ./experiments/p01-blitz/portal.sh
+              ./experiments/p08-reminders/instance.sh
             ];
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
@@ -217,6 +218,8 @@
                 bash experiments/p02-accounts/credentials.sh
               MAILSTRONAUT_LINK_PORTAL_FIXTURE="$account_fixture" \
                 bash experiments/p01-blitz/portal.sh
+              MAILSTRONAUT_INSTANCE_FIXTURE="$account_fixture" \
+                bash experiments/p08-reminders/instance.sh
             '';
             meta = {
               description = "Native Wayland email client built with GPUI Kit and Blitz; development prototype";
@@ -285,6 +288,8 @@
                   ${self}/experiments/p04-sync/dovecot.sh \
                   ${self}/experiments/p08-reminders/portal.sh \
                   ${self}/experiments/p08-reminders/gui.sh \
+                  ${self}/experiments/p08-reminders/instance.sh \
+                  ${self}/experiments/p08-reminders/instance-gui.sh \
                   ${self}/experiments/p06-search/reproduce.sh \
                   ${self}/experiments/p06-search/run-release.sh
                 touch "$out"

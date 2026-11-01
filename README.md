@@ -12,8 +12,9 @@ P01 gates; previous toolkit screenshots are historical evidence.
 The retained backend provides native Nix configuration, encrypted credentials,
 TLS IMAP/SMTP, offline SQLite/MIME storage, account-local conversations, durable
 drafts/attachments, submission state and reminders. Their new GPUI workflows are
-tracked separately in the plan. Strong fuzzy and multilingual semantic search,
-local priority/deadline inference and optional background operation remain goals.
+tracked separately in the plan. Lexical fuzzy search and conservative local
+deadline rules are available. Multilingual semantic search, validated model
+priority inference and optional background operation remain goals.
 
 ```sh
 nix develop
@@ -27,7 +28,12 @@ nix build --no-update-lock-file
 ```
 
 A Wayland session is required for the window; CLI configuration commands also work
-without a display. `--demo` never opens the real account store. Cached message
+without a display. GUI startup also requires the session D-Bus. Repeated launches
+of the same configuration request activation of the existing window; a different
+`--config` or demo is refused while it is running. Window activation never opens
+mail, and foreground focus remains subject to the Wayland compositor's policy.
+Closing the last window still exits; `--background` is not implemented yet.
+`--demo` never opens the real account store. Cached message
 content becomes read only through an explicit successful open, never list/search
 refresh or focus. Settings now exposes declared accounts, encrypted password
 storage, browser sign-in actions and explicit bounded inbox sync. Offline reading

@@ -29,11 +29,12 @@ Run on the CI server through `ci/remote.sh`.
 
 ## Not established
 
-Real desktop notification servers and their buttons, single-instance D-Bus activation and
-`--background` (no work continues after the window closes), suspend and resume,
+Real desktop notification servers and their buttons, caller-token foreground focus,
+headless window reopening and `--background` (no work continues after the window closes), suspend and resume,
 evening/tomorrow presets and DST behaviour through the GUI remain unverified
 (the policy has unit tests). Editable morning/evening/timezone settings now have their own
-[native preference acceptance](P02-preferences.md).
+[native preference acceptance](P02-preferences.md). Foreground single-instance
+ownership/passive routing has [separate bounded evidence](P08-instance.md).
 
 ## Time details and rescheduling
 

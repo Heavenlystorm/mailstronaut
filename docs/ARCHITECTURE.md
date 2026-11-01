@@ -318,6 +318,19 @@ and survives resync/model upgrades. No automatic reminder is implied by a box.
 
 ## 7. Remind me and background lifecycle
 
+The application claims its session D-Bus name before GPUI or mail storage starts.
+Repeated launches use `org.freedesktop.Application.Activate`, with one coalescing
+queue and a source-location/demo identity check for executable callers. The source
+location remains stable across Home Manager symlink generations. Activation
+requests foreground attention only; it never opens a selected original or changes
+Seen. A missing bus fails closed, and losing the bus stops this owner. The existing
+store profile lock independently prevents another process/bus from opening a
+second owner. CLI configuration and internal helpers bypass session activation.
+The pinned GPUI public API requests Wayland activation from its own seat; forwarding
+a fresh caller activation token is still an upstream API/desktop acceptance gap.
+The desktop entry is not yet marked D-Bus activatable. The foreground process
+currently exits on last-window-close; headless lifetime/reopening remain P08 work.
+
 “Remind me” is a local durable reminder for an email, independent of the read flag,
 priority TTL and server labels. Provide one hour, this evening, tomorrow morning,
 and custom date/time using native date/time widgets. Resolve civil presets in the

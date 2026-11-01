@@ -330,7 +330,9 @@ ModelDirectory and CA paths also need to be visible in the sandbox: install/impo
 those files there or use a document portal. Do not promise access to host secret
 file paths through Flatpak.
 
-For native login startup, standard Home Manager service composition is enough:
+The P08 target for native login startup uses standard Home Manager service
+composition. The current binary still rejects `--background`; enable this service
+only after PLAN.md's background-lifetime row is accepted:
 
 ```nix
 { inputs, pkgs, ... }:
