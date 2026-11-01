@@ -90,8 +90,8 @@ stale callbacks, undo limits, copies in other folders and dropped stale contexts
 
 ## Not established
 
-Live providers, Gmail's label semantics, CONDSTORE/QRESYNC, servers without MOVE or
-UIDPLUS, large-mailbox timing and fairness across several busy accounts. A real suspend
+Live providers, Gmail's label semantics, CONDSTORE/QRESYNC, large-mailbox timing and
+fairness across several busy accounts. A real suspend
 and resume has not been run, and a 9-minute renewal has only run at shorter intervals
 against the scripted server. The CPU figure comes from one short run in a
 software-rendered session, so it is not a budget. The UI does not yet retry failed moves

@@ -50,6 +50,8 @@ pub struct Cycle {
     pub downloaded: u32,
     pub refreshed: u32,
     pub actions: u32,
+    /// Why a queued move could not be done, with the message back in its folder.
+    pub move_failure: Option<imap::Error>,
 }
 
 /// What one request for older mail did.
@@ -517,7 +519,7 @@ impl Access {
             .map_err(SyncFailure::from_sync)?,
             ..Cycle::default()
         };
-        cycle.actions += actions::apply_moves(
+        let moves = actions::apply_moves(
             store,
             &mut connection,
             &actions::Request {
@@ -529,6 +531,12 @@ impl Access {
         )
         .await
         .map_err(SyncFailure::from_sync)?;
+        cycle.actions += moves.moved;
+        cycle.move_failure = moves.failure;
+        // A failed operation retires its session, and mail still has to be fetched.
+        if moves.failure.is_some() {
+            connection = Self::connect(&opened, account, cancel).await?;
+        }
         if let Some((sent, _)) = roles.iter().find(|(_, role)| *role == FolderRole::Sent) {
             actions::append_sent(store, &mut connection, &account.id, sent, cancel)
                 .await

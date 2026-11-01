@@ -1,6 +1,7 @@
 //! Durable archive, trash and move intentions bound to exact IMAP UID namespaces.
 
 use core::num::NonZeroU32;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{OptionalExtension as _, Row, TransactionBehavior, params};
 
@@ -32,6 +33,10 @@ CREATE VIEW effective_memberships AS
  LEFT JOIN pending_operations starred ON starred.account_id=s.account_id AND starred.folder_id=s.folder_id AND starred.uidvalidity=s.uidvalidity AND starred.uid=s.uid AND starred.message_id=s.message_id AND starred.kind='starred' AND starred.state IN ('pending','submitted','failed')
  WHERE NOT EXISTS(SELECT 1 FROM pending_moves m WHERE m.account_id=s.account_id AND m.folder_id=s.folder_id AND m.uidvalidity=s.uidvalidity AND m.uid=s.uid AND m.state IN ('pending','submitted'));
 ";
+
+/// Holds a move back for its Undo window, whatever starts a sync pass during it.
+pub(super) const HOLD_SCHEMA: &str =
+    "ALTER TABLE pending_moves ADD COLUMN not_before INTEGER NOT NULL DEFAULT 0;";
 
 /// A claimed move. The token fences a late callback from an earlier attempt.
 #[derive(Clone, Debug)]
@@ -74,6 +79,23 @@ impl Store {
         source: Option<i64>,
         destination: &str,
         context: &str,
+    ) -> Result<u32, Error> {
+        self.queue_move_after(account, message, source, destination, context, 0)
+    }
+
+    /// Like [`Self::queue_move`], held back until a moment: that is the Undo window, and no
+    /// sync pass may claim the move during it, whatever started that pass.
+    ///
+    /// # Errors
+    /// As [`Self::queue_move`].
+    pub fn queue_move_after(
+        &mut self,
+        account: &str,
+        message: i64,
+        source: Option<i64>,
+        destination: &str,
+        context: &str,
+        not_before: i64,
     ) -> Result<u32, Error> {
         let tx = self
             .connection
@@ -125,10 +147,10 @@ impl Store {
         }
         for (message, folder, validity, uid) in &selected {
             tx.execute(
-                "INSERT INTO pending_moves(id,account_id,message_id,folder_id,uidvalidity,uid,destination,context,state)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'pending')
-                 ON CONFLICT(account_id,folder_id,uidvalidity,uid) DO UPDATE SET destination=excluded.destination,context=excluded.context,state=CASE WHEN pending_moves.state='submitted' THEN 'submitted' ELSE 'pending' END",
-                params![uuid::Uuid::new_v4().to_string(), account, message, folder, validity, uid, destination, context],
+                "INSERT INTO pending_moves(id,account_id,message_id,folder_id,uidvalidity,uid,destination,context,state,not_before)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'pending',?9)
+                 ON CONFLICT(account_id,folder_id,uidvalidity,uid) DO UPDATE SET destination=excluded.destination,context=excluded.context,not_before=excluded.not_before,state=CASE WHEN pending_moves.state='submitted' THEN 'submitted' ELSE 'pending' END",
+                params![uuid::Uuid::new_v4().to_string(), account, message, folder, validity, uid, destination, context, not_before],
             )?;
         }
         let count = u32::try_from(selected.len()).map_err(|_| Error::InvalidInput)?;
@@ -178,6 +200,13 @@ impl Store {
         account: &str,
         context: &str,
     ) -> Result<Option<MoveAttempt>, Error> {
+        let now = i64::try_from(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        )
+        .unwrap_or(i64::MAX);
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -199,8 +228,8 @@ impl Store {
             .query_row(
                 "SELECT p.id,f.name,p.uidvalidity,p.uid,p.destination FROM pending_moves p
                  JOIN folders f ON f.id=p.folder_id AND f.account_id=p.account_id
-                 WHERE p.account_id=?1 AND p.state='pending' ORDER BY p.rowid LIMIT 1",
-                [account],
+                 WHERE p.account_id=?1 AND p.state='pending' AND p.not_before<=?2 ORDER BY p.rowid LIMIT 1",
+                params![account, now],
                 read_attempt,
             )
             .optional()?;
@@ -246,6 +275,23 @@ impl Store {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    /// Give up on a move this server can never do: the message goes back to its folder,
+    /// and no later pass tries again.
+    ///
+    /// # Errors
+    /// Rejects a stale attempt token and storage failures.
+    pub fn abandon_move(&mut self, attempt: &MoveAttempt) -> Result<(), Error> {
+        let changed = self.connection.execute(
+            "DELETE FROM pending_moves WHERE id=?1 AND attempt_id=?2 AND state='submitted'",
+            params![attempt.id, attempt.token],
+        )?;
+        if changed == 1 {
+            Ok(())
+        } else {
+            Err(Error::OperationConflict)
+        }
     }
 
     /// Explicitly requeue failed moves for this unchanged account.

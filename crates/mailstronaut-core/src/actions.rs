@@ -69,17 +69,29 @@ pub async fn apply(
     Ok(confirmed)
 }
 
-/// Apply at most 20 queued moves using one authenticated connection. A failure is
-/// recorded and stops the batch, leaving the message visible in its source folder.
+/// What applying queued moves did. A failed move is reported here rather than as an
+/// error, because it must not stop the account's mail from syncing.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Moves {
+    /// Messages moved on the server.
+    pub moved: u32,
+    /// Why the batch stopped. Any failure may have retired the connection.
+    pub failure: Option<imap::Error>,
+}
+
+/// Apply at most 20 queued moves using one authenticated connection.
+///
+/// A failure is recorded and stops the batch, leaving the message visible in its source
+/// folder. It is tried again on a later pass, unless this server can never do it.
 ///
 /// # Errors
-/// Returns static transport/storage failures.
+/// Returns storage failures and a stale mailbox.
 pub async fn apply_moves(
     store: &worker::Handle,
     connection: &mut Connection,
     request: &Request<'_>,
     cancel: &CancellationToken,
-) -> Result<u32, Error> {
+) -> Result<Moves, Error> {
     if request.retry {
         store.retry_moves(request.account.into()).await?;
     }
@@ -103,13 +115,30 @@ pub async fn apply_moves(
                     return Err(worker::Error::StaleMailbox.into());
                 }
             }
+            Err(imap::Error::MoveUnavailable) => {
+                store.abandon_move(attempt).await?;
+                return Ok(Moves {
+                    moved,
+                    failure: Some(imap::Error::MoveUnavailable),
+                });
+            }
+            Err(imap::Error::Cancelled) => {
+                store.finish_move(attempt, false).await?;
+                return Err(imap::Error::Cancelled.into());
+            }
             Err(error) => {
                 store.finish_move(attempt, false).await?;
-                return Err(error.into());
+                return Ok(Moves {
+                    moved,
+                    failure: Some(error),
+                });
             }
         }
     }
-    Ok(moved)
+    Ok(Moves {
+        moved,
+        failure: None,
+    })
 }
 
 async fn transfer(

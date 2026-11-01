@@ -1362,9 +1362,14 @@ impl Workspace {
         };
         let revision = self.declaration.revision();
         let (account, id) = (row.account.clone(), row.id);
+        // The hold is stored with the move: IDLE can start a sync pass at any moment, and
+        // opening a message is usually what makes it happen.
+        let not_before = chrono::Utc::now()
+            .timestamp()
+            .saturating_add(i64::try_from(UNDO_GRACE.as_secs()).unwrap_or(i64::MAX));
         let job = self.runtime.spawn(async move {
             handle
-                .queue_move(account, id, source, destination, context)
+                .queue_move(account, id, source, destination, context, not_before)
                 .await
         });
         let undo = (row.account, row.id);
@@ -1447,6 +1452,40 @@ impl Workspace {
         .detach();
     }
 
+    /// A move that will be tried again keeps its warning until it works. One this server
+    /// can never do is reported once and given up on, so it is shown until dismissed.
+    fn report_move_failure(
+        &mut self,
+        account: &str,
+        failure: Option<mailstronaut_mail::imap::Error>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use mailstronaut_mail::imap::Error;
+        match failure {
+            Some(Error::MoveUnavailable) => {
+                self.sync_errors.remove(account);
+                window.push_notification(
+                    Notification::warning(
+                        "This mail server cannot safely move a single message, so it stayed where it was.",
+                    )
+                    .delivery(NotificationDelivery::InApp)
+                    .autohide(false),
+                    cx,
+                );
+            }
+            Some(error) => {
+                self.sync_errors.insert(
+                    account.to_owned(),
+                    format!("A message could not be moved, and will be tried again: {error}."),
+                );
+            }
+            None => {
+                self.sync_errors.remove(account);
+            }
+        }
+    }
+
     /// Restart per-account polling for the active configuration. Explicit sync in
     /// Settings still works when `sync.automatic` is off.
     fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &Context<Self>) {
@@ -1484,7 +1523,7 @@ impl Workspace {
     fn sync_update(
         &mut self,
         update: crate::mail_sync::Update,
-        window: &Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         match update {
@@ -1501,14 +1540,20 @@ impl Workspace {
                 }
                 match result {
                     Ok(cycle) => {
-                        self.sync_errors.remove(&account);
+                        self.report_move_failure(&account, cycle.move_failure, window, cx);
                         self.last_sync = chrono::Local::now().format("%H:%M").to_string();
-                        if cycle.downloaded > 0 || cycle.refreshed > 0 || cycle.actions > 0 {
+                        if cycle.downloaded > 0
+                            || cycle.refreshed > 0
+                            || cycle.actions > 0
+                            || cycle.move_failure.is_some()
+                        {
                             self.refresh_rows(window, cx);
                         }
                     }
                     Err(error) => {
                         self.sync_errors.insert(account, error);
+                        // Whatever failed, the pass may have put a hidden message back.
+                        self.refresh_rows(window, cx);
                     }
                 }
             }
@@ -2139,7 +2184,6 @@ impl Workspace {
                                 Button::new("fetch-older-mail")
                                     .ghost()
                                     .label("Fetch older mail")
-                                    .tooltip("Download older mail from the server")
                                     .loading(self.older_fetch.is_some())
                                     .disabled(loading || self.older_fetch.is_some())
                                     .on_click(cx.listener(|this, _, window, cx| {

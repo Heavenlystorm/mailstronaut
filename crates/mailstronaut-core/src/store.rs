@@ -24,7 +24,7 @@ pub mod outbox;
 pub mod reminders;
 pub mod search;
 
-const SCHEMA_VERSION: u32 = 12;
+const SCHEMA_VERSION: u32 = 13;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -184,6 +184,7 @@ impl Store {
             M::up(search::SCHEMA).foreign_key_check(),
             M::up(analysis::SCHEMA).foreign_key_check(),
             M::up(mailbox::OUTLINE_SCHEMA).foreign_key_check(),
+            M::up(moves::HOLD_SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;

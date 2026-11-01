@@ -164,10 +164,11 @@ enum Command {
     ),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
-    QueueMove(String, i64, Option<i64>, String, String, Reply<u32>),
+    QueueMove(String, i64, Option<i64>, String, String, i64, Reply<u32>),
     UndoMove(String, i64, Reply<()>),
     BeginMove(String, String, Reply<Option<MoveAttempt>>),
     FinishMove(MoveAttempt, bool, Reply<()>),
+    AbandonMove(MoveAttempt, Reply<()>),
     RetryMoves(String, Reply<()>),
     PendingSentCopy(String, Reply<Option<outbox::SentCopy>>),
     FinishSentCopy(String, String, Reply<()>),
@@ -529,7 +530,8 @@ impl Handle {
         self.request(|reply| Command::RememberFolders(account, names, inbox, reply))
             .await
     }
-    /// Queue moving a conversation out of a folder (or the inbox), hiding it locally.
+    /// Queue moving a conversation out of a folder (or the inbox), hiding it locally. No
+    /// sync pass may claim it before `not_before`, which is the Undo window.
     /// # Errors
     /// Rejects unknown destinations, nothing to move and stale context.
     pub async fn queue_move(
@@ -539,9 +541,18 @@ impl Handle {
         source: Option<i64>,
         destination: String,
         context: String,
+        not_before: i64,
     ) -> Result<u32, Error> {
         self.request(|reply| {
-            Command::QueueMove(account, message, source, destination, context, reply)
+            Command::QueueMove(
+                account,
+                message,
+                source,
+                destination,
+                context,
+                not_before,
+                reply,
+            )
         })
         .await
     }
@@ -568,6 +579,13 @@ impl Handle {
     /// Rejects stale attempts and storage failures.
     pub async fn finish_move(&self, attempt: MoveAttempt, moved: bool) -> Result<(), Error> {
         self.request(|reply| Command::FinishMove(attempt, moved, reply))
+            .await
+    }
+    /// Give up on a move this server can never do.
+    /// # Errors
+    /// Rejects stale attempts and storage failures.
+    pub async fn abandon_move(&self, attempt: MoveAttempt) -> Result<(), Error> {
+        self.request(|reply| Command::AbandonMove(attempt, reply))
             .await
     }
     /// Requeue this account's failed moves.
@@ -1226,9 +1244,24 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));
             }
-            Command::QueueMove(account, message, source, destination, context, reply) => {
+            Command::QueueMove(
+                account,
+                message,
+                source,
+                destination,
+                context,
+                not_before,
+                reply,
+            ) => {
                 commit(reply, || {
-                    store.queue_move(&account, message, source, &destination, &context)
+                    store.queue_move_after(
+                        &account,
+                        message,
+                        source,
+                        &destination,
+                        &context,
+                        not_before,
+                    )
                 });
             }
             Command::UndoMove(account, message, reply) => {
@@ -1244,6 +1277,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::FinishMove(attempt, moved, reply) => {
                 commit(reply, || store.finish_move(&attempt, moved));
+            }
+            Command::AbandonMove(attempt, reply) => {
+                commit(reply, || store.abandon_move(&attempt));
             }
             Command::RetryMoves(account, reply) => {
                 commit(reply, || store.retry_moves(&account));

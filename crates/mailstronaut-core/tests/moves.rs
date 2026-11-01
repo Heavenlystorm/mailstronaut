@@ -235,3 +235,57 @@ fn a_changed_configuration_drops_queued_moves_instead_of_moving_other_mail() {
     assert!(f.store.begin_move("a", OTHER).expect("claim").is_none());
     assert_eq!(inbox_ids(&f.store), [message], "visible again");
 }
+
+/// Opening a message sets Seen, the server reports that over IDLE, and a sync pass starts at
+/// once. That pass must not take the move the user can still undo.
+#[test]
+fn no_sync_pass_can_claim_a_move_during_its_undo_window() {
+    let mut f = fixture();
+    let inbox = f.inbox;
+    let message = add(&mut f, inbox, 42, 1, "held@example.test");
+    let later = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_secs(),
+    )
+    .expect("clock")
+        + 3600;
+    f.store
+        .queue_move_after("a", message, None, "Archive", CONTEXT, later)
+        .expect("queue");
+    assert!(
+        f.store.begin_move("a", CONTEXT).expect("claim").is_none(),
+        "still in its Undo window"
+    );
+    f.store.undo_move("a", message).expect("Undo still works");
+    // Queued again with its window over, the same message can now be claimed.
+    f.store
+        .queue_move_after("a", message, None, "Archive", CONTEXT, 0)
+        .expect("queue");
+    assert!(f.store.begin_move("a", CONTEXT).expect("claim").is_some());
+}
+
+#[test]
+fn a_move_given_up_on_shows_the_message_and_is_never_tried_again() {
+    let mut f = fixture();
+    let inbox = f.inbox;
+    let message = add(&mut f, inbox, 42, 1, "refused@example.test");
+    f.store
+        .queue_move("a", message, None, "Archive", CONTEXT)
+        .expect("queue");
+    assert_eq!(inbox_ids(&f.store), Vec::<i64>::new());
+    let attempt = f
+        .store
+        .begin_move("a", CONTEXT)
+        .expect("claim")
+        .expect("attempt");
+    f.store.abandon_move(&attempt).expect("abandon");
+    assert_eq!(inbox_ids(&f.store), [message], "back where it was");
+    f.store.retry_moves("a").expect("retry");
+    assert!(f.store.begin_move("a", CONTEXT).expect("claim").is_none());
+    assert!(
+        f.store.abandon_move(&attempt).is_err(),
+        "a stale attempt changes nothing"
+    );
+}
