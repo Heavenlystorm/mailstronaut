@@ -63,11 +63,21 @@ as an observer independent of the client database:
 sets `sync.pollSeconds = 3600`, so a change seen within seconds can only have come
 through IDLE. Against the same real server, with a second IMAP client making the changes:
 
-- A new delivery appeared within 1 second, and the fetch left it unread on the server.
+- A new delivery appeared within 2 seconds, and the fetch left it unread on the server.
 - Seen set and a message expunged by the other client each arrived within 2 seconds.
 - With the server stopped while a message arrived and then restarted, reconnecting found
   that message within 12 seconds, and IDLE then worked again on the new connection.
-- The application used 0 CPU ticks (at 100 per second) over 20 quiet seconds.
+- The application used 0, 5 and 6 CPU ticks (at 100 per second) over 20 quiet seconds, in
+  three runs.
+- A second client creates `&AMk-tudes` and `Projets/&ZeVnLA-`. The sidebar shows `Études`,
+  and clicking it fetches its two messages through the exact wire name. The sidebar shows
+  unread counts on the Unified inbox and each folder, but not on Sent, Drafts, Trash or Junk.
+
+Unit tests cover the folder name decoder and the unread query. A pending read counts as
+read, a message being moved away stops counting, and an old UIDVALIDITY or another account
+does not count. `utf7-imap` was rejected for the decoder because it panics on invalid
+names, which the server controls. Invalid names, encoded ASCII, control characters and
+direction overrides all display as the raw wire name.
 
 `crates/mailstronaut-mail/tests/imap_idle.rs` runs against a scripted TLS server. The watch
 sends only EXAMINE, IDLE and DONE. Keepalives do not postpone renewal or count as changes,
@@ -85,4 +95,6 @@ UIDPLUS, large-mailbox timing and fairness across several busy accounts. A real 
 and resume has not been run, and a 9-minute renewal has only run at shorter intervals
 against the scripted server. The CPU figure comes from one short run in a
 software-rendered session, so it is not a budget. The UI does not yet retry failed moves
-individually: they are requeued on the next cycle.
+individually: they are requeued on the next cycle. `Projets/日本` decoded but drew as empty
+boxes because the test session has no CJK font, so font fallback on a real desktop is
+unverified. The unread query has not been timed at 100k messages.

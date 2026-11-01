@@ -119,6 +119,28 @@ impl Store {
         Ok(rows)
     }
 
+    /// Unread messages per folder as the user currently sees them: a pending read
+    /// counts as read, and a message being moved away no longer counts.
+    /// # Errors
+    /// Rejects excessive account lists and storage failures.
+    pub fn unread_counts(&self, accounts: &[String]) -> Result<Vec<(i64, u32)>, Error> {
+        if accounts.len() > 256 {
+            return Err(Error::InvalidInput);
+        }
+        let mut query = self.connection.prepare_cached(
+            "SELECT f.id,COUNT(*) FROM effective_memberships s
+             JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
+             WHERE s.seen=0 AND s.account_id IN (SELECT value FROM json_each(?1))
+             GROUP BY f.id",
+        )?;
+        query
+            .query_map([serde_json::to_string(accounts)?], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Error::from)
+    }
+
     /// Page local conversations in a configured inbox/account/folder scope.
     /// Search opens the newest matching member while counts describe the complete
     /// selected scope. Search never calls mail transports or accesses remote data.
@@ -209,10 +231,11 @@ ORDER BY received_at DESC,id DESC LIMIT ?4")?;
 mod tests {
     use super::*;
     use crate::{
-        store::mailbox::{Flags, Membership},
+        store::mailbox::{Flags, FolderRole, Membership},
         threads,
     };
     use core::num::NonZeroU32;
+    use mailstronaut_mail::imap::FlagChange;
     fn cache(
         store: &mut Store,
         account: &str,
@@ -417,6 +440,74 @@ mod tests {
             folders
         );
     }
+    #[test]
+    fn unread_counts_follow_what_the_user_sees_in_each_folder() {
+        const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let root = tempfile::tempdir().expect("fixture");
+        let mut store = Store::open(root.path()).expect("open");
+        // Binding resets folder generations, so it comes first.
+        store.ensure_account("a").expect("account");
+        store.bind_mailbox_context("a", CONTEXT).expect("context");
+        let mut folder = |account: &str, name: &str, inbox: bool| {
+            store.ensure_account(account).expect("account");
+            let id = store
+                .ensure_folder(account, name, inbox)
+                .expect("folder")
+                .id;
+            store
+                .select_folder(account, id, NonZeroU32::new(42).expect("namespace"))
+                .expect("generation");
+            id
+        };
+        let inbox = folder("a", "INBOX", true);
+        let archive = folder("a", "Archive", false);
+        let other = folder("b", "INBOX", true);
+        store
+            .assign_folder_roles("a", &[("Archive".into(), FolderRole::Archive)])
+            .expect("role");
+        let first = cache(&mut store, "a", inbox, 1, false, "one");
+        cache(&mut store, "a", inbox, 2, false, "two");
+        let third = cache(&mut store, "a", inbox, 3, false, "three");
+        cache(&mut store, "a", inbox, 4, true, "already read");
+        cache(&mut store, "a", archive, 5, false, "archived");
+        cache(&mut store, "b", other, 1, false, "another account");
+        let counts = |store: &Store, accounts: &[&str]| {
+            let accounts: Vec<String> = accounts.iter().map(|&name| name.to_owned()).collect();
+            let mut counts = store.unread_counts(&accounts).expect("counts");
+            counts.sort_unstable();
+            counts
+        };
+        assert_eq!(counts(&store, &["a"]), [(inbox, 3), (archive, 1)]);
+        assert_eq!(
+            counts(&store, &["a", "b"]),
+            [(inbox, 3), (archive, 1), (other, 1)]
+        );
+        store
+            .set_flag("a", first, FlagChange::Seen, true, CONTEXT)
+            .expect("explicit read");
+        assert_eq!(
+            counts(&store, &["a"]),
+            [(inbox, 2), (archive, 1)],
+            "a read not yet on the server already counts as read"
+        );
+        store
+            .queue_move("a", third, None, "Archive", CONTEXT)
+            .expect("move");
+        assert_eq!(
+            counts(&store, &["a"]),
+            [(inbox, 1), (archive, 1)],
+            "a message being moved away no longer counts where it was"
+        );
+        store
+            .select_folder("a", inbox, NonZeroU32::new(43).expect("namespace"))
+            .expect("new generation");
+        assert_eq!(
+            counts(&store, &["a"]),
+            [(archive, 1)],
+            "copies from an old UIDVALIDITY are not current mail"
+        );
+    }
+
     #[test]
     fn query_text_cannot_supply_fts_operators_or_sql() {
         let (_root, store, _, _) = fixture();

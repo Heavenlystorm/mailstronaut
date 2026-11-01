@@ -42,7 +42,7 @@ message while keeping its cache; and an offline restart.
 ## Not established
 
 No live provider, real desktop session, assistive-technology, large-mailbox timing or
-Flatpak acceptance. Sidebar rows have no unread `Badge::count` yet, and folder-specific
+Flatpak acceptance. Unread `Badge::count` on sidebar rows is [verified separately](P04-background-sync.md), and folder-specific
 sync is not implemented, so a folder lists only what is already cached.
 
 ## Message actions

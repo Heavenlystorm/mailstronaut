@@ -120,6 +120,7 @@ enum Command {
         Reply<Vec<store::conversations::Summary>>,
     ),
     Folders(Vec<String>, Reply<Vec<Folder>>),
+    UnreadCounts(Vec<String>, Reply<Vec<(i64, u32)>>),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
     QueueMove(String, i64, Option<i64>, String, String, Reply<u32>),
@@ -342,6 +343,13 @@ impl Handle {
     /// Rejects excessive results and storage failures.
     pub async fn folders(&self, accounts: Vec<String>) -> Result<Vec<Folder>, Error> {
         self.request(|reply| Command::Folders(accounts, reply))
+            .await
+    }
+    /// Unread messages per folder, by folder ID.
+    /// # Errors
+    /// Rejects excessive account lists and storage failures.
+    pub async fn unread_counts(&self, accounts: Vec<String>) -> Result<Vec<(i64, u32)>, Error> {
+        self.request(|reply| Command::UnreadCounts(accounts, reply))
             .await
     }
     /// Persist a bounded authenticated LIST result while retaining offline folders.
@@ -995,6 +1003,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 });
             }
             Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
+            Command::UnreadCounts(accounts, reply) => {
+                respond(reply, || store.unread_counts(&accounts));
+            }
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));
             }

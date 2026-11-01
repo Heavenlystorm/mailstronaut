@@ -1,7 +1,7 @@
 //! GPUI Kit mailbox workspace. Mail and storage remain toolkit-independent.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -141,6 +141,8 @@ pub struct Workspace {
     owner: Option<Arc<Worker>>,
     accounts: Vec<String>,
     folders: Vec<Folder>,
+    /// Unread messages by folder ID, from the same read as `folders`.
+    unread: HashMap<i64, usize>,
     scope: Scope,
     pages: crate::mailbox::Pages,
     declaration: source::Runtime,
@@ -312,6 +314,7 @@ impl Workspace {
             owner: None,
             accounts: Vec::new(),
             folders: Vec::new(),
+            unread: HashMap::new(),
             scope: Scope::Inbox,
             pages: crate::mailbox::Pages::default(),
             declaration: source::Runtime::default(),
@@ -672,10 +675,14 @@ impl Workspace {
                 .folders(accounts.clone())
                 .await
                 .map_err(|error| error.to_string())?;
+            let unread = handle
+                .unread_counts(accounts.clone())
+                .await
+                .map_err(|error| error.to_string())?;
             handle
                 .conversation_page(accounts, scope, query, after, 100)
                 .await
-                .map(|rows| (folders, rows))
+                .map(|rows| (folders, unread, rows))
                 .map_err(|error| error.to_string())
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -689,8 +696,12 @@ impl Workspace {
                     cx.notify();
                 });
                 match result {
-                    Ok(Ok((folders, rows))) => {
+                    Ok(Ok((folders, unread, rows))) => {
                         this.folders = folders;
+                        this.unread = unread
+                            .into_iter()
+                            .map(|(folder, count)| (folder, count as usize))
+                            .collect();
                         let count = rows.len();
                         this.pages.more = count == 100;
                         let rows = rows.into_iter().map(Row::from).collect();
@@ -1425,7 +1436,7 @@ impl Workspace {
                 .folders
                 .iter()
                 .find(|row| &row.account == account && &row.id == folder)
-                .map_or_else(|| "Cached folder".into(), |row| row.name.clone()),
+                .map_or_else(|| "Cached folder".into(), Folder::label),
         }
     }
 
@@ -1541,13 +1552,28 @@ impl Workspace {
         .detach();
     }
 
+    /// Unread mail worth a badge: mail in Sent, Drafts, Trash or Junk asks for nothing.
+    fn unread_badge(&self, folder: &Folder) -> usize {
+        match folder.role {
+            Some(FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Junk) => 0,
+            _ => self.unread.get(&folder.id).copied().unwrap_or_default(),
+        }
+    }
+
     fn mail_routes(&self, attention: usize, cx: &Context<Self>) -> SidebarMenu {
         let overdue = self.reminders.read(cx).overdue();
+        let unread: usize = self
+            .folders
+            .iter()
+            .filter(|folder| folder.inbox)
+            .map(|folder| self.unread_badge(folder))
+            .sum();
         SidebarMenu::new()
             .child(
                 SidebarMenuItem::new("Unified inbox")
                     .icon(IconName::Inbox)
                     .active(self.view == View::Inbox && self.scope == Scope::Inbox)
+                    .suffix(move |_, _| Badge::new().count(unread).child(div().w_3().h_3()))
                     .on_click(cx.listener(|this, _, window, cx| this.show_inbox(window, cx))),
             )
             .child(
@@ -1604,20 +1630,23 @@ impl Workspace {
                                                     account: account.id.clone(),
                                                     folder: folder.id,
                                                 };
-                                                let label = folder.role.map_or_else(
-                                                    || folder.name.clone(),
-                                                    |role| role.label().to_owned(),
-                                                );
                                                 let wire = folder.name.clone();
-                                                SidebarMenuItem::new(label)
+                                                let unread = self.unread_badge(folder);
+                                                SidebarMenuItem::new(folder.label())
                                                     .icon(if folder.inbox {
                                                         IconName::Inbox
                                                     } else {
                                                         IconName::Folder
                                                     })
+                                                    .suffix(move |_, _| {
+                                                        Badge::new()
+                                                            .count(unread)
+                                                            .child(div().w_3().h_3())
+                                                    })
                                                     .accessibility_label(format!(
-                                                        "Cached folder · {} · {}",
-                                                        account.display_name, folder.name
+                                                        "Cached folder · {} · {} · {unread} unread",
+                                                        account.display_name,
+                                                        folder.label()
                                                     ))
                                                     .active(
                                                         self.view == View::Inbox
@@ -2094,12 +2123,7 @@ impl Workspace {
             .into_iter()
             .flat_map(|row| self.account_folders(&row.account))
             .filter(|folder| !folder.inbox)
-            .map(|folder| {
-                let label = folder
-                    .role
-                    .map_or_else(|| folder.name.clone(), |role| role.label().to_owned());
-                (folder.name.clone(), label)
-            })
+            .map(|folder| (folder.name.clone(), folder.label()))
             .collect();
         let workspace = cx.entity().downgrade();
         ToolbarGroup::new("message-move")

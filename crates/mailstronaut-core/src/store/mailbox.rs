@@ -56,6 +56,17 @@ pub struct Folder {
     /// Standard purpose, if one is known.
     pub role: Option<FolderRole>,
 }
+impl Folder {
+    /// The name to show: a standard role's, else the decoded server name. Only ever
+    /// for display; `name` is what addresses the folder on the server.
+    #[must_use]
+    pub fn label(&self) -> String {
+        self.role.map_or_else(
+            || mailstronaut_mail::imap::display_name(&self.name).into_owned(),
+            |role| role.label().to_owned(),
+        )
+    }
+}
 
 /// The standard purpose of a folder, from configuration or server SPECIAL-USE.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

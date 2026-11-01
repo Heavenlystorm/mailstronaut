@@ -27,6 +27,9 @@ mod transfer;
 mod idle;
 pub use idle::{Position, Wake};
 
+mod names;
+pub use names::display_name;
+
 /// Total received bytes for one connection, including protocol framing. A worker
 /// reconnects/reconciles when this budget is exhausted rather than reading forever.
 pub const MAX_SESSION_BYTES: u64 = 32 * 1024 * 1024;

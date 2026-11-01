@@ -15,8 +15,8 @@ pub const MAX_ORIGINAL: u32 = 8 * 1024 * 1024;
 /// Maximum metadata records in a single FETCH operation.
 const MAX_BATCH: usize = 50;
 
-/// Exact server mailbox identity. Keep the wire name opaque; a later display
-/// decoder must never change the name sent back to SELECT.
+/// Exact server mailbox identity. Keep the wire name opaque; `display_name` is for
+/// showing it and must never change the name sent back to SELECT.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Folder {
     /// Original wire name, including modified UTF-7 on `IMAP4rev1` servers.

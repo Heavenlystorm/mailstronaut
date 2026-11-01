@@ -60,6 +60,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+inbox_count='SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.is_inbox=1'
 query() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(sys.argv[2]).fetchone()[0])' "$database" "$1" 2>/dev/null; }
 # Bounded in seconds: the next poll is an hour away.
 await() {
@@ -95,6 +96,23 @@ client.logout()
 PY
 }
 
+# Folders whose wire names are modified UTF-7, one holding unread mail of its own.
+python3 - "$imap_port" "$imap_user" "$imap_password" "$ca" <<'PY'
+import imaplib, ssl, sys
+port, user, password, ca = sys.argv[1:]
+client = imaplib.IMAP4_SSL("localhost", int(port), ssl_context=ssl.create_default_context(cafile=ca))
+client.login(user, password)
+client.create('"&AMk-tudes"')
+client.create('"Projets/&ZeVnLA-"')
+for key in ("one", "two"):
+    client.append('"&AMk-tudes"', None, None, (
+        f"From: Correspondent {key} <{key}@example.test>\r\nTo: reader@example.test\r\n"
+        f"Subject: Synthetic studies {key}\r\nMessage-ID: <studies-{key}@example.test>\r\n"
+        f"Content-Type: text/plain; charset=utf-8\r\n\r\nSynthetic body marker-studies-{key}.\r\n"
+    ).encode())
+client.logout()
+PY
+
 start initial
 await 'first cycle cached the inbox' 60 3 'SELECT count(*) FROM messages'
 await 'fetching left the mail unread' 5 0 'SELECT count(*) FROM memberships WHERE seen=1'
@@ -109,10 +127,20 @@ printf '%s\n' 'OK: the IDLE-triggered fetch left the server copy unread'
 sleep 2
 capture delivered
 
+# Opening a folder by its readable name fetches it by its exact wire name. Roles come
+# first in the sidebar, so these two follow Trash.
+click 85 532
+await 'the folder shown as Études was fetched by its wire name' 15 2 \
+  "SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.name='&AMk-tudes'"
+sleep 2
+capture folders
+click 85 210
+sleep 1
+
 other_client seen marker-alpha
 await 'IDLE brought a Seen flag set by another client' 15 1 'SELECT count(*) FROM memberships WHERE seen=1'
 other_client expunge marker-bravo
-await 'IDLE brought an expunge by another client' 15 3 "SELECT count(*) FROM effective_memberships"
+await 'IDLE brought an expunge by another client' 15 3 "$inbox_count"
 
 # One connection is watching and nothing is happening: this must cost almost nothing.
 ticks() { awk '{print $14 + $15}' "/proc/$app/stat"; }
@@ -125,11 +153,11 @@ dovecot_stop
 message echo
 sleep 3
 dovecot_start
-await 'reconnecting found mail delivered during the outage' 120 4 "SELECT count(*) FROM effective_memberships"
+await 'reconnecting found mail delivered during the outage' 120 4 "$inbox_count"
 # And the new connection is itself watching.
 sleep 2
 message foxtrot
-await 'IDLE resumed after the reconnect' 15 5 "SELECT count(*) FROM effective_memberships"
+await 'IDLE resumed after the reconnect' 15 5 "$inbox_count"
 sleep 2
 capture reconnected
 close_window

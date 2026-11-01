@@ -261,9 +261,10 @@ new dependency graph before claiming current-package acceptance.
   live providers remain open.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
   capability discovery, account cancellation/backoff and fair connection/work budgets.
-- [ ] Complete SPECIAL-USE discovery, explicit folder overrides and verified
+- [x] Complete SPECIAL-USE discovery, explicit folder overrides and verified
   UTF-7/UTF-8 names, without lossy folder identity.
-  [SPECIAL-USE and overrides pass](evidence/P04-background-sync.md); UTF-7 display remains open.
+  [Evidence](evidence/P04-background-sync.md). Raw UTF-8 wire names stay refused, since
+  UTF8=ACCEPT is not enabled; invalid names display as sent.
 - [ ] Complete bounded recent sync, older paging, partial-cache status, on-demand
   bodies/attachments and safe UIDVALIDITY/gap/reset reconciliation.
   Use `ListDelegate::has_more/load_more` or an explicit Load older `Button` for
@@ -315,13 +316,13 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   passive group selection. Verify the overlapping write/query/body case and
   matching-original search in the private Wayland fixture.
   [Bounded current-stack evidence](evidence/P06-gpui-mailbox.md).
-- [ ] Use GPUI Kit `Sidebar`, `SidebarHeader`, `SidebarGroup`, `SidebarMenu`,
+- [x] Use GPUI Kit `Sidebar`, `SidebarHeader`, `SidebarGroup`, `SidebarMenu`,
   `SidebarMenuItem` and `SidebarFooter` for unified/per-account folders and Settings.
   Reuse active/collapsed states, icons and `Badge::count`; show only implemented
   mail routes. Prefer Sidebar nesting; evaluate `Tree`/`TreeState` only if actual
   folder scale requires it, without maintaining two navigation models.
-  [Routes, active states and nesting pass](evidence/P06-navigation.md); unread
-  `Badge::count` on sidebar rows remains open.
+  [Routes, active states and nesting](evidence/P06-navigation.md); [unread counts on a
+  real server](evidence/P04-background-sync.md).
 - [ ] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
   `List`/`ListState`/`ListDelegate`/`ListItem` virtualized rows. Disable the list's
   extra query field with `ListState::searchable(false)`. Use `v_virtual_list` only
