@@ -284,7 +284,9 @@ fn upgrading_schema_six_preserves_editable_drafts_and_creates_backup() {
         rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("database");
     connection
         .execute_batch(
-            "DROP TABLE draft_attachments;
+            "DROP TRIGGER search_message_removed;
+             DROP TABLE search_pending;
+             DROP TABLE draft_attachments;
              DROP VIEW effective_memberships;
              DROP TABLE pending_moves;
              CREATE VIEW effective_memberships AS SELECT 1 AS placeholder;

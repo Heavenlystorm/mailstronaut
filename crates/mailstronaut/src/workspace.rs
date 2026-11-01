@@ -33,14 +33,14 @@ use gpui::component::{
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, InteractiveElement as _, IntoElement,
     KeyBinding, ParentElement as _, Render, StatefulInteractiveElement as _, Styled as _,
-    Subscription, Window, div, prelude::FluentBuilder as _, px,
+    Subscription, Task, Window, div, prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
     reminders::When,
     reply::Kind,
     store::browse::Scope,
-    store::mailbox::{Folder, FolderRole},
+    store::mailbox::{Cursor, Folder, FolderRole},
     worker::{Handle, Worker},
 };
 use mailstronaut_mail::imap::FlagChange;
@@ -189,6 +189,9 @@ pub struct Workspace {
     _focus_lost: Subscription,
     theme_override: Option<ThemeMode>,
     engine: Option<crate::mail_sync::Engine>,
+    /// Fuzzy search once the store is open; literal search answers until then.
+    fuzzy: Option<crate::mail_search::MailSearch>,
+    search_pause: Task<()>,
     syncing: BTreeSet<String>,
     sync_errors: BTreeMap<String, String>,
     last_sync: String,
@@ -200,6 +203,44 @@ impl Drop for Workspace {
         self.lifetime.cancel();
         self.account_lifetime.cancel();
         self.query_cancel.cancel();
+    }
+}
+
+const SEARCH_PAUSE: Duration = Duration::from_millis(200);
+
+/// A page of conversations: through the search index when there is a query and it can
+/// answer, and otherwise through the store's own literal search.
+async fn conversation_rows(
+    store: &Handle,
+    fuzzy: Option<&crate::mail_search::MailSearch>,
+    accounts: Vec<String>,
+    scope: Scope,
+    query: String,
+    after: Option<Cursor>,
+) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, mailstronaut_core::worker::Error>
+{
+    let hits = match fuzzy {
+        Some(search) if !query.trim().is_empty() => {
+            // The number of hits is bounded, so other accounts must not use them up.
+            let searched = match &scope {
+                Scope::Inbox => accounts.clone(),
+                Scope::Account(account) | Scope::Folder { account, .. } => vec![account.clone()],
+            };
+            search.hits(query.clone(), searched).await
+        }
+        _ => None,
+    };
+    match hits {
+        Some(hits) => {
+            store
+                .ranked_conversation_page(accounts, scope, hits, after, 100)
+                .await
+        }
+        None => {
+            store
+                .conversation_page(accounts, scope, query, after, 100)
+                .await
+        }
     }
 }
 
@@ -227,8 +268,19 @@ impl Workspace {
             this.html_event(event, window, cx);
         });
         let events = cx.subscribe_in(&search, window, |this, _, event, window, cx| {
-            if matches!(event, InputEvent::PressEnter { .. }) {
-                this.refresh(window, cx);
+            match event {
+                InputEvent::PressEnter { .. } => {
+                    this.search_pause = Task::ready(());
+                    this.refresh(window, cx);
+                }
+                // A query is cheap, but several keystrokes are still one search.
+                InputEvent::Change => {
+                    this.search_pause = cx.spawn_in(window, async move |this, cx| {
+                        cx.background_executor().timer(SEARCH_PAUSE).await;
+                        _ = this.update_in(cx, Self::refresh);
+                    });
+                }
+                _ => {}
             }
         });
         let list = cx.new(|cx| ListState::new(Rows::default(), window, cx).searchable(false));
@@ -384,6 +436,8 @@ impl Workspace {
             _focus_lost: focus_lost,
             theme_override: None,
             engine: None,
+            fuzzy: None,
+            search_pause: Task::ready(()),
             syncing: BTreeSet::new(),
             sync_errors: BTreeMap::new(),
             last_sync: String::new(),
@@ -488,6 +542,7 @@ impl Workspace {
                 match result {
                     Ok(Ok((owner, config, ownership))) => {
                         this.owner = owner;
+                        this.start_search();
                         if this.declaration.apply(config) {
                             this.retire_open(window, cx);
                             this.list.update(cx, |list, cx| {
@@ -673,6 +728,44 @@ impl Workspace {
         self.refresh_rows(window, cx);
     }
 
+    fn start_search(&mut self) {
+        if self.fuzzy.is_some() {
+            return;
+        }
+        let (Some(store), Some(directories)) = (self.handle(), directories::BaseDirs::new()) else {
+            return;
+        };
+        // A sibling of the mail store, which is the only source of what is in it.
+        let directory = directories
+            .data_local_dir()
+            .join("mailstronaut")
+            .join("search");
+        self.fuzzy = Some(crate::mail_search::MailSearch::start(
+            &self.runtime,
+            directory,
+            store,
+            self.lifetime.child_token(),
+        ));
+    }
+
+    fn page_status(&self, count: usize) -> String {
+        let page = self.pages.number();
+        let waiting = self
+            .fuzzy
+            .as_ref()
+            .map_or(0, crate::mail_search::MailSearch::queued);
+        if self.query.trim().is_empty() {
+            format!("{count} cached conversations · page {page} · local cache")
+        } else {
+            let matches = if count == 1 { "match" } else { "matches" };
+            if waiting > 0 {
+                format!("{count} {matches} · page {page} · {waiting} messages not searchable yet")
+            } else {
+                format!("{count} {matches} · page {page} · searched local cache")
+            }
+        }
+    }
+
     fn refresh_rows(&mut self, window: &Window, cx: &mut Context<Self>) {
         let Some(handle) = self.handle() else {
             return;
@@ -687,6 +780,7 @@ impl Workspace {
         let query = self.query.clone();
         let scope = self.scope.clone();
         let after = self.pages.after;
+        let fuzzy = self.fuzzy.clone();
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
             list.delegate_mut().searching = !query.is_empty();
@@ -726,8 +820,7 @@ impl Workspace {
                 .unread_counts(accounts.clone())
                 .await
                 .map_err(|error| error.to_string())?;
-            handle
-                .conversation_page(accounts, scope, query, after, 100)
+            conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after)
                 .await
                 .map(|rows| (folders, unread, rows))
                 .map_err(|error| error.to_string())
@@ -758,7 +851,7 @@ impl Workspace {
                         this.status = if this.accounts.is_empty() {
                             "Add accounts in your native Nix configuration.".into()
                         } else {
-                            format!("{count} cached conversations · page {} · local cache / literal search", this.pages.number())
+                            this.page_status(count)
                         };
                     }
                     Ok(Err(error)) => this.status = error,
@@ -1228,6 +1321,9 @@ impl Workspace {
             }
             crate::mail_sync::Update::Finished(account, result) => {
                 self.syncing.remove(&account);
+                if let Some(search) = &self.fuzzy {
+                    search.wake();
+                }
                 match result {
                     Ok(cycle) => {
                         self.sync_errors.remove(&account);

@@ -418,6 +418,10 @@ impl Store {
             "INSERT INTO message_search(rowid, subject, addresses, body) VALUES (?1,?2,?3,?4)",
             params![id, subject, search_addresses(&projection.headers), body],
         )?;
+        tx.execute(
+            "INSERT OR REPLACE INTO search_pending(message_id) VALUES (?1)",
+            params![id],
+        )?;
         tx.commit()?;
         Ok(id)
     }

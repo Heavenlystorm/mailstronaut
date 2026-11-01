@@ -21,8 +21,9 @@ pub mod moves;
 /// Durable drafts and immutable, explicitly submitted outbox records.
 pub mod outbox;
 pub mod reminders;
+pub mod search;
 
-const SCHEMA_VERSION: u32 = 9;
+const SCHEMA_VERSION: u32 = 10;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -179,6 +180,7 @@ impl Store {
             M::up(outbox::attachments::SCHEMA).foreign_key_check(),
             M::up(mailbox::ROLE_SCHEMA).foreign_key_check(),
             M::up(moves::SCHEMA).foreign_key_check(),
+            M::up(search::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -243,7 +245,10 @@ impl Store {
     )]
     pub fn clear_rebuildable_indexes(&mut self) -> Result<(), Error> {
         let transaction = self.connection.transaction()?;
-        transaction.execute_batch("DELETE FROM message_search;")?;
+        transaction.execute_batch(
+            "DELETE FROM message_search;
+             INSERT OR REPLACE INTO search_pending(message_id) SELECT id FROM messages;",
+        )?;
         transaction.commit()?;
         return Ok(());
     }

@@ -1,0 +1,20 @@
+[package]
+name = "mailstronaut-search"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Typo-tolerant local mail search over rebuildable derived data"
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+
+[dependencies]
+tantivy.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -61,6 +61,70 @@ fn search_expression(input: &str) -> Result<Option<String>, Error> {
     }))
 }
 
+/// One conversation page, by how it selects and orders the matching messages.
+struct PageQuery {
+    hits: &'static str,
+    matches: &'static str,
+    join: &'static str,
+    member_order: &'static str,
+    after: &'static str,
+    order: &'static str,
+}
+const LITERAL_PAGE: PageQuery = PageQuery {
+    hits: "",
+    matches: "CASE WHEN ?7 IS NULL THEN 1 ELSE m.id IN (SELECT rowid FROM message_search WHERE message_search MATCH ?7) END AS matches,0 AS hit_rank",
+    join: "",
+    member_order: "",
+    after: "(?2 IS NULL OR received_at<?2 OR (received_at=?2 AND id<?3))",
+    order: "received_at DESC,id DESC",
+};
+const RANKED_PAGE: PageQuery = PageQuery {
+    hits: "hits(id,hit_rank) AS MATERIALIZED (SELECT value,key FROM json_each(?7)),",
+    matches: "h.id IS NOT NULL AS matches,h.hit_rank AS hit_rank",
+    join: "LEFT JOIN hits h ON h.id=m.id",
+    member_order: "hit_rank ASC,",
+    after: "(?2 IS NULL OR hit_rank>COALESCE((SELECT hit_rank FROM hits WHERE id=?3),-1))",
+    order: "hit_rank ASC",
+};
+impl PageQuery {
+    fn sql(&self) -> String {
+        format!("
+WITH {hits}inbox AS (
+ SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen) AS seen,MAX(s.starred) AS starred,MAX(f.is_inbox) AS inbox,
+ {matches}
+ FROM messages m JOIN effective_memberships s ON s.message_id=m.id AND s.account_id=m.account_id
+ JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
+ {join}
+ WHERE m.account_id IN (SELECT value FROM json_each(?1))
+ AND (?5 IS NULL OR m.account_id=?5) AND (?6 IS NULL OR f.id=?6)
+ AND (?8=0 OR f.is_inbox=1) GROUP BY m.id
+), tagged AS (
+ SELECT i.*,CASE WHEN a.projected_thread_revision=a.thread_revision THEN cm.conversation_id ELSE NULL END AS conversation,
+ CASE WHEN a.projected_thread_revision=a.thread_revision AND cm.conversation_id IS NOT NULL THEN cm.conversation_id ELSE -i.id END AS group_key
+ FROM inbox i JOIN accounts a ON a.id=i.account_id LEFT JOIN conversation_members cm ON cm.account_id=i.account_id AND cm.message_id=i.id
+), ranked AS (
+ SELECT *,SUM(NOT seen) OVER(PARTITION BY account_id,group_key) AS unread_count,
+ MAX(starred) OVER(PARTITION BY account_id,group_key) AS thread_starred,
+ MAX(matches) OVER(PARTITION BY account_id,group_key) AS any_match,
+ ROW_NUMBER() OVER(PARTITION BY account_id,group_key ORDER BY matches DESC,{member_order}received_at DESC,id DESC) AS position FROM tagged
+)
+SELECT id,account_id,subject,sender,preview,received_at,seen,starred,conversation,
+ CASE WHEN conversation IS NULL THEN 1 ELSE (
+ SELECT COUNT(*) FROM conversation_members cm WHERE cm.account_id=r.account_id AND cm.conversation_id=r.conversation
+ AND EXISTS(SELECT 1 FROM memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity WHERE s.account_id=cm.account_id AND s.message_id=cm.message_id)) END,
+ unread_count,thread_starred,inbox FROM ranked r
+WHERE position=1 AND any_match=1 AND {after}
+ORDER BY {order} LIMIT ?4",
+            hits = self.hits,
+            matches = self.matches,
+            join = self.join,
+            member_order = self.member_order,
+            after = self.after,
+            order = self.order,
+        )
+    }
+}
+
 fn valid_name(name: &str) -> bool {
     !name.is_empty() && name.len() <= 4096 && !name.contains(['\0', '\r', '\n'])
 }
@@ -154,6 +218,45 @@ impl Store {
         after: Option<Cursor>,
         limit: u32,
     ) -> Result<Vec<super::conversations::Summary>, Error> {
+        let search = search_expression(query)?;
+        self.page(
+            accounts,
+            scope,
+            &LITERAL_PAGE,
+            search.as_deref(),
+            after,
+            limit,
+        )
+    }
+
+    /// Like [`Self::conversation_page`], for messages an index has already matched: they
+    /// keep the given order, and the page after a cursor continues from its place in it.
+    /// # Errors
+    /// Rejects disabled accounts, foreign folders, page limits and storage errors.
+    pub fn ranked_conversation_page(
+        &self,
+        accounts: &[String],
+        scope: &Scope,
+        hits: &[i64],
+        after: Option<Cursor>,
+        limit: u32,
+    ) -> Result<Vec<super::conversations::Summary>, Error> {
+        if hits.is_empty() {
+            return Ok(Vec::new());
+        }
+        let hits = serde_json::to_string(hits)?;
+        self.page(accounts, scope, &RANKED_PAGE, Some(&hits), after, limit)
+    }
+
+    fn page(
+        &self,
+        accounts: &[String],
+        scope: &Scope,
+        statement: &PageQuery,
+        search: Option<&str>,
+        after: Option<Cursor>,
+        limit: u32,
+    ) -> Result<Vec<super::conversations::Summary>, Error> {
         if accounts.len() > 256 || !(1..=100).contains(&limit) {
             return Err(Error::InvalidInput);
         }
@@ -168,34 +271,8 @@ impl Store {
                 return Err(Error::InvalidInput);
             }
         }
-        let search = search_expression(query)?;
         let selected = serde_json::to_string(accounts)?;
-        let mut statement=self.connection.prepare_cached("
-WITH inbox AS (
- SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen) AS seen,MAX(s.starred) AS starred,MAX(f.is_inbox) AS inbox,
- CASE WHEN ?7 IS NULL THEN 1 ELSE m.id IN (SELECT rowid FROM message_search WHERE message_search MATCH ?7) END AS matches
- FROM messages m JOIN effective_memberships s ON s.message_id=m.id AND s.account_id=m.account_id
- JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
- WHERE m.account_id IN (SELECT value FROM json_each(?1))
- AND (?5 IS NULL OR m.account_id=?5) AND (?6 IS NULL OR f.id=?6)
- AND (?8=0 OR f.is_inbox=1) GROUP BY m.id
-), tagged AS (
- SELECT i.*,CASE WHEN a.projected_thread_revision=a.thread_revision THEN cm.conversation_id ELSE NULL END AS conversation,
- CASE WHEN a.projected_thread_revision=a.thread_revision AND cm.conversation_id IS NOT NULL THEN cm.conversation_id ELSE -i.id END AS group_key
- FROM inbox i JOIN accounts a ON a.id=i.account_id LEFT JOIN conversation_members cm ON cm.account_id=i.account_id AND cm.message_id=i.id
-), ranked AS (
- SELECT *,SUM(NOT seen) OVER(PARTITION BY account_id,group_key) AS unread_count,
- MAX(starred) OVER(PARTITION BY account_id,group_key) AS thread_starred,
- MAX(matches) OVER(PARTITION BY account_id,group_key) AS any_match,
- ROW_NUMBER() OVER(PARTITION BY account_id,group_key ORDER BY matches DESC,received_at DESC,id DESC) AS position FROM tagged
-)
-SELECT id,account_id,subject,sender,preview,received_at,seen,starred,conversation,
- CASE WHEN conversation IS NULL THEN 1 ELSE (
- SELECT COUNT(*) FROM conversation_members cm WHERE cm.account_id=r.account_id AND cm.conversation_id=r.conversation
- AND EXISTS(SELECT 1 FROM memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity WHERE s.account_id=cm.account_id AND s.message_id=cm.message_id)) END,
- unread_count,thread_starred,inbox FROM ranked r
-WHERE position=1 AND any_match=1 AND (?2 IS NULL OR received_at<?2 OR (received_at=?2 AND id<?3))
-ORDER BY received_at DESC,id DESC LIMIT ?4")?;
+        let mut statement = self.connection.prepare_cached(&statement.sql())?;
         statement
             .query_map(
                 params![
@@ -440,6 +517,51 @@ mod tests {
             folders
         );
     }
+    #[test]
+    fn ranked_pages_keep_the_given_order_group_conversations_and_respect_scope() {
+        let (_root, store, [needle, latest, ancestor, foreign], [sent]) = fixture();
+        let accounts = ["a".to_owned(), "b".to_owned()];
+        let page = |scope: &Scope, hits: &[i64], after, limit| {
+            store
+                .ranked_conversation_page(&accounts, scope, hits, after, limit)
+                .expect("ranked page")
+                .into_iter()
+                .map(|row| row.latest.id)
+                .collect::<Vec<_>>()
+        };
+        let all = Scope::Inbox;
+        // Account a's three messages are one conversation: one row, at its best-ranked member.
+        assert_eq!(page(&all, &[latest, needle], None, 100), [latest]);
+        assert_eq!(page(&all, &[needle, latest], None, 100), [needle]);
+        // The given order wins, whatever the dates say.
+        assert_eq!(page(&all, &[foreign, needle], None, 100), [foreign, needle]);
+        assert_eq!(page(&all, &[needle, foreign], None, 100), [needle, foreign]);
+        // Scope still applies, and is checked here rather than trusted from the index.
+        let account = Scope::Account("a".into());
+        assert_eq!(page(&account, &[foreign, needle], None, 100), [needle]);
+        let folder = Scope::Folder {
+            account: "a".into(),
+            folder: sent,
+        };
+        assert_eq!(page(&folder, &[needle, ancestor], None, 100), [ancestor]);
+        // Unknown IDs simply do not appear, and no hits means no rows.
+        assert_eq!(page(&all, &[999_999, needle], None, 100), [needle]);
+        assert_eq!(page(&all, &[], None, 100), Vec::<i64>::new());
+        // Paging continues from the cursor's place in the order.
+        assert_eq!(page(&all, &[foreign, needle], None, 1), [foreign]);
+        let cursor = |message_id| {
+            Some(Cursor {
+                received_at: 0,
+                message_id,
+            })
+        };
+        assert_eq!(page(&all, &[foreign, needle], cursor(foreign), 1), [needle]);
+        assert_eq!(
+            page(&all, &[foreign, needle], cursor(needle), 1),
+            Vec::<i64>::new()
+        );
+    }
+
     #[test]
     fn unread_counts_follow_what_the_user_sees_in_each_folder() {
         const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

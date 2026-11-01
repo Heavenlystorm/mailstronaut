@@ -10,6 +10,7 @@ mod config_export;
 mod html_reader;
 mod html_worker;
 mod link_portal;
+mod mail_search;
 mod mail_sync;
 mod mailbox;
 mod preferences;

@@ -6,7 +6,28 @@ both typo tolerance and multilingual search by meaning, and explicitly wants
 pre-existing components. Do not write a fuzzy matcher, inverted index, vector
 index, transformer, translation system or search service for this feature.
 
-## Recommendation
+## Decision (2026-11-01): Tantivy for typo-tolerant search
+
+**`mailstronaut-search` uses Tantivy 0.27.0, and that part of the gate below is closed.**
+The same machine and pinned toolchain gave these release results:
+
+| At 100,000 synthetic messages | Tantivy 0.27 | LanceDB 0.41 (earlier probe) |
+| --- | --- | --- |
+| Added crates | 43 | About 500 |
+| Worst query p95 | 35 ms | 7 ms fuzzy, 225 ms vector |
+| Peak process memory | 133 MiB | 876 MiB |
+| Index size | 55 MiB | 165 MiB |
+
+The corpora differ, so only the orders of magnitude compare. LanceDB's single advantage was
+one engine for both text and vectors, but neither encoder has passed the relevance screen,
+so that advantage buys nothing yet at a cost the desktop would always pay.
+[Measurements and behavior](evidence/P06-fuzzy-search.md).
+
+Search by meaning stays open. It needs an encoder that passes the screen first, and then a
+vector library beside this index. LanceDB remains a candidate only if that combination
+turns out worse than its resource cost.
+
+## Original recommendation, before the measurements above
 
 **Probe LanceDB 0.41.0 first as the unified embedded search library.** It already
 combines fuzzy full-text retrieval, vector retrieval, filters and hybrid ranking;

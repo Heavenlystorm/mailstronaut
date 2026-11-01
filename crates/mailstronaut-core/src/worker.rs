@@ -121,6 +121,17 @@ enum Command {
     ),
     Folders(Vec<String>, Reply<Vec<Folder>>),
     UnreadCounts(Vec<String>, Reply<Vec<(i64, u32)>>),
+    RankedPage(
+        Vec<String>,
+        store::browse::Scope,
+        Vec<i64>,
+        Option<Cursor>,
+        u32,
+        Reply<Vec<store::conversations::Summary>>,
+    ),
+    SearchPending(u32, Reply<store::search::SearchBatch>),
+    SearchIndexed(i64, Reply<()>),
+    RequeueSearch(Reply<()>),
     RememberFolders(String, Vec<String>, String, Reply<()>),
     AssignFolderRoles(String, Vec<(String, FolderRole)>, Reply<()>),
     QueueMove(String, i64, Option<i64>, String, String, Reply<u32>),
@@ -337,6 +348,40 @@ impl Handle {
     ) -> Result<Vec<store::conversations::Summary>, Error> {
         self.request(|reply| Command::ConversationPage(accounts, scope, query, after, limit, reply))
             .await
+    }
+    /// Read a conversation page of messages an index has matched, in the given order.
+    /// # Errors
+    /// Rejects scope and page limits and storage failures.
+    pub async fn ranked_conversation_page(
+        &self,
+        accounts: Vec<String>,
+        scope: store::browse::Scope,
+        hits: Vec<i64>,
+        after: Option<Cursor>,
+        limit: u32,
+    ) -> Result<Vec<store::conversations::Summary>, Error> {
+        self.request(|reply| Command::RankedPage(accounts, scope, hits, after, limit, reply))
+            .await
+    }
+    /// Read the oldest changes waiting for the search index.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn search_pending(&self, limit: u32) -> Result<store::search::SearchBatch, Error> {
+        self.request(|reply| Command::SearchPending(limit, reply))
+            .await
+    }
+    /// Forget changes the search index has committed.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn search_indexed(&self, through: i64) -> Result<(), Error> {
+        self.request(|reply| Command::SearchIndexed(through, reply))
+            .await
+    }
+    /// Queue every message again, for a search index that had to be recreated.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn requeue_search(&self) -> Result<(), Error> {
+        self.request(Command::RequeueSearch).await
     }
     /// List known folders for enabled accounts without contacting a mail server.
     /// # Errors
@@ -1006,6 +1051,18 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::UnreadCounts(accounts, reply) => {
                 respond(reply, || store.unread_counts(&accounts));
             }
+            Command::RankedPage(accounts, scope, hits, after, limit, reply) => {
+                respond(reply, || {
+                    store.ranked_conversation_page(&accounts, &scope, &hits, after, limit)
+                });
+            }
+            Command::SearchPending(limit, reply) => {
+                respond(reply, || store.search_pending(limit));
+            }
+            Command::SearchIndexed(through, reply) => {
+                commit(reply, || store.search_indexed(through));
+            }
+            Command::RequeueSearch(reply) => commit(reply, || store.requeue_search()),
             Command::RememberFolders(account, names, inbox, reply) => {
                 commit(reply, || store.remember_folders(&account, &names, &inbox));
             }

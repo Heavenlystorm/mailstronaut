@@ -367,11 +367,13 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
 - [x] Research maintained fuzzy/hybrid libraries and local encoders, with exact
   source/API and isolated engine/resource probes. [Research](SEARCH.md).
 - [ ] Finish model/library adoption gates and choose the smallest maintained
-  integration meeting quality/resource budgets. Existing E5 and Model2Vec candidates
-  fail their fixed relevance screen; Potion also exceeds its memory screen.
-- [ ] Provide typo-tolerant fuzzy subject/address/body search, accent/partial terms,
+  integration meeting quality/resource budgets. [Tantivy is adopted for lexical
+  search](SEARCH.md). Existing E5 and Model2Vec candidates fail their fixed relevance
+  screen; Potion also exceeds its memory screen.
+- [x] Provide typo-tolerant fuzzy subject/address/body search, accent/partial terms,
   useful ranking, deliberate exact/filter queries and bounded expansion, using a
   maintained library rather than a custom matcher or index.
+  [Tantivy, with native acceptance and measurements](evidence/P06-fuzzy-search.md).
 - [ ] Add multilingual retrieval by meaning: **"reminder about doctoral school
   re-enrollment" finds the French doctoral registration notice without matching
   query words**. Test EN/FR/IT paraphrases, cross-language and near-topic negatives.
@@ -386,11 +388,17 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   for backend-provided UTF-8 ranges; do not fabricate highlights for semantic matches.
   `SearchableVec`/default list substring matching is suitable for small option menus,
   not the required fuzzy or multilingual search engine.
+  [The one field, `from:`/`subject:`, scope and Seen pass](evidence/P06-fuzzy-search.md);
+  the filter popover, date bounds, snippets and highlights remain open.
 - [ ] Maintain a private rebuildable index keyed by canonical original/source/model
   revision; bounded incremental indexing, restart/model change, deletion/purge and
   disabled accounts must not retain stale results or touch user-owned state.
+  [The lexical index passes](evidence/P06-fuzzy-search.md); a model revision does not
+  exist yet, and neither does purging one account's data.
 - [ ] Show partial-cache/index coverage and unavailable/disabled models. Local
   lexical/fuzzy search remains usable, but this does not complete semantic acceptance.
+  [Messages not yet indexed are counted in the status bar](evidence/P06-fuzzy-search.md);
+  partial-cache and model states remain open.
 - [ ] Pass fixed and held-out relevance, filter/isolation/restart/deletion tests,
   the user's French example, and measured 10k/100k CPU/RAM/index/build budgets.
 

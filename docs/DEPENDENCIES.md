@@ -67,7 +67,7 @@ compiler. Revisit the lower bound when the complete graph is known.
 - **Search engines**: the original literal-search FTS5-only decision is superseded
   by the user's fuzzy/multilingual semantic requirements. [SEARCH.md](SEARCH.md)
   compares existing engines and model APIs; LanceDB is the first unified probe,
-  with Tantivy plus a vector library as the lean comparison. No candidate has been adopted. Paired isolated probes are recorded in SEARCH.md; none passes every quality/resource requirement yet. SQLite remains canonical; do not implement a search
+  with Tantivy plus a vector library as the lean comparison. Tantivy 0.27 is adopted for lexical search, with `default-features = false` and only `mmap` and `lz4-compression`; [decision](SEARCH.md). No semantic candidate has been adopted. Paired isolated probes are recorded in SEARCH.md; none passes every quality/resource requirement yet. SQLite remains canonical; do not implement a search
   engine or add a separate search daemon.
 - **SQLx, SeaORM and external mail indexers**: the blocking SQLite owner and single
   application process remain sufficient for canonical mail/state persistence.
