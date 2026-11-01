@@ -8,7 +8,7 @@ use gpui::{
     KeyBinding, MouseButton, ParentElement as _, Pixels, Render, RenderImage, ScrollHandle,
     StatefulInteractiveElement as _, Styled as _, Task, Window, canvas, div, point, px,
 };
-use mailstronaut_render::View;
+use mailstronaut_render::{Link, View};
 use tokio::sync::watch;
 
 use crate::html_worker::{Content, Reply, Request};
@@ -34,6 +34,7 @@ gpui::actions!(
 pub enum Event {
     Ready(u64),
     Failed(u64),
+    Link(u64, Link),
 }
 
 pub struct HtmlReader {
@@ -47,6 +48,7 @@ pub struct HtmlReader {
     frame: Option<(View, Arc<RenderImage>)>,
     ready_serial: Option<u64>,
     status: String,
+    links: Arc<[Link]>,
     sender: Option<watch::Sender<Option<Request>>>,
     _responses: Task<()>,
 }
@@ -92,6 +94,7 @@ impl HtmlReader {
             frame: None,
             ready_serial: None,
             status: String::new(),
+            links: Arc::default(),
             sender,
             _responses: responses,
         }
@@ -115,6 +118,7 @@ impl HtmlReader {
         self.content = None;
         self.requested = None;
         self.frame = None;
+        self.links = Arc::default();
         self.ready_serial = None;
         if let Some(sender) = &self.sender {
             sender.send_replace(None);
@@ -137,11 +141,33 @@ impl HtmlReader {
             epoch: self.epoch,
             content: content.clone(),
             view,
+            hit: None,
         }));
         cx.notify();
     }
 
     fn receive(&mut self, reply: Reply, cx: &mut Context<Self>) {
+        if let Reply::Link {
+            serial,
+            epoch,
+            view,
+            link,
+        } = reply
+        {
+            if serial == self.serial
+                && epoch == self.epoch
+                && self.requested == Some(view)
+                && self.content.is_some()
+                && self
+                    .frame
+                    .as_ref()
+                    .is_some_and(|(painted, _)| *painted == view)
+                && let Some(link) = link
+            {
+                cx.emit(Event::Link(epoch, link));
+            }
+            return;
+        }
         let Reply::Painted {
             serial,
             epoch,
@@ -160,6 +186,7 @@ impl HtmlReader {
         }
         match result {
             Ok((frame, omitted)) => {
+                self.links = frame.links.clone();
                 self.extent = gpui::size(
                     Pixels::from(frame.content_width),
                     Pixels::from(frame.content_height),
@@ -187,6 +214,36 @@ impl HtmlReader {
             }
         }
         cx.notify();
+    }
+
+    pub fn links(&self) -> Arc<[Link]> {
+        self.links.clone()
+    }
+
+    fn click_link(&self, position: gpui::Point<Pixels>, window: &Window, cx: &Context<Self>) {
+        let (Some((view, _)), Some(sender), Some(content)) =
+            (&self.frame, &self.sender, &self.content)
+        else {
+            return;
+        };
+        let bounds = self.scroll.bounds();
+        let current = measured_view(
+            bounds,
+            window.scale_factor(),
+            cx.theme().mode.is_dark(),
+            self.scroll.offset(),
+        );
+        if current != Some(*view) || !bounds.contains(&position) {
+            return;
+        }
+        let position = position - bounds.origin;
+        sender.send_replace(Some(Request {
+            serial: self.serial,
+            epoch: self.epoch,
+            content: content.clone(),
+            view: *view,
+            hit: Some((f32::from(position.x), f32::from(position.y))),
+        }));
     }
 
     fn scroll_page(&self, direction: f32, cx: &mut Context<Self>) {
@@ -220,6 +277,9 @@ impl HtmlReader {
                 MouseButton::Left,
                 cx.listener(|this, _, window, cx| window.focus(&this.focus, cx)),
             )
+            .on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
+                this.click_link(event.position(), window, cx);
+            }))
             .child(div().flex_none().w(self.extent.width).h(self.extent.height))
             .child(
                 canvas(

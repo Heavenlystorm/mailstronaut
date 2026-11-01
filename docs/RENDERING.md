@@ -82,10 +82,25 @@ back to the already loaded native text alternative. CSS CID backgrounds, SVG, GI
 and arbitrary data URLs are not enabled. A private namespace is an application
 lookup key, not a claim about browser-origin semantics.
 
-Automatic navigation is inert. A future explicit GPUI link action may invoke the
-standard external-browser portal after checking the current document and allowed
-URL scheme. There is no login page inside the reader. Forms and email content do
-not call native actions, even when a resource is locally available.
+Automatic navigation remains inert. Blitz's public layout hit test identifies an
+anchor only after the exact current viewport has painted. It does not dispatch a
+DOM event. A bounded, deduplicated table of at most 128 canonical HTTP(S) addresses
+(4096 encoded bytes each) also supports Kit's native Links menu. Direct clicks
+continue to work for valid current-DOM anchors beyond that picker limit. The existing URL
+library exposed by Blitz normalizes hosts/path encoding; relative links, controls,
+backslashes, bidi embedding/isolate controls, embedded credentials and non-web schemes
+are rejected. Normal path spaces become percent-encoded and IDN hosts become ASCII.
+Link Debug and application errors omit target values.
+
+Only explicit current-message clicks/menu selections invoke ASHPD's browser
+portal. Source epoch and current-frame geometry fence
+stale actions. Settings, text mode and source replacement cancel pending local
+waits; timeouts and refusals have visible redacted status with no shell fallback.
+An already launched browser cannot be recalled. Kit's button focus handle and
+menu navigation support Ctrl+Shift+L/Enter/arrow keys/Escape. The renderer still
+has no navigation or native shell authority. There is no login page inside the
+reader. Forms and email content do not call native actions, even when a resource
+is locally available.
 
 ## Budgets, layout and lifetime
 

@@ -12,12 +12,13 @@ unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET SWAYSOCK DBUS_SESSION_BUS_ADDRESS A
 export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway
 export VK_DRIVER_FILES="${MAILSTRONAUT_TEST_VULKAN_ICD:?pinned software Vulkan driver}"
 export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
-app='' keyboard='' pointer='' compositor='' bus='' blocker='' spy=''
+app='' keyboard='' pointer='' compositor='' bus='' blocker='' spy='' portal=''
+expected_links=0
 cleanup() {
   # On an assertion failure, force the owned tracer to exit; --kill-on-exit then
   # kills its tracees. SIGTERM can leave strace waiting for its interactive child.
   if [[ -n "$app" ]]; then kill -KILL "$app" 2>/dev/null || true; wait "$app" 2>/dev/null || true; app=''; fi
-  for pid in "$app" "$keyboard" "$pointer" "$compositor" "$bus" "$blocker" "$spy"; do
+  for pid in "$app" "$keyboard" "$pointer" "$compositor" "$bus" "$blocker" "$spy" "$portal"; do
     if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   done
 }
@@ -78,6 +79,13 @@ PYSPY
 spy=$!
 for _ in {1..100}; do [[ -s $root/http-port ]] && break; kill -0 "$spy"; sleep .05; done
 MAILSTRONAUT_HTML_HTTP_PORT=$(cat "$root/http-port"); export MAILSTRONAUT_HTML_HTTP_PORT MAILSTRONAUT_HTML_GUI=1
+if [[ -n ${MAILSTRONAUT_LINK_PORTAL_FIXTURE:-} ]]; then
+  touch "$root/synthetic-link-portal"
+  MAILSTRONAUT_LINK_PORTAL_ROOT="$root" "$MAILSTRONAUT_LINK_PORTAL_FIXTURE" \
+    link_portal::tests::serve_native_portal --ignored --exact --nocapture > "$root/portal.log" 2>&1 & portal=$!
+  for _ in {1..100}; do [[ -s $root/portal-ready ]] && break; kill -0 "$portal"; sleep .05; done
+  [[ -s $root/portal-ready ]]
+fi
 strace -ff -s 1024 -e trace=%network,%file -o "$root/control.trace" python3 - "$root" "$MAILSTRONAUT_HTML_HTTP_PORT" <<'PYCONTROL'
 from pathlib import Path
 import urllib.request,sys
@@ -161,6 +169,24 @@ copy_body() {
   return 1
 }
 open_html() { click 350 "$1"; click 684 246; sleep .5; }
+check_links() {
+  [[ -n "$portal" ]] || return 0
+  python3 - "$root" "$1" <<'PYLINKS'
+from pathlib import Path
+import json,sys
+root=Path(sys.argv[1]);path=root/'portal-requests.jsonl'
+requests=[json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+assert len(requests)==int(sys.argv[2]),requests
+expected='http://127.0.0.1:'+(root/'http-port').read_text().strip()+'/activate'
+assert all(r['uri']==expected for r in requests),requests
+print('Explicit web-link portal calls:',len(requests))
+PYLINKS
+}
+wait_links() {
+  for _ in {1..50}; do if check_links "$1" > "$root/link-receipt.log" 2>&1; then cat "$root/link-receipt.log"; return; fi; sleep .1; done
+  capture link-count-failure
+  cat "$root/link-receipt.log" >&2; return 1
+}
 start initial
 sleep .5
 capture listed
@@ -174,12 +200,32 @@ check_seen
 wtype -s 150 -k Return -s 800
 capture alpha
 check_seen alpha
+check_links 0
 copy_body alpha 'Synthetic HTML Alpha plain alternative'
 open_html 150
 capture alpha-html
-# Clicking the rendered anchor is inert; it cannot invoke a browser or fetch.
+# Clicks identify links without forwarding DOM events; the app itself never fetches.
 click 650 507
-capture inert-link
+capture link-request
+if [[ -n "$portal" ]]; then
+  wait_links 1
+  # Kit owns menu focus, keyboard activation, arrow navigation and dismissal.
+  click 835 246
+  capture links-menu
+  wtype -s 150 -k Escape -s 200 -k Return -s 200 -k Down -s 150 -k Return -s 400
+  capture links-keyboard
+  wait_links 2
+  printf '1\n' > "$root/portal-response"
+  wtype -s 150 -M ctrl -M shift l -m shift -m ctrl -s 200 -k Return -s 200 -k Down -k Return -s 400
+  wait_links 3
+  expected_links=3
+  capture link-cancelled
+  printf '0\n' > "$root/portal-response"
+  if [[ ${MAILSTRONAUT_LINKS_ONLY:-0} == 1 ]]; then
+    stop; touch "$root/portal-stop"; wait "$portal"; portal=''
+    printf 'Native link inspection passed: %s\n' "$root"; exit 0
+  fi
+fi
 # Native page/end/home scrolling uses the standard ScrollHandle.
 click 1100 620
 wtype -s 150 -k End -s 600
@@ -193,6 +239,13 @@ capture narrow
 swaymsg output HEADLESS-1 mode 2560x1680 scale 2 > /dev/null
 sleep 1
 capture hidpi
+if [[ -n "$portal" ]]; then
+  # Sway input coordinates stay logical at 2x; exercise the actual HTML hit path.
+  click 650 535
+  wait_links 4
+  expected_links=4
+  capture hidpi-link
+fi
 swaymsg output HEADLESS-1 mode 1280x840 scale 1 > /dev/null
 sleep .8
 wtype -s 150 -M ctrl -M shift d -m shift -m ctrl -s 700
@@ -201,6 +254,11 @@ check_seen alpha
 # Beta deliberately refers to the same CID without owning the image.
 open_html 270
 capture beta
+if [[ -n "$portal" ]]; then
+  click 835 246
+  wtype -s 150 -k Escape
+  check_links "$expected_links"
+fi
 check_seen alpha beta
 copy_body beta 'Synthetic HTML Beta plain alternative'
 open_html 400
@@ -228,6 +286,11 @@ check_seen alpha beta bad-image plain
 open_html 150
 capture offline
 stop
+if [[ -n "$portal" ]]; then
+  check_links "$expected_links"
+  touch "$root/portal-stop"
+  wait "$portal"; portal=''
+fi
 python3 - "$root" <<'PYPIXELS'
 from pathlib import Path
 import subprocess,sys
@@ -250,10 +313,10 @@ def bands(image):
    y,x=divmod(i,w)
    bounds[:]=[min(bounds[0],x),min(bounds[1],y),max(bounds[2],x),max(bounds[3],y),bounds[4]+1]
  return list(found.values())
-for name,scale in [('alpha',1),('alpha-html',1),('inert-link',1),('home',1),('hidpi',2),('dark',1),('offline',1)]:
+for name,scale in [('alpha',1),('alpha-html',1),('link-request',1),('home',1),('hidpi',2),('dark',1),('offline',1)]:
  im=read(name)
  assert im[:2]==(1280*scale,840*scale),(name,im[:2])
- assert sample(im,800*scale,320*scale)==(51,170,102),name+' must paint its own wide Alpha marker'
+ assert sample(im,800*scale,350*scale)==(51,170,102),name+' must paint its own wide Alpha marker'
  observed=bands(im)
  for x,y,right,bottom,count in observed:
   # Upsampling the small PNG blends its band edges. Require a solid interior
@@ -264,7 +327,7 @@ for name,scale in [('alpha',1),('alpha-html',1),('inert-link',1),('home',1),('hi
  assert len({b[1] for b in observed})==1
  print(name+': own Alpha marker; ordered 32-CSS-pixel RGB bands at scale '+str(scale))
 im=read('narrow')
-assert im[:2]==(960,840) and sample(im,700,320)==(51,85,170),'logical resize must trigger max-width media query'
+assert im[:2]==(960,840) and sample(im,700,350)==(51,85,170),'logical resize must trigger max-width media query'
 im=read('end')
 assert sample(im,800,710)==(0,255,255),'End must paint the document tail'
 assert all(b[4]==0 for b in bands(im)),'End must not reuse a top viewport'
@@ -274,7 +337,7 @@ assert sample(read('alpha'),10,80)[0]>128,'native Kit light theme'
 for name,marker in [('beta',(221,221,102)),('switched-beta',(221,221,102)),('restored',(221,221,102)),('bad-image',(204,136,170))]:
  im=read(name)
  # Require B's distinct frame before accepting absence of A's image.
- assert sample(im,800,320)==marker,name+' must paint its own marker'
+ assert sample(im,800,350)==marker,name+' must paint its own marker'
  assert all(b[4]==0 for b in bands(im)),name+' cannot contain Alpha raster pixels'
  print(name+': own current message marker; no retired RGB image')
 assert all(b[4]==0 for b in bands(read('plain'))),'plain-text mode cannot retain HTML image pixels'

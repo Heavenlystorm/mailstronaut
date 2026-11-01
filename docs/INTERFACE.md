@@ -34,7 +34,7 @@ is appropriate only for a missing primitive, not for recreating a design system.
 | HTML/text mode | [`TabBar::new(id).segmented()` and `Tab`](https://gpui-kit.com/component/tabs/) | Switch the existing Blitz and native text views; do not replace Blitz with the catalog's HTML/Markdown `TextView`. |
 | Read-only selectable native text | [`TextareaState`, `Textarea::readonly(true)`](https://gpui-kit.com/component/textarea/) | Decoded literal text, selection/copy and keyboard scrolling; not a custom editor. |
 | Reader actions/scrollbars | [`Toolbar`/`ToolbarGroup`](https://gpui-kit.com/component/toolbar/), [`ScrollableElement`, `vertical_scrollbar`, GPUI `ScrollHandle`](https://gpui-kit.com/component/scrollable/) | These do not implement viewport rasterization, HTML hit testing, selection, generations or accessibility. |
-| Explicit external links | `Button` invoking validated ASHPD portal action; optionally `Link` **without `href`** | Do not use default URL navigation for untrusted mail. See pin caveats below. |
+| Explicit external links | `Button` + `DropdownMenu`/`PopupMenuItem::new().on_click`, invoking validated ASHPD portal action | Canonical web-link picker and current-viewport Blitz hits; never use default URL navigation. Caller-owned button focus, Ctrl+Shift+L and guarded deferred focus restoration support native keyboard use. See pin caveats below. |
 
 ### P02: settings and P05: onboarding
 
@@ -132,6 +132,15 @@ acceptance.
 - [`Link` source](https://docs.rs/crate/gpui-component/0.8.1/source/src/link.rs)
   calls `cx.open_url(href)` before `on_click`; `disabled` is historically inert.
   Use validated portal callbacks on `Button` or a `Link` with no `href`.
+- `PopupMenuItem::link` also uses the framework's default URL opener. Use a normal
+  item with an explicit portal callback. DropdownMenu's restored trigger handle
+  is a context handle at this pin; the reader restores its actual Button focus
+  handle after dismissal and rechecks the message/view before focusing it.
+  The link picker has no leading noninteractive label: this pin's first Down
+  selects index zero even when it is a label, making an immediate Enter inert.
+- ASHPD's `Uri` is a minimally checked string wrapper, not a URL validator. Email
+  actions accept only the renderer's sealed web-link value, normalized with the
+  existing URL parser and checked for scheme/host/credentials/size first.
 - [`List` source](https://docs.rs/crate/gpui-component/0.8.1/source/src/list/list.rs)
   defaults `searchable` to false. `SearchableListItem` defaults to case-insensitive
   substring matching, and `SearchableVec` filters an in-memory vector. They suit

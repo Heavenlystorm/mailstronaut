@@ -47,8 +47,11 @@ appearance. Focusing, copying and changing appearance do not open a message or
 mark additional mail Seen. Cached HTML opens in a bounded, passive Blitz viewport
 with native scrollbars, resize, HiDPI and theme handling. Text/HTML tabs and Select
 text keep the native text alternative available for selection and copying. Remote
-resources and link activation are disabled; only validated message-local PNG/JPEG
-images are supplied. Invalid local images are omitted, and unsupported HTML falls
+resources stay blocked; only validated message-local PNG/JPEG images are supplied.
+Click a web link to open it through the desktop browser portal, or use Links in
+the reader toolbar (Ctrl+Shift+L, Enter, arrow keys, Enter). The picker displays
+canonical web addresses; file, script and other non-HTTP(S) targets are excluded.
+Invalid local images are omitted, and unsupported HTML falls
 back to cached text. Full layout, accessibility, performance and Flatpak acceptance
 remain open P01 requirements.
 

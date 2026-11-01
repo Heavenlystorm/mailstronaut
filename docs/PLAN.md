@@ -140,9 +140,14 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   results across scroll, scale, resize and theme changes. Native UI integration,
   scrollbars and switching are verified above; performance acceptance remains below.
   [Renderer evidence](evidence/P01-passive-viewport.md).
-- [ ] Implement explicit validated portal links with a standard `Button` (or
+- [x] Implement explicit validated portal links with a standard `Button` (or
   `Link` without `href`). In this pin `Link::on_click` does not override `href` and
   `Link::disabled` does not gate navigation; never pass untrusted URLs to defaults.
+  Actual current-frame clicks and a Kit Button/DropdownMenu web-link picker use
+  canonical HTTP(S) targets and the ASHPD portal. Source/viewport, keyboard,
+  cancellation/refusal, 2x hit and no-fetch observations pass in private fixtures.
+  [Bounded installed-package evidence](evidence/P01-web-links.md). Real desktop/
+  Flatpak portal activation remains P10/P11 acceptance.
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
 - [ ] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering.

@@ -1,9 +1,11 @@
 //! Bounded, passive Blitz HTML layout and CPU rasterization, without window or I/O authority.
 
+mod links;
 #[cfg(test)]
 mod privacy;
 mod resources;
 mod viewport;
+pub use links::{Link, MAX_LINK_BYTES, MAX_LINKS};
 pub use resources::{InlineImage, MAX_IMAGE_BYTES, MAX_INLINE_IMAGES, MAX_RESOURCE_BYTES};
 pub use viewport::{Document, View};
 
@@ -60,6 +62,8 @@ pub struct Frame {
     pub content_height: f64,
     /// Denied resource attempts, without retaining untrusted URLs.
     pub blocked_resources: usize,
+    /// Bounded canonical web links for explicit native actions; never auto-opened.
+    pub links: Arc<[Link]>,
 }
 impl fmt::Debug for Frame {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

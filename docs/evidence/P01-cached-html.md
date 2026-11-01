@@ -1,5 +1,8 @@
 # P01 — cached HTML in the native reader
 
+Later [explicit web-link support](P01-web-links.md) supersedes this increment's
+inert-link behavior. The observations below apply to its recorded source/package.
+
 2026-11-01. Cached originals now use the passive Blitz reader, with the native
 text alternative always available. **P01 and the complete client remain open.**
 No real mail, credentials or provider was used for this increment.

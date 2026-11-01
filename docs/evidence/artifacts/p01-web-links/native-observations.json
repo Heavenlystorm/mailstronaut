@@ -1,0 +1,62 @@
+{
+  "profile": "target/p01.4OR8VD",
+  "package": "/nix/store/sk9qzs8fjqwb0b8nbmg0hmzqn7pxla5b-mailstronaut-0.1.0",
+  "portalCalls": [
+    {
+      "uri": "http://127.0.0.1:35031/activate",
+      "parent": "",
+      "response": "0"
+    },
+    {
+      "uri": "http://127.0.0.1:35031/activate",
+      "parent": "",
+      "response": "0"
+    },
+    {
+      "uri": "http://127.0.0.1:35031/activate",
+      "parent": "",
+      "response": "1"
+    },
+    {
+      "uri": "http://127.0.0.1:35031/activate",
+      "parent": "",
+      "response": "0"
+    }
+  ],
+  "portalCallsBeforeUserActions": 0,
+  "lastCallAtNativeScale": 2,
+  "screenshots": {
+    "alpha": "40be0bd30f18e45fa128dee5d9cfef6516652cb95f562d59c3191c55a9cfe1ce",
+    "links-menu": "1ea16b4ab5da94dedea02fb3c3b13a43aae34d5ed527c7d0c096b43c403dcd30",
+    "links-keyboard": "e799cef48cc34fc62a66bf91921775ef253d2d4123611bd26156897a7b96a057",
+    "link-cancelled": "5ad0319737c6db2879c95ce998b539ff6d4f7a61a61b65aaebedd32c9619eab4",
+    "link-request": "cec23fbd1f63dc0b6376a1adcf66b4c5eb02a701a7a15c2624bcd6c48af9aa09",
+    "hidpi": "ab1cb663e07b3cc5b2fb40314e249dd2484069bf53756b0358cf045a1ec3bf7d",
+    "hidpi-link": "581f42ede354f5ba44c7be6c04ca87e2b15835749330773e8177b5729895f899",
+    "beta": "6613cb9e52252b27617ee12a752824fddc1405daefd6606fb9b4451ee45701c2",
+    "switched-beta": "d18246ef3d7d3d22e5ac0ea4841cb5ce8fe8352529391ee1ee493e667f003724",
+    "restored": "d18246ef3d7d3d22e5ac0ea4841cb5ce8fe8352529391ee1ee493e667f003724",
+    "offline": "3982ad1c39f7bc8f9ede1a545aeaa37f1ebc07aa173aa0e097c807d1fce652f0"
+  },
+  "sessions": {
+    "initial": {
+      "tracedFiles": 743,
+      "ipSocketAttempts": 0,
+      "emailSpecifiedFileOpens": 0,
+      "normalExit": true
+    },
+    "offline": {
+      "tracedFiles": 109,
+      "ipSocketAttempts": 0,
+      "emailSpecifiedFileOpens": 0,
+      "normalExit": true
+    }
+  },
+  "observerControls": {
+    "httpRequests": [
+      "/control"
+    ],
+    "ipSocketObserved": true,
+    "syntheticFileObserved": true
+  }
+}

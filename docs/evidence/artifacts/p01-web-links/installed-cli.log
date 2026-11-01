@@ -1,0 +1,7 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+error (ignored): SQLite database '/home/eduard/.t3/projects/mailstronaut/target/nix-cache/nix/eval-cache-v6/ea1f3ea5aa783363001480313d97fadce45751da741ed9dc8ad8e7bf6ce46ae0.sqlite' is busy
+mailstronaut 0.1.0
+Created native Nix configuration.
+Configuration is valid.
+Configuration is valid.
+Installed empty-environment CLI/config check passed: /home/eduard/.t3/projects/mailstronaut/target/web-links-cli.F0Fjdw

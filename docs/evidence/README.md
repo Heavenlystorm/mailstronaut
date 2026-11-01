@@ -8,7 +8,10 @@ its stated revision. Its screenshots, window interaction, renderer/privacy/theme
 accessibility and GUI package claims are **not** acceptance of the new stack.
 Those checklist rows were reset or replaced rather than carried forward.
 
-The cached-original HTML connector, native viewport/modes and current acceptance
+Current explicit web-link and native picker/portal evidence is in
+[P01-web-links.md](P01-web-links.md); it records its own acceptance limits.
+
+The cached-original HTML connector and native viewport/modes
 are recorded in [P01-cached-html.md](P01-cached-html.md). P01 remains open. The
 preceding passive-resource syscall observations, retained viewport API and MIME
 raster extraction are recorded in [P01-passive-viewport.md](P01-passive-viewport.md).

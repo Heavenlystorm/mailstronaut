@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use mailstronaut_core::mime::{InlineRaster, Projection};
-use mailstronaut_render::{Document, Frame, InlineImage, View};
+use mailstronaut_render::{Document, Frame, InlineImage, Link, View};
 use tokio::sync::{mpsc, watch};
 
 const DEMO_HTML: &str = "<style>body{font:17px sans-serif;margin:32px;color:#243044;background:#fff}h1{font-size:30px}td{padding:18px}@media(prefers-color-scheme:dark){body{background:#20242b;color:#edf1fa}}</style><h1>A little more space for your mail.</h1><p>This synthetic email is laid out by Blitz and painted by Vello CPU.</p><table style='width:100%;border-collapse:collapse'><tr><td style='background:#dce9ff;color:#173b73'>Native Wayland</td><td style='background:#e1f2e8;color:#164c34'>Rust throughout</td></tr></table><p>Tables, inline CSS and Unicode: Bonjour · Ciao · 世界.</p><p><img src='cid:demo-badge' width='96' height='32' alt='Local raster image'> Message-local PNG · no fetching.</p>";
@@ -68,9 +68,16 @@ pub struct Request {
     pub epoch: u64,
     pub content: Arc<Content>,
     pub view: View,
+    pub hit: Option<(f32, f32)>,
 }
 
 pub enum Reply {
+    Link {
+        serial: u64,
+        epoch: u64,
+        view: View,
+        link: Option<Link>,
+    },
     Painted {
         serial: u64,
         epoch: u64,
@@ -119,6 +126,24 @@ fn run(
                 content: request.content.clone(),
                 prepared: request.content.prepare(),
             });
+        }
+        if let Some((x, y)) = request.hit {
+            let link = active
+                .as_ref()
+                .and_then(|active| active.prepared.as_ref().ok()?.0.link_at(request.view, x, y));
+            if matches!(requests.has_changed(), Ok(false))
+                && replies
+                    .blocking_send(Reply::Link {
+                        serial: request.serial,
+                        epoch: request.epoch,
+                        view: request.view,
+                        link,
+                    })
+                    .is_err()
+            {
+                break;
+            }
+            continue;
         }
         let result = active.as_mut().map_or_else(
             || Err("HTML document is unavailable.".to_owned()),
@@ -194,6 +219,7 @@ mod tests {
                 scroll_x: 0.0,
                 scroll_y: 0.0,
             },
+            hit: None,
         }
     }
 
@@ -290,5 +316,71 @@ mod tests {
                 .is_none()
         );
         thread.join().expect("owner thread terminated");
+    }
+
+    #[tokio::test]
+    async fn link_requests_cannot_use_an_unpainted_source_or_retired_geometry() {
+        fn linked(target: &str) -> Arc<Content> {
+            let raw = format!(
+                "Content-Type: text/html\r\n\r\n<style>body{{margin:0;}}a{{display:block;width:100px;height:40px}}</style><a href='https://{target}.example.test/'>Open</a>"
+            );
+            Arc::new(Content::Mail(Arc::new(
+                mailstronaut_core::mime::project(raw.as_bytes()).expect("synthetic source"),
+            )))
+        }
+        let (sender, mut receiver) = start(&tokio::runtime::Handle::current()).expect("worker");
+        let a = linked("a");
+        sender.send_replace(Some(request(1, a.clone())));
+        let Reply::Painted {
+            result: Ok((frame, _)),
+            ..
+        } = reply(&mut receiver).await
+        else {
+            panic!("A frame");
+        };
+        let mut hit = request(1, a);
+        hit.hit = Some((10.0, 10.0));
+        sender.send_replace(Some(hit));
+        let Reply::Link {
+            link: Some(link), ..
+        } = reply(&mut receiver).await
+        else {
+            panic!("explicit A link hit");
+        };
+        assert_eq!(link, frame.links[0]);
+        let b = linked("b");
+        let mut hit = request(2, b.clone());
+        hit.hit = Some((10.0, 10.0));
+        sender.send_replace(Some(hit));
+        assert!(
+            matches!(reply(&mut receiver).await, Reply::Link { link: None, .. }),
+            "new source has never painted"
+        );
+        sender.send_replace(Some(request(3, b.clone())));
+        let Reply::Painted {
+            result: Ok((frame, _)),
+            ..
+        } = reply(&mut receiver).await
+        else {
+            panic!("B frame");
+        };
+        assert_eq!(frame.links[0].as_str(), "https://b.example.test/");
+        let mut hit = request(3, b.clone());
+        hit.view.width = 100;
+        hit.hit = Some((10.0, 10.0));
+        sender.send_replace(Some(hit));
+        assert!(
+            matches!(reply(&mut receiver).await, Reply::Link { link: None, .. }),
+            "unpainted size cannot hit a stale layout"
+        );
+        sender.send_replace(None);
+        assert!(matches!(reply(&mut receiver).await, Reply::Retired));
+        let mut hit = request(4, b);
+        hit.hit = Some((10.0, 10.0));
+        sender.send_replace(Some(hit));
+        assert!(
+            matches!(reply(&mut receiver).await, Reply::Link { link: None, .. }),
+            "hidden document was retired"
+        );
     }
 }

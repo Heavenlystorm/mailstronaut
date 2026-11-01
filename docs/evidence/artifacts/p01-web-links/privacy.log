@@ -1,0 +1,19 @@
+warning: Git tree '/home/eduard/.t3/projects/mailstronaut' is dirty
+error (ignored): SQLite database '/home/eduard/.t3/projects/mailstronaut/target/nix-cache/nix/eval-cache-v6/28ae065c90af1b8a1f1729cb8425a692cb77205a5282e0f574cfbc343dd76220.sqlite' is busy
+Actual resolver/UDP, TCP/redirect and four readable-file controls observed.
+Denied matrix: zero socket/network operations; zero accesses to email-specified synthetic files.
+
+running 1 test
+Real DNS, TCP/redirect response and synthetic file observer controls exercised.
+test privacy::trace_resource_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+
+running 1 test
+12 synthetic resource variants rendered with 48 denied callbacks and valid local raster pixels.
+test privacy::trace_resource_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.80s
+
+Passive Blitz resource observation passed: /home/eduard/.t3/projects/mailstronaut/target/blitz-privacy.6SJ7ja

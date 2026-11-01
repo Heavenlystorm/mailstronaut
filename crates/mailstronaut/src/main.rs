@@ -7,6 +7,7 @@ mod accounts;
 mod config_cli;
 mod html_reader;
 mod html_worker;
+mod link_portal;
 mod mailbox;
 mod read_gate;
 mod workspace;

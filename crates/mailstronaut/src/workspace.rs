@@ -10,6 +10,7 @@ use gpui::component::{
     description_list::DescriptionList,
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
     list::{List, ListEvent, ListState},
+    menu::{DropdownMenu as _, PopupMenuItem},
     resizable::{h_resizable, resizable_panel},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
@@ -47,6 +48,9 @@ gpui::actions!(
         /// Focus the native read-only message text without opening a message.
         FocusReader,
         #[derive(Eq)]
+        /// Focus the current message's native web-link picker.
+        FocusLinks,
+        #[derive(Eq)]
         /// Focus the message list without opening its selection.
         FocusMessages,
         #[derive(Eq)]
@@ -75,6 +79,7 @@ enum ReaderMode {
 
 pub struct Workspace {
     focus: FocusHandle,
+    link_focus: FocusHandle,
     runtime: Arc<Runtime>,
     owner: Option<Arc<Worker>>,
     accounts: Vec<String>,
@@ -100,6 +105,7 @@ pub struct Workspace {
     opened_message: Option<Arc<mailstronaut_core::mime::Projection>>,
     preferred_reader: ReaderMode,
     reader_notice: String,
+    link_cancel: Option<CancellationToken>,
     search: Entity<InputState>,
     status: String,
     query: String,
@@ -134,6 +140,7 @@ impl Workspace {
             KeyBinding::new("ctrl-r", RefreshCache, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-d", ToggleAppearance, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-t", FocusReader, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-l", FocusLinks, Some("Mailstronaut")),
             KeyBinding::new("ctrl-l", FocusMessages, Some("Mailstronaut")),
             KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
             KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
@@ -175,6 +182,7 @@ impl Workspace {
         read_gate.visibility(window.is_window_active());
         let mut this = Self {
             focus,
+            link_focus: cx.focus_handle(),
             runtime,
             owner: None,
             accounts: Vec::new(),
@@ -204,6 +212,7 @@ impl Workspace {
             opened_message: None,
             preferred_reader: ReaderMode::Html,
             reader_notice: String::new(),
+            link_cancel: None,
             search,
             status: "Opening local mail…".into(),
             query: String::new(),
@@ -403,6 +412,7 @@ impl Workspace {
 
     fn focus_reader(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected.is_some() && self.view != View::Accounts {
+            self.cancel_link();
             self.reader_mode = ReaderMode::Text;
             self.preferred_reader = ReaderMode::Text;
             self.html_reader
@@ -419,6 +429,7 @@ impl Workspace {
     }
 
     fn retire_open(&mut self, cx: &mut Context<Self>) {
+        self.cancel_link();
         self.reading_generation = self.reading_generation.wrapping_add(1);
         self.html_reader
             .update(cx, crate::html_reader::HtmlReader::hide);
@@ -536,6 +547,7 @@ impl Workspace {
     }
 
     fn open(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel_link();
         self.reading_generation = self.reading_generation.wrapping_add(1);
         let generation = self.reading_generation;
         let revision = self.declaration.revision();
@@ -645,8 +657,15 @@ impl Workspace {
         window: &Window,
         cx: &mut Context<Self>,
     ) {
+        if let crate::html_reader::Event::Link(epoch, link) = event {
+            self.open_link(*epoch, link.clone(), window, cx);
+            return;
+        }
         let (crate::html_reader::Event::Ready(epoch) | crate::html_reader::Event::Failed(epoch)) =
-            event;
+            event
+        else {
+            return;
+        };
         if *epoch != self.reading_generation
             || self.reader_mode == ReaderMode::Text
             || self.view != View::Inbox
@@ -660,6 +679,59 @@ impl Workspace {
                 .update(cx, crate::html_reader::HtmlReader::hide);
         }
         self.mark_loaded(window, cx);
+        cx.notify();
+    }
+
+    fn cancel_link(&mut self) {
+        if let Some(cancel) = self.link_cancel.take() {
+            cancel.cancel();
+            self.reader_notice.clear();
+        }
+    }
+
+    fn open_link(
+        &mut self,
+        epoch: u64,
+        link: mailstronaut_render::Link,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if epoch != self.reading_generation
+            || self.view != View::Inbox
+            || self.reader_mode != ReaderMode::Html
+            || self.link_cancel.is_some()
+            || self.selected.is_none()
+        {
+            return;
+        }
+        let revision = self.declaration.revision();
+        let cancel = self.lifetime.child_token();
+        self.link_cancel = Some(cancel.clone());
+        self.reader_notice = "Opening link in your browser…".into();
+        let work_cancel = cancel.clone();
+        let job = self
+            .runtime
+            .spawn(async move { crate::link_portal::open(link, &work_cancel).await });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, _, cx| {
+                if cancel.is_cancelled()
+                    || epoch != this.reading_generation
+                    || revision != this.declaration.revision()
+                {
+                    return;
+                }
+                this.link_cancel = None;
+                this.reader_notice = match result {
+                    Ok(Ok(())) => "Link sent to your browser.",
+                    Ok(Err(error)) => error,
+                    Err(_) => "Browser request was interrupted.",
+                }
+                .into();
+                cx.notify();
+            });
+        })
+        .detach();
         cx.notify();
     }
 
@@ -724,6 +796,7 @@ impl Workspace {
 
 impl Workspace {
     fn show_accounts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel_link();
         self.view = View::Accounts;
         self.read_gate.visibility(false);
         self.html_reader
@@ -962,7 +1035,8 @@ impl Workspace {
                                             this.focus_reader(window, cx);
                                         })),
                                 ),
-                        ),
+                        )
+                        .content(self.link_menu(cx)),
                 )
             })
             .when(!self.reader_notice.is_empty(), |view| {
@@ -996,6 +1070,55 @@ impl Workspace {
             )
             .when(!self.body.is_empty(), |view| view.child(self.body.clone()))
     }
+
+    fn link_menu(&self, cx: &Context<Self>) -> impl IntoElement {
+        let links = self.html_reader.read(cx).links();
+        let epoch = self.reading_generation;
+        let workspace = cx.entity().downgrade();
+        let restore_focus = workspace.clone();
+        Button::new("reader-web-links")
+            .ghost()
+            .label("Links")
+            .tooltip("Open in browser · first 128 web links · Ctrl+Shift+L")
+            .track_focus(&self.link_focus)
+            .disabled(
+                links.is_empty()
+                    || self.reader_mode != ReaderMode::Html
+                    || self.link_cancel.is_some(),
+            )
+            .dropdown_menu(move |mut menu, _, _| {
+                for link in links.iter() {
+                    let workspace = workspace.clone();
+                    let target = link.clone();
+                    menu = menu.item(PopupMenuItem::new(link.as_str().to_owned()).on_click(
+                        move |_, window, cx| {
+                            _ = workspace.update(cx, |this, cx| {
+                                this.open_link(epoch, target.clone(), window, cx);
+                            });
+                        },
+                    ));
+                }
+                menu
+            })
+            .on_open_change(move |open, window, cx| {
+                if !open {
+                    let workspace = restore_focus.clone();
+                    // This pin restores a context-only trigger handle. Restore
+                    // the Button's public focus handle after menu dismissal.
+                    window.defer(cx, move |window, cx| {
+                        _ = workspace.update(cx, |this, cx| {
+                            if epoch == this.reading_generation
+                                && this.view == View::Inbox
+                                && this.reader_mode == ReaderMode::Html
+                                && this.link_cancel.is_none()
+                            {
+                                window.focus(&this.link_focus, cx);
+                            }
+                        });
+                    });
+                }
+            })
+    }
 }
 
 impl Render for Workspace {
@@ -1026,6 +1149,15 @@ impl Render for Workspace {
             }))
             .on_action(cx.listener(|this, _: &FocusReader, window, cx| {
                 this.focus_reader(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &FocusLinks, window, cx| {
+                if this.view == View::Inbox
+                    && this.reader_mode == ReaderMode::Html
+                    && this.link_cancel.is_none()
+                    && !this.html_reader.read(cx).links().is_empty()
+                {
+                    window.focus(&this.link_focus, cx);
+                }
             }))
             .on_action(
                 cx.listener(|this, _: &ShowAccounts, window, cx| this.show_accounts(window, cx)),
