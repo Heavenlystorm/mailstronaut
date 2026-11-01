@@ -212,9 +212,9 @@ siblings and other accounts acquire no intention.
 Record a cursor only in the transaction that commits the fetched batch. On
 UIDVALIDITY change invalidate that folder's UID mapping and pending UID operations,
 rescan, and retain user-owned state until messages are reconciled. Flags seen on
-another device must clear priority locally. IDLE is capability-dependent; renew
-before server timeout (initial target 25 minutes). Otherwise poll every five
-minutes. Synchronize other folders periodically and on activation; no connection
+another device must clear priority locally. IDLE is capability-dependent and only
+wakes the ordinary cycle; renew every nine minutes, which also finds dead connections.
+Otherwise poll every five minutes. Synchronize other folders periodically and on activation; no connection
 per folder. Optional CONDSTORE/QRESYNC is a later optimization after library/API
 proof. The baseline must handle expunges and flag changes without those extensions.
 

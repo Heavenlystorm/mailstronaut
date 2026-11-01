@@ -62,11 +62,14 @@ bash ci/remote.sh nix develop --command bash ci/check.sh
 bash ci/remote.sh --fetch 'target/p06.*/*.png' nix develop .#gui-test --command ...
 ```
 
-Agent threads may hand off to each other when one hits a usage limit, but only one
-works at a time. Current work lives on branch `claude/mail-client` in the main checkout.
-Uncommitted changes there belong to the thread that stopped: read its trace and keep
-them. Do not push or merge to `main` until the user says so. Run one full Nix package
-gate at a time.
+Agent threads may work at the same time, each in its own checkout with its own remote
+directory, after agreeing who owns which files. Land by rebasing on `origin/main`,
+checking again, then pushing as a fast-forward; never force-push `main`. Another thread's
+uncommitted changes are not yours to discard. Run one full Nix package gate at a time,
+under `flock /builds/.mailstronaut-nix-gate.lock`.
+
+The root disk on `ci-py` is small. A checkout's `target` can be a symlink into
+`/mnt/data/mailstronaut/`; leave everything else on that disk alone.
 
 Once implemented, add milestone-specific tests from PLAN.md. Tests must establish
 behavior, not merely repeat implementation internals. Keep evidence honest about

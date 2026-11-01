@@ -12,6 +12,9 @@ mkdir -p "$artifacts"
 database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
 imap_user=synthetic-smtp-user
 imap_password=SYNTHETIC-SMTP-SECRET-NOT-REAL
+# This walkthrough doubles as the proof of the polling fallback: without IDLE, a new
+# delivery can only be found by the next poll.
+dovecot_extra=$'imap_capability {\n  IDLE = no\n}'
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=dovecot.sh
 source "$(dirname "${BASH_SOURCE[0]}")/dovecot.sh"
@@ -112,6 +115,17 @@ await_server() {
   return 1
 }
 
+python3 - "$imap_port" "$imap_user" "$imap_password" "$ca" <<'PY'
+import imaplib, ssl, sys
+port, user, password, ca = sys.argv[1:]
+client = imaplib.IMAP4_SSL("localhost", int(port), ssl_context=ssl.create_default_context(cafile=ca))
+client.login(user, password)
+_, capabilities = client.capability()
+assert b"IDLE" not in capabilities[0].split(), "this server must not offer IDLE"
+client.logout()
+PY
+printf '%s\n' 'OK: this server does not offer IDLE'
+
 start initial
 # Nothing is pressed: starting the application fetches the inbox by itself.
 await 'automatic sync cached the inbox' 4 'SELECT count(*) FROM messages'
@@ -180,6 +194,21 @@ printf '%s\n' 'OK: Archive moved the message on the server'
 # Another message in the inbox was not touched by the move.
 server_flags INBOX marker-alpha > /dev/null
 server_flags INBOX marker-bravo > /dev/null
+
+# Another client flags the archived copy: polling carries that back from a folder
+# that is not the inbox, and IDLE is not involved at all on this server.
+python3 - "$imap_port" "$imap_user" "$imap_password" "$ca" <<'PY'
+import imaplib, ssl, sys
+port, user, password, ca = sys.argv[1:]
+client = imaplib.IMAP4_SSL("localhost", int(port), ssl_context=ssl.create_default_context(cafile=ca))
+client.login(user, password)
+client.select("Archive")
+_, found = client.uid("SEARCH", None, "BODY", "marker-delta")
+client.uid("STORE", found[0].split()[-1], "+FLAGS", r"(\Flagged)")
+client.logout()
+PY
+await 'a flag set by another client came back from Archive' 1 \
+  "SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.name='Archive' AND m.starred=1"
 
 # The server goes away: cached mail stays readable and the failure is reported.
 dovecot_stop

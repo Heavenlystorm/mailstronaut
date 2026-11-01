@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 mkdir -p target/p02-accounts
 # Keep Unix-domain socket paths short enough for the private headless compositor.
-root=$(mktemp -d "$PWD/target/p02.XXXXXX")
+root=$(realpath "$(mktemp -d "$PWD/target/p02.XXXXXX")")
 export MAILSTRONAUT_SECRET_TEST_ROOT="$root"
 export XDG_DATA_HOME="$root/data" XDG_CONFIG_HOME="$root/config"
 export XDG_CACHE_HOME="$root/cache" XDG_RUNTIME_DIR="$root/runtime"
@@ -58,6 +58,9 @@ if [[ -n ${MAILSTRONAUT_THREADS_GUI_BINARY:-} ]]; then
 fi
 if [[ -n ${MAILSTRONAUT_SYNC_GUI_BINARY:-} ]]; then
   bash experiments/p04-sync/gui.sh "$MAILSTRONAUT_SYNC_GUI_BINARY" "$root"
+fi
+if [[ -n ${MAILSTRONAUT_IDLE_GUI_BINARY:-} ]]; then
+  bash experiments/p04-sync/idle.sh "$MAILSTRONAUT_IDLE_GUI_BINARY" "$root"
 fi
 if [[ -n ${MAILSTRONAUT_COMPOSE_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/gui.sh "$MAILSTRONAUT_COMPOSE_GUI_BINARY" "$root"

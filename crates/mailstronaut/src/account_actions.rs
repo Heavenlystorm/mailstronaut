@@ -56,7 +56,7 @@ pub enum SyncFailure {
 impl SyncFailure {
     /// Refused or unusable credentials and invalid trust must not be retried
     /// automatically: repeated failures can lock an account at the server.
-    fn from_imap(error: imap::Error) -> Self {
+    pub fn from_imap(error: imap::Error) -> Self {
         let text = error.to_string();
         match error {
             imap::Error::Authentication
@@ -324,6 +324,22 @@ impl Access {
                 Err(SyncFailure::from_imap(error))
             }
         }
+    }
+
+    /// A connection for watching a folder. The permit covers only sign-in: an idling
+    /// connection can wait for hours and must not hold back another account's sync.
+    pub async fn connect_watcher(
+        &self,
+        account: &Account,
+        cancel: &CancellationToken,
+    ) -> Result<imap::Connection, SyncFailure> {
+        let opened = self.foreground(cancel).await.map_err(SyncFailure::Stop)?;
+        let _permit = cancel
+            .run_until_cancelled(self.connections.acquire())
+            .await
+            .ok_or_else(|| SyncFailure::Retry(CANCELLED.into()))?
+            .map_err(|_| SyncFailure::Retry("Mail connection queue is unavailable.".into()))?;
+        Self::connect(&opened, account, cancel).await
     }
 
     /// Discover folders, send queued flag changes, then fetch recent mail: the inbox,

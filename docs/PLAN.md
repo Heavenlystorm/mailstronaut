@@ -268,8 +268,10 @@ new dependency graph before claiming current-package acceptance.
   bodies/attachments and safe UIDVALIDITY/gap/reset reconciliation.
   Use `ListDelegate::has_more/load_more` or an explicit Load older `Button` for
   backend paging; never report an invented progress percentage.
-- [ ] Implement IDLE/DONE/renew/reselect with polling fallback, non-INBOX flags,
+- [x] Implement IDLE/DONE/renew/reselect with polling fallback, non-INBOX flags,
   reconnect, offline/resume recovery and changes made by other clients.
+  [Real Dovecot and scripted-server evidence](evidence/P04-background-sync.md); a real
+  suspend and live providers remain unrun.
 - [ ] Preserve local reminder/dismiss/analysis state across moves/reconciliation.
   Neither background fetching, previews nor analysis sets Seen.
 - [ ] Exercise disposable protocol servers, drops and authentication failures in

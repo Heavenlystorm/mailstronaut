@@ -3,6 +3,7 @@
 # synthetic mail over TLS on loopback. Callers set `artifacts`, `imap_user` and
 # `imap_password`, and call `dovecot_cleanup` from their trap.
 : "${artifacts:?artifact directory}" "${imap_user:?synthetic user}" "${imap_password:?synthetic password}"
+# Callers may set `dovecot_extra` to append to the server configuration.
 dovecot_root="$artifacts/dovecot"
 mail_root="$dovecot_root/mail/$imap_user"
 mkdir -p "$dovecot_root/run" "$dovecot_root/state" "$mail_root/new" "$mail_root/cur" "$mail_root/tmp"
@@ -64,6 +65,9 @@ namespace inbox {
     special_use = \\Archive
   }
 }
+# Notice other connections' changes within a second instead of the default 30.
+mailbox_idle_check_interval = 1s
+${dovecot_extra:-}
 service imap-login {
   chroot =
   inet_listener imap {
