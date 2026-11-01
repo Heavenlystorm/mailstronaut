@@ -25,6 +25,10 @@ if the text says it is urgent, capped by `priority.maxTtlHours`. The end is fixe
 and stored, so it cannot slide. Relative dates use the Date header, unless it is missing or
 more than 48 hours from receipt, in which case receipt is used and the assumption recorded.
 
+The reader says why a message was flagged, and shows each date found with the words it came
+from and any assumption about its zone. A date that cannot be read with certainty is shown
+as such, and decides nothing. Mail is untrusted, so those words only ever appear as a quote.
+
 Reading or dismissing is final. A message marked read once stays out even if marked unread
 again, and a later result cannot bring it back. Dismissing does not read it.
 
@@ -48,6 +52,8 @@ The store owns eligibility in `priority_items`, and a stale result cannot overri
 - Opening the other message removes it, and marking it unread does not bring it back.
 - A delivery arriving while running joins the group with no input.
 - After a restart, results and dismissals are unchanged and nothing is analyzed twice.
+- Opening a flagged message explains why, and an ambiguous date shows as uncertain and gives
+  the message no priority.
 
 `crates/mailstronaut-priority/tests/deadlines.rs` covers wording in three languages, negation,
 quoting, year rollover, leap days, ambiguity, 23- and 25-hour days, a midnight that does not
@@ -69,7 +75,7 @@ messages split into development and held-out sets, which has not been done.
 
 ## Not established
 
-Any model, and therefore semantic judgment: the rules only see stated cues. Real mail. Showing
-why a message qualified, correcting a date, Show all, and overflow past 20 rows. The Settings
+Any model, and therefore semantic judgment: the rules only see stated cues. Real mail.
+Correcting a date, Show all, and overflow past 20 rows. The Settings
 switch: the feature is off unless `priority.enabled = true` is declared. Time zones beyond
 the configured or system zone. Phrasings outside the tables simply are not recognized.

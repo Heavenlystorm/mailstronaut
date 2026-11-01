@@ -34,6 +34,7 @@ message newsletter 'Department News' 'Weekly newsletter' 'New hires this week. P
 message flight 'Airline' 'Flight confirmation' 'Your flight leaves tomorrow. Have a good trip.'
 message colleague 'Tom' 'Meeting notes' 'Here are the notes from yesterday.'
 message elsewhere 'Someone' 'For a list' 'Could you look at this?' 'list@example.test'
+message ambiguous 'Office' 'Unclear form' 'The form is due 03/04/2030.'
 dovecot_start
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
 config="$artifacts/config.nix"
@@ -82,8 +83,8 @@ group='SELECT COALESCE(group_concat(subject," | "),"") FROM (SELECT m.subject FR
 live="SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE a.expires_at>strftime('%s','now') AND a.dismissed=0 AND m.read_cleared=0"
 
 start initial
-await 'the inbox was cached' 6 'SELECT count(*) FROM messages'
-await 'every message was analyzed' 6 'SELECT count(*) FROM analysis'
+await 'the inbox was cached' 7 'SELECT count(*) FROM messages'
+await 'every message was analyzed' 7 'SELECT count(*) FROM analysis'
 await 'only the two that ask something of the reader qualified' 'Domanda veloce | Réinscription en école doctorale' "$group"
 [[ $(query 'SELECT count(*) FROM effective_memberships WHERE seen=1') == 0 ]]
 printf '%s\n' 'OK: analysis set no Seen flag'
@@ -125,6 +126,21 @@ await 'the delivery is still in the group after a restart' 1 "$live"
 printf '%s\n' 'OK: results and dismissals survived a restart'
 sleep 2
 capture restarted
+
+# Opening a message says why it was flagged, quoting the words a deadline came from.
+click 350 170
+sleep 1.5
+capture explained
+# A date that cannot be read with certainty is shown for the reader, and decided nothing.
+click 595 65
+sleep .3
+wtype -s 80 'Unclear form'
+sleep 1.5
+click 350 150
+sleep 1.5
+capture uncertain
+[[ $(query "SELECT a.expires_at IS NULL FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Unclear form'") == 1 ]]
+printf '%s\n' 'OK: an uncertain date gave the message no priority'
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then

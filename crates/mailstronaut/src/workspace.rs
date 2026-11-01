@@ -176,6 +176,8 @@ pub struct Workspace {
     opened_message: Option<Arc<mailstronaut_core::mime::Projection>>,
     /// What the opened message left on the server, if it is too large to keep.
     opened_omitted: Option<mailstronaut_core::outline::Omitted>,
+    /// Why the opened message was or was not flagged, if it has been analyzed.
+    opened_analysis: Option<mailstronaut_priority::Analysis>,
     preferred_reader: ReaderMode,
     reader_notice: String,
     headers_open: bool,
@@ -480,6 +482,7 @@ impl Workspace {
             _html_events: html_events,
             opened_message: None,
             opened_omitted: None,
+            opened_analysis: None,
             preferred_reader: ReaderMode::Html,
             reader_notice: String::new(),
             headers_open: false,
@@ -791,6 +794,7 @@ impl Workspace {
             .update(cx, crate::html_reader::HtmlReader::hide);
         self.opened_message = None;
         self.opened_omitted = None;
+        self.opened_analysis = None;
         self.headers_open = false;
         self.reader_notice.clear();
         self.read_gate
@@ -1077,7 +1081,12 @@ impl Workspace {
             let job = self.runtime.spawn(async move {
                 let message = handle.message(row.account.clone(), row.id).await?;
                 let omitted = handle.omitted(row.account.clone(), row.id).await?;
-                Ok::<_, mailstronaut_core::worker::Error>((message, omitted))
+                // A result from another version may not parse, and then it says nothing.
+                let analysis = handle
+                    .analysis_data(row.id)
+                    .await?
+                    .and_then(|data| serde_json::from_str(&data).ok());
+                Ok::<_, mailstronaut_core::worker::Error>((message, omitted, analysis))
             });
             cx.spawn_in(window, async move |this, cx| {
                 let result = job.await;
@@ -1088,8 +1097,9 @@ impl Workspace {
                         return;
                     }
                     match result {
-                        Ok(Ok((message, omitted))) => {
+                        Ok(Ok((message, omitted, analysis))) => {
                             this.opened_omitted = omitted;
+                            this.opened_analysis = analysis;
                             let readable = message.readable_text();
                             let text = readable.map_or_else(
                                 || "No readable body is cached.".into(),
@@ -2359,6 +2369,7 @@ impl Workspace {
                 view.child(self.message_details(message, cx))
                     .child(Self::received_attachments(message, cx))
                     .child(self.remote_attachments(cx))
+                    .child(self.analysis_notes(cx))
             })
             .when(!self.reader_notice.is_empty(), |view| {
                 view.child(
@@ -2423,6 +2434,28 @@ impl Workspace {
                             }))
                     }),
                 ))
+        })
+    }
+
+    /// Why this message was flagged, and each date found with the words it came from. Mail
+    /// is untrusted, so the quote is shown as plain text and only ever as a quote.
+    fn analysis_notes(&self, cx: &Context<Self>) -> impl IntoElement {
+        let notes: Vec<String> = self
+            .opened_analysis
+            .as_ref()
+            .map_or_else(Vec::new, |analysis| {
+                crate::mail_priority::explanation(analysis)
+                    .into_iter()
+                    .chain(crate::mail_priority::deadline_notes(analysis))
+                    .collect()
+            });
+        let muted = cx.theme().muted_foreground;
+        div().when(!notes.is_empty(), |view| {
+            view.mb_3().children(
+                notes
+                    .into_iter()
+                    .map(|note| Label::new(note).text_sm().text_color(muted)),
+            )
         })
     }
 

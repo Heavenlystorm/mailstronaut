@@ -147,6 +147,7 @@ enum Command {
         Reply<Vec<store::analysis::PriorityItem>>,
     ),
     DismissPriority(i64, Reply<()>),
+    AnalysisData(i64, Reply<Option<String>>),
     CacheReduced {
         account: String,
         membership: Membership,
@@ -447,6 +448,13 @@ impl Handle {
         limit: u32,
     ) -> Result<Vec<store::analysis::PriorityItem>, Error> {
         self.request(|reply| Command::PriorityItems(accounts, now, limit, reply))
+            .await
+    }
+    /// The complete stored priority result for a message, if it has one.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn analysis_data(&self, message: i64) -> Result<Option<String>, Error> {
+        self.request(|reply| Command::AnalysisData(message, reply))
             .await
     }
     /// Take a message out of the priority group for good, without reading it.
@@ -1214,6 +1222,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::DismissPriority(message, reply) => {
                 commit(reply, || store.dismiss_priority(message));
+            }
+            Command::AnalysisData(message, reply) => {
+                respond(reply, || store.analysis_data(message));
             }
             Command::CacheReduced {
                 account,

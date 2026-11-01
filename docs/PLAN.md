@@ -574,8 +574,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   previews; show evidence/timezone/assumptions through a clicked `Popover` or reader
   `DescriptionList`. Use `Dialog`/`Form`/`DatePicker` and Dismiss `Button` for corrections,
   retaining backend persistence/expiry; evidence must not require hover alone.
-  [A `Tag` below the preview and Dismiss pass](evidence/P09-priority-rules.md), since
-  rows must share one height; showing the evidence and correcting a date remain open.
+  [A `Tag` below the preview, Dismiss, and evidence in the reader
+  pass](evidence/P09-priority-rules.md), since rows must share one height; correcting a
+  date remains open.
 - [ ] Use Settings `SettingField::switch`, model metadata `DescriptionList`, an
   explicit Import `Button`/portal and `Alert` for absent/unsupported local models.
   Show `Progress` only for measured work; add no model marketplace or dashboards.

@@ -15,7 +15,7 @@ use mailstronaut_core::{
     store::analysis::{AnalysisInput, AnalysisResult},
     worker::Handle,
 };
-use mailstronaut_priority::{Analysis, Input, POLICY_VERSION, analyze};
+use mailstronaut_priority::{Analysis, Input, POLICY_VERSION, Reason, analyze};
 use tokio::{
     runtime::Runtime,
     sync::{Notify, mpsc},
@@ -100,6 +100,54 @@ fn due(analysis: &Analysis) -> Option<String> {
         || deadline.date.to_string(),
         |time| format!("{}T{}", deadline.date, time.format("%H:%M")),
     ))
+}
+
+/// Why a message was put in the priority group, in words, if it was.
+pub fn explanation(analysis: &Analysis) -> Option<String> {
+    if !analysis.priority {
+        return None;
+    }
+    let reasons: Vec<_> = analysis
+        .reasons
+        .iter()
+        .filter_map(|reason| match reason {
+            Reason::DirectRecipient => Some("addressed to you"),
+            Reason::ActionRequested => Some("asks you for something"),
+            Reason::Urgent => Some("says it is urgent"),
+            Reason::Deadline => Some("states a deadline"),
+            Reason::NoActionNeeded | Reason::BulkMail | Reason::AlreadyExpired => None,
+        })
+        .collect();
+    (!reasons.is_empty()).then(|| format!("Needs attention: {}.", reasons.join(", ")))
+}
+
+/// Each date found, with the exact words it came from and anything assumed about it.
+/// Uncertain ones say so: they are shown for the reader to judge, and decide nothing.
+pub fn deadline_notes(analysis: &Analysis) -> Vec<String> {
+    analysis
+        .deadlines
+        .iter()
+        .map(|deadline| {
+            let date = deadline.date.format("%-d %B %Y");
+            let when = deadline.time.map_or_else(
+                || date.to_string(),
+                |time| format!("{date}, {}", time.format("%H:%M")),
+            );
+            let zone = if deadline.zone_assumed {
+                format!("{}, assumed", deadline.zone)
+            } else {
+                "as stated".to_owned()
+            };
+            if deadline.ends_at.is_some() {
+                format!("Deadline: {when} ({zone}), from “{}”.", deadline.quote)
+            } else {
+                format!(
+                    "Possibly a deadline: “{}” could not be read with certainty, so it decides nothing.",
+                    deadline.quote
+                )
+            }
+        })
+        .collect()
 }
 
 /// Dropping this does not stop analysis; cancelling its token does.
@@ -195,4 +243,63 @@ async fn batch(rules: &Rules, store: &Handle) -> Result<u32, ()> {
         .count();
     store.store_analysis(results).await.map_err(|_| ())?;
     Ok(u32::try_from(prioritized).unwrap_or(u32::MAX))
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeZone as _;
+
+    use super::*;
+
+    fn result(body: &str, direct: bool) -> Analysis {
+        let written = chrono_tz::Europe::Paris
+            .with_ymd_and_hms(2026, 11, 4, 9, 0, 0)
+            .single()
+            .expect("date")
+            .timestamp();
+        analyze(&Input {
+            subject: "Synthetic",
+            body: Some(body),
+            direct,
+            authored: Some(written),
+            received_at: written,
+            zone: chrono_tz::Europe::Paris,
+            max_ttl_hours: 168,
+        })
+    }
+
+    #[test]
+    fn a_priority_message_says_why_in_words_and_quotes_its_evidence() {
+        let analysis = result("Merci de répondre avant le 15 novembre.", true);
+        assert_eq!(
+            explanation(&analysis).as_deref(),
+            Some("Needs attention: addressed to you, asks you for something, states a deadline.")
+        );
+        assert_eq!(
+            deadline_notes(&analysis),
+            ["Deadline: 15 November 2026 (Europe/Paris, assumed), from “avant le 15 novembre”."]
+        );
+        let timed = result("Please reply by 15 November at 17:30 UTC.", true);
+        assert_eq!(
+            deadline_notes(&timed),
+            [
+                "Deadline: 15 November 2026, 17:30 (as stated), from “reply by 15 November at 17:30 UTC”."
+            ]
+        );
+    }
+
+    #[test]
+    fn an_uncertain_date_is_shown_as_uncertain_and_an_ordinary_message_claims_nothing() {
+        let ambiguous = result("Due 03/04/2027.", true);
+        assert_eq!(explanation(&ambiguous), None);
+        assert_eq!(
+            deadline_notes(&ambiguous),
+            [
+                "Possibly a deadline: “Due 03/04/2027” could not be read with certainty, so it decides nothing."
+            ]
+        );
+        let ordinary = result("Here are the notes from yesterday.", true);
+        assert_eq!(explanation(&ordinary), None);
+        assert_eq!(deadline_notes(&ordinary), Vec::<String>::new());
+    }
 }
