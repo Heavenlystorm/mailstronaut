@@ -4310,10 +4310,13 @@ name = "mailstronaut"
 version = "0.1.0"
 dependencies = [
  "ashpd",
+ "async-channel 2.5.0",
  "chrono",
  "chrono-tz",
  "directories",
+ "futures-util",
  "gpui-kit",
+ "iana-time-zone",
  "image",
  "mailstronaut-config",
  "mailstronaut-core",

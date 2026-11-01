@@ -34,6 +34,7 @@ use gpui::{
 };
 use mailstronaut_config::{Appearance, Config, source};
 use mailstronaut_core::{
+    reminders::When,
     reply::Kind,
     store::browse::Scope,
     store::mailbox::{Folder, FolderRole},
@@ -106,7 +107,10 @@ gpui::actions!(
         Archive,
         #[derive(Eq)]
         /// Move the open conversation to the account's trash.
-        Trash
+        Trash,
+        #[derive(Eq)]
+        /// Show scheduled and overdue reminders.
+        ShowReminders
     ]
 );
 
@@ -115,6 +119,7 @@ enum View {
     Inbox,
     Accounts,
     Compose,
+    Reminders,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -139,6 +144,8 @@ pub struct Workspace {
     account_access: crate::account_actions::Access,
     composer: Entity<crate::composer::Composer>,
     _composer_events: Subscription,
+    reminders: Entity<crate::reminders::Reminders>,
+    _reminder_events: Subscription,
     account_views: Vec<Entity<crate::accounts::AccountPane>>,
     account_events: Vec<Subscription>,
     account_lifetime: CancellationToken,
@@ -283,6 +290,15 @@ impl Workspace {
             }
             cx.notify();
         });
+        let reminders = cx.new(|cx| {
+            crate::reminders::Reminders::new(runtime.clone(), lifetime.child_token(), window, cx)
+        });
+        let reminder_events = cx.subscribe_in(&reminders, window, |this, _, event, window, cx| {
+            if let crate::reminders::Event::Open(record) = event {
+                this.open_reminder(record, window, cx);
+            }
+            cx.notify();
+        });
         let mut this = Self {
             focus,
             link_focus: cx.focus_handle(),
@@ -299,6 +315,8 @@ impl Workspace {
             account_access,
             composer,
             _composer_events: composer_events,
+            reminders,
+            _reminder_events: reminder_events,
             account_views: Vec::new(),
             account_events: Vec::new(),
             account_lifetime: CancellationToken::new(),
@@ -449,9 +467,13 @@ impl Workspace {
                                     this.scope = Scope::Inbox;
                                 }
                                 this.pages = crate::mailbox::Pages::default();
+                                let zone = crate::mailbox::local_zone(config.time_zone.as_deref());
+                                let handle = this.handle();
+                                this.reminders.update(cx, |reminders, cx| {
+                                    reminders.configure(&config, handle, zone.clone(), window, cx);
+                                });
                                 this.list.update(cx, |list, _| {
-                                    list.delegate_mut().time_zone =
-                                        config.time_zone.clone().unwrap_or_else(|| "UTC".into());
+                                    list.delegate_mut().time_zone = zone;
                                 });
                                 this.apply_appearance(&config, window, cx);
                                 this.rebuild_accounts(&config, window, cx);
@@ -1217,6 +1239,7 @@ impl Workspace {
             KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
             KeyBinding::new("ctrl-n", ComposeMessage, Some("Mailstronaut")),
             KeyBinding::new("ctrl-2", ShowDrafts, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-3", ShowReminders, Some("Mailstronaut")),
             KeyBinding::new("alt-r", Reply, Some("Mailstronaut")),
             KeyBinding::new("alt-a", ReplyAll, Some("Mailstronaut")),
             KeyBinding::new("alt-f", Forward, Some("Mailstronaut")),
@@ -1247,6 +1270,57 @@ impl Workspace {
         self.composer
             .update(cx, |composer, cx| composer.refresh_lists(window, cx));
         cx.notify();
+    }
+
+    fn show_reminders(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel_link();
+        self.view = View::Reminders;
+        self.read_gate.visibility(false);
+        self.html_reader
+            .update(cx, crate::html_reader::HtmlReader::hide);
+        self.composer.update(cx, |composer, cx| composer.flush(cx));
+        window.focus(&self.focus, cx);
+        cx.notify();
+    }
+
+    /// A reminder names one exact original; opening it is an explicit open like any other.
+    fn open_reminder(
+        &mut self,
+        record: &mailstronaut_core::store::reminders::Reminder,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.navigate(Scope::Inbox, window, cx);
+        self.open(
+            Row {
+                account: record.account.clone(),
+                id: record.message,
+                conversation: None,
+                sender: record.account.clone(),
+                subject: record.title.clone(),
+                preview: String::new(),
+                unread: 0,
+                messages: 1,
+                received_at: record.due_at,
+                seen: false,
+                starred: false,
+            },
+            window,
+            cx,
+        );
+    }
+
+    fn remind_open(&self, when: &When, window: &Window, cx: &mut Context<Self>) {
+        let Some((account, id)) = self
+            .selected
+            .as_ref()
+            .map(|row| (row.account.clone(), row.id))
+        else {
+            return;
+        };
+        self.reminders.update(cx, |reminders, cx| {
+            reminders.schedule(account, id, when, window, cx);
+        });
     }
 
     fn compose(&mut self, window: &Window, cx: &mut Context<Self>) {
@@ -1423,6 +1497,7 @@ impl Workspace {
     }
 
     fn mail_routes(&self, attention: usize, cx: &Context<Self>) -> SidebarMenu {
+        let overdue = self.reminders.read(cx).overdue();
         SidebarMenu::new()
             .child(
                 SidebarMenuItem::new("Unified inbox")
@@ -1436,6 +1511,13 @@ impl Workspace {
                     .active(self.view == View::Compose)
                     .suffix(move |_, _| Badge::new().count(attention).child(div().w_3().h_3()))
                     .on_click(cx.listener(|this, _, window, cx| this.show_compose(window, cx))),
+            )
+            .child(
+                SidebarMenuItem::new("Reminders")
+                    .icon(IconName::Calendar)
+                    .active(self.view == View::Reminders)
+                    .suffix(move |_, _| Badge::new().count(overdue).child(div().w_3().h_3()))
+                    .on_click(cx.listener(|this, _, window, cx| this.show_reminders(window, cx))),
             )
     }
 
@@ -1563,6 +1645,7 @@ impl Workspace {
                     Label::new(match self.view {
                         View::Accounts => "Settings".into(),
                         View::Compose => "Drafts & outbox".into(),
+                        View::Reminders => "Reminders".into(),
                         View::Inbox => self.scope_label(),
                     })
                     .truncate(),
@@ -1806,6 +1889,7 @@ impl Workspace {
                     ),
             )
             .content(self.move_controls(cx))
+            .content(self.remind_control(cx))
             .content(
                 ToolbarGroup::new("message-state")
                     .label("Message state")
@@ -1830,6 +1914,48 @@ impl Workspace {
                             })),
                     ),
             )
+    }
+
+    fn remind_control(&self, cx: &Context<Self>) -> impl IntoElement {
+        let workspace = cx.entity().downgrade();
+        let scheduled = self
+            .selected
+            .as_ref()
+            .is_some_and(|row| self.reminders.read(cx).is_scheduled(&row.account, row.id));
+        Button::new("remind-me")
+            .ghost()
+            .label(if scheduled {
+                "Reminder set"
+            } else {
+                "Remind me"
+            })
+            .disabled(self.demo)
+            .dropdown_menu(move |menu, _, _| {
+                let preset = |menu: gpui::component::menu::PopupMenu,
+                              label: &'static str,
+                              when: When| {
+                    let workspace = workspace.clone();
+                    menu.item(PopupMenuItem::new(label).on_click(move |_, window, cx| {
+                        _ = workspace.update(cx, |this, cx| this.remind_open(&when, window, cx));
+                    }))
+                };
+                let menu = preset(menu, "In one hour", When::Hour);
+                let menu = preset(menu, "This evening", When::Evening);
+                let menu = preset(menu, "Tomorrow morning", When::Tomorrow);
+                let workspace = workspace.clone();
+                menu.item(
+                    PopupMenuItem::new("Pick a time…").on_click(move |_, window, cx| {
+                        _ = workspace.update(cx, |this, cx| {
+                            if let Some(row) = &this.selected {
+                                let (account, id) = (row.account.clone(), row.id);
+                                this.reminders.update(cx, |reminders, cx| {
+                                    reminders.ask_custom(account, id, window, cx);
+                                });
+                            }
+                        });
+                    }),
+                )
+            })
     }
 
     fn move_controls(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1995,6 +2121,9 @@ impl Workspace {
         .on_action(cx.listener(|this, _: &ShowDrafts, window, cx| {
             this.show_compose(window, cx);
         }))
+        .on_action(cx.listener(|this, _: &ShowReminders, window, cx| {
+            this.show_reminders(window, cx);
+        }))
         .on_action(cx.listener(|this, _: &Reply, window, cx| {
             if this.view == View::Inbox {
                 this.respond(Kind::Reply, window, cx);
@@ -2103,6 +2232,9 @@ impl Render for Workspace {
                                     })
                                     .when(self.view == View::Compose, |view| {
                                         view.child(self.composer.clone())
+                                    })
+                                    .when(self.view == View::Reminders, |view| {
+                                        view.child(self.reminders.clone())
                                     }),
                             ),
                         ),

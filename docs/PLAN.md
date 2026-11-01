@@ -439,6 +439,8 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   `default_time` and `DateRangePreset::date_time` for a custom instant. Retain
   original timezone/UTC, reschedule/cancel and per-message routing. Chrono TZ resolves
   the component's civil time; the widget does not implement DST policy or scheduling.
+  [Presets, custom picker, list and cancel](evidence/P08-native-reminders.md);
+  the custom picker has no GUI acceptance yet.
 - [ ] Use `TimeField` for configured morning/evening defaults, searchable
   `Combobox` for editable timezone and `DescriptionList` for scheduled-time details.
 - [ ] Reconnect notification delivery and action handling; generation fences,
@@ -446,6 +448,8 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   Use GPUI `Notification` in explicit `InApp` mode for foreground feedback only.
   Its pinned system path submits no actions and is window-bound; retain stable
   backend IDs, portal delivery and Open/Remind again/Dismiss routing for reminders.
+  [Portal delivery and actions pass on a private bus](evidence/P08-native-reminders.md);
+  real desktop servers remain open.
 - [ ] Verify stable replacement, both crash windows, Open/Remind again/Dismiss,
   denied/disabled notifications, DST/ambiguous times and deleted-message cases.
 - [ ] Implement single-instance D-Bus activation/window reopening and `--background`

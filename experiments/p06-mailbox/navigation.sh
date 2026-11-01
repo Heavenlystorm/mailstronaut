@@ -46,14 +46,14 @@ sleep .5
 capture navigation-page-one
 [[ $(magick "$root/initial.png" "$root/navigation-page-one.png" -compose difference -composite -crop 700x680+570+110 -format '%[fx:mean<0.00001]' info:) == 1 ]]
 # Folder and account routes are offline, explicit and independent of Message-ID.
-click 80 368
+click 80 404
 sleep .4
 check_seen first second page-098
 wtype -M ctrl l -m ctrl -k Down -k Return -s 500
 copy_body navigation-sent 'Synthetic sent parent.'
 capture navigation-sent
 check_seen first second page-098
-click 95 406
+click 95 442
 sleep .4
 wtype -M ctrl k -m ctrl 'cached letter' -k Return -s 400 -M ctrl l -m ctrl -k Down -k Return -s 400
 check_seen first second page-098
@@ -100,6 +100,23 @@ assert closed==0 and d['subject'].startswith('Re: ') and d['in_reply_to'] and 'a
 assert 'wrote:' in d['body'] and '> Synthetic unrelated' in d['body'], d
 assert c.execute('SELECT count(*) FROM outbox').fetchone()[0]==0
 print('Reply opened an unsent local draft with ancestry and a quotation.',flush=True)
+PY
+# Remind me stays separate from flags and folders, and appears in its own list.
+wtype -s 200 -M ctrl 1 -m ctrl -s 700 -M ctrl l -m ctrl -k Down -k Return -s 900
+capture navigation-before-reminder
+click 1039 244
+sleep .4
+capture navigation-reminder-menu
+wtype -s 200 -k Down -k Return -s 900
+wtype -s 200 -M ctrl 3 -m ctrl -s 700
+capture navigation-reminders
+python3 - "$root" <<'PY'
+import sqlite3,sys,time
+from pathlib import Path
+c=sqlite3.connect(Path(sys.argv[1])/'data/mailstronaut/mail.sqlite3')
+state,due=c.execute('SELECT state,due_at FROM reminders').fetchone()
+assert state=='pending' and 3500<due-time.time()<3700,(state,due-time.time())
+print('A one-hour reminder is durable and pending.',flush=True)
 PY
 python3 - "$root" <<'PY'
 import json,sqlite3,sys

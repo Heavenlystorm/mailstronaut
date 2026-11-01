@@ -88,6 +88,16 @@ impl Pages {
     }
 }
 
+/// The declared timezone, else the system's, else UTC. Civil-time features such as
+/// "tomorrow morning" need a real zone even when the configuration leaves it out.
+pub fn local_zone(declared: Option<&str>) -> String {
+    declared
+        .map(str::to_owned)
+        .or_else(|| iana_time_zone::get_timezone().ok())
+        .filter(|zone| zone.parse::<chrono_tz::Tz>().is_ok())
+        .unwrap_or_else(|| "UTC".into())
+}
+
 /// Native display follows the declared timezone; date formatting stays in Chrono.
 pub fn date(timestamp: i64, zone: &str) -> String {
     let Some(date) = chrono::DateTime::from_timestamp(timestamp, 0) else {

@@ -15,7 +15,10 @@ publish = false
 gpui-kit.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
-ashpd.workspace = true
+ashpd = { workspace = true, features = ["notification", "open_uri"] }
+async-channel.workspace = true
+futures-util.workspace = true
+iana-time-zone.workspace = true
 image.workspace = true
 directories.workspace = true
 mailstronaut-config.workspace = true
@@ -24,7 +27,7 @@ mailstronaut-render.workspace = true
 mailstronaut-mail.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
-tokio-util.workspace = true
+tokio-util = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 zbus.workspace = true

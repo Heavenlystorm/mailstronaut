@@ -12,6 +12,7 @@ mod link_portal;
 mod mail_sync;
 mod mailbox;
 mod read_gate;
+mod reminders;
 mod thread_reader;
 mod workspace;
 

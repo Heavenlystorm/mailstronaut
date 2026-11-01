@@ -19,5 +19,5 @@ cleanup() { kill "$bus" 2>/dev/null || true; wait "$bus" 2>/dev/null || true; }
 trap cleanup EXIT
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$root/runtime/bus"
 for _ in {1..100}; do [[ -S "$root/runtime/bus" ]] && break; sleep .05; done
-"$binary" --exact reminders::tests::private_portal_reminders_replace_after_crash_and_honor_actions_privacy_and_mute --ignored --nocapture | tee "$root/test.log"
+"$binary" --exact reminders::portal_tests::private_portal_reminders_replace_after_crash_and_honor_actions_privacy_and_mute --ignored --nocapture | tee "$root/test.log"
 printf 'Private reminder portal artifacts: %s\n' "$root"
