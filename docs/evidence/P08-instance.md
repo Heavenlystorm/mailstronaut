@@ -33,22 +33,25 @@ unsafe code, new RPC daemon or custom widget was introduced.
 ## Pinned development and runtime checks
 
 All compilation ran on ci-py through `ci/remote.sh` and pinned `nix develop`.
-Strict workspace Clippy, formatting, Nix formatting, script lint and 259 normal
-workspace tests passed. The already-built full workspace graph supplied the app
+Before rebase, strict workspace Clippy, formatting, Nix formatting, script lint
+and 259 normal workspace tests passed. After integrating `aade61b` (schema 13),
+the same checks, 261 normal tests and the private bus/native ownership workflows
+passed at `2e4cb91`, with an explicit numeric receipt of 0. The already-built full workspace graph supplied the app
 and worker fixture executables.
 
 `experiments/p08-reminders/instance.sh` uses an activation-free private bus.
 The actual zbus interface passed exclusive ownership, eight concurrent forwarding
 connections, queue coalescing, standard Activate, conflicting/malformed profiles,
 closed-receiver refusal, release/reacquisition and an unresponsive-service timeout.
-Profile: `target/p08-instance.bfmSBK`.
+Profile: `target/p08-instance.ayTKzo`.
 
 `MAILSTRONAUT_INSTANCE_GUI=1 experiments/p06-mailbox/wayland.sh` passed in private
-native profile `target/p06.M9U9ew`, with synthetic offline mail, DISPLAY unset and
+native profile `target/p06.Z7JzzM`, with synthetic offline mail, DISPLAY unset and
 XWayland disabled. It checks the bus owner's PID and exactly one native window
 after eight display-independent executable launches; source/demo conflicts and a
 missing bus fail without replacing it. Replacing the source with two successive
-Home Manager-style generation symlinks retains the same instance identity. A passive row selection and every launch,
+Home Manager-style generation symlinks retains the same instance identity.
+A passive row selection and every launch,
 normal close/restart and bus-loss shutdown leave Seen, drafts, outbox and native
 source bytes unchanged. The restarted process exits normally when its private
 bus stops.
@@ -79,7 +82,32 @@ Clipboard observation is bounded and asynchronous, matching the mailbox harness.
 
 ## Package acceptance
 
-The release/package gate and installed retest for this slice are pending. The
-previous passing onboarding/reminder package does not establish acceptance of
-these new sources. No hosted CI, aarch64, real desktop notification service,
-live provider, full HM activation, Flatpak or accessibility claim is made.
+The full x86_64 Nix gate passed at
+`2e4cb91714594efc4164482994c37ca05e56de18`, including strict release Clippy,
+261 normal workspace tests, the private credential/OAuth/web-link checks and the
+new private single-instance test. HM module, format and CI-script checks passed.
+Its fresh numeric receipt is 0; systemd reported success with the service
+collected/inactive/dead, and the complete log ends with all checks passed.
+The gate used 16 cores, one Nix job, stable LLVM Rust 1.99, thin LTO and one
+codegen unit. Cargo.lock and cargoHash are unchanged; the vendor-lock guard passed.
+
+The installed output is
+`/nix/store/sir8kwznwhvig5d9pp4w8sxl6q91wfs5-mailstronaut-0.1.0`, from
+`/nix/store/8zz8b6mmmk7dg5w99h2qwvcd7vywkjfd-source`. A cached `nix build`,
+`--version` and typed config check passed. All 176 filtered package source files
+matched the checkout, with independent local SHA256 verification.
+
+The installed binary passed the ownership workflow in `target/p06.omVA86`,
+onboarding in `target/p06.Li8yLL`, and reminder editing/reschedule/close/restart in
+`target/p06.5bja0Q`; the explicit final receipt is 0. Source symlink replacements,
+passive selection/activation and both restart paths preserve the same tested Seen
+and local draft/outbox invariants. Foreground focus is still denied in private
+Sway and remains open. The screenshot now comes from this installed package,
+after the explicit test-compositor workspace switch.
+
+- [Release and service receipt](artifacts/p08-instance/release-gate.log)
+- [Installed native workflows](artifacts/p08-instance/installed.log)
+- [Rebased development checks](artifacts/p08-instance/development.log)
+
+No hosted CI, aarch64, real desktop notification service, live provider,
+full HM activation, Flatpak or accessibility claim is made. P08 remains incomplete.

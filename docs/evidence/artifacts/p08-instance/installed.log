@@ -1,0 +1,40 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+All 176 package source files match the checkout.
+mailstronaut 0.1.0
+Configuration is valid.
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Repeated display-independent launches returned to the same owner and one native window; Seen stayed unchanged.
+Effective Seen matches explicit opens: []
+Replacing the declared configuration symlink retained the same application identity.
+Effective Seen matches explicit opens: []
+Existing-window activation requested; private Sway focused workspace 2 (1=app, 2=other). Fresh caller-token focus acceptance remains open.
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Native ownership, configuration/demo conflicts, missing bus, passive activation routing, normal close/restart and bus-loss shutdown passed: /builds/mailstronaut-dev/target/p06.omVA86
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Configuration is valid.
+Applied declared configuration.
+Configuration is valid.
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Native first-run, manual/Google/iCloud declarations, keyboard Save, auth routing, duplicate refusal, native export and restart passed: /builds/mailstronaut-dev/target/p06.Li8yLL
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: ['unrelated']
+Effective Seen matches explicit opens: ['unrelated']
+Native calendar/time selection persisted the exact original, UTC instant and timezone.
+Effective Seen matches explicit opens: ['unrelated']
+Reschedule retained the original and notification identity, with a new generation.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+A different original received its own default date/time, without sharing the prior selection.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+Both original-specific reminders survived normal close and offline restart unchanged.
+Cancellation preserved both originals, their Seen state, and the empty draft/outbox state.
+Effective Seen matches explicit opens: ['other', 'unrelated']
+Native reminder acceptance: /builds/mailstronaut-dev/target/p06.5bja0Q
+Installed single-instance, onboarding and reminder workflows passed.

@@ -8,4 +8,4 @@ Effective Seen matches explicit opens: []
 Existing-window activation requested; private Sway focused workspace 2 (1=app, 2=other). Fresh caller-token focus acceptance remains open.
 Effective Seen matches explicit opens: []
 Effective Seen matches explicit opens: []
-Native ownership, configuration/demo conflicts, missing bus, passive activation routing, normal close/restart and bus-loss shutdown passed: /builds/mailstronaut-dev/target/p06.M9U9ew
+Native ownership, configuration/demo conflicts, missing bus, passive activation routing, normal close/restart and bus-loss shutdown passed: /builds/mailstronaut-dev/target/p06.Z7JzzM

@@ -51,6 +51,8 @@ The root Cargo.toml owns metadata, dependencies, profiles and lint policy with
 | `mailstronaut-core` | Canonical identities, SQLite/blob ownership, MIME projections, threads, drafts/operations/reminders |
 | `mailstronaut-mail` | Standard TLS/IMAP/lettre SMTP/OAuth/credential adapters |
 | `mailstronaut-render` | Sanitized Blitz document, bounded message resources and CPU raster output, no window/network capabilities |
+| `mailstronaut-search` | Rebuildable local Tantivy lexical/fuzzy index, fed by canonical store changes |
+| `mailstronaut-priority` | Bounded local priority/deadline rules, exact evidence spans and expiry decisions; model adoption remains a separate gate |
 
 Keep reusable backend behavior while replacing frontend-specific code directly;
 Git history preserves the old interface. Do not maintain two toolkits or a
