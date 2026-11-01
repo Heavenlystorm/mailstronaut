@@ -229,6 +229,8 @@
         );
     in
     {
+      homeManagerModules.default = import ./nix/home-manager.nix self;
+
       packages = forAllSystems (
         system:
         let
@@ -247,8 +249,11 @@
         in
         {
           workspace = self.packages.${system}.mailstronaut;
+          # The real module and the installed binary in a disposable HOME. Home Manager
+          # itself supplies only option plumbing here, so it is stubbed, not activated.
+          home-manager-module = import ./nix/home-manager-check.nix { inherit self pkgs; };
           nix-format = pkgs.runCommand "mailstronaut-nix-format" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-            nixfmt --check ${self}/flake.nix ${self}/examples/config.nix ${self}/examples/home-manager.nix
+            nixfmt --check ${self}/flake.nix ${self}/examples/config.nix ${self}/examples/home-manager.nix ${self}/nix/home-manager.nix ${self}/nix/home-manager-check.nix
             touch "$out"
           '';
           ci-lint =
@@ -268,6 +273,7 @@
                   ${self}/experiments/p01-gpui/wayland.sh \
                   ${self}/experiments/p02-accounts/credentials.sh \
                   ${self}/experiments/p02-accounts/gui.sh \
+                  ${self}/experiments/p02-config/export-gui.sh \
                   ${self}/experiments/p06-mailbox/wayland.sh \
                   ${self}/experiments/p06-mailbox/navigation.sh \
                   ${self}/experiments/wayland-session.sh \

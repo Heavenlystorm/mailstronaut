@@ -15,17 +15,25 @@ use super::{Config, MAX_SOURCE_BYTES};
 pub const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 
 /// Typed response on the private child protocol.
-#[expect(
-    clippy::large_enum_variant,
-    reason = "The agreed wire contract carries Config directly."
-)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 #[non_exhaustive]
 pub enum Response {
     /// A successfully evaluated and validated configuration.
     Success(Config),
+    /// Plain evaluated data, before schema defaults, for reconciling declarations.
+    Raw(serde_json::Value),
     /// The source or expanded configuration was rejected.
     Rejected,
+}
+
+impl core::fmt::Debug for Response {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Success(_) => "Success([configuration])",
+            Self::Raw(_) => "Raw([redacted])",
+            Self::Rejected => "Rejected",
+        })
+    }
 }
 
 /// Run only in the dedicated evaluator child before GUI initialization.
@@ -35,8 +43,19 @@ pub enum Response {
 #[must_use = "Return this status from the evaluator child."]
 #[inline]
 pub fn run() -> ExitCode {
+    run_mode(false)
+}
+
+/// As [`run`], but return the evaluated data without applying the schema.
+#[must_use = "Return this status from the evaluator child."]
+#[inline]
+pub fn run_raw() -> ExitCode {
+    run_mode(true)
+}
+
+fn run_mode(raw: bool) -> ExitCode {
     set_hook(Box::new(|_| {}));
-    if run_inner().is_ok() {
+    if run_inner(raw).is_ok() {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
@@ -44,7 +63,7 @@ pub fn run() -> ExitCode {
 }
 
 /// Impose limits and process one request.
-fn run_inner() -> Result<(), Box<dyn Error>> {
+fn run_inner(raw: bool) -> Result<(), Box<dyn Error>> {
     // Snix builtins.trace writes untrusted values to stderr. Discard them.
     let sink = OpenOptions::new().write(true).open("/dev/null")?;
     dup2_stderr(&sink)?;
@@ -74,7 +93,11 @@ fn run_inner() -> Result<(), Box<dyn Error>> {
         .lock()
         .take(u64::try_from(MAX_SOURCE_BYTES + 1)?)
         .read_to_end(&mut source)?;
-    let response = evaluate(&source);
+    let response = if raw {
+        evaluate_raw(&source)
+    } else {
+        evaluate(&source)
+    };
     let encoded = encode(&response)?;
     io::stdout().lock().write_all(&encoded)?;
     Ok(())
@@ -95,6 +118,17 @@ fn evaluate(source: &[u8]) -> Response {
         return Response::Rejected;
     }
     Response::Success(config)
+}
+
+/// Evaluate only bounded UTF-8 input to plain data, redacting errors.
+fn evaluate_raw(source: &[u8]) -> Response {
+    if source.len() > MAX_SOURCE_BYTES {
+        return Response::Rejected;
+    }
+    let Ok(text) = from_utf8(source) else {
+        return Response::Rejected;
+    };
+    crate::native::raw_data(text).map_or(Response::Rejected, Response::Raw)
 }
 
 /// A writer which refuses an entire write once the byte limit would be exceeded.
@@ -140,6 +174,13 @@ fn encode(response: &Response) -> Result<Vec<u8>, serde_json::Error> {
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raw_responses_never_print_source_values_in_debug() {
+        let response = evaluate_raw(b"{ password = \"synthetic-raw-secret\"; }");
+        assert!(matches!(&response, Response::Raw(_)));
+        assert_eq!(format!("{response:?}"), "Raw([redacted])");
+    }
 
     #[test]
     fn typed_responses_and_rejection() {

@@ -99,12 +99,14 @@ xdg.configFile."mailstronaut/config.nix".source = ./config.nix;
 ```
 
 There is no module converting a declarative schema into another file format.
-The planned optional `homeManagerModules.default` only adds package/native-file
+The optional `homeManagerModules.default` adds package/native-file
 lifecycle: native `settings`, immutable by default, or opt-in `mutableSettings`.
 It must not mirror every Rust option. Keep direct-file composition supported.
 Mutable activation reapplies declared values while retaining undeclared UI edits;
-Settings exports a secret-free native Nix snapshot for review/import. These are
-pending P02/P10 tasks, not current flake exports. See CONFIGURATION.md for ownership,
+Settings exports a secret-free native Nix snapshot for review/import. The module
+interface and installed CLI have disposable stub-plumbing checks; full Home Manager
+generation activation, editable fields and successful save-portal acceptance remain
+open. See CONFIGURATION.md and evidence/P02-native-nix.md for ownership,
 precedence, collision handling and export/reimport acceptance. Test first/repeated
 activation and ownership changes in disposable profiles. Never put passwords/tokens
 in Nix configuration or activate a user's Home Manager profile as a build test.

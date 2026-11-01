@@ -38,6 +38,13 @@ is appropriate only for a missing primitive, not for recreating a design system.
 
 ### P02: settings and P05: onboarding
 
+Settings now opens Export to Nix (Ctrl+Shift+E) using Kit's Dialog, persistent
+read-only Textarea, Clipboard, Save Button and in-app Notification. Serialization
+runs off the UI thread and is fenced by the configuration revision and current
+view. Copy/selection/readonly and unavailable-portal behavior have native Wayland
+coverage; successful save-portal and editable preference acceptance remain open.
+See [native Nix evidence](evidence/P02-native-nix.md).
+
 | Subproblem | Component/API | Boundary |
 | --- | --- | --- |
 | Preferences pages, search and fields | [`Settings`, `SettingPage`, `SettingGroup`, `SettingItem`, `SettingField::{input,switch,dropdown,scrollable_dropdown,number_input,element,render}`](https://gpui-kit.com/component/settings/) | Reuse navigation/search/group layout. Only implemented settings; custom compound slots honor `RenderOptions::is_disabled()`. |

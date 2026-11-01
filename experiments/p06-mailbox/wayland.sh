@@ -4,6 +4,8 @@ set -euo pipefail
 binary=$(realpath "${1:-target/debug/mailstronaut}")
 fixture=$(realpath "${MAILSTRONAUT_MAILBOX_FIXTURE:?prebuilt core worker test executable}")
 root=$(mktemp -d "$PWD/target/p06.XXXXXX")
+export HOME="$root/home"
+mkdir -p "$HOME"
 export XDG_RUNTIME_DIR="$root/runtime" XDG_CONFIG_HOME="$root/config"
 export XDG_DATA_HOME="$root/data" XDG_CACHE_HOME="$root/cache" XDG_STATE_HOME="$root/state"
 mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
@@ -133,6 +135,12 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_EXPORT_GUI:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=../p02-config/export-gui.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../p02-config/export-gui.sh"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_MAILBOX_NAVIGATION:-0} == 1 ]]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=navigation.sh

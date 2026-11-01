@@ -1,0 +1,20 @@
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: ['second']
+Effective Seen matches explicit opens: ['second']
+Effective Seen matches explicit opens: ['second']
+Effective Seen matches explicit opens: ['first', 'second']
+Effective Seen matches explicit opens: ['first', 'second']
+Effective Seen matches explicit opens: ['first', 'second']
+Effective Seen matches explicit opens: ['first', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'page-098', 'second']
+Effective Seen matches explicit opens: ['first', 'other', 'page-098', 'second']
+Explicit unread and star recorded for the open original.
+Reply opened an unsent local draft with ancestry and a quotation.
+A one-hour reminder is durable and pending.
+Native account/folder, thread, page, scope-retirement and offline checks passed.
+Navigation acceptance: /builds/mailstronaut-dev/target/p06.XmMHcn

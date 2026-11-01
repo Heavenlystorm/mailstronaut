@@ -40,6 +40,13 @@ bounded page; Load older continues it. Ctrl+1 returns to the unified inbox and
 Ctrl+Shift+R reloads the declaration. Saving credentials never rewrites the Nix
 source. Browser-provider and real desktop portal acceptance are still pending.
 
+Home Manager can import `homeManagerModules.default` and declare
+`programs.mailstronaut.settings` as native Nix data. Opt-in `mutableSettings` keeps
+one writable native source: declarations take precedence on activation and omitted
+values survive. Settings → Export to Nix (Ctrl+Shift+E) copies or saves an effective
+snapshot, including keyring references. Existing user-authored expressions and
+unrelated links require explicit adoption; activation preserves them.
+
 The sidebar opens each account's cached mail and individual known folders without
 starting a sync. Newer/Older controls page through 100 conversations at a time.
 Expand a thread's message count to choose a cached original, including Sent

@@ -1,0 +1,3 @@
+ci-py: ci/remote.sh -> experiments/p01-nix/run-gate.sh -> ci/nix-check.sh
+Final release: 178 normal + 6 private passing tests
+Corrected-source full gate: exit 0; all checks passed

@@ -6,6 +6,7 @@ mod account_actions;
 mod accounts;
 mod composer;
 mod config_cli;
+mod config_export;
 mod html_reader;
 mod html_worker;
 mod link_portal;

@@ -5,10 +5,10 @@ bounded native evaluation, last-valid source state, encrypted credentials and
 public-client OAuth/refresh. GPUI Settings now connects declared accounts to
 foreground password storage and explicit bounded TLS inbox sync; native last-valid
 reload and offline reading passed the private synthetic workflow in
-[current account evidence](evidence/P02-gpui-accounts.md). Editable onboarding,
-mutable HM activation and export still require implementation/acceptance in PLAN.md;
-earlier frontend prototypes do not establish that work. Automatic synchronization
-and live-provider/real-portal acceptance remain open. Canonical user configuration
+[current account evidence](evidence/P02-gpui-accounts.md). Native export and the optional
+HM module are implemented; their acceptance scope is recorded in PLAN.md. Editable
+preferences/onboarding, full Home Manager activation and real-provider/portal acceptance
+remain open. Canonical user configuration
 is `$XDG_CONFIG_HOME/mailstronaut/config.nix`.
 Flatpak uses its usual application-specific XDG config directory. A `.nix` file is
 the actual input consumed by the Rust application in both distributions.
@@ -204,16 +204,43 @@ No duplicate per-field schema or Nix→TOML layer is part of this project.
 The account list is the authoritative declaration; OAuth refresh tokens, passwords,
 sync cursors, drafts and window placement are not declarative config.
 
-### Optional mutable settings: planned contract
+### Optional module and mutable settings
 
-Keep the direct-file recipe above. P02/P10 also require a small optional module
-exported as `homeManagerModules.default`, with `programs.mailstronaut.enable`,
-`package`, `settings` and `mutableSettings`. This interface is **planned, not yet
-exported by the current flake**. `settings` contains the same native data accepted
+Keep the direct-file recipe above. The flake also exports a small optional module as
+`homeManagerModules.default`, with `programs.mailstronaut.enable`, `package`,
+`settings` and `mutableSettings`. `mailstronaut config reconcile --declared FILE`
+performs the mutable merge at activation, and `mailstronaut config export` prints a
+secret-free snapshot to adopt. Settings → Export to Nix (Ctrl+Shift+E) uses a native
+read-only Kit dialog, Clipboard and the platform's portal save chooser. Save creates
+a new private file; existing files and links are preserved. The snapshot contains
+effective defaults, accounts and keyring references, with no credentials or mail state.
+`settings` contains the same native data accepted
 by the application, rather than an independently maintained option per Rust field.
 Use `lib.generators.toPretty` for native Nix data, with the application's existing
 evaluator/schema as the final validation boundary. Ownership field `managed` is
 set by the chosen deployment mode rather than duplicated as a preference.
+
+```nix
+{
+  imports = [ inputs.mailstronaut.homeManagerModules.default ];
+  programs.mailstronaut = {
+    enable = true;
+    mutableSettings = true;
+    settings = {
+      appearance = "dark";
+      timeZone = "Europe/Paris";
+      # accounts = [ ... ]; # Same schema as config.nix, including secretRef.
+    };
+  };
+}
+```
+
+Exports use the pinned Snix serializer. Raw reconciliation preserves explicit keys
+through its pure `builtins.toJSON` inside the existing limited helper: the pinned
+bridge's generic string visitor returns display quotes. This small workaround uses
+the correct typed-string deserialization path; its JSON is transient internal data,
+with the same input/output/time/memory bounds. It creates no user JSON file and
+requires no host Nix executable or dependency fork.
 
 `mutableSettings = false` is the default: install a managed native `.nix` file,
 and keep persisted preferences read-only in Settings. `mutableSettings = true`
@@ -250,6 +277,16 @@ may replace only the module's known managed link after checking its identity;
 never write into its Nix-store target. Changing back must preserve changed files
 through explicit collision/backup handling rather than silently discard UI edits.
 Test these cases in a disposable HOME, not by activating the user's configuration.
+
+`config init` and mutable activation mark app-owned regular sources. Reconciliation
+refuses an unmarked existing expression, a read-only file, or an unrelated link;
+export and back up an authored expression before creating an app-owned source.
+Only a marked module-generated store link may be replaced in place. A persistent
+sibling `.config.nix.lock` serializes cooperating writers, and the source bytes and
+file identity are rechecked before atomic replacement. Uncooperative external
+editors should use that lock for atomic cooperation; detected edits are rejected.
+The module's immutable path uses ordinary HM collision handling, without `force`:
+returning to immutable mode can require backing up an existing mutable file.
 
 For an already installed Flatpak, Home Manager can link the **same native file**:
 

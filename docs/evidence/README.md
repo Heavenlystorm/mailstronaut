@@ -23,6 +23,10 @@ results are recorded in `P01-gpui-blitz.md`, with precise limitations.
 
 Current GPUI account/settings, encrypted password storage, explicit TLS/PEEK sync,
 Seen and offline-restart results are in [P02-gpui-accounts.md](P02-gpui-accounts.md).
+
+Native export/copy, guarded mutable reconciliation and the optional Home Manager
+module are recorded in [P02-native-nix.md](P02-native-nix.md). Its module check uses
+stubbed Home Manager plumbing; it does not claim complete generation activation.
 The older P02 account UI walkthrough remains historical.
 
 Current GPUI mailbox List, passive selection, explicit confirmation, overlapping

@@ -73,6 +73,43 @@ pub async fn evaluate(
     source: &str,
     cancellation: &CancellationToken,
 ) -> Result<Config, EvaluationError> {
+    match run(
+        executable,
+        "--internal-evaluate-config",
+        source,
+        cancellation,
+    )
+    .await?
+    {
+        helper::Response::Success(config) if config.validate().is_empty() => Ok(config),
+        helper::Response::Success(_) | helper::Response::Rejected => Err(EvaluationError::Rejected),
+        helper::Response::Raw(_) => Err(EvaluationError::InvalidResponse),
+    }
+}
+
+/// Evaluate native Nix to plain data, before schema defaults are applied, in the same
+/// limited helper. Reconciling declarations needs to see what was actually declared.
+///
+/// # Errors
+/// As [`evaluate`], except that no schema validation has happened yet.
+pub async fn evaluate_raw(
+    executable: &Path,
+    source: &str,
+    cancellation: &CancellationToken,
+) -> Result<serde_json::Value, EvaluationError> {
+    match run(executable, "--internal-evaluate-raw", source, cancellation).await? {
+        helper::Response::Raw(value) => Ok(value),
+        helper::Response::Rejected => Err(EvaluationError::Rejected),
+        helper::Response::Success(_) => Err(EvaluationError::InvalidResponse),
+    }
+}
+
+async fn run(
+    executable: &Path,
+    flag: &str,
+    source: &str,
+    cancellation: &CancellationToken,
+) -> Result<helper::Response, EvaluationError> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err(EvaluationError::SourceTooLarge);
     }
@@ -83,7 +120,7 @@ pub async fn evaluate(
         return Err(EvaluationError::Cancelled);
     }
     let mut child = Command::new(executable)
-        .arg("--internal-evaluate-config")
+        .arg(flag)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -108,7 +145,7 @@ pub async fn evaluate(
 }
 
 /// Exchange bounded data concurrently so neither pipe can deadlock the parent.
-async fn exchange(child: &mut Child, source: &str) -> Result<Config, EvaluationError> {
+async fn exchange(child: &mut Child, source: &str) -> Result<helper::Response, EvaluationError> {
     let mut input = child.stdin.take().ok_or(EvaluationError::Transport)?;
     let output = child.stdout.take().ok_or(EvaluationError::Transport)?;
     let limit = u64::try_from(helper::MAX_RESPONSE_BYTES)
@@ -147,14 +184,5 @@ async fn exchange(child: &mut Child, source: &str) -> Result<Config, EvaluationE
         }
     };
     let ((), bytes, ()) = tokio::try_join!(write, read, wait)?;
-    match serde_json::from_slice(&bytes).map_err(|_| EvaluationError::InvalidResponse)? {
-        helper::Response::Success(config) => {
-            if config.validate().is_empty() {
-                Ok(config)
-            } else {
-                Err(EvaluationError::Rejected)
-            }
-        }
-        helper::Response::Rejected => Err(EvaluationError::Rejected),
-    }
+    serde_json::from_slice(&bytes).map_err(|_| EvaluationError::InvalidResponse)
 }

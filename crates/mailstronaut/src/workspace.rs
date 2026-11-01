@@ -85,6 +85,9 @@ gpui::actions!(
         /// Explicitly reload the canonical native Nix source.
         ReloadConfiguration,
         #[derive(Eq)]
+        /// Export a validated native snapshot from Settings.
+        ExportConfiguration,
+        #[derive(Eq)]
         /// Start a new local draft.
         ComposeMessage,
         #[derive(Eq)]
@@ -1240,6 +1243,7 @@ impl Workspace {
             KeyBinding::new("ctrl-,", ShowAccounts, Some("Mailstronaut")),
             KeyBinding::new("ctrl-1", ShowInbox, Some("Mailstronaut")),
             KeyBinding::new("ctrl-shift-r", ReloadConfiguration, Some("Mailstronaut")),
+            KeyBinding::new("ctrl-shift-e", ExportConfiguration, Some("Mailstronaut")),
             KeyBinding::new("ctrl-n", ComposeMessage, Some("Mailstronaut")),
             KeyBinding::new("ctrl-2", ShowDrafts, Some("Mailstronaut")),
             KeyBinding::new("ctrl-3", ShowReminders, Some("Mailstronaut")),
@@ -1433,6 +1437,8 @@ impl Workspace {
         let loading = self.loading_config;
         let reload_disabled = loading || self.demo;
         let workspace = cx.entity().downgrade();
+        let export_workspace = workspace.clone();
+        let export_disabled = self.declaration.active().is_none() || loading;
         let config = self.declaration.active();
         let ownership = if config.is_some_and(|config| config.managed) {
             "Managed by your Nix declaration"
@@ -1471,7 +1477,14 @@ impl Workspace {
                             .on_click(move |_, window, cx| {
                                 _ = workspace.update(cx, |this, cx| this.load_configuration(window, cx));
                             })
-                    }).keywords(["reload", "configuration", "Nix", "Home Manager"])),
+                    }).keywords(["reload", "configuration", "Nix", "Home Manager"]))
+                    .item(SettingItem::render(move |options, _, _| {
+                        let workspace = export_workspace.clone();
+                        Button::new("export-nix").label("Export to Nix").tooltip("Ctrl+Shift+E").disabled(options.is_disabled() || export_disabled)
+                            .on_click(move |_, window, cx| {
+                                _ = workspace.update(cx, |this, cx| this.export_configuration(window, cx));
+                            })
+                    }).keywords(["export", "Nix", "Home Manager", "snapshot"])),
             )
             .group(SettingGroup::new().title("Account status").item({
                 let status = self.declaration.error().map_or_else(
@@ -1497,6 +1510,35 @@ impl Workspace {
                     .iter()
                     .map(|view| crate::accounts::AccountPane::page(view, cx)),
             )
+    }
+
+    fn export_configuration(&self, window: &Window, cx: &Context<Self>) {
+        let Some(config) = self.declaration.active().cloned() else {
+            return;
+        };
+        let revision = self.declaration.revision();
+        let job = self
+            .runtime
+            .spawn_blocking(move || mailstronaut_config::native::export(&config));
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if revision != this.declaration.revision() || this.view != View::Accounts {
+                    return;
+                }
+                match result {
+                    Ok(Ok(text)) => {
+                        crate::config_export::Export::show(text, this.runtime.clone(), window, cx);
+                    }
+                    _ => window.push_notification(
+                        Notification::error("Unable to export this configuration.")
+                            .delivery(NotificationDelivery::InApp),
+                        cx,
+                    ),
+                }
+            });
+        })
+        .detach();
     }
 
     fn mail_routes(&self, attention: usize, cx: &Context<Self>) -> SidebarMenu {
@@ -2278,6 +2320,11 @@ impl Workspace {
         .on_action(cx.listener(|this, _: &ShowInbox, window, cx| this.show_inbox(window, cx)))
         .on_action(cx.listener(|this, _: &ReloadConfiguration, window, cx| {
             this.load_configuration(window, cx);
+        }))
+        .on_action(cx.listener(|this, _: &ExportConfiguration, window, cx| {
+            if this.view == View::Accounts {
+                this.export_configuration(window, cx);
+            }
         }))
     }
 }

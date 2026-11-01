@@ -25,13 +25,13 @@ mailstronaut-config.workspace = true
 mailstronaut-core.workspace = true
 mailstronaut-render.workspace = true
 mailstronaut-mail.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 zbus.workspace = true
-serde_json.workspace = true
 wait-timeout.workspace = true
 
 [lints]

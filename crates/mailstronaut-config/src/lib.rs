@@ -1,6 +1,7 @@
 //! Typed, secret-free configuration contract for Mailstronaut.
 /// Internal evaluator child protocol.
 pub mod helper;
+pub mod native;
 
 /// Parent lifecycle for the short-lived configuration evaluator.
 pub mod process;

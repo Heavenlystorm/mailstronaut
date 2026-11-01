@@ -188,17 +188,29 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   a `Clipboard` path-copy action and persistent `Alert` reload errors.
   Protect managed, store-backed, read-only and unadopted user-authored expressions;
   credentials remain editable through the keyring even with managed configuration.
-- [ ] Support opt-in HM `mutableSettings` with one writable native `config.nix`:
+- [x] Provide the native `config export/reconcile` CLI and optional HM module:
+  raw declared keys precede defaults, standard Snix serialization preserves data,
+  app-owned sources use cooperative locking and checked atomic replacement, and
+  invalid/unadopted/read-only/foreign-link changes are rejected. Verify raw helper
+  bounds/redaction, native round trips, precedence/omissions/lists and conflicts.
+  [Bounded native Nix evidence](evidence/P02-native-nix.md).
+- [ ] Connect editable UI preferences to opt-in HM `mutableSettings` with one writable native `config.nix`:
   declared attributes win on activation, undeclared UI values survive, lists replace
   as whole values, and removing a declaration does not implicitly delete data.
   Preserve explicitly declared keys before applying schema defaults. Explain that
   UI edits to declared values are reapplied from HM on the next switch.
-- [ ] Add **Export to Nix** from Settings: copy/save a validated secret-free native
+- [x] Add **Export to Nix** preview/copy from Settings with a validated secret-free native
   attrset snapshot that can be imported as HM `settings` or installed directly.
   Include supported account declarations and secret references, never credentials
   or mailbox/runtime state. Do not rewrite the user's original expression or dotfiles.
   Use `Dialog` + read-only `Textarea`, `Clipboard` and a Save `Button` invoking
   the portal; use an in-app `Notification` for completed copy/save feedback.
+  Native preview/Clipboard/read-only/unchanged-source/Seen and light/dark checks
+  pass; no-clobber private save publication is unit-tested and missing-portal
+  feedback is exercised. [Evidence](evidence/P02-native-nix.md).
+- [ ] Accept successful/cancelled/denied FileChooser export through the native
+  desktop and Flatpak portals. The save hook and unavailable-portal path above
+  are implemented; they do not establish successful portal saving.
 - [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
@@ -510,12 +522,14 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   [Local source-only reuse and hosted build evidence](evidence/P01-ci-cache.md).
 - [ ] Build/install through `nix develop`, `nix flake check`, `nix build`, `nix run`
   and direct Home Manager package/config composition. No custom HM format adapter.
-- [ ] Provide the direct native-file HM recipe and an optional thin
+- [x] Provide the direct native-file HM recipe and an optional thin
   `programs.mailstronaut` module with `enable`, `package`, native `settings` and
   `mutableSettings = false` by default. Share Rust evaluation/validation/serialization
   for mutable reconciliation/export; no duplicate per-field HM schema or hidden
-  preference database. Test activation without activating the user's dotfiles.
-- [ ] Test immutable links, mutable first/repeated activation, declared-value
+  preference database. Test generated activation against the installed package
+  with disposable, explicitly stubbed HM plumbing. [Evidence](evidence/P02-native-nix.md).
+- [ ] Verify full Home Manager evaluation/generation activation (without stubbed
+  plumbing), immutable links, mutable first/repeated activation, declared-value
   precedence, retained UI edits, explicit empty account lists, invalid/concurrent
   sources and changing ownership without silent overwrite. Document export/import
   and why removing a declaration is different from deleting an account's local data.
