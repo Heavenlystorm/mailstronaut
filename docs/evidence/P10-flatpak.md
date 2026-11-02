@@ -1,30 +1,55 @@
-# P10 — Flatpak SDK probe on the CI host
+# P10 — Flatpak build on the CI host
 
-This is the optional P01 probe in `experiments/p01-flatpak/`, run on the CI host `ci-py`
-(x86_64, 16 cores). It is not a production manifest and does not install an application.
+Two steps ran on `ci-py` (x86_64, Ubuntu, 16 cores): the optional SDK probe in
+`experiments/p01-flatpak/`, and then the production manifest in `flatpak/`. Both use the
+Flathub refs pinned in `experiments/p01-flatpak/sdk-lock.json`, installed into an isolated
+installation under `target/`.
 
-Passing on `ci-py`:
+## SDK probe
 
-- The four Flathub refs pinned in `sdk-lock.json` are installed under `target/p01-flatpak`
-  (Freedesktop Platform, SDK, Rust stable and LLVM 22 extensions, branch 26.08). The installed
-  commits match the lock. The installation uses about 4.1 GB.
+- The four pinned refs (Freedesktop Platform, SDK, Rust stable and LLVM 22 extensions, branch
+  26.08) are installed, and their commits match the lock. The installation uses about 4.1 GB.
 - Bubblewrap needs unprivileged user namespaces. The host's AppArmor restriction blocked them
   until root added profiles that grant `userns` only to `/usr/bin/unshare` and to the
   Nix-provided bubblewrap binary.
-- `preflight.sh` passes: pin validation, Flatpak 1.18.4, the bubblewrap sandbox, and the offline
-  SDK tool inventory.
-- Staging and `run.sh metadata` pass, and so does the metadata-only `flatpak-builder
-  --disable-download --build-only` phase. The SDK supplies rustc 1.98.0 (the project declares
+- `preflight.sh` passes: pin validation, Flatpak 1.18.4, the sandbox, and the offline SDK tool
+  inventory.
+- The metadata-only builder phase passes with rustc 1.98.0 (the project declares
   `rust-version = "1.98"`), LLVM and Clang 22.1.8.
-- `run.sh compile` passes under the shared full-gate lock: the release workspace build finishes
-  with `Finished release profile [optimized]`, in 3m 24s.
-- `runtime-smoke.sh` passes inside the Platform runtime: `mailstronaut 0.1.0`, a valid
-  configuration, and no GUI started.
+- `run.sh compile` passes under the shared full-gate lock: `Finished release profile [optimized]`
+  in 3m 24s.
+- `runtime-smoke.sh` passes in the Platform runtime: `mailstronaut 0.1.0`, a valid configuration.
 
 The SpiderMonkey-specific checks were removed from the probe. The current dependency graph has no
-`mozjs` crates; the renderer is Blitz, and the SpiderMonkey checks came from an older Servo build.
+`mozjs` crates; the renderer is Blitz, and the checks came from an older Servo build.
 
-Not established: the production Flatpak manifest with its finish-args (a Wayland socket, no X11,
-no broad home access), an exported and installed application, the GUI running inside the sandbox,
-graphics drivers, native Wayland access, the portals (file chooser, secret, notification and
-background), aarch64, and the release manifest. The P10 Flatpak row therefore stays unchecked.
+## Production manifest
+
+- `flatpak/io.github.eduardz1.Mailstronaut.json` targets the Platform 26.08 runtime and the SDK
+  with the rust-stable and llvm22 extensions from the lock. Its finish-args are
+  `--socket=wayland`, `--share=network` and `--device=dri`. It requests no X11 socket and no
+  broad home access.
+- Its two sources are archives pinned by SHA-256. The application source archive is
+  `28213efd…c295` (367 KB), and the vendor archive is `0a7438ab…5582` (131 MB). Both were
+  created on `ci-py` from the staged Nix package source and `cargoDeps`. The archive paths are
+  local, under `target/`, so the pins hold for that host's staging.
+- `flatpak/build-app.sh` builds offline with `cargo build --frozen --offline --release --package
+  mailstronaut`. It installs only the binary. The module finished in 3m 24s, exported the
+  application, and installed it into the isolated installation. The build ran under the shared
+  full-gate lock.
+- `flatpak run --command=mailstronaut --unshare=network io.github.eduardz1.Mailstronaut --version`
+  prints `mailstronaut 0.1.0`.
+- `config check` of the examples configuration inside the installed app reports a valid
+  configuration. The examples folder was mounted read-only for that check only; the manifest does
+  not grant it.
+
+## Not established
+
+- The GUI running in the sandbox, native Wayland access, and the graphics device (`--device=dri`
+  is declared but not exercised).
+- The portals: file chooser, secret, notification and background.
+- Desktop and AppStream metainfo files. The export warns that the application has no appstream
+  data, so there is no desktop entry or metainfo yet.
+- Release signing, a published repository, aarch64, and the final release manifest.
+
+The P10 Flatpak row therefore stays unchecked.

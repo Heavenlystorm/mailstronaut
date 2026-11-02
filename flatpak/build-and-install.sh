@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Build the production Flatpak manifest offline under the shared full-gate lock, then install it
+# into the isolated probe installation. Run inside the optional probe shell from the repository
+# root: nix develop --impure --expr 'import ./experiments/p01-flatpak/shell.nix' --command bash flatpak/build-and-install.sh
+set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$root"
+# Share the coordinated full-gate lock so this build never overlaps a Nix gate. Refuse to wait
+# behind a gate. Override MAILSTRONAUT_GATE_LOCK only on a host without the shared lock.
+gate_lock_path=${MAILSTRONAUT_GATE_LOCK:-/builds/.mailstronaut-nix-gate.lock}
+exec {gate_lock}>"$gate_lock_path"
+if ! flock --nonblock "$gate_lock"; then
+  printf '%s\n' 'Another coordinated package build is already running.' >&2
+  exit 73
+fi
+mkdir -p target/p10-flatpak
+printf 'running\n' > target/p10-flatpak-build.status
+result=0
+bash experiments/p01-flatpak/isolated.sh flatpak-builder --force-clean --disable-download \
+  --state-dir=target/p10-flatpak/state --repo=target/p10-flatpak/repo --user --install \
+  target/p10-flatpak/build flatpak/io.github.eduardz1.Mailstronaut.json \
+  > target/p10-flatpak-build.log 2>&1 || result=$?
+printf '%s\n' "$result" > target/p10-flatpak-build.status.tmp
+mv target/p10-flatpak-build.status.tmp target/p10-flatpak-build.status
+printf 'Flatpak build exited %s; log: %s/target/p10-flatpak-build.log\n' "$result" "$root"
+exit "$result"
