@@ -260,6 +260,56 @@ impl Store {
         return Ok(());
     }
 
+    /// Drop one account's cached mail. What the user owns stays: messages that a reminder, a
+    /// queued move or a pending flag change still refers to, and everything in drafts and the
+    /// outbox. Every folder's history pass starts again, since nothing it fetched remains.
+    /// Original messages that nothing references are then removed from disk too.
+    ///
+    /// # Errors
+    /// Reports storage and filesystem failures, and then nothing is removed.
+    pub fn clear_cache(&mut self, account: &str) -> Result<CacheCleared, Error> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Removed messages lose their memberships and provider IDs. A kept message keeps both, so
+        // that its queued move or flag change can still be claimed where it sits.
+        transaction.execute(
+            &format!("DELETE FROM memberships WHERE account_id=?1 AND message_id NOT IN ({OWNED})"),
+            [account],
+        )?;
+        transaction.execute(
+            &format!(
+                "DELETE FROM provider_ids WHERE account_id=?1 AND message_id NOT IN ({OWNED})"
+            ),
+            [account],
+        )?;
+        // A pass must not believe that a folder it walked earlier is still complete.
+        transaction.execute("DELETE FROM backfill WHERE account_id=?1", [account])?;
+        let removed = transaction.execute(
+            &format!("DELETE FROM messages WHERE account_id=?1 AND id NOT IN ({OWNED})"),
+            [account],
+        )?;
+        transaction.execute(
+            "DELETE FROM message_search WHERE rowid NOT IN (SELECT id FROM messages)",
+            [],
+        )?;
+        transaction.execute(
+            "DELETE FROM search_pending WHERE message_id NOT IN (SELECT id FROM messages)",
+            [],
+        )?;
+        let kept: i64 = transaction.query_row(
+            "SELECT count(*) FROM messages WHERE account_id=?1",
+            [account],
+            |row| row.get(0),
+        )?;
+        transaction.commit()?;
+        self.collect_orphan_blobs()?;
+        Ok(CacheCleared {
+            removed: u32::try_from(removed).unwrap_or(u32::MAX),
+            kept: u32::try_from(kept).unwrap_or(u32::MAX),
+        })
+    }
+
     /// Remove blobs not referenced by any cached message.
     ///
     /// # Errors
@@ -298,6 +348,23 @@ impl Store {
         transaction.commit()?;
         return Ok(());
     }
+}
+
+/// Messages the user owns beyond the cache, because a reminder, a queued move or a pending flag
+/// change refers to them. Clearing an account's cache keeps them. Takes the account as `?1`.
+const OWNED: &str =
+    "SELECT message_id FROM reminders WHERE account_id=?1 AND message_id IS NOT NULL
+    UNION SELECT message_id FROM pending_moves WHERE account_id=?1
+    UNION SELECT message_id FROM pending_operations WHERE account_id=?1 AND message_id IS NOT NULL";
+
+/// What clearing one account's cache removed, and what it kept because the user owns it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CacheCleared {
+    /// Cached messages removed.
+    pub removed: u32,
+    /// Cached messages kept, because a reminder, a queued move or a pending flag change refers
+    /// to them.
+    pub kept: u32,
 }
 
 /// Verify a bounded regular original without following links or trusting its name.

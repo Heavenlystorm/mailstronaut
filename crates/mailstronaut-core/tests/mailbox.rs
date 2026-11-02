@@ -2,9 +2,13 @@
 
 use core::num::{NonZeroU32, NonZeroU64};
 
+use std::path::Path;
+
 use mailstronaut_core::store::{
-    Error, Store,
+    CacheCleared, Error, Store,
+    backfill::Pass,
     mailbox::{Flags, Folder, GmailId, Membership, UidSnapshot},
+    reminders::Schedule,
 };
 
 const fn nonzero(value: u32) -> NonZeroU32 {
@@ -500,4 +504,147 @@ fn raw_messages_without_identifiers_do_not_collapse_and_corruption_is_rejected()
     fs::write(&elsewhere, raw).expect("unrelated fixture");
     symlink(elsewhere, blob).expect("symlink fixture");
     assert!(matches!(store.message("a", one), Err(Error::CorruptBlob)));
+}
+
+const CACHE_CONTEXT: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
+fn blobs_on_disk(root: &Path) -> usize {
+    std::fs::read_dir(root.join("blobs"))
+        .expect("blob directory")
+        .count()
+}
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one ordered scenario reads best as a single story of what survives a cache clear"
+)]
+fn clearing_the_cache_keeps_what_the_user_owns_and_restarts_every_history_pass() {
+    let root = tempfile::tempdir().expect("fixture");
+    let mut store = Store::open(root.path()).expect("open");
+    store.ensure_account("a").expect("account a");
+    store
+        .bind_mailbox_context("a", CACHE_CONTEXT)
+        .expect("context");
+    let inbox = folder(&mut store, "a", "INBOX", true);
+    folder(&mut store, "a", "Archive", false);
+    let other = folder(&mut store, "b", "INBOX", true);
+    let reminded = store
+        .cache_message(
+            "a",
+            membership(&inbox, 1, false),
+            100,
+            None,
+            &original("reminded", "Keep the reminder."),
+        )
+        .expect("reminded");
+    let moving = store
+        .cache_message(
+            "a",
+            membership(&inbox, 2, false),
+            100,
+            None,
+            &original("moving", "Keep the queued move."),
+        )
+        .expect("moving");
+    let plain = store
+        .cache_message(
+            "a",
+            membership(&inbox, 3, false),
+            100,
+            None,
+            &original("plain", "Cleared with the cache."),
+        )
+        .expect("plain");
+    let elsewhere = store
+        .cache_message(
+            "b",
+            membership(&other, 1, false),
+            100,
+            None,
+            &original("elsewhere", "Another account."),
+        )
+        .expect("elsewhere");
+    store
+        .schedule_reminder(&Schedule {
+            account: "a".into(),
+            message: reminded,
+            due_at: 3_600,
+            time_zone: "UTC".into(),
+            now: 100,
+            expected: None,
+        })
+        .expect("reminder");
+    store
+        .queue_move("a", moving, None, "Archive", CACHE_CONTEXT)
+        .expect("queued move");
+    store
+        .save_backfill(
+            "a",
+            inbox.id,
+            &Pass {
+                uid_validity: 42,
+                context: [7; 32],
+                cap_days: None,
+                next_before: None,
+                total: Some(3),
+                reviewed: 3,
+                finished_at: Some(100),
+            },
+        )
+        .expect("finished pass");
+    let on_disk = blobs_on_disk(root.path());
+    let cleared = store.clear_cache("a").expect("cleared");
+    assert_eq!(
+        cleared,
+        CacheCleared {
+            removed: 1,
+            kept: 2
+        }
+    );
+    assert!(
+        matches!(store.message("a", plain), Err(Error::MissingMessage)),
+        "the plain copy is gone"
+    );
+    assert!(
+        store.message("a", reminded).is_ok(),
+        "a reminded message keeps its body"
+    );
+    assert!(
+        store
+            .reminder_for("a", reminded)
+            .expect("reminder query")
+            .is_some(),
+        "the reminder survives"
+    );
+    assert!(
+        store
+            .begin_move("a", CACHE_CONTEXT)
+            .expect("claim")
+            .is_some(),
+        "the queued move survives"
+    );
+    assert!(
+        store.message("b", elsewhere).is_ok(),
+        "another account is untouched"
+    );
+    assert!(
+        store.backfill_pass("a", inbox.id).expect("pass").is_none(),
+        "the next sync walks the folder again"
+    );
+    assert_eq!(
+        blobs_on_disk(root.path()),
+        on_disk - 1,
+        "only the unreferenced original leaves the disk"
+    );
+    let fetched = store
+        .cache_message(
+            "a",
+            membership(&inbox, 3, false),
+            100,
+            None,
+            &original("plain", "Cleared with the cache."),
+        )
+        .expect("fetched again");
+    assert!(store.message("a", fetched).is_ok());
 }
