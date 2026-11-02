@@ -374,9 +374,12 @@ impl Workspace {
                 this.open(row, window, cx);
             }
         });
-        let activation = cx.observe_window_activation(window, |this, window, _| {
+        let activation = cx.observe_window_activation(window, |this, window, cx| {
             this.read_gate
                 .visibility(window.is_window_active() && this.view == View::Inbox);
+            // A message opened while the window was away, such as from a notification, is
+            // marked read now that it is in front, if its body had already loaded.
+            this.mark_loaded(window, cx);
             if let Some(announcer) = &this.announcer {
                 announcer.set_window_active(window.is_window_active());
             }
@@ -1516,10 +1519,13 @@ impl Workspace {
         announcer.set_window_active(window.is_window_active());
         self.announcer = Some(announcer);
         cx.spawn_in(window, async move |this, cx| {
-            while opened.recv().await.is_ok() {
+            while let Ok(click) = opened.recv().await {
                 let applied = this.update_in(cx, |this, window, cx| {
                     window.activate_window();
-                    this.show_inbox(window, cx);
+                    match &click.message {
+                        Some(mail) => this.open_new_mail(&click.account, mail, window, cx),
+                        None => this.show_inbox(window, cx),
+                    }
                 });
                 if applied.is_err() {
                     return;
@@ -1576,7 +1582,7 @@ impl Workspace {
             .show_preview
             .then(|| mail.first())
             .flatten();
-        announcer.show(account, &item.display_name, *count, latest);
+        announcer.show(account, &item.display_name, *count, latest, mail.first());
     }
 
     /// Coming back to the window answers whatever was announced.
@@ -1805,6 +1811,36 @@ impl Workspace {
         self.composer.update(cx, |composer, cx| composer.flush(cx));
         window.focus(&self.focus, cx);
         cx.notify();
+    }
+
+    /// A click on a new-mail notification opens the message it announced, like any explicit open.
+    fn open_new_mail(
+        &mut self,
+        account: &str,
+        mail: &mailstronaut_core::store::analysis::NewMail,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.navigate(Scope::Inbox, window, cx);
+        self.open(
+            Row {
+                account: account.to_owned(),
+                id: mail.id,
+                conversation: None,
+                sender: mail.sender.clone(),
+                subject: mail.subject.clone(),
+                preview: String::new(),
+                unread: 0,
+                messages: 1,
+                received_at: mail.received_at,
+                seen: false,
+                starred: false,
+                due: None,
+                expires_at: None,
+            },
+            window,
+            cx,
+        );
     }
 
     /// A reminder names one exact original; opening it is an explicit open like any other.

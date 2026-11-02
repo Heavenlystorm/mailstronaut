@@ -11,24 +11,44 @@ use tokio::{runtime::Runtime, sync::mpsc};
 
 const OPEN_ACTION: &str = "open-inbox";
 const MAX_PREVIEW_CHARS: usize = 160;
+const ID_PREFIX: &str = "new-mail-";
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 enum Request {
     Show(String, Box<Notification>),
     Withdraw(String),
 }
 
+/// A click on a notification: its account, and the newest message it announced, if known.
+pub struct Opened {
+    pub account: String,
+    pub message: Option<NewMail>,
+}
+
 /// Stops with the application. Cloning its `opened` receiver hears the user's clicks.
 pub struct Announcer {
     requests: mpsc::Sender<Request>,
-    pub opened: async_channel::Receiver<()>,
+    pub opened: async_channel::Receiver<Opened>,
+    /// The newest message each account's notification announced, until it is withdrawn.
+    targets: Arc<Mutex<HashMap<String, NewMail>>>,
     window_active: AtomicBool,
     _listener: tokio_util::task::AbortOnDropHandle<()>,
 }
 
 fn notification_id(account: &str) -> String {
-    format!("new-mail-{account}")
+    format!("{ID_PREFIX}{account}")
+}
+
+/// The account a notification belongs to, from its identifier.
+fn account_of(notification: &str) -> Option<&str> {
+    notification.strip_prefix(ID_PREFIX)
 }
 
 fn visible(text: &str) -> String {
@@ -60,11 +80,16 @@ impl Announcer {
     pub fn start(runtime: &Runtime) -> Self {
         let (requests, receiver) = mpsc::channel(8);
         let (clicked, opened) = async_channel::bounded(1);
-        let listener =
-            tokio_util::task::AbortOnDropHandle::new(runtime.spawn(serve(receiver, clicked)));
+        let targets = Arc::new(Mutex::new(HashMap::new()));
+        let listener = tokio_util::task::AbortOnDropHandle::new(runtime.spawn(serve(
+            receiver,
+            clicked,
+            targets.clone(),
+        )));
         Self {
             requests,
             opened,
+            targets,
             window_active: AtomicBool::new(false),
             _listener: listener,
         }
@@ -80,8 +105,22 @@ impl Announcer {
         self.window_active.load(Ordering::Relaxed)
     }
 
-    /// Replaces any earlier notification for this account.
-    pub fn show(&self, account: &str, label: &str, count: u32, latest: Option<&NewMail>) {
+    /// Replaces any earlier notification for this account. `latest` is what the body may name,
+    /// and `target` is the message a click opens: the newest one announced.
+    pub fn show(
+        &self,
+        account: &str,
+        label: &str,
+        count: u32,
+        latest: Option<&NewMail>,
+        target: Option<&NewMail>,
+    ) {
+        if let Some(target) = target {
+            self.targets
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(account.to_owned(), target.clone());
+        }
         let notification = Notification::new(&format!("New mail · {}", visible(label)))
             .body(body(count, latest).as_str())
             .default_action(OPEN_ACTION);
@@ -93,13 +132,21 @@ impl Announcer {
     }
 
     pub fn withdraw(&self, account: &str) {
+        self.targets
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(account);
         _ = self
             .requests
             .try_send(Request::Withdraw(notification_id(account)));
     }
 }
 
-async fn serve(mut requests: mpsc::Receiver<Request>, clicked: async_channel::Sender<()>) {
+async fn serve(
+    mut requests: mpsc::Receiver<Request>,
+    clicked: async_channel::Sender<Opened>,
+    targets: Arc<Mutex<HashMap<String, NewMail>>>,
+) {
     let Ok(proxy) = NotificationProxy::new().await else {
         return;
     };
@@ -126,8 +173,16 @@ async fn serve(mut requests: mpsc::Receiver<Request>, clicked: async_channel::Se
             },
             action = actions.next() => {
                 let Some(action) = action else { return; };
-                if action.name() == OPEN_ACTION && action.id().starts_with("new-mail-") {
-                    _ = clicked.try_send(());
+                if action.name() == OPEN_ACTION && let Some(account) = account_of(action.id()) {
+                    let message = targets
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .get(account)
+                        .cloned();
+                    _ = clicked.try_send(Opened {
+                        account: account.to_owned(),
+                        message,
+                    });
                 }
             }
         }
@@ -138,14 +193,21 @@ async fn serve(mut requests: mpsc::Receiver<Request>, clicked: async_channel::Se
 mod tests {
     use mailstronaut_core::store::analysis::NewMail;
 
-    use super::body;
+    use super::{account_of, body, notification_id};
 
     fn mail() -> NewMail {
         NewMail {
             id: 1,
             sender: "Maria\nRossi".into(),
             subject: "Bonjour · 世界".into(),
+            received_at: 0,
         }
+    }
+
+    #[test]
+    fn a_click_names_the_account_whose_notification_was_clicked() {
+        assert_eq!(account_of(&notification_id("inria")), Some("inria"));
+        assert_eq!(account_of("some-other-notification"), None);
     }
 
     #[test]
@@ -165,6 +227,7 @@ mod tests {
             id: 1,
             sender: "x".repeat(500),
             subject: "y".repeat(500),
+            received_at: 0,
         };
         assert_eq!(body(1, Some(&long)).chars().count(), 321);
     }

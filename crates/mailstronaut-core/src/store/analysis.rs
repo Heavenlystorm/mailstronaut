@@ -24,6 +24,8 @@ pub struct NewMail {
     pub sender: String,
     /// Decoded subject.
     pub subject: String,
+    /// When the message arrived, in Unix seconds.
+    pub received_at: i64,
 }
 
 /// A message waiting for analysis.
@@ -224,7 +226,7 @@ impl Store {
             return Ok((newest, Vec::new()));
         };
         let mut query = self.connection.prepare_cached(&format!(
-            "SELECT m.id,m.sender,m.subject FROM messages m
+            "SELECT m.id,m.sender,m.subject,m.received_at FROM messages m
              WHERE m.account_id=?1 AND m.id>?2 AND m.id<=?3 AND m.received_at>=?4 AND m.read_cleared=0
              AND {IN_INBOX} ORDER BY m.received_at DESC,m.id DESC LIMIT ?5"
         ))?;
@@ -234,6 +236,7 @@ impl Store {
                     id: row.get(0)?,
                     sender: row.get(1)?,
                     subject: row.get(2)?,
+                    received_at: row.get(3)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

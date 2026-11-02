@@ -126,6 +126,8 @@ if [[ $variant == disabled ]]; then
   sleep 4
   [[ $(shown) == 0 ]]
   printf '%s\n' 'OK: disabled notifications stay silent'
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 0 ]]
+  printf '%s\n' 'OK: nothing was marked read'
 else
   await_shown 'the first delivery was announced' 1
   last_shown > "$artifacts/first.json"
@@ -151,7 +153,7 @@ for note in (first, second):
     assert "marker-" not in note["body"], "a message body must never appear"
 print("OK: one replaced notification per account, saying only what the settings allow")
 PY
-  # Clicking it brings the inbox forward, and coming back clears it.
+  # Clicking it brings the inbox forward, and opens the newest message it announced.
   printf '%s\n' "new-mail-notify-$variant open-inbox" > "$artifacts/notification-invoke"
   sleep 1
   swaymsg workspace 1 > /dev/null
@@ -164,9 +166,13 @@ PY
   [[ $(heading inbox elsewhere) == 0 ]]
   [[ $(heading inbox returned) == 1 ]]
   printf '%s\n' 'OK: clicking the notification brought the inbox forward'
+  await 'the click opened the newest announced message' 1 \
+    "SELECT count(*) FROM memberships m JOIN messages x ON x.id=m.message_id WHERE m.seen=1 AND x.subject='Synthetic subject away-two'"
+  sleep 1
+  capture opened
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 1 ]]
+  printf '%s\n' 'OK: opening by the click marked only that message read'
 fi
-[[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 0 ]]
-printf '%s\n' 'OK: nothing was marked read'
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
