@@ -313,6 +313,41 @@ async fn private_portal_reminders_replace_after_crash_and_honor_actions_privacy_
             .expect("cancelled action")
             .is_none()
     );
+    // Apply an action received from the private portal without creating a window.
+    let current = handle
+        .reminder_for("a".into(), message)
+        .await
+        .expect("current")
+        .expect("reminder");
+    let next = handle
+        .schedule_reminder(Schedule {
+            account: "a".into(),
+            message,
+            due_at: 300,
+            time_zone: "Europe/Paris".into(),
+            now: 100,
+            expected: Some(current.generation),
+        })
+        .await
+        .expect("reschedule fixture");
+    emit(&portal, &next.notification, "again", next.generation).await;
+    let action = tokio::time::timeout(Duration::from_secs(2), client.events.recv())
+        .await
+        .expect("portal action deadline")
+        .expect("action");
+    assert!(
+        handle_action(&handle, &config, action)
+            .await
+            .expect("apply without window")
+            .is_none()
+    );
+    let updated = handle
+        .reminder_for("a".into(), message)
+        .await
+        .expect("read")
+        .expect("reminder");
+    assert_eq!(updated.generation, next.generation + 1);
+    assert!((3500..=3600).contains(&(updated.due_at - now())));
     drop(client);
     drop(snapshot);
     drop(again);

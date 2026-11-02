@@ -49,7 +49,8 @@ pub enum Event {
 
 enum Update {
     Snapshot(Vec<Reminder>, String),
-    Action(desktop::Action),
+    Open(Reminder),
+    Error(String),
 }
 
 pub struct Reminders {
@@ -128,14 +129,19 @@ impl Reminders {
         ));
         cx.spawn_in(window, async move |this, cx| {
             while let Some(update) = receiver.recv().await {
-                let applied = this.update_in(cx, |this, window, cx| match update {
+                let applied = this.update_in(cx, |this, _, cx| match update {
                     Update::Snapshot(records, status) => {
                         this.records = records;
                         this.status = status.into();
                         cx.emit(Event::Changed);
                         cx.notify();
                     }
-                    Update::Action(action) => this.desktop_action(action, window, cx),
+                    Update::Open(record) => cx.emit(Event::Open(record)),
+                    Update::Error(error) => {
+                        this.error = Some(error.into());
+                        cx.emit(Event::Changed);
+                        cx.notify();
+                    }
                 });
                 if applied.is_err() {
                     return;
@@ -308,38 +314,6 @@ impl Reminders {
                 }
                 wake.notify_one();
                 cx.notify();
-            });
-        })
-        .detach();
-    }
-
-    /// Notification buttons only name a reminder; resolve it against current state, so
-    /// a stale notification cannot act on a rescheduled or removed reminder.
-    fn desktop_action(&self, action: desktop::Action, window: &Window, cx: &Context<Self>) {
-        let (Some(store), Some(config)) = (self.store.clone(), self.config.clone()) else {
-            return;
-        };
-        let accounts: Vec<_> = config.accounts.iter().map(|item| item.id.clone()).collect();
-        let (notification, generation, kind) =
-            (action.notification, action.generation, action.kind);
-        let job = self.runtime.spawn(async move {
-            store
-                .reminder_action(accounts, notification, generation)
-                .await
-        });
-        cx.spawn_in(window, async move |this, cx| {
-            let result = job.await;
-            _ = this.update_in(cx, |this, window, cx| {
-                let Ok(Ok(Some(record))) = result else {
-                    return;
-                };
-                match kind {
-                    desktop::Kind::Open => cx.emit(Event::Open(record)),
-                    desktop::Kind::Dismiss => this.change(&record, false, window, cx),
-                    desktop::Kind::Again => {
-                        this.schedule(record.account, record.message, &When::Hour, window, cx);
-                    }
-                }
             });
         })
         .detach();
@@ -566,6 +540,61 @@ async fn resolve_original(
     )
 }
 
+/// Resolve and apply notification actions without requiring a window. Every
+/// mutation uses the generation that the notification actually identified.
+async fn handle_action(
+    store: &Handle,
+    config: &Config,
+    action: desktop::Action,
+) -> Result<Option<Reminder>, &'static str> {
+    let accounts = config
+        .accounts
+        .iter()
+        .map(|account| account.id.clone())
+        .collect();
+    let Some(record) = store
+        .reminder_action(accounts, action.notification, action.generation)
+        .await
+        .map_err(|_| "Unable to resolve the reminder action.")?
+    else {
+        return Ok(None);
+    };
+    match action.kind {
+        desktop::Kind::Open => Ok(Some(record)),
+        desktop::Kind::Dismiss => {
+            store
+                .edit_reminder(record.account, record.id, record.generation, false)
+                .await
+                .map_err(|_| "This reminder changed. Try again.")?;
+            Ok(None)
+        }
+        desktop::Kind::Again => {
+            let current = now();
+            let zone = crate::mailbox::local_zone(config.time_zone.as_deref());
+            let due_at = reminders::resolve(
+                current,
+                &zone,
+                &When::Hour,
+                &config.reminders.morning,
+                &config.reminders.evening,
+            )
+            .map_err(|_| "Unable to reschedule the reminder.")?;
+            store
+                .schedule_reminder(Schedule {
+                    account: record.account,
+                    message: record.message,
+                    due_at,
+                    time_zone: zone,
+                    now: current,
+                    expected: Some(record.generation),
+                })
+                .await
+                .map_err(|_| "This reminder changed. Try again.")?;
+            Ok(None)
+        }
+    }
+}
+
 async fn engine(
     store: Handle,
     config: Arc<Config>,
@@ -597,10 +626,13 @@ async fn engine(
             () = wake.notified() => {}
             () = tokio::time::sleep(sleep_for(next, now())) => {}
             action = action => {
-                if let Some(action) = action
-                    && updates.send(Update::Action(action)).await.is_err()
-                {
-                    return;
+                if let Some(action) = action {
+                    let update = match handle_action(&store, &config, action).await {
+                        Ok(Some(record)) => Some(Update::Open(record)),
+                        Ok(None) => None,
+                        Err(error) => Some(Update::Error(error.into())),
+                    };
+                    if let Some(update) = update && updates.send(update).await.is_err() { return; }
                 }
             }
         }
@@ -687,5 +719,100 @@ mod tests {
         assert_eq!(sleep_for(Some(100 + 86_400), 100), MAX_SLEEP);
         // Overdue work retries soon rather than spinning.
         assert_eq!(sleep_for(Some(50), 100), Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn notification_actions_are_fenced_and_do_not_need_a_window() {
+        use super::{Schedule, State, desktop, handle_action, now};
+        use mailstronaut_core::{store::Store, worker::Worker};
+        let root = tempfile::tempdir().expect("private profile");
+        let mut store = Store::open(root.path()).expect("store");
+        store.ensure_account("a").expect("account");
+        let message = store
+            .ingest_message("a", b"Subject: Synthetic\r\n\r\nFixture.")
+            .expect("message");
+        drop(store);
+        let owner = Worker::open(root.path().to_owned()).await.expect("worker");
+        let handle = owner.handle();
+        let config: mailstronaut_config::Config = serde_json::from_value(serde_json::json!({"schemaVersion":1,"timeZone":"UTC","accounts":[{"id":"a","provider":"icloud","address":"a@example.test","displayName":"A","userName":"a","auth":{"kind":"password","secretRef":"a"}}]})).expect("config");
+        let first = handle
+            .schedule_reminder(Schedule {
+                account: "a".into(),
+                message,
+                due_at: now() + 120,
+                time_zone: "UTC".into(),
+                now: now(),
+                expected: None,
+            })
+            .await
+            .expect("schedule");
+        let action = |generation, kind| desktop::Action {
+            notification: first.notification.clone(),
+            generation,
+            kind,
+        };
+        assert!(
+            handle_action(
+                &handle,
+                &config,
+                action(first.generation, desktop::Kind::Open)
+            )
+            .await
+            .expect("open")
+            .is_some()
+        );
+        assert!(
+            handle_action(
+                &handle,
+                &config,
+                action(first.generation, desktop::Kind::Again)
+            )
+            .await
+            .expect("reschedule")
+            .is_none()
+        );
+        let next = handle
+            .reminder_for("a".into(), message)
+            .await
+            .expect("read")
+            .expect("reminder");
+        assert_eq!(next.generation, first.generation + 1);
+        assert!((3500..=3600).contains(&(next.due_at - now())));
+        assert!(
+            handle_action(
+                &handle,
+                &config,
+                action(first.generation, desktop::Kind::Dismiss)
+            )
+            .await
+            .expect("stale ignored")
+            .is_none()
+        );
+        assert_eq!(
+            handle
+                .reminder_for("a".into(), message)
+                .await
+                .expect("read")
+                .expect("reminder")
+                .state,
+            State::Pending
+        );
+        handle_action(
+            &handle,
+            &config,
+            action(next.generation, desktop::Kind::Dismiss),
+        )
+        .await
+        .expect("dismiss");
+        assert_eq!(
+            handle
+                .reminder_for("a".into(), message)
+                .await
+                .expect("read")
+                .expect("reminder")
+                .state,
+            State::Cancelled
+        );
+        owner.shutdown().await.expect("shutdown");
     }
 }

@@ -89,3 +89,19 @@ The package path, numeric receipt, source comparison and bounded installed resul
 are recorded with [onboarding package acceptance](P05-onboarding.md#release-and-installed-acceptance).
 There is no hosted-CI, aarch64, live-account, real notification server, Flatpak,
 full HM activation or accessibility claim. P08 remains incomplete.
+
+## Window-independent action handling
+
+On 2026-11-02, the reminder loop was changed to resolve notification actions and
+apply dismiss or one-hour rescheduling without a GPUI window. Both writes use the
+notification's original generation; stale actions do not change a newer reminder.
+The pinned workspace tests passed, including a worker-backed generation regression.
+The private D-Bus portal test delivered an action and applied it without creating
+a window. A separate synthetic Wayland walkthrough passed native scheduling,
+rescheduling, restart and cancellation on the current source.
+The x86_64 Nix package gate passed after rebasing onto `f93de4a`, including
+release tests and the Home Manager module check; aarch64 was omitted.
+
+This is a service-boundary step, not background operation: the engine and its update
+receiver are still owned by the window. Closing the window, a real desktop portal,
+Flatpak, and action races with configuration changes remain unverified here.

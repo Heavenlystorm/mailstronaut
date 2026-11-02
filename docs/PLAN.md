@@ -568,7 +568,8 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   Its pinned system path submits no actions and is window-bound; retain stable
   backend IDs, portal delivery and Open/Remind again/Dismiss routing for reminders.
   [Portal delivery and actions pass on a private bus](evidence/P08-native-reminders.md);
-  real desktop servers remain open.
+  action resolution and dismiss/reschedule now run without a window and reject stale
+  notification generations; service lifetime and real desktop servers remain open.
 - [ ] Verify stable replacement, both crash windows, Open/Remind again/Dismiss,
   denied/disabled notifications, DST/ambiguous times and deleted-message cases.
 - [x] Claim single-instance session ownership before UI/backend startup and route
