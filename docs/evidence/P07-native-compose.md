@@ -92,11 +92,13 @@ lower in the row, so the walkthrough aims the final confirmation at that positio
 priority, compose, delivery, older mail, history, actions, large mail, notifications and
 navigation) exits 0 in private headless sway sessions with synthetic mail.
 
-`experiments/p07-compose/failures.sh` covers three more ways a send can stop, each with a fresh
+`experiments/p07-compose/failures.sh` covers four more ways a send can stop, each with a fresh
 profile database. A server whose certificate cannot be verified receives no data and leaves the
 mail "Not sent". A refused sign-in also leaves it "Not sent", and Retry in the outbox sends the
 same message once the server accepts the sign-in. A send cancelled while the server stays silent
-ends "cancelled" without any data.
+ends "cancelled" without any data. A send stopped before its submission begins stays "Waiting to
+send" across a crash. Restarting neither sends it nor contacts the server, and its Cancel in the
+outbox leaves it cancelled.
 
 `experiments/p07-compose/sent-copy.sh` runs against Dovecot. The server is down when the message
 is accepted, so the Sent copy stays pending. A sync while IMAP is still down neither saves that
@@ -116,7 +118,6 @@ and reports a closed port and a refused sign-in as sending nothing.
 ## Not established
 
 No live provider or real desktop portal. The GUI path has not yet exercised: removing an
-attachment, a queued row's Cancel after a restart, discard, identity switching, or
-Reply/Forward. Backend tests cover several of those states. Provider-side Sent saving is not
+attachment, discard, identity switching, or Reply/Forward. Backend tests cover several of those states. Provider-side Sent saving is not
 exercised. A connection lost between the pre-flight and DATA is still reported as unknown,
 the safe direction.

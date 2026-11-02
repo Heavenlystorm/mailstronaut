@@ -505,11 +505,11 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
 - [ ] Verify autosave, draft switching, source-file access loss, close/restart and
   failure recovery on Wayland. A selected file becomes a private owned snapshot.
   Expose draft/save/outbox state in `StatusBar`, with persistent `Alert` failures.
-- [ ] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
+- [x] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
   Preserve fixed frozen bytes and Message-ID; no automatic ambiguous-delivery retry.
-  [Accepted, unreachable, rejected, unknown, untrusted-certificate, refused sign-in, retry
-  and in-flight cancel pass natively](evidence/P07-native-compose.md); a queued row's
-  Cancel after a restart is not yet exercised.
+  [Accepted, unreachable, rejected, unknown, untrusted-certificate, refused sign-in, retry,
+  in-flight cancel and a queued send across a crash pass natively on loopback
+  fixtures](evidence/P07-native-compose.md), not on live providers.
 - [ ] Complete accepted-DATA/drop reconciliation, provider Sent auto-save and
   separately retriable Sent APPEND. Sent-copy failure must never trigger SMTP resend.
   [Sent APPEND passes against a real server](evidence/P04-background-sync.md), and a lost

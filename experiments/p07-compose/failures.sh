@@ -46,6 +46,9 @@ retry_x=249
 retry_y=442
 cancel_x=581
 cancel_y=134
+# The queued row's Cancel after a restart: its row shows Send, then Cancel, under "Waiting to send".
+queued_cancel_x=314
+queued_cancel_y=329
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
@@ -141,6 +144,39 @@ kill -0 "$server"
 printf '%s\n' 'OK: the cancelled send submitted nothing'
 sleep 1
 capture cancelled
+stop_server
+close_window
+
+# A send stopped in its pre-flight check is still queued after a crash. Restarting neither sends
+# it nor contacts the server, and its Cancel leaves it cancelled.
+write_config "\"$ca\""
+rm -rf "$XDG_DATA_HOME/mailstronaut"
+serve MAILSTRONAUT_SMTP_STALL=1
+start queued
+compose
+sleep 3
+kill -KILL "$app"
+wait "$app" 2>/dev/null || true
+app=''
+[[ $(state) == pending:0 ]]
+printf '%s\n' 'OK: a send stopped before submission is still queued after a crash'
+stop_server
+serve
+start queued-restarted
+wtype -s 200 -M ctrl 2 -m ctrl -s 900
+sleep 5
+kill -0 "$server"
+[[ $(state) == pending:0 ]]
+printf '%s\n' 'OK: restarting neither sent the queued message nor contacted the server'
+sleep 1
+capture queued-restarted
+click "$queued_cancel_x" "$queued_cancel_y"
+sleep 2
+await_state 'cancelling the restarted queued message leaves it cancelled' cancelled:0
+kill -0 "$server"
+printf '%s\n' 'OK: the cancelled queued message submitted nothing'
+sleep 1
+capture queued-cancelled
 stop_server
 close_window
 
