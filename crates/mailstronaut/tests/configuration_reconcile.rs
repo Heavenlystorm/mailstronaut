@@ -107,7 +107,7 @@ async fn activation_preserves_omissions_replaces_lists_and_round_trips_native_da
         mailstronaut_config::Appearance::Dark
     ));
     assert_eq!(after.sync.poll_seconds, 120);
-    assert_eq!(after.sync.initial_days, 7);
+    assert_eq!(after.sync.initial_days, Some(7));
     assert!(after.notifications.show_preview);
     assert!(after.accounts.is_empty());
     let before = fs::read(&path).expect("valid original");
@@ -237,7 +237,7 @@ async fn preference_saves_preserve_raw_omissions_and_reject_a_newer_declaration(
         mailstronaut_config::Appearance::Dark
     ));
     assert_eq!(saved.sync.poll_seconds, 120);
-    assert_eq!(saved.sync.initial_days, 7);
+    assert_eq!(saved.sync.initial_days, Some(7));
     assert!(!saved.sync.automatic);
     assert!(saved.notifications.show_preview);
     assert_eq!(saved.time_zone.as_deref(), Some("Europe/Paris"));

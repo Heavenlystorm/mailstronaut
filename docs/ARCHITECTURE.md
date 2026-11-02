@@ -195,8 +195,11 @@ research and measure existing components before writing search integration.
 Use library IMAP UID methods and capabilities; wrap them with a small account worker.
 Initial sync: list subscribed/available folders, identify INBOX and SPECIAL-USE
 Sent/Drafts/Trash/Archive, fetch envelopes/flags in bounded UID batches, then body
-previews/new inbox bodies. Start with recent 30 days and page older mail on demand;
-display that the cache is partial. Fetch all newly delivered inbox messages for
+previews/new inbox bodies. Fetch each folder's complete history by default, newest UID
+window first, with a durable per-folder cursor that a restart resumes; a declared
+`sync.initialDays` limit caps it instead. Arrivals and flags are examined before history
+in every cycle, and a finished folder is walked again only after six hours. Display that
+the cache is partial while history is still being fetched. Fetch all newly delivered inbox messages for
 local analysis within the configured body-size budget, even if no row is opened.
 Never use an opening/read API that sets `\\Seen` during preview/classification;
 fetch with `BODY.PEEK`. Fetch attachments on explicit request.

@@ -14,7 +14,7 @@ use std::{
 };
 
 use mailstronaut_config::{Account, Config};
-use mailstronaut_core::worker::Handle;
+use mailstronaut_core::{sync::Progress, worker::Handle};
 use mailstronaut_mail::imap::Wake;
 use tokio::{
     runtime::Runtime,
@@ -32,10 +32,40 @@ const MAX_RETRY: Duration = Duration::from_secs(300);
 const IDLE_RENEW: Duration = Duration::from_mins(9);
 /// One delivery usually produces several notifications; one cycle covers them all.
 const COALESCE: Duration = Duration::from_secs(1);
+/// While a folder still has history to fetch, its account comes back this often instead of
+/// at the polling interval, so the history moves steadily without waiting a whole poll.
+const BACKFILL_PAUSE: Duration = Duration::from_secs(30);
+
+/// Progress of one folder's history pass: `completed` of `total` messages reviewed.
+/// `total` is None until the server reports how many messages the folder holds.
+#[expect(
+    dead_code,
+    reason = "the status bar reads fetch progress once it is wired to this contract"
+)]
+pub struct Fetch {
+    pub folder: String,
+    pub completed: u32,
+    pub total: Option<u32>,
+}
 
 pub enum Update {
     Started(String),
     Finished(String, Result<Cycle, String>),
+    /// Fetch progress for one folder of an account, while its cycle runs.
+    #[expect(
+        dead_code,
+        reason = "the status bar reads fetch progress once it is wired to this contract"
+    )]
+    Progress(String, Fetch),
+}
+
+/// How long until the next cycle: history continues quickly, everything else at the poll.
+fn next_wait(poll: Duration, backfill_pending: bool) -> Duration {
+    if backfill_pending {
+        poll.min(BACKFILL_PAUSE)
+    } else {
+        poll
+    }
 }
 
 struct Entry {
@@ -140,14 +170,34 @@ async fn run(work: Loop, cancel: CancellationToken) {
         }
         let extra =
             core::mem::take(&mut *work.extra.lock().unwrap_or_else(PoisonError::into_inner));
+        let updates = work.updates.clone();
+        let progress_account = id.clone();
+        let emit = move |folder: &str, progress: Progress| {
+            // A full channel drops this report; the next window reports again.
+            _ = updates.try_send(Update::Progress(
+                progress_account.clone(),
+                Fetch {
+                    folder: folder.to_owned(),
+                    completed: progress.completed,
+                    total: progress.total,
+                },
+            ));
+        };
         let result = work
             .access
-            .sync_account(&work.store, &work.config, &work.account, &extra, &cancel)
+            .sync_account(
+                &work.store,
+                &work.config,
+                &work.account,
+                &extra,
+                &emit,
+                &cancel,
+            )
             .await;
         let report = match result {
             Ok(cycle) => {
                 retry = FIRST_RETRY;
-                wait = Some(poll);
+                wait = Some(next_wait(poll, cycle.backfill_pending));
                 // Only after a good cycle: the credentials are known to work, and a
                 // watcher stopped on refused ones comes back once they are fixed.
                 if watcher.as_ref().is_none_or(JoinHandle::is_finished) {
@@ -263,7 +313,20 @@ fn next_retry(current: Duration) -> Duration {
 
 #[cfg(test)]
 mod tests {
-    use super::{FIRST_RETRY, MAX_RETRY, next_retry};
+    use super::{BACKFILL_PAUSE, FIRST_RETRY, MAX_RETRY, next_retry, next_wait};
+    use core::time::Duration;
+
+    #[test]
+    fn history_continues_quickly_and_everything_else_waits_for_the_poll() {
+        let poll = Duration::from_secs(300);
+        assert_eq!(next_wait(poll, true), BACKFILL_PAUSE);
+        assert_eq!(next_wait(poll, false), poll);
+        // A poll shorter than the pause is never lengthened.
+        assert_eq!(
+            next_wait(Duration::from_secs(10), true),
+            Duration::from_secs(10)
+        );
+    }
 
     #[test]
     fn retries_back_off_to_the_five_minute_ceiling() {

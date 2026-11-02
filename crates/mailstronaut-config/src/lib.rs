@@ -124,8 +124,11 @@ pub struct Sync {
     /// Keep accounts up to date while the application runs. When false, mail is
     /// fetched only by an explicit request in Settings.
     pub automatic: bool,
-    /// Initial history in days.
-    pub initial_days: u32,
+    /// Oldest mail to fetch, in days before each sync. Absent or null fetches the complete
+    /// history of every synchronized folder. Declaring or changing a limit never deletes
+    /// cached mail.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_days: Option<u32>,
     /// Polling interval in seconds.
     pub poll_seconds: u32,
     /// Maximum body bytes for analysis.
@@ -136,7 +139,7 @@ impl Default for Sync {
     fn default() -> Self {
         Self {
             automatic: true,
-            initial_days: 30,
+            initial_days: None,
             poll_seconds: 300,
             max_body_bytes: 0x20_0000,
         }
@@ -482,7 +485,9 @@ impl Config {
             "only version 1 is supported",
         );
         check(
-            (1..=3650).contains(&self.sync.initial_days),
+            self.sync
+                .initial_days
+                .is_none_or(|days| (1..=3650).contains(&days)),
             "sync.initialDays",
             "outside supported range",
         );
@@ -819,6 +824,35 @@ fn evaluate_unisolated(source: &str) -> Result<Config, &'static str> {
         return Err("configuration validation failed");
     }
     Ok(config)
+}
+
+#[cfg(test)]
+mod history_tests {
+    use super::Sync;
+
+    #[test]
+    fn history_is_complete_unless_an_age_limit_is_declared() {
+        assert_eq!(Sync::default().initial_days, None);
+        let absent: Sync = serde_json::from_str("{}").expect("absent limit");
+        assert_eq!(absent.initial_days, None);
+        let cleared: Sync = serde_json::from_str(r#"{"initialDays":null}"#).expect("null limit");
+        assert_eq!(cleared.initial_days, None);
+        // A configuration that declared the earlier 30-day cap keeps it exactly.
+        let explicit: Sync = serde_json::from_str(r#"{"initialDays":30}"#).expect("explicit limit");
+        assert_eq!(explicit.initial_days, Some(30));
+    }
+
+    #[test]
+    fn only_a_declared_age_limit_is_written_out() {
+        let written = serde_json::to_value(Sync::default()).expect("serialized sync");
+        assert!(written.get("initialDays").is_none());
+        let limited = Sync {
+            initial_days: Some(7),
+            ..Sync::default()
+        };
+        let written = serde_json::to_value(limited).expect("serialized sync");
+        assert_eq!(written["initialDays"], 7);
+    }
 }
 
 #[cfg(test)]

@@ -1668,6 +1668,8 @@ impl Workspace {
             crate::mail_sync::Update::Started(account) => {
                 self.syncing.insert(account);
             }
+            // Fetch progress is the status bar's to show; its data contract is `mail_sync::Fetch`.
+            crate::mail_sync::Update::Progress(..) => {}
             crate::mail_sync::Update::Finished(account, result) => {
                 self.syncing.remove(&account);
                 if let Some(search) = &self.fuzzy {

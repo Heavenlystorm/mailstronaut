@@ -5,6 +5,10 @@ has been contacted.
 
 ## Behavior
 
+> Superseded: automatic sync now fetches the complete history by default, and a declared
+> `sync.initialDays` is only a cap. See [complete history](P04-history.md). This record
+> describes the earlier 30-day default.
+
 Automatic sync downloads `sync.initialDays` of mail, 30 by default. Older mail could only be
 fetched one page at a time from an account's Settings. Now, at the end of what is cached in
 the unified inbox, an account or a folder, **Fetch older mail** asks the server for more. Each

@@ -211,6 +211,8 @@ enum Command {
     Account(String, Reply<()>),
     Folder(String, String, bool, Reply<Folder>),
     Select(String, i64, core::num::NonZeroU32, Reply<()>),
+    BackfillPass(String, i64, Reply<Option<store::backfill::Pass>>),
+    SaveBackfill(String, i64, store::backfill::Pass, Reply<()>),
     Cache {
         account: String,
         membership: Membership,
@@ -968,6 +970,31 @@ impl Handle {
         self.request(|reply| Command::Select(account, folder, validity, reply))
             .await
     }
+    /// The durable history pass of one folder, if one was started.
+    ///
+    /// # Errors
+    /// Returns a redacted worker or storage error.
+    pub async fn backfill_pass(
+        &self,
+        account: String,
+        folder: i64,
+    ) -> Result<Option<store::backfill::Pass>, Error> {
+        self.request(|reply| Command::BackfillPass(account, folder, reply))
+            .await
+    }
+    /// Store a history pass once the window it describes has committed.
+    ///
+    /// # Errors
+    /// Returns a redacted worker or storage error.
+    pub async fn save_backfill(
+        &self,
+        account: String,
+        folder: i64,
+        pass: store::backfill::Pass,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::SaveBackfill(account, folder, pass, reply))
+            .await
+    }
     /// Enqueue one bounded original. Backpressure suspends the caller without
     /// blocking the GUI or retaining an unbounded number of message bodies.
     ///
@@ -1411,6 +1438,12 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::Select(account, folder, validity, reply) => {
                 respond(reply, || store.select_folder(&account, folder, validity));
+            }
+            Command::BackfillPass(account, folder, reply) => {
+                respond(reply, || store.backfill_pass(&account, folder));
+            }
+            Command::SaveBackfill(account, folder, pass, reply) => {
+                respond(reply, || store.save_backfill(&account, folder, &pass));
             }
             Command::Cache {
                 account,

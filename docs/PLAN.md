@@ -263,14 +263,18 @@ new dependency graph before claiming current-package acceptance.
 
 ## P04 — IMAP synchronization and offline operation
 
-- [ ] Fetch the complete selected-folder history by default, in bounded UID batches
-  with cancellation/restart and backpressure. Replace the implicit age-limited
-  initial cache policy; expose an optional advanced age/retention limit (for example
-  30 days) in native Nix, Home Manager and Settings. Never silently delete drafts,
-  pending operations or locally owned attachments when changing this policy.
+- [x] Fetch the complete selected-folder history by default, in bounded UID windows
+  with durable per-folder cursors, restart after a kill, and backpressure. An optional
+  native `sync.initialDays` cap keeps its meaning when declared; absent or null means the
+  complete history. Nothing is deleted by either. [Evidence](evidence/P04-history.md).
+- [ ] Expose the advanced history age limit in Settings and Home Manager, and offer
+  retention eviction (separately, never silently deleting drafts, pending operations or
+  locally owned attachments). Settings wiring and eviction are not implemented.
 - [ ] Show actual fetch progress in the status bar with Kit `Progress`: account/folder,
   completed and known total. Use indeterminate progress while the total is unknown;
-  distinguish fetching, offline, retry and finished. Test cancellation and errors.
+  distinguish fetching, offline, retry and finished. Test cancellation and errors. The
+  backend contract (`Update::Progress` / `mail_sync::Fetch`) exists; the status bar does
+  not show it yet.
 
 - [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
   expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.

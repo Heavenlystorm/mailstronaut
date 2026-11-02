@@ -80,6 +80,9 @@ fi
 if [[ -n ${MAILSTRONAUT_OLDER_GUI_BINARY:-} ]]; then
   bash experiments/p04-sync/older.sh "$MAILSTRONAUT_OLDER_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_HISTORY_GUI_BINARY:-} ]]; then
+  bash experiments/p04-sync/history.sh "$MAILSTRONAUT_HISTORY_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_ACTIONS_GUI_BINARY:-} ]]; then
   for variant in full no-move neither; do
     bash experiments/p07-compose/actions.sh "$MAILSTRONAUT_ACTIONS_GUI_BINARY" "$root" "$variant"

@@ -7,7 +7,10 @@ use sha2::{Digest as _, Sha256};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    store::mailbox::{Flags, Folder, FolderRole, GmailId, Membership, UidSnapshot},
+    store::{
+        backfill::Pass,
+        mailbox::{Flags, Folder, FolderRole, GmailId, Membership, UidSnapshot},
+    },
     worker,
 };
 
@@ -59,6 +62,9 @@ pub struct Page {
     pub refreshed: u32,
     /// Originals omitted because of age, size, unsupported MIME or concurrent expunge.
     pub skipped: u32,
+    /// UIDs of this window whose metadata was reviewed, kept or not. A window cut short by
+    /// the body budget counts only the UIDs above its stopping point.
+    pub reviewed: u32,
 }
 
 /// Redacted transport/storage errors; no credentials, bodies or server diagnostics.
@@ -240,7 +246,22 @@ pub async fn page(
     if request.max_original == 0 || request.max_original > 8 * 1024 * 1024 {
         return Err(imap::Error::Configuration.into());
     }
-    let (folder, validity, upper) = prepare(store, connection, request, cancel).await?;
+    let selected = select_folder(store, connection, request, cancel).await?;
+    let upper = upper(request, &selected);
+    window(store, connection, request, &selected, upper, cancel).await
+}
+
+/// Reconcile and fetch one closed window of UIDs at or below `upper`, newest first.
+async fn window(
+    store: &worker::Handle,
+    connection: &mut Connection,
+    request: &Request<'_>,
+    selected: &Selected,
+    upper: u32,
+    cancel: &CancellationToken,
+) -> Result<Page, Error> {
+    let folder = &selected.folder;
+    let validity = selected.validity;
     let Some(last) = NonZeroU32::new(upper) else {
         return Ok(Page::default());
     };
@@ -307,6 +328,13 @@ pub async fn page(
                     .checked_add(1)
                     .and_then(NonZeroU32::new)
                     .map(|before| position(request, folder.id, validity, before));
+                page.reviewed = u32::try_from(
+                    descending
+                        .iter()
+                        .take_while(|uid| **uid > observed.uid)
+                        .count(),
+                )
+                .unwrap_or(u32::MAX);
                 return Ok(page);
             }
             let Some(message) = connection.peek(&observed, cancel).await? else {
@@ -330,8 +358,10 @@ pub async fn page(
             }
         }
     }
+    page.reviewed = u32::try_from(descending.len()).unwrap_or(u32::MAX);
     Ok(page)
 }
+
 fn position(
     request: &Request<'_>,
     folder: i64,
@@ -339,11 +369,16 @@ fn position(
     before: NonZeroU32,
 ) -> Position {
     Position {
-        context: Sha256::digest(request.context.as_bytes()).into(),
+        context: digest(request.context),
         folder,
         uid_validity,
         before,
     }
+}
+
+/// The fingerprint of a mailbox context, as positions and stored passes record it.
+fn digest(context: &str) -> [u8; 32] {
+    Sha256::digest(context.as_bytes()).into()
 }
 
 /// Returns whether a reduced copy was stored. An expunged message or one whose headers
@@ -380,18 +415,30 @@ async fn cache_reduced(
     }
 }
 
-async fn prepare(
+/// The folder as SELECT left it, after its UID namespace has been recorded.
+struct Selected {
+    folder: Folder,
+    validity: NonZeroU32,
+    /// UIDNEXT when the folder was selected: the namespace's exclusive upper bound.
+    next: u32,
+    /// EXISTS when the folder was selected.
+    exists: u32,
+    /// The mailbox context differs from the one the store last recorded.
+    changed: bool,
+}
+
+async fn select_folder(
     store: &worker::Handle,
     connection: &mut Connection,
     request: &Request<'_>,
     cancel: &CancellationToken,
-) -> Result<(Folder, NonZeroU32, u32), Error> {
-    let selected = connection.select(request.folder, cancel).await?;
-    let validity = selected
+) -> Result<Selected, Error> {
+    let mailbox = connection.select(request.folder, cancel).await?;
+    let validity = mailbox
         .uid_validity
         .and_then(NonZeroU32::new)
         .ok_or(imap::Error::Protocol)?;
-    let next = selected
+    let next = mailbox
         .uid_next
         .and_then(NonZeroU32::new)
         .ok_or(imap::Error::Protocol)?;
@@ -405,20 +452,196 @@ async fn prepare(
     store
         .select_folder(request.account.into(), folder.id, validity)
         .await?;
-    let upper = request
+    Ok(Selected {
+        folder,
+        validity,
+        next: next.get(),
+        exists: mailbox.exists,
+        changed,
+    })
+}
+
+/// The exclusive bound of the next window. A continuation is honoured only inside the
+/// exact namespace and mailbox context that produced it.
+fn upper(request: &Request<'_>, selected: &Selected) -> u32 {
+    request
         .before
         .filter(|position| {
-            !changed
-                && position.context == <[u8; 32]>::from(Sha256::digest(request.context.as_bytes()))
-                && position.folder == folder.id
-                && position.uid_validity == validity
+            !selected.changed
+                && position.context == digest(request.context)
+                && position.folder == selected.folder.id
+                && position.uid_validity == selected.validity
         })
         .map_or_else(
-            || next.get(),
-            |position| position.before.get().min(next.get()),
+            || selected.next,
+            |position| position.before.get().min(selected.next),
         )
+        .saturating_sub(1)
+}
+
+/// How far one folder's history pass has got, as reported while it runs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Progress {
+    /// Messages reviewed by the current pass, whether or not their originals were kept.
+    pub completed: u32,
+    /// Messages present when the pass began; None when SELECT did not report them.
+    pub total: Option<u32>,
+}
+
+/// The outcome of one window of a folder's history pass.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Step {
+    /// Originals newly committed by this window.
+    pub downloaded: u32,
+    /// The pass has reached the beginning of the folder, now or in an earlier step.
+    pub finished: bool,
+    /// Where the pass stands after this step.
+    pub progress: Progress,
+}
+
+/// What a stored pass must still match before its cursor may be used.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Fence {
+    /// UIDVALIDITY of the namespace the cursor must belong to.
+    pub uid_validity: u32,
+    /// Fingerprint of the mailbox context the pass must have started under.
+    pub context: [u8; 32],
+    /// The age cap the pass must have been started with.
+    pub cap_days: Option<u32>,
+}
+
+/// What a folder's pass does before its next window.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Plan {
+    /// Finished recently enough that nothing under this fence needs another walk.
+    Rest(Pass),
+    /// Resume from the stored cursor.
+    Continue(Pass),
+    /// Begin again from the newest UID, since the stored cursor can no longer be trusted.
+    Start(Pass),
+}
+
+/// A finished pass is walked again after this long. That is how flags on old mail and
+/// gaps are reconciled without rescanning the whole history on every poll.
+pub const REWALK_SECONDS: i64 = 6 * 60 * 60;
+
+/// Decide what a folder's next window does, from its stored pass.
+///
+/// Only a pass started under the same namespace, context and age cap may continue. A UID
+/// reset, a changed account or a changed limit starts from the top instead of trusting
+/// old UIDs.
+#[must_use]
+pub fn plan(stored: Option<Pass>, fence: Fence, next: u32, exists: u32, now: i64) -> Plan {
+    let fresh = Pass {
+        uid_validity: fence.uid_validity,
+        context: fence.context,
+        cap_days: fence.cap_days,
+        next_before: Some(next),
+        total: Some(exists),
+        reviewed: 0,
+        finished_at: None,
+    };
+    match stored {
+        Some(pass)
+            if pass.uid_validity == fence.uid_validity
+                && pass.context == fence.context
+                && pass.cap_days == fence.cap_days =>
+        {
+            match pass.finished_at {
+                None => Plan::Continue(pass),
+                Some(finished) if now.saturating_sub(finished) < REWALK_SECONDS => Plan::Rest(pass),
+                Some(_) => Plan::Start(fresh),
+            }
+        }
+        _ => Plan::Start(fresh),
+    }
+}
+
+/// Advance one folder's history pass by one window, from its durable cursor.
+///
+/// Every window is reviewed to the bottom of the folder, and reviewing a window that
+/// downloads nothing does not end the pass: cached messages and UID gaps are normal.
+/// A cursor is saved only after its window's originals committed, so an interrupted step
+/// repeats safely. Age caps decide what is downloaded, never what is deleted.
+///
+/// # Errors
+/// Returns redacted connection or storage failures. The stored cursor then names the last
+/// committed window.
+pub async fn backfill_step(
+    store: &worker::Handle,
+    connection: &mut Connection,
+    request: &Request<'_>,
+    cap_days: Option<u32>,
+    now: i64,
+    cancel: &CancellationToken,
+) -> Result<Step, Error> {
+    if request.max_original == 0 || request.max_original > 8 * 1024 * 1024 {
+        return Err(imap::Error::Configuration.into());
+    }
+    let selected = select_folder(store, connection, request, cancel).await?;
+    let fence = Fence {
+        uid_validity: selected.validity.get(),
+        context: digest(request.context),
+        cap_days,
+    };
+    let account = request.account.to_owned();
+    let stored = store
+        .backfill_pass(account.clone(), selected.folder.id)
+        .await?;
+    let mut pass = match plan(stored, fence, selected.next, selected.exists, now) {
+        Plan::Rest(pass) => {
+            return Ok(Step {
+                downloaded: 0,
+                finished: true,
+                progress: progress(&pass),
+            });
+        }
+        Plan::Start(pass) => {
+            store
+                .save_backfill(account.clone(), selected.folder.id, pass)
+                .await?;
+            pass
+        }
+        Plan::Continue(pass) => pass,
+    };
+    // The cursor is exclusive. A namespace that grew since the pass began is walked from
+    // its newest UID, which the recent sync also covers.
+    let upper = pass
+        .next_before
+        .unwrap_or(0)
+        .min(selected.next)
         .saturating_sub(1);
-    Ok((folder, validity, upper))
+    if upper == 0 {
+        pass.next_before = None;
+        pass.finished_at = Some(now);
+        store
+            .save_backfill(account, selected.folder.id, pass)
+            .await?;
+        return Ok(Step {
+            downloaded: 0,
+            finished: true,
+            progress: progress(&pass),
+        });
+    }
+    let page = window(store, connection, request, &selected, upper, cancel).await?;
+    pass.reviewed = pass.reviewed.saturating_add(page.reviewed);
+    pass.next_before = page.next_before.map(|position| position.before.get());
+    pass.finished_at = pass.next_before.is_none().then_some(now);
+    store
+        .save_backfill(account, selected.folder.id, pass)
+        .await?;
+    Ok(Step {
+        downloaded: page.downloaded,
+        finished: pass.next_before.is_none(),
+        progress: progress(&pass),
+    })
+}
+
+const fn progress(pass: &Pass) -> Progress {
+    Progress {
+        completed: pass.reviewed,
+        total: pass.total,
+    }
 }
 
 const fn membership(folder: i64, validity: NonZeroU32, metadata: &Metadata) -> Membership {
@@ -486,5 +709,100 @@ mod tests {
                 ("Corbeille".to_owned(), FolderRole::Trash),
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod history_tests {
+    use super::{Fence, Pass, Plan, REWALK_SECONDS, plan};
+
+    const FENCE: Fence = Fence {
+        uid_validity: 42,
+        context: [9; 32],
+        cap_days: None,
+    };
+
+    /// A pass 200 UIDs into a 300-message folder: `finished` decides whether it is done.
+    fn pass(finished_at: Option<i64>) -> Pass {
+        Pass {
+            uid_validity: 42,
+            context: [9; 32],
+            cap_days: None,
+            next_before: finished_at.is_none().then_some(200),
+            total: Some(300),
+            reviewed: 100,
+            finished_at,
+        }
+    }
+
+    #[test]
+    fn a_partial_pass_resumes_exactly_where_it_stopped() {
+        assert_eq!(
+            plan(Some(pass(None)), FENCE, 300, 300, 0),
+            Plan::Continue(pass(None))
+        );
+    }
+
+    #[test]
+    fn a_new_folder_starts_from_its_newest_uid_with_a_total() {
+        let fresh = Pass {
+            next_before: Some(300),
+            total: Some(300),
+            reviewed: 0,
+            ..pass(None)
+        };
+        assert_eq!(plan(None, FENCE, 300, 300, 0), Plan::Start(fresh));
+    }
+
+    #[test]
+    fn a_uid_reset_never_resumes_the_old_namespaces_cursor() {
+        let reset = Fence {
+            uid_validity: 43,
+            ..FENCE
+        };
+        let restarted = Pass {
+            uid_validity: 43,
+            next_before: Some(500),
+            total: Some(480),
+            reviewed: 0,
+            ..pass(None)
+        };
+        assert_eq!(
+            plan(Some(pass(None)), reset, 500, 480, 0),
+            Plan::Start(restarted)
+        );
+    }
+
+    #[test]
+    fn a_changed_mailbox_context_or_age_cap_starts_again() {
+        let other_account = Fence {
+            context: [1; 32],
+            ..FENCE
+        };
+        assert!(matches!(
+            plan(Some(pass(None)), other_account, 300, 300, 0),
+            Plan::Start(_)
+        ));
+        let narrowed = Fence {
+            cap_days: Some(30),
+            ..FENCE
+        };
+        assert!(matches!(
+            plan(Some(pass(None)), narrowed, 300, 300, 0),
+            Plan::Start(_)
+        ));
+    }
+
+    #[test]
+    fn a_finished_pass_rests_until_the_rewalk_interval_has_passed() {
+        let finished = pass(Some(1_000));
+        assert_eq!(
+            plan(Some(finished), FENCE, 300, 300, 1_000 + REWALK_SECONDS - 1),
+            Plan::Rest(finished)
+        );
+        assert!(matches!(
+            plan(Some(finished), FENCE, 300, 300, 1_000 + REWALK_SECONDS),
+            Plan::Start(_)
+        ));
     }
 }

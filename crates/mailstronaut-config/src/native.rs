@@ -153,6 +153,19 @@ mod tests {
     }
 
     #[test]
+    fn a_null_age_limit_is_the_complete_history_and_a_number_still_caps_it() {
+        let complete =
+            crate::evaluate_unisolated("{ schemaVersion = 1; sync.initialDays = null; }")
+                .expect("null limit");
+        assert_eq!(complete.sync.initial_days, None);
+        let capped = crate::evaluate_unisolated("{ schemaVersion = 1; sync.initialDays = 30; }")
+            .expect("explicit limit");
+        assert_eq!(capped.sync.initial_days, Some(30));
+        let unbounded = crate::evaluate_unisolated("{ schemaVersion = 1; sync.initialDays = 0; }");
+        assert!(unbounded.is_err());
+    }
+
+    #[test]
     fn declared_values_win_while_undeclared_ones_and_whole_lists_follow_the_contract() {
         let mut current = json!({
             "appearance": "dark",

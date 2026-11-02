@@ -13,6 +13,8 @@ use rusqlite_migration::{M, Migrations};
 use sha2::{Digest as _, Sha256};
 
 pub mod analysis;
+/// Durable per-folder history passes: resumable, fenced and never deleting mail.
+pub mod backfill;
 pub mod browse;
 pub mod conversations;
 pub mod flags;
@@ -24,7 +26,7 @@ pub mod outbox;
 pub mod reminders;
 pub mod search;
 
-const SCHEMA_VERSION: u32 = 13;
+const SCHEMA_VERSION: u32 = 14;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -185,6 +187,7 @@ impl Store {
             M::up(analysis::SCHEMA).foreign_key_check(),
             M::up(mailbox::OUTLINE_SCHEMA).foreign_key_check(),
             M::up(moves::HOLD_SCHEMA).foreign_key_check(),
+            M::up(backfill::SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;

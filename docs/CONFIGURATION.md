@@ -90,7 +90,9 @@ in
   };
   sync = {
     automatic = true;
-    initialDays = 30;
+    # Optional age limit in days. Omit it, or write null, to fetch each folder's complete
+    # history; a number keeps the older cap for mail that arrived within that many days.
+    initialDays = null;
     pollSeconds = 300;
     maxBodyBytes = 2097152;
   };
@@ -155,8 +157,8 @@ in
 Define Rust structs with `#[serde(rename_all = "camelCase", deny_unknown_fields)]`
 and explicit tagged enums. Fields omitted above take these defaults: aliases `[]`, no signature,
 smtpUserName inherits userName, notifications enabled with private previews,
-background disabled/autostart false, theme system, privacy ask, 30-day initial sync,
-five-minute polling, 2 MiB analysis-body cap, model absent/rules only, 72-hour normal
+background disabled/autostart false, theme system, privacy ask, complete history (no age
+limit) for sync, five-minute polling, 2 MiB analysis-body cap, model absent/rules only, 72-hour normal
 TTL and 168-hour cap. Absence of the entire priority section defaults to disabled
 until the setup screen explains its local behavior. Do not enable model downloads
 through a default. `schemaVersion` is mandatory; reject future versions with a

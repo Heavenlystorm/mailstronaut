@@ -24,8 +24,15 @@ use tokio_util::sync::CancellationToken;
 const CANCELLED: &str = "Account operation cancelled.";
 /// Four active accounts at one connection each, per the architecture's initial target.
 const MAX_CONNECTIONS: usize = 4;
-/// A cycle fetches back through recent mail at most this many UID windows per folder.
+/// A cycle examines at most this many newest UID windows per folder, while new mail keeps
+/// arriving in them.
 const CYCLE_PAGES: u32 = 8;
+/// The newest windows every cycle examines per folder, even when nothing new is found: they
+/// carry arrivals and flag changes.
+const RECENT_WINDOWS: u32 = 2;
+/// History windows per folder and cycle. A folder with more history continues in the next
+/// cycle from its durable cursor, so one large folder cannot hold up the others.
+const BACKFILL_WINDOWS: u32 = 16;
 /// One request for older mail stops after this many new messages.
 const OLDER_MESSAGES: u32 = 50;
 /// Or after this many UID windows, so that a folder of cached mail cannot hold it for long.
@@ -52,6 +59,8 @@ pub struct Cycle {
     pub actions: u32,
     /// Why a queued move could not be done, with the message back in its folder.
     pub move_failure: Option<imap::Error>,
+    /// Some folder still has history to fetch, and the next cycle should continue it soon.
+    pub backfill_pending: bool,
 }
 
 /// What one request for older mail did.
@@ -282,14 +291,10 @@ impl Access {
         )
         .await
         .map_err(|error| error.to_string())?;
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
         let earliest = if older {
             0
         } else {
-            now.saturating_sub(u64::from(config.sync.initial_days) * 86400)
+            history_floor(config, unix_seconds())
         };
         let request = sync::Request {
             account: &account.id,
@@ -297,8 +302,7 @@ impl Access {
             folder: inbox,
             inbox: true,
             before: if older { before } else { None },
-            earliest: i64::try_from(earliest)
-                .map_err(|_| "System time is outside the supported range.")?,
+            earliest,
             max_original: imap::MAX_ORIGINAL,
         };
         sync::page(store, &mut connection, &request, cancel)
@@ -473,14 +477,16 @@ impl Access {
         Self::connect(&opened, account, cancel).await
     }
 
-    /// Discover folders, send queued flag changes, then fetch recent mail: the inbox,
-    /// the standard role folders and any folder the user just opened.
+    /// Discover folders, send queued flag changes, then fetch recent mail and continue
+    /// each folder's history: the inbox, the standard role folders and any folder the user
+    /// just opened. `progress` hears each history window as it commits.
     pub async fn sync_account(
         &self,
         store: &Handle,
         config: &Config,
         account: &Account,
         extra: &[String],
+        progress: &(dyn Fn(&str, sync::Progress) + Sync),
         cancel: &CancellationToken,
     ) -> Result<Cycle, SyncFailure> {
         let opened = self.foreground(cancel).await.map_err(SyncFailure::Stop)?;
@@ -542,13 +548,8 @@ impl Access {
                 .await
                 .map_err(SyncFailure::from_sync)?;
         }
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let earliest =
-            i64::try_from(now.saturating_sub(u64::from(config.sync.initial_days) * 86400))
-                .unwrap_or_default();
+        let now = unix_seconds();
+        let earliest = history_floor(config, now);
         let others = roles
             .iter()
             .filter(|(_, role)| {
@@ -560,28 +561,36 @@ impl Access {
             .map(|(name, _)| name.as_str())
             .chain(extra.iter().map(String::as_str))
             .filter(|name| *name != inbox);
-        for (folder, is_inbox) in
-            core::iter::once((inbox, true)).chain(others.map(|name| (name, false)))
-        {
-            let request = sync::Request {
-                account: &account.id,
-                context: &context,
-                folder,
-                inbox: is_inbox,
-                before: None,
-                earliest,
-                max_original: imap::MAX_ORIGINAL,
-            };
+        let folders: Vec<(&str, bool)> = core::iter::once((inbox, true))
+            .chain(others.map(|name| (name, false)))
+            .collect();
+        // Arrivals and flags of every folder come before any history, so a long backfill
+        // never delays new mail.
+        for &(folder, is_inbox) in &folders {
+            let request = folder_request(&account.id, &context, folder, is_inbox, earliest);
             connection = Self::recent_pages(
                 &opened, account, store, connection, request, &mut cycle, cancel,
+            )
+            .await?;
+        }
+        for &(folder, is_inbox) in &folders {
+            let pass = FolderPass {
+                request: folder_request(&account.id, &context, folder, is_inbox, earliest),
+                cap_days: config.sync.initial_days,
+                now,
+                progress,
+            };
+            connection = Self::backfill_folder(
+                &opened, account, store, connection, pass, &mut cycle, cancel,
             )
             .await?;
         }
         Ok(cycle)
     }
 
-    /// Fetch newest-first until a window has nothing new, reconnecting after any window
-    /// that downloaded: one connection's receive budget is smaller than several windows.
+    /// Fetch the newest windows of a folder. The first `RECENT_WINDOWS` are always examined;
+    /// older ones only while they still bring new mail. Reconnects after any window that
+    /// downloaded: one connection's receive budget is smaller than several windows.
     async fn recent_pages(
         opened: &Open,
         account: &Account,
@@ -591,7 +600,7 @@ impl Access {
         cycle: &mut Cycle,
         cancel: &CancellationToken,
     ) -> Result<imap::Connection, SyncFailure> {
-        for _ in 0..CYCLE_PAGES {
+        for index in 0..CYCLE_PAGES {
             let page = sync::page(store, &mut connection, &request, cancel)
                 .await
                 .map_err(SyncFailure::from_sync)?;
@@ -601,8 +610,45 @@ impl Access {
                 connection = Self::connect(opened, account, cancel).await?;
             }
             request.before = page.next_before;
-            if page.next_before.is_none() || page.downloaded == 0 {
+            let settled = index + 1 >= RECENT_WINDOWS && page.downloaded == 0;
+            if page.next_before.is_none() || settled {
                 break;
+            }
+        }
+        Ok(connection)
+    }
+
+    /// Advance one folder's history pass by up to `BACKFILL_WINDOWS` windows. A window that
+    /// downloaded nothing does not end the pass: cached mail and UID gaps are normal, and
+    /// the durable cursor carries the pass into the next cycle when this one runs out.
+    async fn backfill_folder(
+        opened: &Open,
+        account: &Account,
+        store: &Handle,
+        mut connection: imap::Connection,
+        pass: FolderPass<'_>,
+        cycle: &mut Cycle,
+        cancel: &CancellationToken,
+    ) -> Result<imap::Connection, SyncFailure> {
+        for _ in 0..BACKFILL_WINDOWS {
+            let step = sync::backfill_step(
+                store,
+                &mut connection,
+                &pass.request,
+                pass.cap_days,
+                pass.now,
+                cancel,
+            )
+            .await
+            .map_err(SyncFailure::from_sync)?;
+            cycle.downloaded += step.downloaded;
+            (pass.progress)(pass.request.folder, step.progress);
+            if step.finished {
+                break;
+            }
+            cycle.backfill_pending = true;
+            if step.downloaded > 0 {
+                connection = Self::connect(opened, account, cancel).await?;
             }
         }
         Ok(connection)
@@ -726,6 +772,51 @@ async fn submit_frozen(
         return Err("Sender identity is no longer enabled. Nothing was submitted.".into());
     }
     Ok(outcome)
+}
+
+/// One folder's place in an automatic cycle: its request, its history cap and the clock.
+struct FolderPass<'a> {
+    request: sync::Request<'a>,
+    cap_days: Option<u32>,
+    now: i64,
+    progress: &'a (dyn Fn(&str, sync::Progress) + Sync),
+}
+
+const fn folder_request<'a>(
+    account: &'a str,
+    context: &'a str,
+    folder: &'a str,
+    inbox: bool,
+    earliest: i64,
+) -> sync::Request<'a> {
+    sync::Request {
+        account,
+        context,
+        folder,
+        inbox,
+        before: None,
+        earliest,
+        max_original: imap::MAX_ORIGINAL,
+    }
+}
+
+/// Unix seconds now, to compare with when mail arrived.
+fn unix_seconds() -> i64 {
+    i64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    )
+    .unwrap_or(i64::MAX)
+}
+
+/// The oldest arrival time that sync fetches. Without a declared age limit the complete
+/// history is wanted, so nothing is older than the floor.
+fn history_floor(config: &Config, now: i64) -> i64 {
+    config.sync.initial_days.map_or(i64::MIN, |days| {
+        now.saturating_sub(i64::from(days) * 86_400)
+    })
 }
 
 pub fn selected_auth(account: &Account, outgoing: bool) -> &Auth {
