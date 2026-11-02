@@ -112,12 +112,18 @@ Both pass on the CI server in private headless sway sessions with synthetic mail
 `MAILSTRONAUT_SEND_FAILURES_GUI_BINARY` and `MAILSTRONAUT_SENT_COPY_GUI_BINARY` switches of
 `credentials.sh`.
 
+`experiments/p07-compose/discard.sh` checks discarding a draft from the composer. The discard
+button asks first, and Cancel keeps the draft open. Confirming closes it as a tombstone, and a
+late autosave does not recreate its text. After a restart it still does not come back. It passes
+through the `MAILSTRONAUT_DISCARD_GUI_BINARY` switch of `credentials.sh`.
+
 `crates/mailstronaut-mail/tests/smtp.rs` checks that the pre-flight starts no transaction
 and reports a closed port and a refused sign-in as sending nothing.
 
 ## Not established
 
 No live provider or real desktop portal. The GUI path has not yet exercised: removing an
-attachment, discard, identity switching, or Reply/Forward. Backend tests cover several of those states. Provider-side Sent saving is not
-exercised. A connection lost between the pre-flight and DATA is still reported as unknown,
-the safe direction.
+attachment, identity switching, or Forward. Backend tests cover several of those states.
+Reply is exercised by the navigation walkthrough. Provider-side Sent saving is not exercised.
+A connection lost between the pre-flight and DATA is still reported as unknown, the safe
+direction.

@@ -74,6 +74,9 @@ fi
 if [[ -n ${MAILSTRONAUT_SENT_COPY_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/sent-copy.sh "$MAILSTRONAUT_SENT_COPY_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_DISCARD_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/discard.sh "$MAILSTRONAUT_DISCARD_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_SEARCH_GUI_BINARY:-} ]]; then
   bash experiments/p06-search/gui.sh "$MAILSTRONAUT_SEARCH_GUI_BINARY" "$root"
 fi
