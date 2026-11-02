@@ -116,7 +116,7 @@ PY
 attachment="$artifacts/synthetic report · été.txt"
 printf 'Synthetic attachment contents · été.\n' > "$attachment"
 python3 -c 'import sys,urllib.parse; print("file://"+urllib.parse.quote(sys.argv[1]))' "$attachment" > "$artifacts/chooser-answer"
-click 608 134
+click 568 134
 for _ in {1..75}; do
   [[ $(python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute("SELECT count(*) FROM draft_attachments").fetchone()[0])' "$database") == 1 ]] && break
   kill -0 "$app"; sleep .2

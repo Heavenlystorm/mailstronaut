@@ -4,6 +4,7 @@ extern crate gpui_kit as gpui;
 
 mod account_actions;
 mod accounts;
+mod assets;
 mod composer;
 mod config_cli;
 mod config_export;
@@ -79,7 +80,7 @@ fn main() -> ExitCode {
     let disconnected = instance.disconnected();
     gpui::platform::linux(WindowingModes::WAYLAND)
         .with_windowing(WindowingRequest::Windowed(environment))
-        .with_assets(gpui::assets::Assets)
+        .with_assets(assets::Assets)
         .run(move |cx| {
             gpui::init(cx);
             let options = WindowOptions {

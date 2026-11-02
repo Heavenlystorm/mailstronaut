@@ -349,9 +349,16 @@ impl Onboarding {
         )
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Keep the declarative advanced account form together"
+    )]
     fn advanced(&self, disabled: bool, cx: &Context<Self>) -> impl IntoElement + use<> {
-        let password = Self::selected(&self.provider, cx) == "manual"
-            && Self::selected(&self.authentication, cx) == "password";
+        let provider = Self::selected(&self.provider, cx);
+        let oauth = provider == "google"
+            || (provider == "manual" && Self::selected(&self.authentication, cx) != "password");
+        let password =
+            provider == "manual" && Self::selected(&self.authentication, cx) == "password";
         Collapsible::new()
             .open(self.advanced)
             .child(
@@ -370,6 +377,8 @@ impl Onboarding {
             .content(
                 Form::vertical()
                     .columns(2)
+                    .when(oauth, |form| form.child(Self::line("Custom OAuth client ID", &self.inputs.client, disabled).required(true).col_span(2)
+                        .description("Developer override for a registered desktop application. This identifies the application, not your Google account.")))
                     .child(Self::line("Incoming login", &self.inputs.login, disabled))
                     .child(Self::line(
                         "Outgoing login",
@@ -462,9 +471,9 @@ impl Render for Onboarding {
         let disabled = !editable || busy;
         let provider = Self::selected(&self.provider, cx);
         let manual = provider == "manual";
-        let oauth = provider == "google"
-            || (manual && Self::selected(&self.authentication, cx) != "password");
         let custom = manual && Self::selected(&self.authentication, cx) == "custom";
+        let google_unconfigured =
+            provider == "google" && self.inputs.client.read(cx).value().trim().is_empty();
         let hint = if !editable {
             Some(
                 "Create an app-owned native source in Configuration, or manage these accounts in your Nix declaration.",
@@ -490,15 +499,15 @@ impl Render for Onboarding {
                     .child(Field::new().label("SMTP port").child(NumberInput::new(&self.inputs.smtp_port).accessibility_label("SMTP port").disabled(disabled)))
                     .child(Self::select("Outgoing security", &self.smtp_tls, disabled).col_span(2))
                     .child(Self::select("Authentication", &self.authentication, disabled).col_span(2)))
-                .when(oauth, |form| form.child(Self::line("Public desktop client ID", &self.inputs.client, disabled).required(true).col_span(2)
-                    .description("Use a registered desktop client. Sign-in opens your system browser after saving.")))
                 .when(custom, |form| form
                     .child(Self::line("Authorization URL", &self.inputs.authorization, disabled).required(true).col_span(2))
                     .child(Self::line("Token URL", &self.inputs.token, disabled).required(true).col_span(2))
                     .child(Self::line("Scopes", &self.inputs.scopes, disabled).required(true).col_span(2)))
                 .when(provider == "icloud", |form| form.child(Field::new().col_span(2).description("After saving, use an Apple app-specific password in the encrypted account controls."))))
+            .when(provider == "google", |view| view.child(Alert::info("google-registration",
+                "Google browser sign-in is not ready in this build: Mailstronaut needs its own registered OAuth application. You should not need to create a client ID. Developers can supply a custom registration in Advanced settings.")))
             .child(self.advanced(disabled, cx))
-            .child(Button::new("add-account").primary().label(if busy { "Working…" } else { "Add account" })
-                .disabled(disabled || dirty).on_click(cx.listener(|this, _, window, cx| this.add(window, cx))))
+            .child(Button::new("add-account").primary().label(if busy { "Working…" } else if google_unconfigured { "Google sign-in unavailable" } else { "Add account" })
+                .disabled(disabled || dirty || google_unconfigured).on_click(cx.listener(|this, _, window, cx| this.add(window, cx))))
     }
 }

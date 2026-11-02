@@ -351,12 +351,14 @@ impl ListDelegate for Rows {
                                         Label::new("★").text_color(cx.theme().primary).flex_none(),
                                     )
                                 })
-                                .child(
-                                    Badge::new()
-                                        .count(row.unread as usize)
-                                        .color(cx.theme().primary)
-                                        .child(div().w_3().h_3()),
-                                )
+                                .child(div().w_3().h_3().flex_shrink_0().when(unread, |view| {
+                                    view.child(
+                                        Badge::new()
+                                            .dot()
+                                            .color(cx.theme().primary)
+                                            .child(div().w_3().h_3()),
+                                    )
+                                }))
                                 .when_some(dismiss, |view, (dismiss, id)| {
                                     view.child(
                                         Button::new(("dismiss-priority", index.row))

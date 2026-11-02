@@ -174,7 +174,7 @@ fn native_headless_attach_close_detach_reopen() {
     gpui::platform::linux(WindowingModes::WAYLAND | WindowingModes::HEADLESS)
         .with_windowing(WindowingRequest::Headless)
         .with_quit_mode(QuitMode::Explicit)
-        .with_assets(gpui::assets::Assets)
+        .with_assets(crate::assets::Assets)
         .run(move |cx| {
             gpui::init(cx);
             cx.spawn(async move |cx| {

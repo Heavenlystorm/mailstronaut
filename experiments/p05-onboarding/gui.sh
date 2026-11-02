@@ -74,10 +74,11 @@ click 850 308
 click 600 334; wtype -s 100 'synthetic-google' -s 100
 click 1010 334; wtype -s 100 'Synthetic Google' -s 100
 click 700 420; wtype -s 100 'reader@gmail.com' -s 100
-click 700 486; wtype -s 100 'synthetic-registered-public-client' -s 100
+# Custom registrations are an explicit advanced override, not ordinary sign-in.
+wtype -k Tab -k Return -s 300 -k Tab -s 100 'synthetic-registered-public-client' -s 100
 capture onboarding-google-staged
-# Native Tab navigation reaches Advanced then Add; Enter activates the Kit button.
-wtype -k Tab -k Tab -k Return -s 1000
+# Return to Advanced, collapse it, then activate Add through native Tab/Enter.
+wtype -M shift -k Tab -m shift -k Return -s 200 -k Tab -k Return -s 1000
 timeout 4 "$binary" --internal-evaluate-config < "$config" > "$root/google-values.json"
 python3 - "$root/google-values.json" <<'PYGOOGLE'
 import json,sys

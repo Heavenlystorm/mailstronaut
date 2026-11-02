@@ -89,7 +89,7 @@ requirements, not a claim that all those controls exist today.
 
 | Subproblem | Component/API | Boundary |
 | --- | --- | --- |
-| Unified/account/folder navigation | [`Sidebar::new(id)`, `SidebarHeader/Group/Menu/MenuItem/Footer`](https://gpui-kit.com/component/sidebar/), `Badge::count` | Use Sidebar nesting first. Consider [`Tree`/`TreeState`](https://gpui-kit.com/component/tree/) only for a demonstrated large hierarchical folder requirement. |
+| Unified/account/folder navigation | [`Sidebar::new(id)`, `SidebarGroup/Menu/MenuItem`](https://gpui-kit.com/component/sidebar/), `Badge::count` | Keep the native window title as the app title, and render one active Settings menu item in the footer slot. Use Sidebar nesting first. Consider [`Tree`/`TreeState`](https://gpui-kit.com/component/tree/) only for a demonstrated large hierarchical folder requirement. |
 | Split panes | [`h_resizable`, `resizable_panel`, `ResizableState`](https://gpui-kit.com/component/resizable/) | Ordinary mail splits, not a Dock/tabbed workspace framework. |
 | Virtualized equal-height rows, sections and paging | [`List`, `ListState`, `ListDelegate`, `ListItem`](https://gpui-kit.com/component/list/); `ListState::searchable(false)` | One external search field. Stable canonical identities and paged snapshots remain app state. For necessary variable-height rows use existing `v_virtual_list`/`VirtualListScrollHandle`, not custom virtualization. |
 | Selection versus explicit opening | `ListDelegate::set_selected_index` versus `confirm`; `ListEvent::Select/Confirm` | Selection is passive. Route confirmation once to the existing content-load/identity/generation gate before Seen; do not invoke opening from both delegate and event handlers. |
@@ -155,8 +155,9 @@ acceptance.
   picker still confirms its actual selected value.
 
 - `SidebarMenu`/`SidebarMenuItem` implement `SidebarItem`, not ordinary
-  `IntoElement`. A footer can use a normal Settings `Button`, or explicitly render
-  the item through that trait; `SidebarFooter::child(SidebarMenu)` does not compile.
+  `IntoElement`. Render the Settings footer item through that trait to reuse one
+  selection treatment; do not nest selected Footer and Button surfaces.
+  `SidebarFooter::child(SidebarMenu)` does not compile.
 - [`Link` source](https://docs.rs/crate/gpui-component/0.8.1/source/src/link.rs)
   calls `cx.open_url(href)` before `on_click`; `disabled` is historically inert.
   Use validated portal callbacks on `Button` or a `Link` with no `href`.

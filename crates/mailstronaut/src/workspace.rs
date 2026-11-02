@@ -8,13 +8,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+use gpui::assets::IconName as AssetIcon;
 use gpui::base::StyledExt as _;
 use gpui::component::{
     ActiveTheme as _, Disableable as _, IconName, IndexPath, Selectable as _, Theme, ThemeMode,
     WindowExt as _,
     alert::Alert,
     attachment::{
-        Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentTitle,
+        Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia,
+        AttachmentTitle,
     },
     badge::Badge,
     button::{Button, ButtonVariants as _},
@@ -26,7 +28,7 @@ use gpui::component::{
     notification::{Notification, NotificationDelivery},
     resizable::{h_resizable, resizable_panel},
     setting::{SettingGroup, SettingItem, SettingPage, Settings},
-    sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem},
+    sidebar::{Sidebar, SidebarGroup, SidebarItem as _, SidebarMenu, SidebarMenuItem},
     tab::{Tab, TabBar},
     toolbar::{Toolbar, ToolbarGroup},
 };
@@ -1933,22 +1935,6 @@ impl Workspace {
         self.refresh_rows(window, cx);
     }
 
-    fn scope_label(&self) -> String {
-        match &self.scope {
-            Scope::Inbox => "Unified inbox".into(),
-            Scope::Account(id) => self
-                .declaration
-                .active()
-                .and_then(|config| config.accounts.iter().find(|account| &account.id == id))
-                .map_or_else(|| id.clone(), |account| account.display_name.clone()),
-            Scope::Folder { account, folder } => self
-                .folders
-                .iter()
-                .find(|row| &row.account == account && &row.id == folder)
-                .map_or_else(|| "Cached folder".into(), Folder::label),
-        }
-    }
-
     fn account_settings(&self, cx: &Context<Self>) -> impl IntoElement {
         let loading = self.loading_config;
         let reload_disabled = loading || self.demo || self.preferences.read(cx).busy();
@@ -1992,6 +1978,10 @@ impl Workspace {
                 ))
                 .group(crate::preferences::Preferences::sync(&self.preferences, cx))
                 .group(crate::preferences::Preferences::notifications(
+                    &self.preferences,
+                    cx,
+                ))
+                .group(crate::preferences::Preferences::priority(
                     &self.preferences,
                     cx,
                 ))
@@ -2085,6 +2075,18 @@ impl Workspace {
         }
     }
 
+    fn count_badge(count: usize) -> impl IntoElement {
+        // Badge intentionally overhangs its child. Reserve that space inside
+        // the sidebar suffix so 99+ is never clipped at the menu's right edge.
+        div()
+            .w_9()
+            .h_5()
+            .flex_shrink_0()
+            .pr_3()
+            .pt_1()
+            .child(Badge::new().count(count).child(div().w_6().h_3()))
+    }
+
     fn mail_routes(&self, attention: usize, cx: &Context<Self>) -> SidebarMenu {
         let overdue = self.reminders.read(cx).overdue();
         let unread: usize = self
@@ -2098,31 +2100,30 @@ impl Workspace {
                 SidebarMenuItem::new("Unified inbox")
                     .icon(IconName::Inbox)
                     .active(self.view == View::Inbox && self.scope == Scope::Inbox)
-                    .suffix(move |_, _| Badge::new().count(unread).child(div().w_6().h_3()))
+                    .suffix(move |_, _| Self::count_badge(unread))
                     .on_click(cx.listener(|this, _, window, cx| this.show_inbox(window, cx))),
             )
             .child(
                 SidebarMenuItem::new("Drafts & outbox")
                     .icon(IconName::Folder)
                     .active(self.view == View::Compose)
-                    .suffix(move |_, _| Badge::new().count(attention).child(div().w_3().h_3()))
+                    .suffix(move |_, _| Self::count_badge(attention))
                     .on_click(cx.listener(|this, _, window, cx| this.show_compose(window, cx))),
             )
             .child(
                 SidebarMenuItem::new("Reminders")
                     .icon(IconName::Calendar)
                     .active(self.view == View::Reminders)
-                    .suffix(move |_, _| Badge::new().count(overdue).child(div().w_3().h_3()))
+                    .suffix(move |_, _| Self::count_badge(overdue))
                     .on_click(cx.listener(|this, _, window, cx| this.show_reminders(window, cx))),
             )
     }
 
-    fn sidebar(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let attention = self.composer.read(cx).attention();
         Sidebar::new("mail-sidebar")
             .w_full()
             .collapsible(false)
-            .header(SidebarHeader::new().child(div().font_semibold().child("Mailstronaut")))
             .child(SidebarGroup::new("Mail").child(self.mail_routes(attention, cx)))
             .child(
                 SidebarGroup::new("Accounts").child(
@@ -2163,11 +2164,7 @@ impl Workspace {
                                                     } else {
                                                         IconName::Folder
                                                     })
-                                                    .suffix(move |_, _| {
-                                                        Badge::new()
-                                                            .count(unread)
-                                                            .child(div().w_6().h_3())
-                                                    })
+                                                    .suffix(move |_, _| Self::count_badge(unread))
                                                     .accessibility_label(format!(
                                                         "Cached folder · {} · {} · {unread} unread",
                                                         account.display_name,
@@ -2205,16 +2202,12 @@ impl Workspace {
                 ),
             )
             .footer(
-                SidebarFooter::new().child(
-                    Button::new("settings")
-                        .ghost()
+                div().w_full().p_2().child(
+                    SidebarMenuItem::new("Settings")
                         .icon(IconName::Settings)
-                        .w_full()
-                        .label("Settings")
-                        .selected(self.view == View::Accounts)
-                        .on_click(
-                            cx.listener(|this, _, window, cx| this.show_accounts(window, cx)),
-                        ),
+                        .active(self.view == View::Accounts)
+                        .on_click(cx.listener(|this, _, window, cx| this.show_accounts(window, cx)))
+                        .render("settings-navigation", window, cx),
                 ),
             )
     }
@@ -2239,37 +2232,24 @@ impl Workspace {
             .p_4()
             .border_b_1()
             .border_color(border)
-            .child(
-                div().w(px(190.)).font_semibold().child(
-                    Label::new(match self.view {
-                        View::Accounts => "Settings".into(),
-                        View::Compose => "Drafts & outbox".into(),
-                        View::Reminders => "Reminders".into(),
-                        View::Inbox => self.scope_label(),
-                    })
-                    .truncate(),
-                ),
-            )
             .child(div().flex_1().when(self.view == View::Inbox, |view| {
                 view.child(Input::new(&self.search))
             }))
             .child(
                 Button::new("compose")
                     .primary()
-                    .label("Compose")
-                    .tooltip("Ctrl+N")
+                    .icon(AssetIcon::SquarePen)
+                    .accessibility_label("Compose")
+                    .tooltip("Compose · Ctrl+N")
                     .disabled(self.accounts.is_empty() || !self.composer.read(cx).has_store())
                     .on_click(cx.listener(|this, _, window, cx| this.compose(window, cx))),
             )
             .when(self.view == View::Inbox, |view| {
                 view.child(
                     Button::new("refresh")
-                        .label(if self.engine.is_some() {
-                            "Sync"
-                        } else {
-                            "Refresh cache"
-                        })
-                        .tooltip("Ctrl+R")
+                        .icon(AssetIcon::RefreshCw)
+                        .accessibility_label("Sync mail or refresh cache")
+                        .tooltip("Sync mail / refresh cache · Ctrl+R")
                         .loading(!self.syncing.is_empty())
                         .on_click(cx.listener(|this, _, window, cx| this.sync_now(window, cx))),
                 )
@@ -2277,7 +2257,9 @@ impl Workspace {
             .child(
                 Button::new("appearance")
                     .ghost()
-                    .label("Appearance")
+                    .icon(AssetIcon::SunMoon)
+                    .accessibility_label("Toggle light and dark appearance")
+                    .tooltip("Toggle appearance · Ctrl+Shift+D")
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.toggle_appearance(window, cx);
                     })),
@@ -2546,6 +2528,7 @@ impl Workspace {
                         let name = part.name.clone().unwrap_or_else(|| "Attachment".into());
                         let kind = part.media_type.clone().unwrap_or_default();
                         Attachment::new()
+                            .media(AttachmentMedia::new().child(AssetIcon::FileText))
                             .id(("received-attachment", index))
                             .tooltip("Save a copy")
                             .content(
@@ -2608,6 +2591,7 @@ impl Workspace {
                             let name = part.name.clone().unwrap_or_else(|| "Attachment".into());
                             let size = usize::try_from(part.size).unwrap_or(usize::MAX);
                             Attachment::new()
+                            .media(AttachmentMedia::new().child(AssetIcon::FileText))
                                 .id(("remote-attachment", index))
                                 .tooltip("Download and save a copy")
                                 .content(
@@ -3158,7 +3142,7 @@ impl Workspace {
 }
 
 impl Render for Workspace {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let background = cx.theme().background;
         let foreground = cx.theme().foreground;
         let muted = cx.theme().muted_foreground;
@@ -3180,7 +3164,7 @@ impl Render for Workspace {
                             resizable_panel()
                                 .size(px(200.))
                                 .size_range(px(160.)..px(300.))
-                                .child(self.sidebar(cx)),
+                                .child(self.sidebar(window, cx)),
                         )
                         .child(
                             resizable_panel().child(

@@ -154,6 +154,12 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_APPEARANCE_GUI:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=appearance.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/appearance.sh"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_INSTANCE_GUI:-0} == 1 ]]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=../p08-reminders/instance-gui.sh

@@ -169,7 +169,7 @@ copy_body() {
   printf 'Expected copied body was not offered: %s\n' "$1" >&2
   return 1
 }
-open_html() { click 350 "$1"; click 684 246; sleep .5; }
+open_html() { click 350 "$1"; click 684 296; sleep .5; }
 check_links() {
   [[ -n "$portal" ]] || return 0
   python3 - "$root" "$1" <<'PYLINKS'
@@ -205,13 +205,14 @@ check_links 0
 copy_body alpha 'Synthetic HTML Alpha plain alternative'
 open_html 150
 capture alpha-html
-# Clicks identify links without forwarding DOM events; the app itself never fetches.
-click 650 507
+# Only the private portal variant attempts browser handoff. The renderer-only
+# variant must not introduce an absent-portal error banner into its pixel fixture.
+if [[ -n "$portal" ]]; then click 650 552; fi
 capture link-request
 if [[ -n "$portal" ]]; then
   wait_links 1
   # Kit owns menu focus, keyboard activation, arrow navigation and dismissal.
-  click 835 246
+  click 845 296
   capture links-menu
   wtype -s 150 -k Escape -s 200 -k Return -s 200 -k Down -s 150 -k Return -s 400
   capture links-keyboard
@@ -242,7 +243,7 @@ sleep 1
 capture hidpi
 if [[ -n "$portal" ]]; then
   # Sway input coordinates stay logical at 2x; exercise the actual HTML hit path.
-  click 650 535
+  click 650 552
   wait_links 4
   expected_links=4
   capture hidpi-link
@@ -256,7 +257,7 @@ check_seen alpha
 open_html 270
 capture beta
 if [[ -n "$portal" ]]; then
-  click 835 246
+  click 845 296
   wtype -s 150 -k Escape
   check_links "$expected_links"
 fi
@@ -352,7 +353,8 @@ expected={
  'alpha':'Synthetic HTML Alpha plain alternative · Bonjour · 世界.',
  'beta':'Synthetic HTML Beta plain alternative.',
  'bad-image':'Safe plain fallback for a broken local image.',
- 'plain':'Synthetic plain message without HTML.\r\n',
+ # Native text widgets copy line breaks as LF, retaining exact Unicode text.
+ 'plain':'Synthetic plain message without HTML.\n',
 }
 for name,body in expected.items():
  assert (root/(name+'-body.txt')).read_bytes()==body.encode(),name+' must copy its own exact Unicode alternative'

@@ -41,7 +41,7 @@ click 1170 258
 wtype '1915' -s 200
 filter_preferences 'Include message previews'
 click 1245 258
-filter_preferences 'Notify me about reminders'
+filter_preferences 'Notify me about new mail and reminders'
 click 1245 258
 filter_preferences 'Poll interval'
 click 1200 258

@@ -24,6 +24,14 @@ use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
 const SYSTEM_ZONE: &str = "System time zone";
+const MODEL_SEARCH: [&str; 6] = [
+    "priority",
+    "local models",
+    "model revision",
+    "model directory",
+    "classifier",
+    "ML",
+];
 
 pub enum Event {
     Changed,
@@ -39,6 +47,10 @@ pub struct Snapshot {
 }
 
 #[derive(Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Independent preferences mirror boolean configuration fields, not a state machine"
+)]
 struct Values {
     appearance: String,
     automatic: bool,
@@ -48,6 +60,9 @@ struct Values {
     zone: String,
     morning: String,
     evening: String,
+    priority: bool,
+    model_directory: String,
+    model_revision: String,
 }
 
 impl Values {
@@ -66,6 +81,9 @@ impl Values {
             zone: config.time_zone.clone().unwrap_or_default(),
             morning: config.reminders.morning.clone(),
             evening: config.reminders.evening.clone(),
+            priority: config.priority.enabled,
+            model_directory: config.priority.model_directory.clone().unwrap_or_default(),
+            model_revision: config.priority.model_revision.clone().unwrap_or_default(),
         }
     }
 
@@ -120,6 +138,22 @@ impl Values {
             native::merge(
                 &mut patch,
                 json!({"reminders": {"evening": self.evening.trim()}}),
+            );
+        }
+        if self.priority != baseline.priority {
+            native::merge(&mut patch, json!({"priority": {"enabled": self.priority}}));
+        }
+        if self.model_directory != baseline.model_directory
+            || self.model_revision != baseline.model_revision
+        {
+            let directory = self.model_directory.trim();
+            let revision = self.model_revision.trim();
+            native::merge(
+                &mut patch,
+                json!({"priority": {
+                    "modelDirectory": if directory.is_empty() { None } else { Some(directory) },
+                    "modelRevision": if revision.is_empty() { None } else { Some(revision) }
+                }}),
             );
         }
         Ok(patch)
@@ -533,8 +567,11 @@ impl Preferences {
         SettingGroup::new()
             .title("Notifications")
             .item(
-                SettingItem::new("Notify me about reminders", SettingField::switch(get, set))
-                    .disabled(disabled),
+                SettingItem::new(
+                    "Notify me about new mail and reminders",
+                    SettingField::switch(get, set),
+                )
+                .disabled(disabled),
             )
             .item(
                 SettingItem::new(
@@ -544,6 +581,35 @@ impl Preferences {
                 .description("Notification previews can reveal private mail on screen.")
                 .disabled(disabled),
             )
+    }
+
+    pub fn priority(view: &Entity<Self>, cx: &App) -> SettingGroup {
+        let disabled = !view.read(cx).editable() || view.read(cx).busy();
+        let (enabled, set_enabled) =
+            Self::bind(view, |v| v.priority, |v, value| v.priority = value);
+        let (directory, set_directory) = Self::bind::<SharedString>(
+            view,
+            |v| v.model_directory.clone().into(),
+            |v, value| v.model_directory = value.to_string(),
+        );
+        let (revision, set_revision) = Self::bind::<SharedString>(
+            view,
+            |v| v.model_revision.clone().into(),
+            |v, value| v.model_revision = value.to_string(),
+        );
+        SettingGroup::new().title("Priority and local models")
+            .item(SettingItem::render(|_, _, _| Alert::info("local-model-status",
+                "Priority currently uses local rules. Model inference is not implemented yet; model declarations below are reserved and do not load or download a model."))
+                .keywords(MODEL_SEARCH))
+            .item(SettingItem::new("Priority mail", SettingField::switch(enabled, set_enabled))
+                .description("Use local rules to highlight unread, time-sensitive mail.")
+                .keywords(MODEL_SEARCH).disabled(disabled))
+            .item(SettingItem::new("Local model directory", SettingField::input(directory, set_directory))
+                .description("Optional absolute path. Set together with a pinned revision; no automatic downloads.")
+                .keywords(MODEL_SEARCH).disabled(disabled))
+            .item(SettingItem::new("Model revision", SettingField::input(revision, set_revision))
+                .description("The exact model revision for your native Nix declaration. Not executed by this build.")
+                .keywords(MODEL_SEARCH).disabled(disabled))
     }
 
     pub fn times(view: &Entity<Self>, cx: &App) -> SettingGroup {
@@ -743,5 +809,37 @@ impl Preferences {
             });
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn model_preferences_patch_only_changed_fields_and_clear_pair() {
+        let config: Config =
+            serde_json::from_value(json!({"schemaVersion": 1, "accounts": []})).expect("config");
+        let baseline = Values::from_config(&config);
+        let mut draft = baseline.clone();
+        draft.priority = true;
+        draft.model_directory = " /models/local-classifier ".into();
+        draft.model_revision = " pinned-revision ".into();
+        assert_eq!(
+            draft.patch(&baseline).expect("patch"),
+            json!({"priority": {
+                "enabled": true, "modelDirectory": "/models/local-classifier", "modelRevision": "pinned-revision"
+            }})
+        );
+        let mut cleared = draft.clone();
+        cleared.model_directory.clear();
+        cleared.model_revision.clear();
+        assert_eq!(
+            cleared.patch(&draft).expect("clear"),
+            json!({"priority": {
+                "modelDirectory": null, "modelRevision": null
+            }})
+        );
+        assert_eq!(draft.patch(&draft).expect("unchanged"), json!({}));
     }
 }

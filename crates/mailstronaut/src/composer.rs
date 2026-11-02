@@ -4,11 +4,13 @@ mod lists;
 
 use std::{sync::Arc, time::Duration};
 
+use gpui::assets::IconName;
 use gpui::component::{
     ActiveTheme as _, Disableable as _, IndexPath, WindowExt as _,
     alert::Alert,
     attachment::{
-        Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentTitle,
+        Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia,
+        AttachmentTitle,
     },
     button::{Button, ButtonVariant, ButtonVariants as _},
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle},
@@ -897,8 +899,9 @@ impl Composer {
                     .content(
                         Button::new("send-message")
                             .primary()
-                            .label("Send")
-                            .tooltip("Ctrl+Enter")
+                            .icon(IconName::Send)
+                            .accessibility_label("Send message")
+                            .tooltip("Send message · Ctrl+Enter")
                             .loading(self.activity == Activity::Sending)
                             .disabled(busy)
                             .on_click(cx.listener(|this, _, window, cx| this.send(window, cx))),
@@ -917,16 +920,18 @@ impl Composer {
                     .child(
                         Button::new("attach-file")
                             .ghost()
-                            .label("Attach")
-                            .tooltip("Up to 16 files, 5 MiB in total")
+                            .icon(IconName::Paperclip)
+                            .accessibility_label("Attach files")
+                            .tooltip("Attach files · up to 16 files, 5 MiB in total")
                             .disabled(busy)
                             .on_click(cx.listener(|this, _, window, cx| this.attach(window, cx))),
                     )
                     .child(
                         Button::new("show-copies")
                             .ghost()
-                            .label("Cc/Bcc")
-                            .tooltip("Ctrl+Shift+B")
+                            .icon(IconName::Users)
+                            .accessibility_label("Show or hide Cc and Bcc")
+                            .tooltip("Cc/Bcc · Ctrl+Shift+B")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.copies_open = !this.copies_open;
                                 cx.notify();
@@ -935,7 +940,9 @@ impl Composer {
                     .child(
                         Button::new("discard-draft")
                             .ghost()
-                            .label("Discard")
+                            .icon(IconName::Trash)
+                            .accessibility_label("Discard draft")
+                            .tooltip("Discard draft")
                             .disabled(busy)
                             .on_click(cx.listener(|_, _, window, cx| {
                                 Self::confirm_discard(window, cx);
@@ -984,6 +991,7 @@ impl Composer {
         AttachmentGroup::new("draft-attachments").children(draft.attachments.iter().map(|file| {
             let id = file.id.clone();
             Attachment::new()
+                .media(AttachmentMedia::new().child(IconName::FileText))
                 .id(SharedString::from(format!("attachment-{}", file.id)))
                 .content(
                     AttachmentContent::new()

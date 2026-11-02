@@ -263,6 +263,15 @@ new dependency graph before claiming current-package acceptance.
 
 ## P04 — IMAP synchronization and offline operation
 
+- [ ] Fetch the complete selected-folder history by default, in bounded UID batches
+  with cancellation/restart and backpressure. Replace the implicit age-limited
+  initial cache policy; expose an optional advanced age/retention limit (for example
+  30 days) in native Nix, Home Manager and Settings. Never silently delete drafts,
+  pending operations or locally owned attachments when changing this policy.
+- [ ] Show actual fetch progress in the status bar with Kit `Progress`: account/folder,
+  completed and known total. Use indeterminate progress while the total is unknown;
+  distinguish fetching, offline, retry and finished. Test cancellation and errors.
+
 - [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
   expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.
   [Protocol evidence](evidence/P04.md); earlier frontend acceptance is historical.
@@ -315,6 +324,11 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   and reauthentication across provider changes and pending configuration reloads.
   Existing backend mock tests remain valid; declarations/controls alone do not
   establish successful native browser consent.
+- [ ] Ship an application-owned Google desktop OAuth registration and make normal
+  Add Google account open browser sign-in without asking users for client IDs.
+  Keep custom registrations in Advanced settings and clearly report unavailable
+  sign-in in builds without an application registration; never borrow another
+  client's identity or fabricate credentials.
 - [ ] Verify Google public desktop-client ownership, consent/scopes, OAuth IMAP/SMTP,
   revoked/expired tokens and actual login/sync/controlled send with authorization.
 - [ ] Verify iCloud account/app-specific password flows and provider endpoints.
@@ -330,6 +344,16 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
 ## P06 — GPUI mailbox workspace and strong local search
 
+- [ ] Replace Older/Newer/page controls with continuous virtualized browsing. Reuse
+  Kit `List` and its virtual-list/load-more APIs with bounded backend query windows,
+  stable row identities and scroll anchoring; do not materialize all MIME bodies.
+  Verify scrolling past 100 rows, search/folder changes, new-mail insertion and
+  keyboard navigation without missed or duplicated rows. Keep implementation
+  batches internal; there must be no user-facing pagination.
+- [x] Verify unread dots in both themes, readable 99+ sidebar counts, one app title,
+  icon actions with accessible names/tooltips and a single Settings selection state.
+  [Synthetic native walkthrough](evidence/P06-ui-feedback.md).
+
 Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-search).
 
 - [x] Retain scoped cached-folder queries, literal FTS5 and account-local
@@ -341,8 +365,9 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   passive group selection. Verify the overlapping write/query/body case and
   matching-original search in the private Wayland fixture.
   [Bounded current-stack evidence](evidence/P06-gpui-mailbox.md).
-- [x] Use GPUI Kit `Sidebar`, `SidebarHeader`, `SidebarGroup`, `SidebarMenu`,
-  `SidebarMenuItem` and `SidebarFooter` for unified/per-account folders and Settings.
+- [x] Use GPUI Kit `Sidebar`, `SidebarGroup`, `SidebarMenu` and
+  `SidebarMenuItem` for unified/per-account folders and Settings. Keep the native
+  titlebar as the single app title and the Settings item as one selection surface.
   Reuse active/collapsed states, icons and `Badge::count`; show only implemented
   mail routes. Prefer Sidebar nesting; evaluate `Tree`/`TreeState` only if actual
   folder scale requires it, without maintaining two navigation models.
@@ -586,6 +611,10 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   [A `Tag` below the preview, Dismiss, and evidence in the reader
   pass](evidence/P09-priority-rules.md), since rows must share one height; correcting a
   date remains open.
+- [x] Expose priority rules and reserved local model directory/revision using Kit
+  Settings switch/input fields, with native Nix Save/Discard/export ownership.
+  Clearly distinguish local rules from unfinished model inference.
+  [Native Save and synthetic appearance evidence](evidence/P06-ui-feedback.md).
 - [ ] Use Settings `SettingField::switch`, model metadata `DescriptionList`, an
   explicit Import `Button`/portal and `Alert` for absent/unsupported local models.
   Show `Progress` only for measured work; add no model marketplace or dashboards.

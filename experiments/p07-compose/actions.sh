@@ -169,7 +169,7 @@ else
   wtype -s 300 -M alt e -m alt -s 600
   await 'Archive hid the message at once' 3 "$in_inbox"
   capture undo-offered
-  click 1205 76
+  wtype -M ctrl n -m ctrl -s 300
   await 'Undo brought it back' 4 "$in_inbox"
   capture undone
   sleep 10
