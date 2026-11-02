@@ -248,8 +248,9 @@ new dependency graph before claiming current-package acceptance.
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
 - [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
   attachment/CID descriptors and source/body revisions. No generated summaries.
-- [ ] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
+- [x] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
   deduplication and duplicate Message-ID tests; never merge different accounts.
+  [Named tests per clause, including a UIDVALIDITY reset on a real server](evidence/P03-identity.md).
 - [x] Retain account-local RFC5256/JWZ grouping with subject merging disabled,
   revision-fenced stable conversations and the 37-case upstream conformance corpus.
 - [ ] Complete missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior

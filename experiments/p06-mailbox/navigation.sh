@@ -46,14 +46,14 @@ sleep .5
 capture navigation-page-one
 [[ $(magick "$root/initial.png" "$root/navigation-page-one.png" -compose difference -composite -crop 700x680+570+110 -format '%[fx:mean<0.00001]' info:) == 1 ]]
 # Folder and account routes are offline, explicit and independent of Message-ID.
-click 80 404
+click 80 350
 sleep .4
 check_seen first second page-098
 wtype -M ctrl l -m ctrl -k Down -k Return -s 500
 copy_body navigation-sent 'Synthetic sent parent.'
 capture navigation-sent
 check_seen first second page-098
-click 95 442
+click 95 388
 sleep .4
 wtype -M ctrl k -m ctrl 'cached letter' -k Return -s 400 -M ctrl l -m ctrl -k Down -k Return -s 400
 check_seen first second page-098

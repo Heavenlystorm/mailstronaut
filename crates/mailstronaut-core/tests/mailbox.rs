@@ -257,6 +257,50 @@ fn canonical_copies_remain_account_local_and_distinct_bodies_stay_distinct() {
 }
 
 #[test]
+fn a_uid_reset_reattaches_the_same_message_once_and_forgets_the_old_namespace() {
+    let root = tempfile::tempdir().expect("fixture");
+    let mut store = Store::open(root.path()).expect("open");
+    let inbox = folder(&mut store, "a", "INBOX", true);
+    let bytes = original("reset", "Survives a UIDVALIDITY reset.");
+    let before = store
+        .cache_message("a", membership(&inbox, 1, false), 100, None, &bytes)
+        .expect("before the reset");
+    // The server starts a new UID namespace for the folder. Old UIDs now name nothing.
+    store
+        .select_folder("a", inbox.id, nonzero(43))
+        .expect("new SELECT generation");
+    assert!(
+        store
+            .inbox(&["a".into()], None, 100)
+            .expect("after reset")
+            .is_empty(),
+        "the old namespace's memberships are not shown under the new one"
+    );
+    assert_eq!(
+        store
+            .message("a", before)
+            .expect("retained body")
+            .text
+            .as_deref(),
+        Some("Survives a UIDVALIDITY reset.")
+    );
+    let reset = Membership {
+        uid_validity: nonzero(43),
+        ..membership(&inbox, 1, false)
+    };
+    let after = store
+        .cache_message("a", reset, 100, None, &bytes)
+        .expect("the same message under the new namespace");
+    assert_eq!(
+        before, after,
+        "a reset must not duplicate a message it still holds"
+    );
+    let rows = store.inbox(&["a".into()], None, 100).expect("inbox");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, before);
+}
+
+#[test]
 fn gmail_ids_win_over_header_duplicates_and_share_label_copies() {
     let root = tempfile::tempdir().expect("fixture");
     let mut store = Store::open(root.path()).expect("open");

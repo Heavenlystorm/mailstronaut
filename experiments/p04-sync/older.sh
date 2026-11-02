@@ -103,7 +103,7 @@ capture exhausted
 printf '%s\n' 'OK: with the beginning reached, there is nothing more to fetch'
 
 # A folder asks for its own older mail. Archive follows Sent and Drafts in the sidebar.
-click 93 468
+click 93 414
 sleep 1
 capture archive-empty
 click 480 779

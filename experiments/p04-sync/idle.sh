@@ -129,12 +129,12 @@ capture delivered
 
 # Opening a folder by its readable name fetches it by its exact wire name. Roles come
 # first in the sidebar, so these two follow Trash.
-click 85 532
+click 85 478
 await 'the folder shown as Études was fetched by its wire name' 15 2 \
   "SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.name='&AMk-tudes'"
 sleep 2
 capture folders
-click 85 210
+click 85 156
 sleep 1
 
 other_client seen marker-alpha

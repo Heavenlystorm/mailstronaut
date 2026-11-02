@@ -109,6 +109,7 @@ await() {
 inbox_pass="SELECT b.reviewed FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX'"
 inbox_finished="SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.finished_at IS NOT NULL"
 old_subjects="SELECT count(*) FROM messages WHERE subject IN ('Synthetic ancient','Synthetic old-read','Synthetic old-unread')"
+inbox_validity="SELECT b.uidvalidity FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX'"
 
 # Without a declared limit the complete history is fetched, however old.
 start initial
@@ -155,6 +156,22 @@ await 'the capped pass stays finished after a restart' 1 "$inbox_finished"
 printf '%s\n' 'OK: a restart under the same cap changed nothing'
 sleep 2
 capture capped
+close_window
+
+# The server rebuilds the mailbox's UID namespace. The old namespace's history is not
+# duplicated, and the pass starts again under the new one.
+old_validity=$(query "$inbox_validity")
+dovecot_stop
+rm -f "$mail_root"/dovecot-uidlist "$mail_root"/dovecot.index*
+dovecot_start
+start reset
+await 'the pass restarted under the new UIDVALIDITY and finished' 1 \
+  "SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.uidvalidity<>$old_validity AND b.finished_at IS NOT NULL"
+[[ $(query 'SELECT count(*) FROM messages') == $((bulk + 1)) ]]
+[[ $(query "SELECT count(*) FROM effective_memberships m JOIN folders f ON f.id=m.folder_id WHERE f.name='INBOX'") == $((bulk + 1)) ]]
+printf '%s\n' 'OK: a UIDVALIDITY reset re-attached every message once, none duplicated'
+sleep 2
+capture reset
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then

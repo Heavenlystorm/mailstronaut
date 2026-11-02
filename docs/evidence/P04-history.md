@@ -97,9 +97,15 @@ OK: the capped pass finished
 OK: an explicit age cap limits fetching and is recorded with the pass
 OK: the capped pass stays finished after a restart
 OK: a restart under the same cap changed nothing
+OK: a UIDVALIDITY reset re-attached every message once, none duplicated
 Native history acceptance: .../history-gui
 history=0
 ```
+
+The last check removes the server's UID list and index files and restarts Dovecot, which gives the
+mailbox a new UIDVALIDITY. The pass restarts under the new namespace and finishes, and the inbox
+still holds each message once. The core test `a_uid_reset_reattaches_the_same_message_once_and_forgets_the_old_namespace`
+covers the same rule at the store level.
 
 The walkthrough kills the application with SIGKILL mid-pass, so the durable cursor is all that
 survives. The resumed pass ends with `reviewed` equal to the message count, which means no
@@ -117,8 +123,6 @@ compatibility path. See the regression record below.
 - The Settings and Home Manager controls for the age limit, and the status-bar `Progress`
   that consumes `Update::Progress`. The backend contract exists; the UI is not wired.
 - Retention eviction. No cached mail is ever removed by this change, and the PLAN row stays open.
-- A UIDVALIDITY reset observed on a real server. The fence is unit-tested and the walkthrough
-  does not reset a real mailbox's namespace.
 - An explicit Cancel control for a running pass. Cancellation is the cycle's token, and
   the native walkthrough tests an abrupt kill instead.
 - Cost of the six-hour rewalk on very large mailboxes, and any live provider.
