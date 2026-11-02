@@ -307,6 +307,8 @@ new dependency graph before claiming current-package acceptance.
   Neither background fetching, previews nor analysis sets Seen.
 - [ ] Exercise disposable protocol servers, drops and authentication failures in
   Nix/container CI; measure idle CPU, cancellation, paging and failure isolation.
+  [Mid-sync drops are retried with idle CPU measured natively](evidence/P04-faults.md);
+  authentication failures, failure isolation, cancellation timing and container CI remain open.
 
 Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 

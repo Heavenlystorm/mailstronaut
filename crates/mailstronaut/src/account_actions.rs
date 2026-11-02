@@ -33,6 +33,9 @@ const RECENT_WINDOWS: u32 = 2;
 /// History windows per folder and cycle. A folder with more history continues in the next
 /// cycle from its durable cursor, so one large folder cannot hold up the others.
 const BACKFILL_WINDOWS: u32 = 16;
+/// A dropped connection is retried on a new connection this many times in one folder's
+/// cycle, before the cycle itself fails and waits.
+const DROP_RETRIES: u32 = 4;
 /// One request for older mail stops after this many new messages.
 const OLDER_MESSAGES: u32 = 50;
 /// Or after this many UID windows, so that a folder of cached mail cannot hold it for long.
@@ -600,10 +603,17 @@ impl Access {
         cycle: &mut Cycle,
         cancel: &CancellationToken,
     ) -> Result<imap::Connection, SyncFailure> {
+        let mut drops = 0;
         for index in 0..CYCLE_PAGES {
-            let page = sync::page(store, &mut connection, &request, cancel)
-                .await
-                .map_err(SyncFailure::from_sync)?;
+            let page = match sync::page(store, &mut connection, &request, cancel).await {
+                Ok(page) => page,
+                Err(error) if drops < DROP_RETRIES && dropped(error, cancel) => {
+                    drops += 1;
+                    connection = Self::connect(opened, account, cancel).await?;
+                    continue;
+                }
+                Err(error) => return Err(SyncFailure::from_sync(error)),
+            };
             cycle.downloaded += page.downloaded;
             cycle.refreshed += page.refreshed;
             if page.downloaded > 0 {
@@ -630,8 +640,9 @@ impl Access {
         cycle: &mut Cycle,
         cancel: &CancellationToken,
     ) -> Result<imap::Connection, SyncFailure> {
+        let mut drops = 0;
         for _ in 0..BACKFILL_WINDOWS {
-            let step = sync::backfill_step(
+            let step = match sync::backfill_step(
                 store,
                 &mut connection,
                 &pass.request,
@@ -640,7 +651,15 @@ impl Access {
                 cancel,
             )
             .await
-            .map_err(SyncFailure::from_sync)?;
+            {
+                Ok(step) => step,
+                Err(error) if drops < DROP_RETRIES && dropped(error, cancel) => {
+                    drops += 1;
+                    connection = Self::connect(opened, account, cancel).await?;
+                    continue;
+                }
+                Err(error) => return Err(SyncFailure::from_sync(error)),
+            };
             cycle.downloaded += step.downloaded;
             (pass.progress)(pass.request.folder, step.progress);
             if step.finished {
@@ -819,6 +838,18 @@ fn history_floor(config: &Config, now: i64) -> i64 {
     })
 }
 
+/// Whether a failed step only lost its connection, so that it can be repeated on a new one.
+/// Each window's cursor is saved only after it committed, so repeating loses and duplicates
+/// nothing. Cancellation is never retried.
+fn dropped(error: sync::Error, cancel: &CancellationToken) -> bool {
+    !cancel.is_cancelled()
+        && matches!(
+            error,
+            sync::Error::Transport(error)
+                if matches!(SyncFailure::from_imap(error), SyncFailure::Retry(_))
+        )
+}
+
 pub fn selected_auth(account: &Account, outgoing: bool) -> &Auth {
     if outgoing {
         account.smtp_auth.as_ref().unwrap_or(&account.auth)
@@ -834,6 +865,27 @@ mod tests {
     use mailstronaut_core::worker::Worker;
 
     use super::*;
+
+    #[test]
+    fn only_a_lost_connection_is_repeated_and_cancellation_never_is() {
+        let open = CancellationToken::new();
+        assert!(dropped(
+            sync::Error::Transport(imap::Error::Disconnected),
+            &open
+        ));
+        assert!(dropped(sync::Error::Transport(imap::Error::Network), &open));
+        assert!(!dropped(
+            sync::Error::Transport(imap::Error::Authentication),
+            &open
+        ));
+        assert!(!dropped(sync::Error::Transport(imap::Error::Tls), &open));
+        let cancelled = CancellationToken::new();
+        cancelled.cancel();
+        assert!(!dropped(
+            sync::Error::Transport(imap::Error::Disconnected),
+            &cancelled
+        ));
+    }
 
     #[tokio::test]
     #[ignore = "requires the explicitly isolated credentials.sh bus and XDG profile"]
