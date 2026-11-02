@@ -117,13 +117,28 @@ button asks first, and Cancel keeps the draft open. Confirming closes it as a to
 late autosave does not recreate its text. After a restart it still does not come back. It passes
 through the `MAILSTRONAUT_DISCARD_GUI_BINARY` switch of `credentials.sh`.
 
+`experiments/p07-compose/attachments.sh` attaches a file through the private file chooser, then
+removes it from the composer. The removal drops the draft's reference, the draft stays open, a
+late autosave does not restore the attachment, and it stays removed after a restart. The remove
+control appears only while its card is hovered, so the walkthrough hovers the card first. It
+passes through the `MAILSTRONAUT_ATTACH_GUI_BINARY` switch.
+
+`experiments/p07-compose/identity.sh` starts a draft under one of two synthetic accounts, then
+chooses the other account in the From selector. The draft moves with its subject and text, and it
+stays under that account after a restart with exactly one open draft. It passes through the
+`MAILSTRONAUT_IDENTITY_GUI_BINARY` switch.
+
+`experiments/p07-compose/forward.sh` opens a synthetic message from a private Dovecot inbox and
+forwards it. The local draft has a `Fwd:` subject, quotes the original as text, carries no reply
+headers, and submits nothing. It passes through the `MAILSTRONAUT_FORWARD_GUI_BINARY` switch.
+
 `crates/mailstronaut-mail/tests/smtp.rs` checks that the pre-flight starts no transaction
 and reports a closed port and a refused sign-in as sending nothing.
 
 ## Not established
 
-No live provider or real desktop portal. The GUI path has not yet exercised: removing an
-attachment, identity switching, or Forward. Backend tests cover several of those states.
-Reply is exercised by the navigation walkthrough. Provider-side Sent saving is not exercised.
+No live provider, live account, or Flatpak portal. Attachments come from the private portal
+fixture, not a desktop file chooser. Provider-side Sent saving is not exercised. Reply is
+exercised by the navigation walkthrough, and backend tests cover several other states.
 A connection lost between the pre-flight and DATA is still reported as unknown, the safe
 direction.

@@ -77,6 +77,15 @@ fi
 if [[ -n ${MAILSTRONAUT_DISCARD_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/discard.sh "$MAILSTRONAUT_DISCARD_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_ATTACH_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/attachments.sh "$MAILSTRONAUT_ATTACH_GUI_BINARY" "$root"
+fi
+if [[ -n ${MAILSTRONAUT_IDENTITY_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/identity.sh "$MAILSTRONAUT_IDENTITY_GUI_BINARY" "$root"
+fi
+if [[ -n ${MAILSTRONAUT_FORWARD_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/forward.sh "$MAILSTRONAUT_FORWARD_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_SEARCH_GUI_BINARY:-} ]]; then
   bash experiments/p06-search/gui.sh "$MAILSTRONAUT_SEARCH_GUI_BINARY" "$root"
 fi

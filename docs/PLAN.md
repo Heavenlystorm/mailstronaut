@@ -530,6 +530,9 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   decisions; no routine confirmations for already reversible actions.
 - [ ] Verify native composition/attachments/actions on Wayland and Flatpak, plus
   authorized controlled send/reply flows on all required providers.
+  [Native Wayland attachment removal, identity switch, forward and discard pass on synthetic
+  fixtures](evidence/P07-native-compose.md); the Flatpak portal and live-provider parts remain
+  open.
 
 HTML composition, remote draft sync, signing and permanent purge remain deferred.
 
