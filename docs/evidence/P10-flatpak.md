@@ -42,11 +42,15 @@ The SpiderMonkey-specific checks were removed from the probe. The current depend
 - `config check` of the examples configuration inside the installed app reports a valid
   configuration. The examples folder was mounted read-only for that check only; the manifest does
   not grant it.
+- The installed application opens its main window inside the sandbox, in the private headless
+  Wayland session, with network unshared. The capture shows the empty mailbox state with no
+  accounts (`flatpak/gui-smoke.sh`, through the `MAILSTRONAUT_FLATPAK_GUI_BINARY` switch of
+  `credentials.sh`).
 
 ## Not established
 
-- The GUI running in the sandbox, native Wayland access, and the graphics device (`--device=dri`
-  is declared but not exercised).
+- Native Wayland on a real desktop session (only the headless sway session was used), and the
+  graphics path: `--device=dri` is declared, but which renderer the window used was not checked.
 - The portals: file chooser, secret, notification and background.
 - Desktop and AppStream metainfo files. The export warns that the application has no appstream
   data, so there is no desktop entry or metainfo yet.

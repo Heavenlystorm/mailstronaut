@@ -691,9 +691,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
 - [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native
   Wayland access. No X11/XWayland requirement, broad home access, host Nix daemon,
   plaintext secrets or uncontrolled model downloads.
-  [A production manifest with pinned archives builds the release binary offline and runs
-  it in the Platform runtime on the CI host](evidence/P10-flatpak.md); the sandboxed GUI,
-  portals, graphics and desktop metainfo remain open.
+  [A production manifest with pinned archives builds the release binary offline, runs it
+  in the Platform runtime, and opens its window in the sandbox on the CI host](evidence/P10-flatpak.md);
+  real-session Wayland, portals, graphics path and desktop metainfo remain open.
 - [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
   portals, read-only managed configuration and packaged HTML resources.
   Reuse the P02 Settings/source/export and P05 import components; do not create a

@@ -86,6 +86,9 @@ fi
 if [[ -n ${MAILSTRONAUT_FORWARD_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/forward.sh "$MAILSTRONAUT_FORWARD_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_FLATPAK_GUI_BINARY:-} ]]; then
+  bash flatpak/gui-smoke.sh "$MAILSTRONAUT_FLATPAK_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_SEARCH_GUI_BINARY:-} ]]; then
   bash experiments/p06-search/gui.sh "$MAILSTRONAUT_SEARCH_GUI_BINARY" "$root"
 fi
