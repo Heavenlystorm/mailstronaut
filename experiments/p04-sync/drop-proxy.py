@@ -6,7 +6,7 @@ reset is an abrupt TCP reset (RST), which is how a network drop looks to the cli
 never leaves loopback and carries only synthetic mail.
 
 Arguments: listen port, target port, log file, maximum resets, bytes from the server before a
-reset.
+reset. The log records each accepted connection as "accept" and each reset as "reset".
 """
 
 import socket
@@ -89,6 +89,7 @@ def main():
     note("ready")
     while True:
         client, _ = server.accept()
+        note("accept")
         threading.Thread(target=serve, args=(client,), daemon=True).start()
 
 

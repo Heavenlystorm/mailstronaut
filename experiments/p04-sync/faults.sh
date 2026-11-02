@@ -41,6 +41,12 @@ proxy_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 
 python3 -I "$(dirname "${BASH_SOURCE[0]}")/drop-proxy.py" "$proxy_port" "$imap_port" "$artifacts/resets.log" 6 20000 &
 proxy=$!
 for _ in {1..100}; do grep -qx ready "$artifacts/resets.log" 2> /dev/null && break; sleep .1; done
+# A third account with a wrong password, reached through a proxy that counts its connections
+# and never resets them.
+wrong_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+python3 -I "$(dirname "${BASH_SOURCE[0]}")/drop-proxy.py" "$wrong_port" "$imap_port" "$artifacts/attempts.log" 0 0 &
+attempts_proxy=$!
+for _ in {1..100}; do grep -qx ready "$artifacts/attempts.log" 2> /dev/null && break; sleep .1; done
 # A second account whose server is not listening: its failures must not hold up the first.
 unreachable_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
@@ -71,6 +77,16 @@ cat > "$config" <<NIX
     smtp = { host = "localhost"; port = $unreachable_port; security = "tls"; };
     tls.caFiles = [ "$ca" ];
     auth = { kind = "password"; secretRef = "unreachable-password"; };
+  } {
+    id = "wrong-synthetic";
+    provider = "manual";
+    address = "wrong@example.test";
+    displayName = "Wrong password";
+    userName = "$imap_user";
+    imap = { host = "localhost"; port = $wrong_port; security = "tls"; };
+    smtp = { host = "localhost"; port = $wrong_port; security = "tls"; };
+    tls.caFiles = [ "$ca" ];
+    auth = { kind = "password"; secretRef = "wrong-password"; };
   }];
 }
 NIX
@@ -78,12 +94,14 @@ printf '%s' "$imap_password" | secret-tool store --label='Synthetic fault fixtur
   application "$(cat assets/app-id)" account dovecot-synthetic reference dovecot-password purpose password
 printf '%s' "$imap_password" | secret-tool store --label='Synthetic unreachable fixture' \
   application "$(cat assets/app-id)" account unreachable-synthetic reference unreachable-password purpose password
+printf '%s' 'SYNTHETIC-WRONG-NOT-REAL' | secret-tool store --label='Synthetic wrong password fixture' \
+  application "$(cat assets/app-id)" account wrong-synthetic reference wrong-password purpose password
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
 cleanup() {
   session_cleanup
-  kill "$proxy" 2> /dev/null || true
+  kill "$proxy" "$attempts_proxy" 2> /dev/null || true
   dovecot_cleanup
 }
 trap cleanup EXIT
@@ -126,6 +144,11 @@ printf 'OK: %s connections were reset mid-sync, and each message was kept exactl
 [[ $(query "SELECT count(*) FROM messages WHERE account_id='dovecot-synthetic'") == "$bulk" ]]
 kill -0 "$app"
 printf '%s\n' 'OK: an unreachable account did not hold back the other one'
+# A wrong password is classed as a stop: the account is tried once or twice, then left alone.
+attempts=$(grep -c '^accept' "$artifacts/attempts.log" || true)
+[[ $attempts -ge 1 && $attempts -le 3 ]]
+[[ $(query "SELECT count(*) FROM messages WHERE account_id='wrong-synthetic'") == 0 ]]
+printf 'OK: a wrong password was tried %s time(s) and then left alone\n' "$attempts"
 sleep 2
 capture resets
 idle=$(idle_cpu)

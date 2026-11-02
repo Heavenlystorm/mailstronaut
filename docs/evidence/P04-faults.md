@@ -30,6 +30,7 @@ sync, and the walkthrough checks that the first account still completes.
 OK: the history reached its beginning despite the resets
 OK: 6 connections were reset mid-sync, and each message was kept exactly once
 OK: an unreachable account did not hold back the other one
+OK: a wrong password was tried 1 time(s) and then left alone
 OK: the idle application used 0.00% of a processor over ten seconds
 OK: the first sync began a history pass
 OK: closing took 109 ms with 1 unfinished history passes
@@ -51,8 +52,9 @@ Unit test: `account_actions::tests::only_a_lost_connection_is_repeated_and_cance
 
 ## Not established
 
-- Authentication failures during sync are not exercised by this walkthrough. A wrong password is
-  classed as a stop, but the number of attempts it makes has not been counted.
+- A wrong password is measured by connection count: a third account with a wrong keyring secret is
+  tried once, and the account then waits for a change instead of retrying. Other authentication
+  failures, such as an expired OAuth token or a locked keyring during sync, are not exercised.
 - Cancellation is measured for one close, mid-pass, on a small mailbox. Closing under sustained
   backfill of a large mailbox is not measured.
 - The walkthrough runs in the native harness, not in the Nix or container CI, which still runs only

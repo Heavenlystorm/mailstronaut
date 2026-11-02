@@ -310,8 +310,8 @@ new dependency graph before claiming current-package acceptance.
   [Store test through a move and reconciliation, with Seen checks in native walkthroughs](evidence/P04-state.md).
 - [ ] Exercise disposable protocol servers, drops and authentication failures in
   Nix/container CI; measure idle CPU, cancellation, paging and failure isolation.
-  [Mid-sync drops, idle CPU, failure isolation and closing mid-sync are measured natively](evidence/P04-faults.md);
-  authentication-failure attempts and container CI remain open.
+  [Mid-sync drops, idle CPU, failure isolation, closing mid-sync and wrong-password attempts are measured natively](evidence/P04-faults.md);
+  other authentication failures and container CI remain open.
 
 Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
