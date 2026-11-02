@@ -26,6 +26,7 @@ use gpui::component::{
     list::{List, ListEvent, ListState},
     menu::{DropdownMenu as _, PopupMenuItem},
     notification::{Notification, NotificationDelivery},
+    progress::Progress,
     resizable::{h_resizable, resizable_panel},
     setting::{SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarGroup, SidebarItem as _, SidebarMenu, SidebarMenuItem},
@@ -146,7 +147,7 @@ pub struct Workspace {
     /// Unread messages by folder ID, from the same read as `folders`.
     unread: HashMap<i64, usize>,
     scope: Scope,
-    pages: crate::mailbox::Pages,
+    browse: crate::mailbox::Browse,
     declaration: source::Runtime,
     config_path: Option<PathBuf>,
     preferences: Entity<crate::preferences::Preferences>,
@@ -214,6 +215,7 @@ pub struct Workspace {
     /// Messages announced since a window was last in front, per account.
     announced_count: HashMap<String, u32>,
     syncing: BTreeSet<String>,
+    sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
     sync_errors: BTreeMap<String, String>,
     last_sync: String,
     last_wake: Instant,
@@ -316,6 +318,50 @@ async fn conversation_rows(
     }
 }
 
+/// Refresh the already-loaded metadata prefix in bounded store batches.
+async fn conversation_prefix(
+    handle: &Handle,
+    fuzzy: Option<&crate::mail_search::MailSearch>,
+    accounts: Vec<String>,
+    scope: Scope,
+    query: String,
+    boundary: Option<Cursor>,
+    cancel: &CancellationToken,
+) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, String> {
+    let mut rows = Vec::new();
+    let mut after = None;
+    loop {
+        if cancel.is_cancelled() {
+            return Err("Local query cancelled.".into());
+        }
+        let batch = conversation_rows(
+            handle,
+            fuzzy,
+            accounts.clone(),
+            scope.clone(),
+            query.clone(),
+            after,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+        after = batch.last().map(|row| Cursor {
+            received_at: row.latest.received_at,
+            message_id: row.latest.id,
+        });
+        let more = batch.len() == 100;
+        rows.extend(batch);
+        let reached = boundary.is_none_or(|old| {
+            after.is_some_and(|next| {
+                (next.received_at, next.message_id) <= (old.received_at, old.message_id)
+            })
+        });
+        if !more || reached {
+            break;
+        }
+    }
+    Ok(rows)
+}
+
 impl Workspace {
     #[expect(
         clippy::too_many_lines,
@@ -357,12 +403,16 @@ impl Workspace {
         });
         let workspace = cx.entity().downgrade();
         let show_all_workspace = workspace.clone();
+        let load_workspace = workspace.clone();
         let rows = Rows {
             on_dismiss: Some(Rc::new(move |message, window, cx| {
                 _ = workspace.update(cx, |this, cx| this.dismiss_priority(message, window, cx));
             })),
             on_show_all: Some(Rc::new(move |window, cx| {
                 _ = show_all_workspace.update(cx, |this, cx| this.show_all_priority(window, cx));
+            })),
+            on_load_more: Some(Rc::new(move |window, cx| {
+                _ = load_workspace.update(cx, |this, cx| this.load_more_rows(window, cx));
             })),
             ..Rows::default()
         };
@@ -481,7 +531,7 @@ impl Workspace {
             folders: Vec::new(),
             unread: HashMap::new(),
             scope: Scope::Inbox,
-            pages: crate::mailbox::Pages::default(),
+            browse: crate::mailbox::Browse::default(),
             declaration: source::Runtime::default(),
             config_path: path,
             preferences,
@@ -543,6 +593,7 @@ impl Workspace {
             announced_through: HashMap::new(),
             announced_count: HashMap::new(),
             syncing: BTreeSet::new(),
+            sync_progress: BTreeMap::new(),
             sync_errors: BTreeMap::new(),
             last_sync: String::new(),
             last_wake: Instant::now(),
@@ -668,7 +719,7 @@ impl Workspace {
                                 } {
                                     this.scope = Scope::Inbox;
                                 }
-                                this.pages = crate::mailbox::Pages::default();
+                                this.browse = crate::mailbox::Browse::default();
                                 let zone = crate::mailbox::local_zone(config.time_zone.as_deref());
                                 let handle = this.handle();
                                 this.reminders.update(cx, |reminders, cx| {
@@ -753,6 +804,7 @@ impl Workspace {
                     handle.clone(),
                     self.runtime.clone(),
                     self.account_access.clone(),
+                    self.preferences.clone(),
                     self.account_lifetime.child_token(),
                     window,
                     cx,
@@ -844,11 +896,8 @@ impl Workspace {
         let query = self.search.read(cx).value().to_string();
         if query != self.query {
             self.query = query;
-            self.pages = crate::mailbox::Pages::default();
-            self.retire_open(window, cx);
-            self.list.update(cx, |list, cx| {
-                crate::mailbox::replace(list, Vec::new(), window, cx);
-            });
+            self.browse = crate::mailbox::Browse::default();
+            self.clear_page(window, cx);
         }
         self.refresh_rows(window, cx);
     }
@@ -952,19 +1001,18 @@ impl Workspace {
     }
 
     fn page_status(&self, count: usize) -> String {
-        let page = self.pages.number();
         let waiting = self
             .fuzzy
             .as_ref()
             .map_or(0, crate::mail_search::MailSearch::queued);
         if self.query.trim().is_empty() {
-            format!("{count} cached conversations · page {page} · local cache")
+            format!("{count} cached conversations · local cache")
         } else {
             let matches = if count == 1 { "match" } else { "matches" };
             if waiting > 0 {
-                format!("{count} {matches} · page {page} · {waiting} messages not searchable yet")
+                format!("{count} {matches} · {waiting} messages not searchable yet")
             } else {
-                format!("{count} {matches} · page {page} · searched local cache")
+                format!("{count} {matches} · searched local cache")
             }
         }
     }
@@ -978,10 +1026,16 @@ impl Workspace {
             .map(|(folder, count)| (folder, count as usize))
             .collect();
         let count = rows.len();
-        self.pages.more = count == 100;
+        self.browse.more = count > 0 && count.is_multiple_of(100);
+        self.browse.after = rows.last().map(|row| Cursor {
+            received_at: row.latest.received_at,
+            message_id: row.latest.id,
+        });
+        self.browse.loaded = count;
         let rows = rows.into_iter().map(Row::from).collect();
         self.list.update(cx, |list, cx| {
             crate::mailbox::replace_with_priority(list, rows, group, window, cx);
+            list.delegate_mut().more = self.browse.more;
         });
         self.status = if self.accounts.is_empty() {
             "Add an account in Settings or your native Nix configuration.".into()
@@ -995,6 +1049,7 @@ impl Workspace {
             return;
         };
         self.query_generation = self.query_generation.wrapping_add(1);
+        self.browse.pending = false;
         let generation = self.query_generation;
         let revision = self.declaration.revision();
         let accounts = self.accounts.clone();
@@ -1003,13 +1058,11 @@ impl Workspace {
         let cancel = self.query_cancel.clone();
         let query = self.query.clone();
         let scope = self.scope.clone();
-        let after = self.pages.after;
+        let boundary = self.browse.after;
         let fuzzy = self.fuzzy.clone();
-        // The group belongs at the top of the unified view, not in searches or later pages.
-        let show_priority = self.priority.is_some()
-            && self.scope == Scope::Inbox
-            && query.trim().is_empty()
-            && !self.pages.has_previous();
+        // The group belongs at the top of the unified view, never in searches.
+        let show_priority =
+            self.priority.is_some() && self.scope == Scope::Inbox && query.trim().is_empty();
         let show_all = self.list.read(cx).delegate().show_all_priority;
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
@@ -1057,10 +1110,17 @@ impl Workspace {
             } else {
                 Priority::default()
             };
-            conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after)
-                .await
-                .map(|rows| (folders, unread, rows, group))
-                .map_err(|error| error.to_string())
+            let rows = conversation_prefix(
+                &handle,
+                fuzzy.as_ref(),
+                accounts,
+                scope,
+                query,
+                boundary,
+                &cancel,
+            )
+            .await?;
+            Ok((folders, unread, rows, group))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
@@ -1637,6 +1697,7 @@ impl Workspace {
         self.engine = None;
         self.sync_errors.clear();
         self.syncing.clear();
+        self.sync_progress.clear();
         let Some(handle) = self.handle().filter(|_| config.sync.automatic) else {
             return;
         };
@@ -1672,12 +1733,17 @@ impl Workspace {
     ) {
         match update {
             crate::mail_sync::Update::Started(account) => {
+                self.sync_progress.remove(&account);
                 self.syncing.insert(account);
             }
-            // Fetch progress is the status bar's to show; its data contract is `mail_sync::Fetch`.
-            crate::mail_sync::Update::Progress(..) => {}
+            crate::mail_sync::Update::Progress(account, progress) => {
+                if self.syncing.contains(&account) {
+                    self.sync_progress.insert(account, progress);
+                }
+            }
             crate::mail_sync::Update::Finished(account, result) => {
                 self.syncing.remove(&account);
+                self.sync_progress.remove(&account);
                 if let Some(search) = &self.fuzzy {
                     search.wake();
                 }
@@ -1725,6 +1791,32 @@ impl Workspace {
             return self.status.clone();
         }
         format!("{} · updated {}", self.status, self.last_sync)
+    }
+
+    fn fetch_progress(&self) -> Option<(String, Option<f32>)> {
+        let (account, progress) = self.sync_progress.iter().next()?;
+        let label = progress.total.map_or_else(
+            || {
+                format!(
+                    "{} · {}: {} reviewed",
+                    account, progress.folder, progress.completed
+                )
+            },
+            |total| {
+                format!(
+                    "{} · {}: {} / {} reviewed",
+                    account, progress.folder, progress.completed, total
+                )
+            },
+        );
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "A bounded percentage is sufficient precision for the progress indicator"
+        )]
+        let percent = progress.total.filter(|total| *total > 0).map(|total| {
+            (100.0 * f64::from(progress.completed.min(total)) / f64::from(total)) as f32
+        });
+        Some((label, percent))
     }
 
     fn sync_alert(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1927,7 +2019,7 @@ impl Workspace {
     fn navigate(&mut self, scope: Scope, window: &mut Window, cx: &mut Context<Self>) {
         if self.scope != scope {
             self.scope = scope;
-            self.pages = crate::mailbox::Pages::default();
+            self.browse = crate::mailbox::Browse::default();
             self.clear_page(window, cx);
         }
         self.view = View::Inbox;
@@ -1949,28 +2041,71 @@ impl Workspace {
         });
     }
 
-    fn turn_page(&mut self, older: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let rows = self.list.read(cx).delegate();
-        if rows.loading {
+    fn load_more_rows(&mut self, window: &Window, cx: &Context<Self>) {
+        let Some(handle) = self.handle() else {
+            return;
+        };
+        if !self.browse.more || self.browse.pending || self.list.read(cx).delegate().loading {
             return;
         }
-        if older {
-            let Some(cursor) = rows
-                .items
-                .last()
-                .filter(|_| self.pages.more)
-                .map(Row::cursor)
-            else {
-                return;
-            };
-            self.pages.next(cursor);
-        } else if self.pages.has_previous() {
-            self.pages.previous();
-        } else {
-            return;
-        }
-        self.clear_page(window, cx);
-        self.refresh_rows(window, cx);
+        self.browse.pending = true;
+        let (generation, revision) = (self.query_generation, self.declaration.revision());
+        let after = self.browse.after;
+        let (accounts, scope, query, fuzzy) = (
+            self.accounts.clone(),
+            self.scope.clone(),
+            self.query.clone(),
+            self.fuzzy.clone(),
+        );
+        let cancel = self.query_cancel.clone();
+        let job = self.runtime.spawn(async move {
+            tokio::select! {
+                () = cancel.cancelled() => Err("Local query cancelled.".to_owned()),
+                result = conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after) =>
+                    result.map_err(|error| error.to_string()),
+            }
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, _, cx| {
+                if generation != this.query_generation || revision != this.declaration.revision() {
+                    return;
+                }
+                this.browse.pending = false;
+                match result {
+                    Ok(Ok(rows)) => {
+                        this.browse.more = rows.len() == 100;
+                        if let Some(last) = rows.last() {
+                            this.browse.after = Some(Cursor {
+                                received_at: last.latest.received_at,
+                                message_id: last.latest.id,
+                            });
+                        }
+                        this.browse.loaded += rows.len();
+                        let rows = rows.into_iter().map(Row::from).collect::<Vec<_>>();
+                        this.list.update(cx, |list, cx| {
+                            let delegate = list.delegate_mut();
+                            delegate.append(rows);
+                            delegate.more = this.browse.more;
+                            cx.notify();
+                        });
+                        this.status = this.page_status(this.browse.loaded);
+                    }
+                    error => {
+                        this.list.update(cx, |list, cx| {
+                            list.delegate_mut().more = false;
+                            cx.notify();
+                        });
+                        this.status = match error {
+                            Ok(Err(error)) => error,
+                            _ => "Local query interrupted. Refresh to retry.".into(),
+                        };
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     fn account_settings(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -2157,6 +2292,22 @@ impl Workspace {
             )
     }
 
+    fn account_label(&self, account: &mailstronaut_config::Account) -> String {
+        let duplicate = self.declaration.active().is_some_and(|config| {
+            config
+                .accounts
+                .iter()
+                .filter(|other| other.display_name == account.display_name)
+                .count()
+                > 1
+        });
+        if duplicate {
+            format!("{} · {}", account.id, account.display_name)
+        } else {
+            account.display_name.clone()
+        }
+    }
+
     fn sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let attention = self.composer.read(cx).attention();
         Sidebar::new("mail-sidebar")
@@ -2172,7 +2323,7 @@ impl Workspace {
                             .flat_map(|config| &config.accounts)
                             .map(|account| {
                                 let scope = Scope::Account(account.id.clone());
-                                SidebarMenuItem::new(account.display_name.clone())
+                                SidebarMenuItem::new(self.account_label(account))
                                     .icon(IconName::Inbox)
                                     .accessibility_label(format!(
                                         "All cached mail · {} · {}",
@@ -2317,49 +2468,16 @@ impl Workspace {
                     .min_h_0()
                     .child(List::new(&self.list).size_full()),
             )
-            .when(
-                self.pages.more || self.pages.has_previous() || self.can_fetch_older(),
-                |view| {
-                    view.child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .gap_2()
-                            .p_2()
-                            .border_t_1()
-                            .border_color(cx.theme().border)
-                            .child(
-                                Button::new("newer-conversations")
-                                    .ghost()
-                                    .label("Newer")
-                                    .disabled(loading || !self.pages.has_previous())
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.turn_page(false, window, cx);
-                                    })),
-                            )
-                            .child(Label::new(format!("Page {}", self.pages.number())).text_xs())
-                            .child(if !self.pages.more && self.can_fetch_older() {
-                                Button::new("fetch-older-mail")
-                                    .ghost()
-                                    .label("Fetch older mail")
-                                    .loading(self.older_fetch.is_some())
-                                    .disabled(loading || self.older_fetch.is_some())
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.fetch_older(window, cx);
-                                    }))
-                            } else {
-                                Button::new("older-conversations")
-                                    .ghost()
-                                    .label("Older")
-                                    .disabled(loading || !self.pages.more)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.turn_page(true, window, cx);
-                                    }))
-                            }),
-                    )
-                },
-            )
+            .when(!self.browse.more && self.can_fetch_older(), |view| {
+                view.child(
+                    Button::new("fetch-older-mail")
+                        .ghost()
+                        .label("Fetch older mail")
+                        .loading(self.older_fetch.is_some())
+                        .disabled(loading || self.older_fetch.is_some())
+                        .on_click(cx.listener(|this, _, window, cx| this.fetch_older(window, cx))),
+                )
+            })
     }
 
     /// Where older mail for the current view would come from, leaving out folders already
@@ -3225,17 +3343,146 @@ impl Render for Workspace {
                 ),
             )
             // The composer reports its own draft state; mailbox counts would mislead there.
-            .when(self.view != View::Compose, |view| {
-                view.child(
-                    div()
-                        .px_4()
-                        .py_2()
-                        .text_xs()
-                        .text_color(muted)
-                        .border_t_1()
-                        .border_color(border)
-                        .child(self.sync_status()),
+            .when(
+                self.view != View::Compose || !self.syncing.is_empty(),
+                |view| {
+                    view.child(
+                        div()
+                            .px_4()
+                            .py_2()
+                            .text_xs()
+                            .text_color(muted)
+                            .border_t_1()
+                            .border_color(border)
+                            .flex()
+                            .items_center()
+                            .gap_3()
+                            .child(if self.view == View::Compose {
+                                "Syncing…".to_owned()
+                            } else {
+                                self.sync_status()
+                            })
+                            .when_some(self.fetch_progress(), |bar, (label, percent)| {
+                                bar.child(div().child(label.clone())).child(
+                                    Progress::new("sync-progress")
+                                        .w(px(120.))
+                                        .accessibility_label(label)
+                                        .loading(percent.is_none())
+                                        .value(percent.unwrap_or_default()),
+                                )
+                            }),
+                    )
+                },
+            )
+    }
+}
+
+#[cfg(test)]
+mod browse_tests {
+    use super::*;
+    use mailstronaut_core::store::mailbox::{Flags, Membership};
+    use std::num::NonZeroU32;
+
+    #[tokio::test]
+    async fn refreshing_a_loaded_prefix_keeps_its_old_boundary_after_new_mail() {
+        let root = tempfile::tempdir().expect("private store");
+        let owner = Worker::open(root.path().to_owned()).await.expect("worker");
+        let store = owner.handle();
+        store.ensure_account("a".into()).await.expect("account");
+        let folder = store
+            .ensure_folder("a".into(), "INBOX".into(), true)
+            .await
+            .expect("folder")
+            .id;
+        let validity = NonZeroU32::new(42).expect("validity");
+        store
+            .select_folder("a".into(), folder, validity)
+            .await
+            .expect("select");
+        for uid in 1..=205 {
+            store
+                .cache_message(
+                    "a".into(),
+                    Membership {
+                        folder,
+                        uid_validity: validity,
+                        uid: NonZeroU32::new(uid).expect("UID"),
+                        flags: Flags::default(),
+                    },
+                    i64::from(uid),
+                    None,
+                    format!("Subject: Synthetic letter {uid}\r\n\r\nLocal fixture.").into_bytes(),
                 )
-            })
+                .await
+                .expect("cache");
+        }
+        let cancel = CancellationToken::new();
+        let accounts = vec!["a".to_owned()];
+        let first = conversation_prefix(
+            &store,
+            None,
+            accounts.clone(),
+            Scope::Inbox,
+            String::new(),
+            None,
+            &cancel,
+        )
+        .await
+        .expect("initial prefix");
+        assert_eq!(first.len(), 100);
+        let last = first.last().expect("boundary");
+        let boundary = Cursor {
+            received_at: last.latest.received_at,
+            message_id: last.latest.id,
+        };
+        store
+            .cache_message(
+                "a".into(),
+                Membership {
+                    folder,
+                    uid_validity: validity,
+                    uid: NonZeroU32::new(206).expect("UID"),
+                    flags: Flags::default(),
+                },
+                206,
+                None,
+                b"Subject: New synthetic letter\r\n\r\nArrived later.".to_vec(),
+            )
+            .await
+            .expect("new mail");
+        let refreshed = conversation_prefix(
+            &store,
+            None,
+            accounts.clone(),
+            Scope::Inbox,
+            String::new(),
+            Some(boundary),
+            &cancel,
+        )
+        .await
+        .expect("refresh");
+        assert_eq!(refreshed.len(), 200);
+        assert_eq!(refreshed.first().expect("newest").latest.received_at, 206);
+        assert!(
+            refreshed
+                .iter()
+                .any(|row| row.latest.id == boundary.message_id)
+        );
+        assert!(refreshed.iter().all(|row| !row.latest.seen));
+        cancel.cancel();
+        assert!(
+            conversation_prefix(
+                &store,
+                None,
+                accounts,
+                Scope::Inbox,
+                String::new(),
+                Some(boundary),
+                &cancel
+            )
+            .await
+            .is_err()
+        );
+        owner.shutdown().await.expect("shutdown");
     }
 }

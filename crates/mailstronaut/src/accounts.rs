@@ -43,6 +43,9 @@ pub struct AccountPane {
     lifetime: CancellationToken,
     password: Entity<InputState>,
     smtp_password: Entity<InputState>,
+    login: Entity<InputState>,
+    smtp_login: Entity<InputState>,
+    preferences: Entity<crate::preferences::Preferences>,
     cancel: CancellationToken,
     busy: bool,
     before: Option<Position>,
@@ -69,6 +72,7 @@ impl AccountPane {
         store: Handle,
         runtime: Arc<Runtime>,
         access: Access,
+        preferences: Entity<crate::preferences::Preferences>,
         lifetime: CancellationToken,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -82,6 +86,13 @@ impl AccountPane {
             InputState::new(window, cx)
                 .masked(true)
                 .placeholder("Outgoing password or app password")
+        });
+        let login =
+            cx.new(|cx| InputState::new(window, cx).default_value(account.user_name.clone()));
+        let smtp_login = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(account.smtp_user_name.clone().unwrap_or_default())
+                .placeholder("Use provider default")
         });
         let status = if config.sync.automatic {
             "Ready · automatic synchronization is enabled."
@@ -99,6 +110,9 @@ impl AccountPane {
             lifetime,
             password,
             smtp_password,
+            login,
+            smtp_login,
+            preferences,
             busy: false,
             before: None,
             status,
@@ -260,6 +274,7 @@ impl AccountPane {
         let title = account.id.clone();
         let address = account.address.clone();
         let login = account.user_name.clone();
+        let smtp_login = account.outgoing_user_name().to_owned();
         let endpoint = account.incoming_endpoint().map_or_else(
             || "Not configured".to_owned(),
             |endpoint| format!("{}:{}", endpoint.host, endpoint.port),
@@ -272,7 +287,7 @@ impl AccountPane {
                 SettingGroup::new()
                     .title("Connection")
                     .description(
-                        "Edit account declarations in your native Nix source, then reload.",
+                        "Edit login names below when this configuration is writable. In managed Nix, set accounts[].userName and optionally accounts[].smtpUserName, activate Home Manager, then reload. INRIA may use a short username rather than an email address.",
                     )
                     .item(
                         SettingItem::render(move |_, _, _| {
@@ -281,6 +296,7 @@ impl AccountPane {
                                 .bordered(false)
                                 .item("Address", address.clone(), 1)
                                 .item("Incoming login", login.clone(), 1)
+                                .item("Outgoing login", smtp_login.clone(), 1)
                                 .item("Incoming server", endpoint.clone(), 1)
                         })
                         .keywords([
@@ -318,6 +334,39 @@ impl Render for AccountPane {
             .flex()
             .flex_col()
             .gap_3()
+            .child(div().text_sm().child("Incoming login"))
+            .child(Input::new(&self.login).disabled(
+                !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
+            ))
+            .child(
+                div()
+                    .text_sm()
+                    .child("Outgoing login (leave empty for provider default)"),
+            )
+            .child(Input::new(&self.smtp_login).disabled(
+                !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
+            ))
+            .child(
+                Button::new("save-logins")
+                    .label("Save login names")
+                    .disabled(
+                        !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
+                    )
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        let incoming = this.login.read(cx).value().trim().to_owned();
+                        let outgoing = this.smtp_login.read(cx).value().trim().to_owned();
+                        let id = this.account.id.clone();
+                        this.preferences.update(cx, |preferences, cx| {
+                            preferences.save_logins(
+                                id,
+                                incoming,
+                                (!outgoing.is_empty()).then_some(outgoing),
+                                window,
+                                cx,
+                            );
+                        });
+                    })),
+            )
             .child(self.authentication(false, cx))
             .when(self.account.smtp_auth.is_some(), |view| {
                 view.child(div().text_sm().child("Separate outgoing authentication"))

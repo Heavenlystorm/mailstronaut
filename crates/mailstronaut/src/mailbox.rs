@@ -1,6 +1,6 @@
 //! Standard GPUI Kit list; selection never authorizes reading a message.
 
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use gpui::base::StyledExt as _;
 use gpui::component::{
@@ -13,9 +13,12 @@ use gpui::component::{
     tag::Tag,
 };
 use gpui::{
-    App, Context, Hsla, IntoElement, ParentElement as _, Styled as _, Window, div,
+    App, Context, Hsla, IntoElement, ParentElement as _, Pixels, Styled as _, Window, div,
     prelude::FluentBuilder as _, px,
 };
+
+const ROW_HEIGHT: Pixels = px(124.);
+const SECTION_HEIGHT: Pixels = px(28.);
 
 #[derive(Clone)]
 pub struct Row {
@@ -58,12 +61,6 @@ impl From<mailstronaut_core::store::conversations::Summary> for Row {
 }
 
 impl Row {
-    pub const fn cursor(&self) -> mailstronaut_core::store::mailbox::Cursor {
-        mailstronaut_core::store::mailbox::Cursor {
-            received_at: self.received_at,
-            message_id: self.id,
-        }
-    }
     pub fn same_group(&self, other: &Self) -> bool {
         self.account == other.account
             && match (self.conversation, other.conversation) {
@@ -73,29 +70,13 @@ impl Row {
     }
 }
 
-/// Bounded keyset pages; refreshing flags never resets the current page.
+/// Internal metadata cursor; batches never become user-facing pages.
 #[derive(Default)]
-pub struct Pages {
+pub struct Browse {
     pub after: Option<mailstronaut_core::store::mailbox::Cursor>,
-    previous: Vec<Option<mailstronaut_core::store::mailbox::Cursor>>,
+    pub loaded: usize,
     pub more: bool,
-}
-impl Pages {
-    pub fn next(&mut self, cursor: mailstronaut_core::store::mailbox::Cursor) {
-        self.previous.push(self.after);
-        self.after = Some(cursor);
-    }
-    pub fn previous(&mut self) {
-        if let Some(after) = self.previous.pop() {
-            self.after = after;
-        }
-    }
-    pub const fn has_previous(&self) -> bool {
-        !self.previous.is_empty()
-    }
-    pub const fn number(&self) -> usize {
-        self.previous.len() + 1
-    }
+    pub pending: bool,
 }
 
 /// The declared timezone, else the system's, else UTC. Civil-time features such as
@@ -169,6 +150,10 @@ pub struct Priority {
 }
 
 #[derive(Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Independent Kit loading, search, expansion and continuation flags are not mutually exclusive states"
+)]
 pub struct Rows {
     pub items: Vec<Row>,
     /// The priority group, shown above the mailbox only when it has something in it.
@@ -182,9 +167,88 @@ pub struct Rows {
     pub on_dismiss: Option<Dismiss>,
     /// Called when the user asks for every conversation that needs attention.
     pub on_show_all: Option<ShowAll>,
+    /// Kit calls this near the end of the virtualized list.
+    pub on_load_more: Option<ShowAll>,
+    pub more: bool,
 }
 
 impl Rows {
+    /// Append metadata without duplicating canonical conversations or ungrouped originals.
+    pub fn append(&mut self, rows: Vec<Row>) {
+        let existing = self.items.iter().chain(&self.priority.rows);
+        let mut groups = HashSet::new();
+        let mut ungrouped = HashSet::new();
+        let mut messages = HashSet::new();
+        for row in existing {
+            messages.insert((row.account.clone(), row.id));
+            if let Some(group) = row.conversation {
+                groups.insert((row.account.clone(), group));
+            } else {
+                ungrouped.insert((row.account.clone(), row.id));
+            }
+        }
+        for row in rows {
+            let message = (row.account.clone(), row.id);
+            let duplicate = row.conversation.map_or_else(
+                || messages.contains(&message),
+                |group| {
+                    groups.contains(&(row.account.clone(), group)) || ungrouped.contains(&message)
+                },
+            );
+            if duplicate {
+                continue;
+            }
+            messages.insert(message.clone());
+            if let Some(group) = row.conversation {
+                groups.insert((row.account.clone(), group));
+            } else {
+                ungrouped.insert(message);
+            }
+            self.items.push(row);
+        }
+    }
+
+    fn positions(&self) -> impl Iterator<Item = (&Row, Pixels)> {
+        let header = if self.priority.rows.is_empty() {
+            px(0.)
+        } else {
+            SECTION_HEIGHT
+        };
+        let mailbox = self
+            .priority
+            .rows
+            .iter()
+            .fold(header, |y, _| y + ROW_HEIGHT)
+            + header;
+        let positions = || {
+            move |y: &mut Pixels, row| {
+                let here = *y;
+                *y += ROW_HEIGHT;
+                Some((row, here))
+            }
+        };
+        self.priority
+            .rows
+            .iter()
+            .scan(header, positions())
+            .chain(self.items.iter().scan(mailbox, positions()))
+    }
+
+    fn anchor(&self, offset: Pixels) -> Option<(Row, Pixels)> {
+        if offset >= px(0.) {
+            return None;
+        }
+        self.positions()
+            .find(|(_, y)| *y + ROW_HEIGHT > -offset)
+            .map(|(row, y)| (row.clone(), -offset - y))
+    }
+
+    fn anchored_offset(&self, anchor: &(Row, Pixels)) -> Option<Pixels> {
+        self.positions()
+            .find(|(row, _)| row.same_group(&anchor.0))
+            .map(|(_, y)| -y - anchor.1)
+    }
+
     /// The mailbox section comes second whenever the priority group is shown.
     const fn mailbox_section(&self) -> usize {
         if self.priority.rows.is_empty() { 0 } else { 1 }
@@ -235,6 +299,7 @@ pub fn replace_with_priority(
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
+    let anchor = list.delegate().anchor(list.scroll_handle().offset().y);
     let old = list
         .selected_index()
         .and_then(|index| list.delegate().row(index).cloned());
@@ -242,8 +307,14 @@ pub fn replace_with_priority(
     list.delegate_mut().items = rows;
     list.delegate_mut().priority = priority;
     list.delegate_mut().loading = false;
+    list.delegate_mut().more = false;
     let selected = old.and_then(|old| list.delegate().position(&old));
     list.set_selected_index(selected, window, cx);
+    if let Some(y) = anchor.and_then(|anchor| list.delegate().anchored_offset(&anchor)) {
+        let mut offset = list.scroll_handle().offset();
+        offset.y = y;
+        list.scroll_handle().set_offset(offset);
+    }
     cx.notify();
 }
 
@@ -283,6 +354,7 @@ impl ListDelegate for Rows {
         };
         Some(
             div()
+                .h(SECTION_HEIGHT)
                 .flex()
                 .items_center()
                 .justify_between()
@@ -321,7 +393,7 @@ impl ListDelegate for Rows {
         let unread = row.unread > 0;
         Some(
             ListItem::new(index)
-                .h(px(124.))
+                .h(ROW_HEIGHT)
                 .px_4()
                 .border_b_1()
                 .border_color(cx.theme().border)
@@ -412,6 +484,20 @@ impl ListDelegate for Rows {
         cx.notify();
     }
 
+    fn has_more(&self, _: &App) -> bool {
+        self.more && !self.loading
+    }
+
+    fn load_more(&mut self, window: &mut Window, cx: &mut Context<ListState<Self>>) {
+        if self.more
+            && !self.loading
+            && let Some(load) = self.on_load_more.clone()
+        {
+            self.more = false;
+            window.defer(cx, move |window, cx| load(window, cx));
+        }
+    }
+
     fn loading(&self, _: &App) -> bool {
         self.loading && self.items.is_empty()
     }
@@ -470,8 +556,71 @@ fn mailbox_today(zone: &str) -> chrono::NaiveDate {
 
 #[cfg(test)]
 mod tests {
-    use super::{Pages, cut_group, date, display_text, due_label};
-    use mailstronaut_core::store::mailbox::Cursor;
+    use super::{Row, Rows, cut_group, date, display_text, due_label};
+    use gpui::px;
+
+    fn row(account: &str, id: i64, conversation: Option<i64>) -> Row {
+        Row {
+            account: account.into(),
+            id,
+            conversation,
+            sender: String::new(),
+            subject: String::new(),
+            preview: String::new(),
+            unread: 1,
+            messages: 1,
+            received_at: id,
+            seen: false,
+            starred: false,
+            due: None,
+            expires_at: None,
+        }
+    }
+
+    #[test]
+    fn appending_batches_preserves_prefix_and_scoped_canonical_identity() {
+        let mut rows = Rows {
+            items: vec![row("a", 1, Some(10)), row("a", 2, None)],
+            ..Rows::default()
+        };
+        rows.priority.rows.push(row("a", 3, Some(20)));
+        rows.append(vec![
+            row("a", 4, Some(10)),
+            row("a", 2, Some(30)),
+            row("a", 5, Some(20)),
+            row("a", 1, None),
+            row("b", 1, Some(10)),
+            row("a", 6, Some(40)),
+            row("a", 7, Some(40)),
+        ]);
+        let ids = rows
+            .items
+            .iter()
+            .map(|r| (r.account.as_str(), r.id))
+            .collect::<Vec<_>>();
+        assert_eq!(ids, [("a", 1), ("a", 2), ("b", 1), ("a", 6)]);
+        assert_eq!(rows.priority.rows.len(), 1);
+        assert!(rows.items.iter().all(|r| !r.seen));
+    }
+
+    #[test]
+    fn a_refresh_keeps_the_visible_original_and_intra_row_offset() {
+        let mut rows = Rows {
+            items: (1..=10).map(|id| row("a", id, None)).collect(),
+            ..Rows::default()
+        };
+        let anchor = rows.anchor(-px(260.)).expect("third row");
+        assert_eq!(anchor.0.id, 3);
+        rows.items.insert(0, row("a", 11, None));
+        assert_eq!(rows.anchored_offset(&anchor), Some(-px(384.)));
+        // A priority section adds two fixed header heights, without opening anything.
+        rows.priority.rows.push(row("b", 12, None));
+        assert_eq!(rows.anchored_offset(&anchor), Some(-px(564.)));
+        assert!(
+            rows.anchor(px(0.)).is_none(),
+            "at the top newer mail should be visible"
+        );
+    }
 
     #[test]
     fn a_full_priority_group_shows_its_limit_and_says_more_remain() {
@@ -523,28 +672,5 @@ mod tests {
         assert_eq!(date(after, "Europe/Paris"), "25 Oct 2026 · 02:30 CET");
         assert_eq!(date(after, "UTC"), "25 Oct 2026 · 01:30 UTC");
         assert_eq!(date(i64::MAX, "UTC"), "Date unavailable");
-    }
-
-    #[test]
-    fn bounded_pages_can_return_to_the_first_page_without_changing_the_anchor() {
-        let mut pages = Pages::default();
-        let first = Cursor {
-            received_at: 100,
-            message_id: 200,
-        };
-        let second = Cursor {
-            received_at: 50,
-            message_id: 100,
-        };
-        pages.next(first);
-        pages.next(second);
-        assert_eq!(pages.number(), 3);
-        pages.previous();
-        assert_eq!(pages.after, Some(first));
-        assert!(pages.has_previous());
-        pages.previous();
-        assert!(pages.after.is_none());
-        assert!(!pages.has_previous());
-        assert_eq!(pages.number(), 1);
     }
 }

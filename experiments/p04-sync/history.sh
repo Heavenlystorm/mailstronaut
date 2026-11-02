@@ -120,6 +120,7 @@ for reviewed in 256 1024 1792; do
   start "crash-$reviewed"
   await "the pass reviewed $reviewed messages and saved its cursor" 1 \
     "SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.reviewed>=$reviewed AND b.finished_at IS NULL"
+  capture "syncing-$reviewed"
   kill -KILL "$app"
   wait "$app" 2>/dev/null || true
   app=''

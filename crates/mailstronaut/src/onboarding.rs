@@ -80,7 +80,7 @@ impl Inputs {
             name: line("Your name", window, cx),
             address: line("you@example.org", window, cx),
             login: line("Defaults to your email address", window, cx),
-            smtp_login: line("Defaults to the incoming login", window, cx),
+            smtp_login: line("Uses the provider default", window, cx),
             imap_host: line("imap.example.org", window, cx),
             imap_port: port("993", window, cx),
             smtp_host: line("smtp.example.org", window, cx),

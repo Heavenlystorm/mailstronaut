@@ -16,7 +16,32 @@ use gpui::{
 use mailstronaut_core::{store::mailbox::Summary, worker::Handle};
 use tokio::runtime::Runtime;
 
-use crate::mailbox::{Pages, Row};
+use crate::mailbox::Row;
+
+/// Internal original-message pages; independent of continuous mailbox browsing.
+#[derive(Default)]
+struct Pages {
+    pub after: Option<mailstronaut_core::store::mailbox::Cursor>,
+    previous: Vec<Option<mailstronaut_core::store::mailbox::Cursor>>,
+    pub more: bool,
+}
+impl Pages {
+    pub fn next(&mut self, cursor: mailstronaut_core::store::mailbox::Cursor) {
+        self.previous.push(self.after);
+        self.after = Some(cursor);
+    }
+    pub fn previous(&mut self) {
+        if let Some(after) = self.previous.pop() {
+            self.after = after;
+        }
+    }
+    pub const fn has_previous(&self) -> bool {
+        !self.previous.is_empty()
+    }
+    pub const fn number(&self) -> usize {
+        self.previous.len() + 1
+    }
+}
 
 pub struct Open(pub Row);
 

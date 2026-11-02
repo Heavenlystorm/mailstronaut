@@ -55,6 +55,7 @@ struct Values {
     appearance: String,
     automatic: bool,
     poll_seconds: f64,
+    initial_days: f64,
     notifications: bool,
     previews: bool,
     zone: String,
@@ -76,6 +77,7 @@ impl Values {
             .into(),
             automatic: config.sync.automatic,
             poll_seconds: f64::from(config.sync.poll_seconds),
+            initial_days: f64::from(config.sync.initial_days.unwrap_or_default()),
             notifications: config.notifications.enabled,
             previews: config.notifications.show_preview,
             zone: config.time_zone.clone().unwrap_or_default(),
@@ -108,6 +110,17 @@ impl Values {
                 .parse::<u32>()
                 .map_err(|_| "sync.pollSeconds requires a whole number of seconds.")?;
             native::merge(&mut patch, json!({"sync": {"pollSeconds": seconds}}));
+        }
+        if self.initial_days != baseline.initial_days {
+            let days = self
+                .initial_days
+                .to_string()
+                .parse::<u32>()
+                .map_err(|_| "sync.initialDays requires a whole number of days.")?;
+            native::merge(
+                &mut patch,
+                json!({"sync": {"initialDays": if days == 0 { None } else { Some(days) }}}),
+            );
         }
         if self.notifications != baseline.notifications {
             native::merge(
@@ -177,6 +190,11 @@ enum Destination {
 enum WriteRequest {
     Preferences(Value),
     Account(Box<Account>),
+    Logins {
+        id: String,
+        incoming: String,
+        outgoing: Option<String>,
+    },
     Initialize,
 }
 
@@ -430,6 +448,31 @@ impl Preferences {
         self.submit(WriteRequest::Account(Box::new(account)), window, cx);
     }
 
+    pub fn save_logins(
+        &mut self,
+        id: String,
+        incoming: String,
+        outgoing: Option<String>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.dirty() {
+            self.error =
+                Some("Save or discard pending preferences before changing account logins.".into());
+            cx.emit(Event::Changed);
+            return;
+        }
+        self.submit(
+            WriteRequest::Logins {
+                id,
+                incoming,
+                outgoing,
+            },
+            window,
+            cx,
+        );
+    }
+
     pub fn setup(view: &Entity<Self>, cx: &App) -> SettingGroup {
         let state = view.read(cx);
         let disabled = !state.can_initialize();
@@ -531,6 +574,8 @@ impl Preferences {
         let (get, set) = Self::bind(view, |v| v.automatic, |v, value| v.automatic = value);
         let (get_poll, set_poll) =
             Self::bind(view, |v| v.poll_seconds, |v, value| v.poll_seconds = value);
+        let (get_days, set_days) =
+            Self::bind(view, |v| v.initial_days, |v, value| v.initial_days = value);
         SettingGroup::new()
             .title("Synchronization")
             .item(
@@ -552,6 +597,11 @@ impl Preferences {
                     ),
                 )
                 .disabled(disabled),
+            )
+            .item(
+                SettingItem::new("History limit (days)", SettingField::number_input(
+                    NumberFieldOptions { min: 0., max: 3650., step: 1. }, get_days, set_days,
+                )).description("0 fetches all history. A limit affects future fetching; it does not delete cached mail.").disabled(disabled),
             )
     }
 
@@ -717,6 +767,10 @@ impl Preferences {
         self.submit(WriteRequest::Preferences(changes), window, cx);
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "One bounded operation coordinates source ownership, cancellation, and revision-fenced completion for all native writes"
+    )]
     fn submit(&mut self, request: WriteRequest, window: &Window, cx: &mut Context<Self>) {
         let initializing = matches!(request, WriteRequest::Initialize);
         if self.busy()
@@ -739,13 +793,14 @@ impl Preferences {
         let expected = self.snapshot.config.clone();
         let preferred = match &request {
             WriteRequest::Account(account) => Some(Destination::Account(account.id.clone())),
+            WriteRequest::Logins { id, .. } => Some(Destination::Account(id.clone())),
             WriteRequest::Initialize => Some(Destination::AddAccount),
             WriteRequest::Preferences(_) => None,
         };
         self.operation = match &request {
             WriteRequest::Initialize => Operation::Initializing,
             WriteRequest::Account(_) => Operation::AddingAccount,
-            WriteRequest::Preferences(_) => Operation::Saving,
+            WriteRequest::Logins { .. } | WriteRequest::Preferences(_) => Operation::Saving,
         };
         let work = self.lifetime.child_token();
         self.work = Some(work.clone());
@@ -768,6 +823,21 @@ impl Preferences {
                     &path,
                     expected.as_deref().ok_or(persistence::Error::Task)?,
                     *account,
+                    &work,
+                )
+                .await
+                .map(|_| ()),
+                WriteRequest::Logins {
+                    id,
+                    incoming,
+                    outgoing,
+                } => persistence::account_logins(
+                    &executable,
+                    &path,
+                    expected.as_deref().ok_or(persistence::Error::Task)?,
+                    &id,
+                    incoming,
+                    outgoing,
                     &work,
                 )
                 .await
@@ -841,5 +911,24 @@ mod tests {
             }})
         );
         assert_eq!(draft.patch(&draft).expect("unchanged"), json!({}));
+    }
+
+    #[test]
+    fn history_limit_can_be_set_and_cleared_without_changing_other_settings() {
+        let config: Config =
+            serde_json::from_value(json!({"schemaVersion": 1, "accounts": []})).expect("config");
+        let baseline = Values::from_config(&config);
+        let mut draft = baseline.clone();
+        draft.initial_days = 30.;
+        assert_eq!(
+            draft.patch(&baseline).expect("limit"),
+            json!({"sync": {"initialDays": 30}})
+        );
+        assert_eq!(
+            baseline.patch(&draft).expect("clear"),
+            json!({"sync": {"initialDays": null}})
+        );
+        draft.initial_days = 1.5;
+        assert!(draft.patch(&baseline).is_err());
     }
 }

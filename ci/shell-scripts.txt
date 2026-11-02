@@ -14,6 +14,7 @@ experiments/p05-onboarding/auth-gui.sh
 experiments/p06-mailbox/wayland.sh
 experiments/p06-mailbox/navigation.sh
 experiments/p06-mailbox/appearance.sh
+experiments/p06-mailbox/continuous.sh
 experiments/wayland-session.sh
 experiments/p07-compose/gui.sh
 experiments/p04-sync/gui.sh

@@ -176,6 +176,58 @@ pub async fn add_account(
     .await
 }
 
+/// Update login names in one account while retaining the remaining raw declaration.
+///
+/// # Errors
+/// Rejects stale or unowned configuration and invalid login names.
+pub async fn account_logins(
+    executable: &Path,
+    path: &Path,
+    expected: &Config,
+    id: &str,
+    incoming: String,
+    outgoing: Option<String>,
+    cancel: &CancellationToken,
+) -> Result<Config, Error> {
+    let (edit, mut current) = checked_edit(executable, path, expected, cancel).await?;
+    let account = current
+        .accounts
+        .iter_mut()
+        .find(|account| account.id == id)
+        .ok_or(Error::Shape)?;
+    account.user_name.clone_from(&incoming);
+    account.smtp_user_name.clone_from(&outgoing);
+    validate(&current)?;
+    let text = edit.current().ok_or(Error::Source(source::Error::Read))?;
+    let mut raw = process::evaluate_raw(executable, text, cancel)
+        .await
+        .map_err(Error::Evaluation)?;
+    let accounts = raw
+        .get_mut("accounts")
+        .and_then(Value::as_array_mut)
+        .ok_or(Error::Shape)?;
+    let account = accounts
+        .iter_mut()
+        .find(|account| account.get("id").and_then(Value::as_str) == Some(id))
+        .and_then(Value::as_object_mut)
+        .ok_or(Error::Shape)?;
+    account.insert("userName".into(), Value::String(incoming));
+    if let Some(outgoing) = outgoing {
+        account.insert("smtpUserName".into(), Value::String(outgoing));
+    } else {
+        account.remove("smtpUserName");
+    }
+    candidate(
+        executable,
+        edit,
+        raw,
+        serde_json::json!({}),
+        WriteMode::Application,
+        cancel,
+    )
+    .await
+}
+
 fn validate(config: &Config) -> Result<(), Error> {
     let errors = config.validate();
     if errors.is_empty() {

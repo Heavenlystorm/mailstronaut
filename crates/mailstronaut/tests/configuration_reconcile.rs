@@ -497,3 +497,78 @@ async fn adding_an_account_preserves_existing_raw_declarations_and_rejects_dupli
     ));
     assert_eq!(fs::read(&path).expect("preserved source"), bytes);
 }
+
+#[tokio::test]
+async fn changing_logins_preserves_other_accounts_and_rejects_stale_edits() {
+    use mailstronaut_config::persistence;
+    let root = tempfile::tempdir().expect("private profile");
+    let path = root.path().join("config.nix");
+    let source = format!(
+        "{}{{ schemaVersion = 1; accounts = [ {{ id = \"work\"; provider = \"icloud\"; address = \"old@icloud.com\"; displayName = \"Person\"; userName = \"old\"; auth = {{ kind = \"password\"; secretRef = \"key\"; }}; }} {{ id = \"other\"; provider = \"icloud\"; address = \"other@icloud.com\"; displayName = \"Person\"; userName = \"other\"; auth = {{ kind = \"password\"; secretRef = \"key2\"; }}; }} ]; }}",
+        native::MUTABLE_HEADER
+    );
+    fs::write(&path, &source).expect("owned source");
+    let cancel = CancellationToken::new();
+    let expected = process::evaluate(Path::new(BINARY), &source, &cancel)
+        .await
+        .expect("config");
+    let saved = persistence::account_logins(
+        Path::new(BINARY),
+        &path,
+        &expected,
+        "work",
+        "short".into(),
+        Some("smtp-login".into()),
+        &cancel,
+    )
+    .await
+    .expect("save");
+    assert_eq!(saved.accounts[0].user_name, "short");
+    assert_eq!(saved.accounts[0].outgoing_user_name(), "smtp-login");
+    let text = fs::read_to_string(&path).expect("saved source");
+    let raw = process::evaluate_raw(Path::new(BINARY), &text, &cancel)
+        .await
+        .expect("raw");
+    assert_eq!(raw["accounts"][1]["userName"], "other");
+    assert!(raw["accounts"][0].get("folders").is_none());
+    assert!(matches!(
+        persistence::account_logins(
+            Path::new(BINARY),
+            &path,
+            &expected,
+            "work",
+            "stale".into(),
+            None,
+            &cancel
+        )
+        .await,
+        Err(persistence::Error::Changed)
+    ));
+    let saved = persistence::account_logins(
+        Path::new(BINARY),
+        &path,
+        &saved,
+        "work",
+        "short".into(),
+        None,
+        &cancel,
+    )
+    .await
+    .expect("clear override");
+    assert_eq!(saved.accounts[0].outgoing_user_name(), "old@icloud.com");
+    let before = fs::read(&path).expect("saved source");
+    assert!(
+        persistence::account_logins(
+            Path::new(BINARY),
+            &path,
+            &saved,
+            "work",
+            String::new(),
+            None,
+            &cancel
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(fs::read(&path).expect("unchanged"), before);
+}

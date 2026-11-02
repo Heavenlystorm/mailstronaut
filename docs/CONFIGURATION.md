@@ -156,13 +156,22 @@ in
 
 Define Rust structs with `#[serde(rename_all = "camelCase", deny_unknown_fields)]`
 and explicit tagged enums. Fields omitted above take these defaults: aliases `[]`, no signature,
-smtpUserName inherits userName, notifications enabled with private previews,
+smtpUserName defaults to userName except for iCloud, where it defaults to the address; notifications enabled with private previews,
 background disabled/autostart false, theme system, privacy ask, complete history (no age
 limit) for sync, five-minute polling, 2 MiB analysis-body cap, model absent/rules only, 72-hour normal
 TTL and 168-hour cap. Absence of the entire priority section defaults to disabled
 until the setup screen explains its local behavior. Do not enable model downloads
 through a default. `schemaVersion` is mandatory; reject future versions with a
 clear supported range. Do not rewrite a managed file during migrations.
+
+For an institutional account whose server uses a short login, edit the account's
+incoming login in Settings when the source is app-owned, or set `userName`
+inside that account's entry in the `accounts` list, for example
+`userName = "eocchipi";`. If SMTP uses a different login, set `smtpUserName`
+in the same entry; otherwise omit it to use the provider default (the address for
+iCloud, `userName` for other providers). Reload the
+configuration in Settings after editing. For a Home Manager managed declaration,
+edit the declaration and activate Home Manager before reloading.
 
 Manual account requirements: host, port, `security = "tls" | "starttls"`, incoming
 and outgoing login names, auth method, optional `smtpAuth` override (same tagged

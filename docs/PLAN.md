@@ -271,12 +271,14 @@ new dependency graph before claiming current-package acceptance.
   complete history. Nothing is deleted by either. [Evidence](evidence/P04-history.md).
 - [ ] Expose the advanced history age limit in Settings and Home Manager, and offer
   retention eviction (separately, never silently deleting drafts, pending operations or
-  locally owned attachments). Settings wiring and eviction are not implemented.
+  locally owned attachments). The app-owned Settings control passed a synthetic
+  Wayland save-and-clear walkthrough; Home Manager activation and eviction remain
+  open.
 - [ ] Show actual fetch progress in the status bar with Kit `Progress`: account/folder,
   completed and known total. Use indeterminate progress while the total is unknown;
   distinguish fetching, offline, retry and finished. Test cancellation and errors. The
-  backend contract (`Update::Progress` / `mail_sync::Fetch`) exists; the status bar does
-  not show it yet.
+  status bar shows a single account and folder using the backend's measured counts;
+  multiple-account presentation, cancellation and error acceptance remain open.
 
 - [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
   expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.
@@ -285,6 +287,10 @@ new dependency graph before claiming current-package acceptance.
   independent account state, configuration generations and useful offline reading.
   Reuse `Button::loading`/`Spinner`, Cancel/Retry `Button`s and persistent per-account
   `Alert`s; show offline/partial coverage in `StatusBar`, retaining cached rows.
+  The status bar now displays one active account/folder's actual reviewed count and
+  measured or indeterminate Kit progress indicator. A synthetic Dovecot/Wayland run
+  displayed 1024 of 2304 reviewed and passed restart, cap, UID reset and Seen checks;
+  multi-account progress presentation and partial-cache coverage remain open.
   [Automatic sync passes against a real Dovecot](evidence/P04-background-sync.md);
   live providers remain open.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
@@ -315,6 +321,11 @@ new dependency graph before claiming current-package acceptance.
 Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
 ## P05 — Required account onboarding and authentication
+
+- [ ] Complete account settings acceptance for editable incoming and outgoing login
+  names, including managed and Home Manager reactivation cases. The app-owned
+  native source save and reload passed a synthetic Wayland interaction; live
+  provider authentication and full Home Manager activation remain unverified.
 
 - [x] Retain public-client OAuth S256/CSRF/code exchange, external portal browser,
   scoped encrypted refresh/rotation and shared IMAP/SMTP sessions. The mock IdP,
@@ -361,6 +372,11 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   Verify scrolling past 100 rows, search/folder changes, new-mail insertion and
   keyboard navigation without missed or duplicated rows. Keep implementation
   batches internal; there must be no user-facing pagination.
+  Work in progress: the main mailbox now loads additional cached metadata as the
+  user scrolls. A synthetic Wayland walkthrough crossed 100 rows with mouse and
+  keyboard and checked explicit-open-only Seen after a refresh and scope changes.
+  [Scoped evidence](evidence/P06-continuous-and-settings.md). Thread-original
+  navigation and wider regression remain open.
 - [x] Verify unread dots in both themes, readable 99+ sidebar counts, one app title,
   icon actions with accessible names/tooltips and a single Settings selection state.
   [Synthetic native walkthrough](evidence/P06-ui-feedback.md).

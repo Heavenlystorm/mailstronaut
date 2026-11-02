@@ -63,13 +63,16 @@ NIX
 if [[ ${MAILSTRONAUT_REMINDERS_GUI:-0} == 1 ]]; then
   sed -i '/schemaVersion = 1;/a\  timeZone = "Europe/Paris";\n  notifications.enabled = false;' "$config"
 fi
-if [[ ${MAILSTRONAUT_PREFERENCES_GUI:-0} == 1 ]]; then
+if [[ ${MAILSTRONAUT_PREFERENCES_GUI:-0} == 1 || ${MAILSTRONAUT_LOGIN_GUI:-0} == 1 || ${MAILSTRONAUT_HISTORY_SETTING_GUI:-0} == 1 ]]; then
   python3 - "$config" <<'PYMUTABLE'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1])
 p.write_text('# Mailstronaut editable configuration\n' + p.read_text().replace('managed = true;', 'managed = false;'))
 PYMUTABLE
+fi
+if [[ ${MAILSTRONAUT_LOGIN_GUI:-0} == 1 ]]; then
+  sed -i 's/displayName = identity.id;/displayName = "Synthetic Reader";/' "$config"
 fi
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
 "$fixture" seed_conversation_gui --ignored --exact --nocapture > "$root/seed.log" 2>&1
@@ -154,6 +157,58 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_HISTORY_SETTING_GUI:-0} == 1 ]]; then
+  wtype -M ctrl , -m ctrl -s 500
+  click 310 126
+  wtype 'History limit' -s 300
+  capture history-setting-before
+  click 1200 275
+  wtype -M ctrl a -m ctrl '30' -k Return -s 200
+  click 275 783
+  sleep 1
+  "$binary" config export --path "$config" > "$root/history-setting-saved.nix"
+  grep -Fq 'initialDays = 30;' "$root/history-setting-saved.nix"
+  capture history-setting-saved
+  click 310 126
+  wtype -M ctrl a -m ctrl 'History limit' -s 300
+  click 1200 275
+  wtype -M ctrl a -m ctrl '0' -k Return -s 200
+  click 275 783
+  sleep 1
+  "$binary" --internal-evaluate-config < "$config" > "$root/history-setting-values.json"
+  python3 - "$root/history-setting-values.json" <<'PYHISTORY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    assert json.load(source)['Success']['sync'].get('initialDays') is None
+PYHISTORY
+  check_seen
+  printf 'HISTORY_SETTING_GUI_OK: %s\n' "$root"
+  exit 0
+fi
+if [[ ${MAILSTRONAUT_LOGIN_GUI:-0} == 1 ]]; then
+  wtype -M ctrl , -m ctrl -s 500
+  click 300 205
+  capture account-logins
+  click 650 565
+  wtype -M ctrl a -m ctrl 'short-login' -s 200
+  click 650 644
+  wtype 'smtp-login' -s 200
+  click 850 688
+  sleep 1
+  "$binary" config export --path "$config" > "$root/login-saved.nix"
+  grep -Fq 'userName = "short-login";' "$root/login-saved.nix"
+  grep -Fq 'smtpUserName = "smtp-login";' "$root/login-saved.nix"
+  capture account-logins-saved
+  check_seen
+  printf 'LOGIN_GUI_OK: %s\n' "$root"
+  exit 0
+fi
+if [[ ${MAILSTRONAUT_CONTINUOUS_GUI:-0} == 1 ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=continuous.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/continuous.sh"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_APPEARANCE_GUI:-0} == 1 ]]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=appearance.sh

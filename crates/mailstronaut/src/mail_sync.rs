@@ -38,10 +38,6 @@ const BACKFILL_PAUSE: Duration = Duration::from_secs(30);
 
 /// Progress of one folder's history pass: `completed` of `total` messages reviewed.
 /// `total` is None until the server reports how many messages the folder holds.
-#[expect(
-    dead_code,
-    reason = "the status bar reads fetch progress once it is wired to this contract"
-)]
 pub struct Fetch {
     pub folder: String,
     pub completed: u32,
@@ -52,10 +48,6 @@ pub enum Update {
     Started(String),
     Finished(String, Result<Cycle, String>),
     /// Fetch progress for one folder of an account, while its cycle runs.
-    #[expect(
-        dead_code,
-        reason = "the status bar reads fetch progress once it is wired to this contract"
-    )]
     Progress(String, Fetch),
 }
 
