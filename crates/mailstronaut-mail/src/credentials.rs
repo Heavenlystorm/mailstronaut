@@ -127,6 +127,33 @@ impl fmt::Debug for Store {
     }
 }
 impl Store {
+    /// Connect only to an existing, unlocked native Secret Service collection.
+    ///
+    /// This never creates a collection or requests unlock. Native automatic work
+    /// may use it before the UI opens. Sandboxed callers must instead retain a
+    /// store initialized through the foreground portal; this native-only method
+    /// does not select or initialize the sandbox backend.
+    ///
+    /// # Errors
+    /// Fails closed for missing/locked storage, access refusal or a timeout.
+    pub async fn connect_native_background() -> Result<Self, Error> {
+        timeout(IO_TIMEOUT, async {
+            let service = oo7::dbus::Service::encrypted()
+                .await
+                .map_err(|_| Error::Unavailable)?;
+            let collection = service
+                .with_alias("default")
+                .await
+                .map_err(|_| Error::Unavailable)?
+                .ok_or(Error::Unavailable)?;
+            let store = Self(Arc::new(oo7::Keyring::DBus(collection)));
+            store.ready().await?;
+            Ok(store)
+        })
+        .await
+        .map_err(|_| Error::TimedOut)?
+    }
+
     /// Connect after an explicit foreground user action. oo7 may request a portal
     /// secret or create a missing default collection, both potentially interactive.
     /// Do not invoke this constructor from automatic background retries.

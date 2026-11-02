@@ -35,6 +35,8 @@ async fn private_missing_service_fails_closed() {
         Store::connect_foreground().await,
         Err(Error::Unavailable)
     ));
+    let quiet = Store::connect_native_background().await;
+    assert_eq!(quiet.err(), Some(Error::Unavailable));
     println!("Unavailable Secret Service fails closed without a plaintext backend.");
 }
 
@@ -58,6 +60,7 @@ fn check_private_environment() {
 }
 
 async fn round_trip() {
+    native_collection_lookup_does_not_create_storage().await;
     let store = Store::connect_foreground()
         .await
         .expect("connect private backend");
@@ -81,7 +84,9 @@ async fn round_trip() {
         .put(&a, &SecretString::from("synthetic-rotated"))
         .await
         .expect("rotate");
-    let reopened = Store::connect_foreground().await.expect("reopen backend");
+    let reopened = Store::connect_native_background()
+        .await
+        .expect("quietly reopen the existing native backend");
     assert_eq!(
         reopened
             .get(&a)
@@ -128,6 +133,64 @@ async fn round_trip() {
     ambiguity_and_lock(&store, &b, &refresh).await;
 }
 
+async fn native_collection_lookup_does_not_create_storage() {
+    let connection = zbus::Connection::session().await.expect("private bus");
+    let proxy: zbus::Proxy<'_> = zbus::proxy::Builder::new(&connection)
+        .destination("org.freedesktop.secrets")
+        .expect("fixture destination")
+        .path("/org/freedesktop/secrets")
+        .expect("fixture path")
+        .interface("org.freedesktop.Secret.Service")
+        .expect("fixture interface")
+        .cache_properties(zbus::proxy::CacheProperties::No)
+        .build()
+        .await
+        .expect("private Secret Service");
+    let original: zbus::zvariant::OwnedObjectPath = proxy
+        .call("ReadAlias", &("default",))
+        .await
+        .expect("original default alias");
+    let before: Vec<zbus::zvariant::OwnedObjectPath> = proxy
+        .get_property("Collections")
+        .await
+        .expect("collection positive control");
+    let empty = zbus::zvariant::ObjectPath::try_from("/").expect("empty alias path");
+    proxy
+        .call::<_, _, ()>("SetAlias", &("default", &empty))
+        .await
+        .expect("remove only the private default alias");
+    // GNOME can restore its login fallback when another client opens a session.
+    // Verify actual collection identities rather than treating removal of the
+    // alias as proof that this provider has no usable default collection.
+    let resolved: zbus::zvariant::OwnedObjectPath = proxy
+        .call("ReadAlias", &("default",))
+        .await
+        .expect("observe the default alias before quiet lookup");
+    let quiet = Store::connect_native_background().await;
+    assert!(quiet.is_ok() || matches!(quiet, Err(Error::Unavailable)));
+    let after: Vec<zbus::zvariant::OwnedObjectPath> = proxy
+        .get_property("Collections")
+        .await
+        .expect("collections after quiet access");
+    let alias: zbus::zvariant::OwnedObjectPath = proxy
+        .call("ReadAlias", &("default",))
+        .await
+        .expect("unchanged missing alias");
+    assert_eq!(before, after, "background access must not create storage");
+    if quiet.is_ok() {
+        assert_ne!(alias.as_str(), "/", "the opened collection must exist");
+    }
+    println!(
+        "Quiet native lookup created no collections; default alias before/after session: {}/{}.",
+        resolved.as_str(),
+        alias.as_str()
+    );
+    proxy
+        .call::<_, _, ()>("SetAlias", &("default", original))
+        .await
+        .expect("restore the private alias for foreground acceptance");
+}
+
 async fn ambiguity_and_lock(store: &Store, b: &Key, refresh: &Key) {
     let backend = oo7::Keyring::new().await.expect("independent backend");
     let attrs = [
@@ -149,6 +212,11 @@ async fn ambiguity_and_lock(store: &Store, b: &Key, refresh: &Key) {
     ));
     assert!(matches!(store.delete(b).await, Err(Error::Ambiguous)));
     backend.lock().await.expect("lock private backend");
+    assert!(matches!(
+        Store::connect_native_background().await,
+        Err(Error::Locked)
+    ));
+    assert!(backend.is_locked().await.expect("still locked"));
     assert!(matches!(store.get(refresh).await, Err(Error::Locked)));
     assert!(matches!(
         store

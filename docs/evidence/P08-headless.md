@@ -54,3 +54,29 @@ GPU memory, models, real providers and Flatpak remain separate acceptance.
 
 No new release/package or installed-app acceptance is claimed for this test-only
 slice; the previous [single-instance package](P08-instance.md) predates it.
+
+## Native credential prerequisite
+
+`Store::connect_native_background` opens an explicitly encrypted oo7 Secret
+Service session and looks up an existing default collection with `with_alias`.
+It never calls collection creation or foreground unlock and refuses locked or
+unavailable storage. It is native-only: sandbox callers must retain an encrypted
+store initialized through the foreground portal, rather than use this constructor.
+No new dependency/version, cipher implementation or filesystem secret format was
+added. The pinned oo7 public native collection variant supplies the existing
+keyring adapter.
+
+Pinned server formatting, strict workspace Clippy and test compilation passed.
+The disposable real keyring profile `target/p02.yX4vbt` passed quiet reopening,
+exact account/purpose lookup, rotation/deletion, ambiguity and locked-service
+checks. Independent uncached collection queries found no new collection after
+removing the default alias. GNOME restores its existing login alias on a new
+session, so this is **not** runtime proof of a provider with no collection at all.
+Locked storage remained locked; the stopped-service check failed closed, and the
+persisted fixture contained none of the synthetic credential markers in plaintext.
+[Private credential receipt](artifacts/p08-headless/native-credentials.log).
+
+The application has not yet adopted this API in automatic sync/watcher paths.
+Those still use foreground access and must be changed before headless work is
+enabled. Background refresh-token persistence, sandbox permission/credential
+initialization, and a combined release/package gate remain open.
