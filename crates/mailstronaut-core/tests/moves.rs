@@ -4,7 +4,9 @@ use core::num::NonZeroU32;
 
 use mailstronaut_core::store::{
     Error, Store,
-    mailbox::{Flags, Membership},
+    analysis::AnalysisResult,
+    mailbox::{Flags, Membership, UidSnapshot},
+    reminders::Schedule,
 };
 
 const CONTEXT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -287,5 +289,91 @@ fn a_move_given_up_on_shows_the_message_and_is_never_tried_again() {
     assert!(
         f.store.abandon_move(&attempt).is_err(),
         "a stale attempt changes nothing"
+    );
+}
+
+#[test]
+fn a_reminder_a_dismissal_and_the_analysis_follow_the_message_through_a_move() {
+    let mut f = fixture();
+    let inbox = f.inbox;
+    let message = add(&mut f, inbox, 42, 1, "tracked");
+    f.store
+        .store_analysis(&[AnalysisResult {
+            id: message,
+            policy: 1,
+            expires_at: Some(4_102_444_800),
+            due: Some("2100-01-01".into()),
+            data: "{\"rules\":1}".into(),
+        }])
+        .expect("analysis");
+    f.store
+        .schedule_reminder(&Schedule {
+            account: "a".into(),
+            message,
+            due_at: 3_600,
+            time_zone: "UTC".into(),
+            now: 100,
+            expected: None,
+        })
+        .expect("reminder");
+    f.store.dismiss_priority(message).expect("dismissed");
+    f.store
+        .queue_move("a", message, None, "Archive", CONTEXT)
+        .expect("queued");
+    let attempt = f
+        .store
+        .begin_move("a", CONTEXT)
+        .expect("claim")
+        .expect("attempt");
+    f.store.finish_move(&attempt, true).expect("moved");
+    // The server now has the copy in Archive, which the next sync caches. Its identity matches.
+    let archived = f
+        .store
+        .cache_message(
+            "a",
+            Membership {
+                folder: f.archive,
+                uid_validity: nz(43),
+                uid: nz(7),
+                flags: Flags::default(),
+            },
+            100,
+            None,
+            "From: sender@example.test\r\nTo: reader@example.test\r\nMessage-ID: <tracked>\r\nSubject: Move fixture\r\n\r\nSynthetic body tracked.\r\n".as_bytes(),
+        )
+        .expect("archived copy");
+    assert_eq!(archived, message, "the moved copy is the same message");
+    // The source folder then reports that UID 1 is gone.
+    f.store
+        .reconcile_span(
+            "a",
+            &UidSnapshot {
+                folder: f.inbox,
+                uid_validity: nz(42),
+                first: nz(1),
+                last: nz(15),
+                present: vec![],
+            },
+        )
+        .expect("source reconciled");
+    assert!(
+        f.store
+            .reminder_for("a", message)
+            .expect("reminder query")
+            .is_some(),
+        "the reminder survives the move and reconciliation"
+    );
+    assert_eq!(
+        f.store.analysis_data(message).expect("analysis").as_deref(),
+        Some("{\"rules\":1}"),
+        "the analysis survives the move"
+    );
+    let needing_attention = f
+        .store
+        .priority_items(&["a".to_owned()], 100, 10)
+        .expect("priority");
+    assert!(
+        needing_attention.iter().all(|item| item.id != message),
+        "a dismissal is not undone by moving the message"
     );
 }

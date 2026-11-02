@@ -303,8 +303,9 @@ new dependency graph before claiming current-package acceptance.
   reconnect, offline/resume recovery and changes made by other clients.
   [Real Dovecot and scripted-server evidence](evidence/P04-background-sync.md); a real
   suspend and live providers remain unrun.
-- [ ] Preserve local reminder/dismiss/analysis state across moves/reconciliation.
+- [x] Preserve local reminder/dismiss/analysis state across moves/reconciliation.
   Neither background fetching, previews nor analysis sets Seen.
+  [Store test through a move and reconciliation, with Seen checks in native walkthroughs](evidence/P04-state.md).
 - [ ] Exercise disposable protocol servers, drops and authentication failures in
   Nix/container CI; measure idle CPU, cancellation, paging and failure isolation.
   [Mid-sync drops, idle CPU, failure isolation and closing mid-sync are measured natively](evidence/P04-faults.md);
