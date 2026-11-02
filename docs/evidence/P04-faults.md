@@ -23,13 +23,22 @@ application talks to `experiments/p04-sync/drop-proxy.py`, a loopback proxy that
 six connections once the server has sent each one 20 KB, which is past the TLS handshake and inside
 a window. A reset is an abrupt TCP reset (RST), so the client sees it as a network drop.
 
+A second account points at a port with nothing listening. Its failures run beside the first account's
+sync, and the walkthrough checks that the first account still completes.
+
 ```
 OK: the history reached its beginning despite the resets
 OK: 6 connections were reset mid-sync, and each message was kept exactly once
+OK: an unreachable account did not hold back the other one
 OK: the idle application used 0.00% of a processor over ten seconds
+OK: the first sync began a history pass
+OK: closing took 109 ms with 1 unfinished history passes
 Native fault acceptance: .../faults-gui
 faults=0
 ```
+
+The closing check starts a fresh profile, waits until its first history pass has begun, then closes the
+window. It measures the time from the close request until the process exits.
 
 The proxy's reset log records six resets, after 20122 to 20452 bytes each. The walkthrough checks
 the history count, the membership count (one per message, so no duplicates), and the processor time of
@@ -42,9 +51,10 @@ Unit test: `account_actions::tests::only_a_lost_connection_is_repeated_and_cance
 
 ## Not established
 
-- Authentication failures during sync, and failure isolation between accounts, are not exercised by
-  this walkthrough.
-- Cancellation timing under load is not measured. The walkthrough closes an idle application only.
+- Authentication failures during sync are not exercised by this walkthrough. A wrong password is
+  classed as a stop, but the number of attempts it makes has not been counted.
+- Cancellation is measured for one close, mid-pass, on a small mailbox. Closing under sustained
+  backfill of a large mailbox is not measured.
 - The walkthrough runs in the native harness, not in the Nix or container CI, which still runs only
   the package gate.
 - Live providers, and a real suspend.

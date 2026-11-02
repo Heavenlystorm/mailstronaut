@@ -41,6 +41,8 @@ proxy_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 
 python3 -I "$(dirname "${BASH_SOURCE[0]}")/drop-proxy.py" "$proxy_port" "$imap_port" "$artifacts/resets.log" 6 20000 &
 proxy=$!
 for _ in {1..100}; do grep -qx ready "$artifacts/resets.log" 2> /dev/null && break; sleep .1; done
+# A second account whose server is not listening: its failures must not hold up the first.
+unreachable_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
 config="$artifacts/config.nix"
 cat > "$config" <<NIX
@@ -59,11 +61,23 @@ cat > "$config" <<NIX
     smtp = { host = "localhost"; port = $proxy_port; security = "tls"; };
     tls.caFiles = [ "$ca" ];
     auth = { kind = "password"; secretRef = "dovecot-password"; };
+  } {
+    id = "unreachable-synthetic";
+    provider = "manual";
+    address = "unreachable@example.test";
+    displayName = "Unreachable server";
+    userName = "$imap_user";
+    imap = { host = "localhost"; port = $unreachable_port; security = "tls"; };
+    smtp = { host = "localhost"; port = $unreachable_port; security = "tls"; };
+    tls.caFiles = [ "$ca" ];
+    auth = { kind = "password"; secretRef = "unreachable-password"; };
   }];
 }
 NIX
 printf '%s' "$imap_password" | secret-tool store --label='Synthetic fault fixture' \
   application "$(cat assets/app-id)" account dovecot-synthetic reference dovecot-password purpose password
+printf '%s' "$imap_password" | secret-tool store --label='Synthetic unreachable fixture' \
+  application "$(cat assets/app-id)" account unreachable-synthetic reference unreachable-password purpose password
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
@@ -109,12 +123,26 @@ await 'the history reached its beginning despite the resets' 1 "$inbox_finished"
 resets=$(grep -c '^reset' "$artifacts/resets.log" || true)
 [[ $resets -ge 1 ]]
 printf 'OK: %s connections were reset mid-sync, and each message was kept exactly once\n' "$resets"
+[[ $(query "SELECT count(*) FROM messages WHERE account_id='dovecot-synthetic'") == "$bulk" ]]
+kill -0 "$app"
+printf '%s\n' 'OK: an unreachable account did not hold back the other one'
 sleep 2
 capture resets
 idle=$(idle_cpu)
 awk -v value="$idle" 'BEGIN { exit !(value < 5) }'
 printf 'OK: the idle application used %s%% of a processor over ten seconds\n' "$idle"
 close_window
+
+# Closing while the first sync is still running: the window closes and the sync stops at once.
+rm -rf "$XDG_DATA_HOME/mailstronaut"
+start closing
+await 'the first sync began a history pass' 1 'SELECT count(*) FROM backfill'
+pending=$(query "SELECT count(*) FROM backfill WHERE finished_at IS NULL" || echo 0)
+started=$(date +%s%N)
+close_window
+elapsed=$(( ($(date +%s%N) - started) / 1000000 ))
+[[ $elapsed -lt 5000 ]]
+printf 'OK: closing took %s ms with %s unfinished history passes\n' "$elapsed" "$pending"
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf '%s\n' 'Synthetic credential appeared in an application log' >&2; exit 1
