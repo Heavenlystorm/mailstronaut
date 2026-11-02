@@ -215,6 +215,48 @@ mod tests {
         );
     }
     #[test]
+    fn borderless_collapsed_layout_tables_do_not_paint_default_black_borders() {
+        let html = "<style>body{margin:0;background:white}table{border-collapse:collapse}td{width:50px;height:40px}</style><table border='0' cellpadding='0' cellspacing='0'><tr><td></td><td></td></tr><tr><td></td><td></td></tr></table>";
+        let frame = render(html, 140, 120, false).expect("layout table");
+        let black = frame
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[0] < 20 && p[1] < 20 && p[2] < 20 && p[3] > 240)
+            .count();
+        assert_eq!(
+            black, 0,
+            "an empty borderless layout table must not acquire painted borders"
+        );
+    }
+
+    #[test]
+    fn authored_collapsed_table_borders_survive_email_defaults() {
+        for (declaration, inline) in [
+            ("<style>td{border:2px solid #ff0000}</style>", ""),
+            ("", "border:2px solid #ff0000"),
+        ] {
+            let html = format!(
+                "{declaration}<style>body{{margin:0;background:white}}table{{border-collapse:collapse}}td{{width:40px;height:30px}}</style><table><tr><td style='{inline}'></td><td></td></tr></table>"
+            );
+            let frame = render(&html, 120, 80, false).expect("authored table");
+            assert!(
+                frame
+                    .pixels
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .any(|pixel| pixel[0] > 240
+                        && pixel[1] < 20
+                        && pixel[2] < 20
+                        && pixel[3] > 240),
+                "explicit author borders remain visible"
+            );
+        }
+    }
+
+    #[test]
     fn rejects_excessive_dom_nodes_and_nesting() {
         assert!(matches!(
             render(&"<br>".repeat(4096), 100, 100, false),

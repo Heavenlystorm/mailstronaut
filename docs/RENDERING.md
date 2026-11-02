@@ -102,6 +102,20 @@ has no navigation or native shell authority. There is no login page inside the
 reader. Forms and email content do not call native actions, even when a resource
 is locally available.
 
+## Collapsed-table defaults
+
+Blitz 0.3.0-beta.2 uses the initial medium cell border width for collapsed-table
+layout and painting even when the computed style is `none`. The synthetic empty
+2×2 layout regression painted 1,710 black pixels before mitigation. The embedder
+adds a user-agent stylesheet `table, td, th { border-width: 0; }`, using Blitz's
+public stylesheet API. Author stylesheets and inline border widths override this
+low-priority default; explicit red-border controls cover both routes. This avoids
+a dependency fork or changing all tables to separate layout. It is a workaround,
+not a complete upstream collapsed-border conflict-resolution fix: a sender who
+specifies only `border-style` and relies on CSS's initial medium width must also
+specify a width to get a visible border. Keep this limitation until Blitz's used
+border widths are corrected and the reset can be removed.
+
 ## Budgets, layout and lifetime
 
 Initial implementation limits: decoded HTML at most 256 KiB, bounded node/depth

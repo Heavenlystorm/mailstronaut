@@ -115,6 +115,11 @@ impl Document {
                 links.push(link);
             }
         }
+        // Blitz beta.2 uses the initial medium border width for collapsed-table
+        // gutters/painting even when border-style is none. A UA-level email
+        // reset prevents phantom layout borders without overriding author CSS.
+        // Remove when upstream resolves used-width handling for collapsed tables.
+        document.add_user_agent_stylesheet("table, td, th { border-width: 0; }");
         images.install(&mut document);
         Ok(Self {
             dom: document,
