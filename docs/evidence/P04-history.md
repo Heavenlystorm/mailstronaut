@@ -57,6 +57,11 @@ After each window, the cycle sends
 - `total` is the EXISTS count at the start of the pass, or `None` when SELECT did not say.
 
 The send is `try_send`: a full channel drops that report, and the next window reports again.
+
+For a status bar that is not listening to updates, `Store::coverage` (worker `coverage`) returns
+each folder of the asked accounts as `NotStarted`, `Partial { reviewed, total }` or
+`Complete { cap_days }`, read from the backfill table. It never reports a percentage that the
+pass did not measure.
 `Cycle.backfill_pending` is true while any folder still has history to fetch. The status bar is
 not wired to these updates yet; `Workspace::sync_update` ignores them for now.
 

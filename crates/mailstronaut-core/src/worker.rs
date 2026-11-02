@@ -212,6 +212,7 @@ enum Command {
     Folder(String, String, bool, Reply<Folder>),
     Select(String, i64, core::num::NonZeroU32, Reply<()>),
     BackfillPass(String, i64, Reply<Option<store::backfill::Pass>>),
+    Coverage(Vec<String>, Reply<Vec<store::backfill::FolderCoverage>>),
     SaveBackfill(String, i64, store::backfill::Pass, Reply<()>),
     Cache {
         account: String,
@@ -982,6 +983,18 @@ impl Handle {
         self.request(|reply| Command::BackfillPass(account, folder, reply))
             .await
     }
+    /// How much of each folder's history is cached, for the accounts asked about.
+    ///
+    /// # Errors
+    /// Returns a redacted worker or storage error.
+    pub async fn coverage(
+        &self,
+        accounts: Vec<String>,
+    ) -> Result<Vec<store::backfill::FolderCoverage>, Error> {
+        self.request(|reply| Command::Coverage(accounts, reply))
+            .await
+    }
+
     /// Store a history pass once the window it describes has committed.
     ///
     /// # Errors
@@ -1441,6 +1454,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::BackfillPass(account, folder, reply) => {
                 respond(reply, || store.backfill_pass(&account, folder));
+            }
+            Command::Coverage(accounts, reply) => {
+                respond(reply, || store.coverage(&accounts));
             }
             Command::SaveBackfill(account, folder, pass, reply) => {
                 respond(reply, || store.save_backfill(&account, folder, &pass));

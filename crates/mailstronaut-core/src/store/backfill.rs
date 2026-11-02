@@ -42,7 +42,77 @@ pub struct Pass {
     pub finished_at: Option<i64>,
 }
 
+/// How much of one folder's history is cached, as its pass last recorded it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Coverage {
+    /// No pass has started for this folder.
+    NotStarted,
+    /// A pass is still walking the folder.
+    Partial {
+        /// Messages examined so far.
+        reviewed: u32,
+        /// Messages the folder held when the pass began; None when the server did not say.
+        total: Option<u32>,
+    },
+    /// The pass reached the beginning of the folder, within the age cap it was given, if any.
+    Complete {
+        /// The declared age limit in days, or None for the complete history.
+        cap_days: Option<u32>,
+    },
+}
+
+/// The coverage of one folder, named by its account and its server name.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FolderCoverage {
+    /// The configured account identifier.
+    pub account: String,
+    /// The folder's server name, as stored.
+    pub folder: String,
+    /// What the folder's pass has cached so far.
+    pub coverage: Coverage,
+}
+
 impl Store {
+    /// The history coverage of every folder of these accounts, by account and folder name.
+    ///
+    /// # Errors
+    /// Rejects too many accounts and reports storage failures.
+    pub fn coverage(&self, accounts: &[String]) -> Result<Vec<FolderCoverage>, Error> {
+        if accounts.len() > 256 {
+            return Err(Error::InvalidInput);
+        }
+        let selected = serde_json::to_string(accounts)?;
+        let mut statement = self.connection.prepare_cached(
+            "SELECT f.account_id, f.name, b.reviewed, b.total, b.finished_at, b.cap_days, b.account_id IS NOT NULL
+             FROM folders f LEFT JOIN backfill b ON b.account_id=f.account_id AND b.folder_id=f.id
+             WHERE f.account_id IN (SELECT value FROM json_each(?1))
+             ORDER BY f.account_id, f.name",
+        )?;
+        let rows = statement
+            .query_map(params![selected], |row| {
+                let started: bool = row.get(6)?;
+                let coverage = if !started {
+                    Coverage::NotStarted
+                } else if row.get::<_, Option<i64>>(4)?.is_some() {
+                    Coverage::Complete {
+                        cap_days: row.get(5)?,
+                    }
+                } else {
+                    Coverage::Partial {
+                        reviewed: row.get(2)?,
+                        total: row.get(3)?,
+                    }
+                };
+                Ok(FolderCoverage {
+                    account: row.get(0)?,
+                    folder: row.get(1)?,
+                    coverage,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     /// The stored pass of one folder, if one was started.
     ///
     /// # Errors
@@ -102,7 +172,7 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
-    use super::{Pass, Store};
+    use super::{Coverage, FolderCoverage, Pass, Store};
 
     fn pass(next_before: Option<u32>) -> Pass {
         Pass {
@@ -148,6 +218,71 @@ mod tests {
         assert_eq!(stored.reviewed, 128);
         assert_eq!(stored.context, [7; 32]);
         assert_eq!(stored.total, Some(300));
+    }
+
+    #[test]
+    fn coverage_reports_each_folder_of_the_asked_accounts_without_inventing_progress() {
+        let root = tempfile::tempdir().expect("profile");
+        let mut store = Store::open(root.path()).expect("store");
+        store.ensure_account("a").expect("account a");
+        store.ensure_account("b").expect("account b");
+        let inbox = store.ensure_folder("a", "INBOX", true).expect("inbox").id;
+        let archive = store
+            .ensure_folder("a", "Archive", false)
+            .expect("archive")
+            .id;
+        store.ensure_folder("a", "Trash", false).expect("trash");
+        let other = store.ensure_folder("b", "INBOX", true).expect("other").id;
+        store
+            .save_backfill(
+                "a",
+                inbox,
+                &Pass {
+                    reviewed: 128,
+                    total: Some(300),
+                    ..pass(Some(173))
+                },
+            )
+            .expect("partial pass");
+        store
+            .save_backfill(
+                "a",
+                archive,
+                &Pass {
+                    cap_days: Some(30),
+                    reviewed: 12,
+                    total: Some(12),
+                    finished_at: Some(1_000),
+                    ..pass(None)
+                },
+            )
+            .expect("finished pass");
+        store
+            .save_backfill("b", other, &pass(None))
+            .expect("another account's pass");
+        assert_eq!(
+            store.coverage(&["a".into()]).expect("coverage"),
+            [
+                FolderCoverage {
+                    account: "a".into(),
+                    folder: "Archive".into(),
+                    coverage: Coverage::Complete { cap_days: Some(30) },
+                },
+                FolderCoverage {
+                    account: "a".into(),
+                    folder: "INBOX".into(),
+                    coverage: Coverage::Partial {
+                        reviewed: 128,
+                        total: Some(300),
+                    },
+                },
+                FolderCoverage {
+                    account: "a".into(),
+                    folder: "Trash".into(),
+                    coverage: Coverage::NotStarted,
+                },
+            ]
+        );
     }
 
     #[test]
