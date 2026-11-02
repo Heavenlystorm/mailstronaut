@@ -91,7 +91,14 @@ recent messages, which span far more than one cycle's windows:
 
 ```
 OK: the first windows of history were reviewed and their cursor saved
-OK: the application was killed while history was still being fetched
+OK: the pass reviewed 256 messages and saved its cursor
+OK: the application was killed after 256 messages were reviewed
+OK: after the kill the database is intact and every cached message has its original
+OK: the pass reviewed 1024 messages and saved its cursor
+OK: the application was killed after 1024 messages were reviewed
+OK: after the kill the database is intact and every cached message has its original
+OK: the pass reviewed 1792 messages and saved its cursor
+OK: the application was killed after 1792 messages were reviewed
 OK: after the kill the database is intact and every cached message has its original
 OK: the interrupted pass finished
 OK: the complete history is cached, mail from over a year ago included

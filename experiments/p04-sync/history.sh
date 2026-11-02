@@ -112,19 +112,20 @@ old_subjects="SELECT count(*) FROM messages WHERE subject IN ('Synthetic ancient
 inbox_validity="SELECT b.uidvalidity FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX'"
 
 # Without a declared limit the complete history is fetched, however old.
-start initial
-await 'the first windows of history were reviewed and their cursor saved' 1 \
-  "SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.reviewed>=1024 AND b.finished_at IS NULL"
-# The application dies with history half-fetched; the cursor in the database is all that
-# survives it.
-kill -KILL "$app"
-wait "$app" 2>/dev/null || true
-app=''
-printf '%s\n' 'OK: the application was killed while history was still being fetched'
-# What the killed process left behind is consistent: the database is intact, and every cached
-# message has its original on disk.
-[[ $(query 'PRAGMA integrity_check') == ok ]]
-missing=$(python3 - "$XDG_DATA_HOME/mailstronaut" <<'PY'
+# The application is killed at three points of the same pass. Each time the process dies with
+# history half-fetched, and the cursor in the database is all that survives it. What it left
+# behind must be consistent: the database is intact, and every cached message has its original on
+# disk. The next start resumes the pass from that cursor.
+for reviewed in 256 1024 1792; do
+  start "crash-$reviewed"
+  await "the pass reviewed $reviewed messages and saved its cursor" 1 \
+    "SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.reviewed>=$reviewed AND b.finished_at IS NULL"
+  kill -KILL "$app"
+  wait "$app" 2>/dev/null || true
+  app=''
+  printf 'OK: the application was killed after %s messages were reviewed\n' "$reviewed"
+  [[ $(query 'PRAGMA integrity_check') == ok ]]
+  missing=$(python3 - "$XDG_DATA_HOME/mailstronaut" <<'PY'
 import os, sqlite3, sys
 root = sys.argv[1]
 connection = sqlite3.connect(os.path.join(root, 'mail.sqlite3'))
@@ -132,9 +133,10 @@ hashes = {row[0] for row in connection.execute('SELECT blob_hash FROM messages')
 blobs = os.path.join(root, 'blobs')
 print(sum(1 for value in hashes if not os.path.isfile(os.path.join(blobs, value))))
 PY
-)
-[[ $missing == 0 ]]
-printf '%s\n' 'OK: after the kill the database is intact and every cached message has its original'
+  )
+  [[ $missing == 0 ]]
+  printf '%s\n' 'OK: after the kill the database is intact and every cached message has its original'
+done
 start resumed
 await 'the interrupted pass finished' 1 "$inbox_finished"
 await 'the complete history is cached, mail from over a year ago included' "$total" \
