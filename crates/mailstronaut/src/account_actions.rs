@@ -64,6 +64,9 @@ pub struct Cycle {
     pub move_failure: Option<imap::Error>,
     /// Some folder still has history to fetch, and the next cycle should continue it soon.
     pub backfill_pending: bool,
+    /// A sent message's copy could not be appended to the Sent folder. It stays queued and is
+    /// tried again by a later cycle.
+    pub sent_copy_pending: bool,
 }
 
 /// What one request for older mail did.
@@ -547,9 +550,10 @@ impl Access {
             connection = Self::connect(&opened, account, cancel).await?;
         }
         if let Some((sent, _)) = roles.iter().find(|(_, role)| *role == FolderRole::Sent) {
-            actions::append_sent(store, &mut connection, &account.id, sent, cancel)
-                .await
-                .map_err(SyncFailure::from_sync)?;
+            connection = Self::append_sent_copy(
+                &opened, account, store, connection, sent, &mut cycle, cancel,
+            )
+            .await?;
         }
         let now = unix_seconds();
         let earliest = history_floor(config, now);
@@ -589,6 +593,30 @@ impl Access {
             .await?;
         }
         Ok(cycle)
+    }
+
+    /// Append the copy of a sent message to the Sent folder. A refused copy stays queued for a
+    /// later cycle: mail must still be fetched, and the message was sent already, so nothing on
+    /// this path may send it again.
+    async fn append_sent_copy(
+        opened: &Open,
+        account: &Account,
+        store: &Handle,
+        mut connection: imap::Connection,
+        sent: &str,
+        cycle: &mut Cycle,
+        cancel: &CancellationToken,
+    ) -> Result<imap::Connection, SyncFailure> {
+        if let Err(error) =
+            actions::append_sent(store, &mut connection, &account.id, sent, cancel).await
+        {
+            if cancel.is_cancelled() {
+                return Err(SyncFailure::from_sync(error));
+            }
+            cycle.sent_copy_pending = true;
+            connection = Self::connect(opened, account, cancel).await?;
+        }
+        Ok(connection)
     }
 
     /// Fetch the newest windows of a folder. The first `RECENT_WINDOWS` are always examined;
