@@ -92,13 +92,31 @@ lower in the row, so the walkthrough aims the final confirmation at that positio
 priority, compose, delivery, older mail, history, actions, large mail, notifications and
 navigation) exits 0 in private headless sway sessions with synthetic mail.
 
+`experiments/p07-compose/failures.sh` covers three more ways a send can stop, each with a fresh
+profile database. A server whose certificate cannot be verified receives no data and leaves the
+mail "Not sent". A refused sign-in also leaves it "Not sent", and Retry in the outbox sends the
+same message once the server accepts the sign-in. A send cancelled while the server stays silent
+ends "cancelled" without any data.
+
+`experiments/p07-compose/sent-copy.sh` runs against Dovecot. The server is down when the message
+is accepted, so the Sent copy stays pending. A sync while IMAP is still down neither saves that
+copy nor submits the message again, and the SMTP fixture receives no second data. After IMAP
+returns, the next sync saves exactly one copy. Dovecot keeps maildir files with LF line endings
+and records the CRLF size in the file name (`W=`), so the walkthrough compares the saved copy
+with the submitted message after normalizing line endings, and requires `W=` to equal the
+submitted size.
+
+Both pass on the CI server in private headless sway sessions with synthetic mail, through the
+`MAILSTRONAUT_SEND_FAILURES_GUI_BINARY` and `MAILSTRONAUT_SENT_COPY_GUI_BINARY` switches of
+`credentials.sh`.
+
 `crates/mailstronaut-mail/tests/smtp.rs` checks that the pre-flight starts no transaction
 and reports a closed port and a refused sign-in as sending nothing.
 
 ## Not established
 
 No live provider or real desktop portal. The GUI path has not yet exercised: removing an
-attachment, a pending row's Cancel, TLS or sign-in errors while sending, discard,
-identity switching, or Reply/Forward. Backend tests cover several of those states. A
-connection lost between the pre-flight and DATA is still reported
-as unknown, the safe direction.
+attachment, a queued row's Cancel after a restart, discard, identity switching, or
+Reply/Forward. Backend tests cover several of those states. Provider-side Sent saving is not
+exercised. A connection lost between the pre-flight and DATA is still reported as unknown,
+the safe direction.

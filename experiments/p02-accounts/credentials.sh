@@ -68,6 +68,12 @@ fi
 if [[ -n ${MAILSTRONAUT_DELIVERY_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/delivery.sh "$MAILSTRONAUT_DELIVERY_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_SEND_FAILURES_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/failures.sh "$MAILSTRONAUT_SEND_FAILURES_GUI_BINARY" "$root"
+fi
+if [[ -n ${MAILSTRONAUT_SENT_COPY_GUI_BINARY:-} ]]; then
+  bash experiments/p07-compose/sent-copy.sh "$MAILSTRONAUT_SENT_COPY_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_SEARCH_GUI_BINARY:-} ]]; then
   bash experiments/p06-search/gui.sh "$MAILSTRONAUT_SEARCH_GUI_BINARY" "$root"
 fi

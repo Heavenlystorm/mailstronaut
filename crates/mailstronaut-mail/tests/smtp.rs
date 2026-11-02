@@ -27,6 +27,8 @@ enum Mode {
     DropAfterData,
     RejectData,
     RejectAuth,
+    /// Completes TLS, then never greets, so the client's attempt stays in flight.
+    Stall,
 }
 #[derive(Default)]
 struct Observed {
@@ -184,6 +186,9 @@ async fn serve(
     mode: Mode,
 ) -> Observed {
     let mut socket = BufReader::new(socket);
+    if matches!(mode, Mode::Stall) {
+        std::future::pending::<()>().await;
+    }
     if greeting {
         socket
             .get_mut()
@@ -495,6 +500,10 @@ async fn gui_loopback_server() {
         Mode::DropAfterData
     } else if std::env::var("MAILSTRONAUT_SMTP_REJECT_DATA").as_deref() == Ok("1") {
         Mode::RejectData
+    } else if std::env::var("MAILSTRONAUT_SMTP_REJECT_AUTH").as_deref() == Ok("1") {
+        Mode::RejectAuth
+    } else if std::env::var("MAILSTRONAUT_SMTP_STALL").as_deref() == Ok("1") {
+        Mode::Stall
     } else {
         Mode::Accept
     };
