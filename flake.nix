@@ -269,30 +269,13 @@
               }
               ''
                 actionlint ${self}/.github/workflows/ci.yml
-                shellcheck ${self}/ci/check.sh ${self}/ci/nix-check.sh ${self}/ci/remote.sh \
-                  ${self}/experiments/p01-blitz/privacy.sh \
-                  ${self}/experiments/p01-blitz/reader.sh \
-                  ${self}/experiments/p01-blitz/portal.sh \
-                  ${self}/experiments/p01-gpui/wayland.sh \
-                  ${self}/experiments/p02-accounts/credentials.sh \
-                  ${self}/experiments/p02-accounts/gui.sh \
-                  ${self}/experiments/p02-config/export-gui.sh \
-                  ${self}/experiments/p02-config/preferences-gui.sh \
-                  ${self}/experiments/p05-onboarding/gui.sh \
-                  ${self}/experiments/p05-onboarding/auth-gui.sh \
-                  ${self}/experiments/p06-mailbox/wayland.sh \
-                  ${self}/experiments/p06-mailbox/navigation.sh \
-                  ${self}/experiments/wayland-session.sh \
-                  ${self}/experiments/p07-compose/gui.sh \
-                  ${self}/experiments/p04-sync/gui.sh \
-                  ${self}/experiments/p04-sync/dovecot.sh \
-                  ${self}/experiments/p08-reminders/portal.sh \
-                  ${self}/experiments/p08-reminders/gui.sh \
-                  ${self}/experiments/p08-reminders/instance.sh \
-                  ${self}/experiments/p08-reminders/instance-gui.sh \
-                  ${self}/experiments/p08-reminders/lifecycle.sh \
-                  ${self}/experiments/p06-search/reproduce.sh \
-                  ${self}/experiments/p06-search/run-release.sh
+                shellcheck ${
+                  pkgs.lib.concatMapStringsSep " " (path: pkgs.lib.escapeShellArg "${self}/${path}") (
+                    pkgs.lib.filter (path: path != "") (
+                      pkgs.lib.splitString "\n" (builtins.readFile ./ci/shell-scripts.txt)
+                    )
+                  )
+                }
                 touch "$out"
               '';
         }

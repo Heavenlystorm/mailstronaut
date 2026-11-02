@@ -1,0 +1,24 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+Only explicitly opened originals have Seen: []
+Only explicitly opened originals have Seen: []
+Only explicitly opened originals have Seen: ['alpha']
+Only explicitly opened originals have Seen: ['alpha']
+Only explicitly opened originals have Seen: ['alpha', 'beta']
+Only explicitly opened originals have Seen: ['alpha', 'bad-image', 'beta']
+Only explicitly opened originals have Seen: ['alpha', 'bad-image', 'beta', 'plain']
+Only explicitly opened originals have Seen: ['alpha', 'bad-image', 'beta', 'plain']
+Only explicitly opened originals have Seen: ['alpha', 'bad-image', 'beta', 'plain']
+alpha: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 1
+alpha-html: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 1
+link-request: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 1
+home: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 1
+hidpi: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 2
+dark: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 1
+offline: own Alpha marker; ordered 32-CSS-pixel RGB bands at scale 1
+beta: own current message marker; no retired RGB image
+switched-beta: own current message marker; no retired RGB image
+restored: own current message marker; no retired RGB image
+bad-image: own current message marker; no retired RGB image
+Independent native pixels: resize/media, scroll/Home/End, physical 2x scale, theme and source retirement passed.
+Native cached HTML: no IP sockets or email-specified file opens; HTTP/file observer controls passed.
+Native cached HTML/MIME, local CID isolation, modes, scroll, resize, HiDPI, theme, Seen and offline checks passed: /builds/mailstronaut-dev/target/p01.JZBnwD

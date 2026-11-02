@@ -1,0 +1,6 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+mailstronaut 0.1.0
+Configuration is valid.
+package=/nix/store/p01gyh4rdilpqn9cxmwixpc43c7ghjfc-mailstronaut-0.1.0
+All 179 filtered package source files match the current checkout.

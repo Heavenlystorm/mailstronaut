@@ -345,7 +345,9 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 ## P06 — GPUI mailbox workspace and strong local search
 
 - [ ] Replace Older/Newer/page controls with continuous virtualized browsing. Reuse
-  Kit `List` and its virtual-list/load-more APIs with bounded backend query windows,
+  Kit `List`/`ListState` (already virtualized), `ListDelegate::has_more`,
+  `load_more` and `load_more_threshold` with bounded backend query windows.
+  Permit one in-flight batch per query generation; ignore stale completions. Keep
   stable row identities and scroll anchoring; do not materialize all MIME bodies.
   Verify scrolling past 100 rows, search/folder changes, new-mail insertion and
   keyboard navigation without missed or duplicated rows. Keep implementation

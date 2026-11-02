@@ -60,3 +60,28 @@ also rejected; the final pass uses the current compiled test executable.
 This slice does not establish full-history fetching, continuous mailbox scrolling,
 model inference, live OAuth consent, package/Flatpak acceptance or accessibility.
 Those remain open in PLAN.md; the existing paged query is still in use.
+
+## Nix package gate
+
+The first gate built and tested the release package successfully but exited 1
+because Nix's separate ShellCheck list omitted the new appearance walkthrough.
+Local `ci/check.sh` and Nix now read `ci/shell-scripts.txt`, including all 35 scripts,
+so the lists cannot drift independently. The coordinated rerun under
+`/builds/.mailstronaut-nix-gate.lock` finished with numeric receipt `0` and
+`gate-exit=0`; the command session completed with exit 0 and released its lock.
+The release package was reused on that rerun; no compilation speedup is inferred.
+
+Package: `/nix/store/p01gyh4rdilpqn9cxmwixpc43c7ghjfc-mailstronaut-0.1.0`.
+All 179 filtered package-source files were hash-compared with the current checkout
+and match, including the application code committed in `b042301` and `11ca558`.
+Installed `--version` and native example configuration validation passed. No
+Cargo.lock change was made; the gate's vendored-lock comparison passed.
+
+[Release checks excerpt](artifacts/ui-feedback/release-excerpt.log),
+[final gate receipt](artifacts/ui-feedback/nix-gate-final.log),
+[installed/source smoke](artifacts/ui-feedback/installed-smoke.log) and
+[native HTML receipt](artifacts/ui-feedback/native-html.log) are retained here.
+This is local CI-server x86_64-linux evidence. aarch64-linux was omitted. Hosted
+GitHub CI, installed-package GUI, real providers, full Home Manager activation,
+Flatpak, model inference and the new full-history/continuous-scroll requirements
+are not established by this gate.
