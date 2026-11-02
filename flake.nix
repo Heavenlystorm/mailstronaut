@@ -216,6 +216,9 @@
               MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
                 MAILSTRONAUT_OAUTH_FIXTURE="$oauth_fixture" \
                 bash experiments/p02-accounts/credentials.sh
+              MAILSTRONAUT_CREDENTIAL_FIXTURE="$credential_fixture" \
+                MAILSTRONAUT_QUIET_ACTION_FIXTURE="$account_fixture" \
+                bash experiments/p02-accounts/credentials.sh
               MAILSTRONAUT_LINK_PORTAL_FIXTURE="$account_fixture" \
                 bash experiments/p01-blitz/portal.sh
               MAILSTRONAUT_INSTANCE_FIXTURE="$account_fixture" \

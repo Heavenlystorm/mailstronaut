@@ -121,7 +121,9 @@ else
 fi
 # Each fixture deliberately locks its private collection. Run one lifecycle per
 # fresh daemon/bus rather than depending on a desktop unlock prompter in tests.
-if [[ -n ${MAILSTRONAUT_OAUTH_FIXTURE:-} ]]; then
+if [[ -n ${MAILSTRONAUT_QUIET_ACTION_FIXTURE:-} ]]; then
+  "$(realpath "$MAILSTRONAUT_QUIET_ACTION_FIXTURE")" account_actions::tests::private_automatic_access_never_unlocks --exact --ignored --nocapture | tee "$root/quiet-actions.log"
+elif [[ -n ${MAILSTRONAUT_OAUTH_FIXTURE:-} ]]; then
   "$(realpath "$MAILSTRONAUT_OAUTH_FIXTURE")" private_secret_service_oauth_rotation_is_serialized_and_revocation_stops_retries --exact --ignored --nocapture | tee "$root/oauth.log"
 else
   "${credential_tests[@]}" private_secret_service_round_trip_isolation_rotation_and_lock --exact --ignored --nocapture | tee "$root/test.log"

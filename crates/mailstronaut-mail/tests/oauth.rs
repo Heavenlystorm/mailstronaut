@@ -496,8 +496,8 @@ async fn private_secret_service_oauth_rotation_is_serialized_and_revocation_stop
     drop(other);
     let cancel = CancellationToken::new();
     let (incoming, outgoing) = tokio::join!(
-        session.resolve(&account, false, &cancel),
-        session.resolve(&account, true, &cancel)
+        session.resolve_automatic(&account, false, &cancel),
+        session.resolve_automatic(&account, true, &cancel)
     );
     assert_bearer(&incoming.expect("incoming"), "SYNTHETIC-OAUTH-ROTATED");
     assert_bearer(&outgoing.expect("outgoing"), "SYNTHETIC-OAUTH-ROTATED");
@@ -522,7 +522,7 @@ async fn private_secret_service_oauth_rotation_is_serialized_and_revocation_stop
     let session = Session::new(store.clone());
     assert_bearer(
         &session
-            .resolve(&account, false, &cancel)
+            .resolve_automatic(&account, false, &cancel)
             .await
             .expect("restart refresh"),
         "SYNTHETIC-OAUTH-AFTER-RESTART",

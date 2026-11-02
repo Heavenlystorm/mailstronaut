@@ -45,6 +45,7 @@ const OLDER_WINDOWS: u32 = 64;
 struct Open {
     store: Store,
     session: auth::Session,
+    automatic: bool,
 }
 
 /// Whether a send froze the draft. An unfrozen draft stays editable; a frozen one
@@ -121,6 +122,38 @@ impl Default for Access {
 }
 
 impl Access {
+    async fn background(&self, cancel: &CancellationToken) -> Result<Open, String> {
+        let mut current = cancel
+            .run_until_cancelled(self.opened.lock())
+            .await
+            .ok_or(CANCELLED)?;
+        if let Some(opened) = current.as_ref() {
+            let mut opened = opened.clone();
+            opened.automatic = true;
+            return Ok(opened);
+        }
+        if ashpd::is_sandboxed() {
+            return Err(
+                "Open Settings to initialize encrypted credentials before automatic sync.".into(),
+            );
+        }
+        let store = cancel
+            .run_until_cancelled(Store::connect_native_background())
+            .await
+            .ok_or(CANCELLED)?
+            .map_err(|error| error.to_string())?;
+        let opened = Open {
+            session: auth::Session::new(store.clone()),
+            store,
+            automatic: false,
+        };
+        *current = Some(opened.clone());
+        drop(current);
+        let mut automatic = opened;
+        automatic.automatic = true;
+        Ok(automatic)
+    }
+
     async fn foreground(&self, cancel: &CancellationToken) -> Result<Open, String> {
         let mut current = cancel
             .run_until_cancelled(self.opened.lock())
@@ -137,6 +170,7 @@ impl Access {
             Open {
                 session: auth::Session::new(store.clone()),
                 store,
+                automatic: false,
             }
         };
         cancel
@@ -323,11 +357,15 @@ impl Access {
         account: &Account,
         cancel: &CancellationToken,
     ) -> Result<imap::Connection, SyncFailure> {
-        let credential = opened
-            .session
-            .resolve(account, false, cancel)
-            .await
-            .map_err(|error| SyncFailure::Stop(error.to_string()))?;
+        let credential = if opened.automatic {
+            opened
+                .session
+                .resolve_automatic(account, false, cancel)
+                .await
+        } else {
+            opened.session.resolve(account, false, cancel).await
+        }
+        .map_err(|error| SyncFailure::Stop(error.to_string()))?;
         let endpoint = account
             .incoming_endpoint()
             .ok_or_else(|| SyncFailure::Stop("Incoming server is not configured.".into()))?;
@@ -474,7 +512,7 @@ impl Access {
         account: &Account,
         cancel: &CancellationToken,
     ) -> Result<imap::Connection, SyncFailure> {
-        let opened = self.foreground(cancel).await.map_err(SyncFailure::Stop)?;
+        let opened = self.background(cancel).await.map_err(SyncFailure::Stop)?;
         let _permit = cancel
             .run_until_cancelled(self.connections.acquire())
             .await
@@ -495,7 +533,7 @@ impl Access {
         progress: &(dyn Fn(&str, sync::Progress) + Sync),
         cancel: &CancellationToken,
     ) -> Result<Cycle, SyncFailure> {
-        let opened = self.foreground(cancel).await.map_err(SyncFailure::Stop)?;
+        let opened = self.background(cancel).await.map_err(SyncFailure::Stop)?;
         let _permit = cancel
             .run_until_cancelled(self.connections.acquire())
             .await
@@ -996,5 +1034,98 @@ mod tests {
         drop(guard);
         assert!(access.opened.lock().await.is_none());
         println!("Cancelled/invalid account actions left the keyring unopened and mailbox empty.");
+    }
+    #[tokio::test]
+    #[ignore = "requires the isolated real keyring from credentials.sh"]
+    async fn private_automatic_access_never_unlocks() {
+        let root =
+            PathBuf::from(std::env::var_os("MAILSTRONAUT_SECRET_TEST_ROOT").expect("private root"));
+        assert!(root.is_absolute());
+        assert_eq!(
+            std::env::var("DBUS_SESSION_BUS_ADDRESS").expect("private bus"),
+            format!("unix:path={}/runtime/bus", root.display())
+        );
+        assert_eq!(
+            PathBuf::from(std::env::var_os("XDG_DATA_HOME").expect("private data")),
+            root.join("data")
+        );
+        let config: Config = serde_json::from_value(serde_json::json!({
+            "schemaVersion": 1, "accounts": [{
+                "id": "quiet-only", "provider": "icloud", "address": "quiet@example.test", "displayName": "Quiet access fixture",
+                "userName": "synthetic", "auth": {"kind": "password", "secretRef": "quiet"}
+            }]
+        })).expect("fixture declaration");
+        assert_eq!(config.validate(), []);
+        let account = &config.accounts[0];
+        let cancel = CancellationToken::new();
+        let foreground = Access::default();
+        foreground
+            .save_password(account, false, "synthetic-quiet-password".into(), &cancel)
+            .await
+            .expect("explicit foreground save");
+        let cached = Access::default();
+        let opened = cached
+            .background(&cancel)
+            .await
+            .expect("quiet native initialization");
+        opened
+            .session
+            .resolve(account, false, &cancel)
+            .await
+            .expect("existing password resolves without network");
+        let cancelled = CancellationToken::new();
+        cancelled.cancel();
+        let unopened = Access::default();
+        assert_eq!(
+            unopened.background(&cancelled).await.err().as_deref(),
+            Some(CANCELLED)
+        );
+        assert!(unopened.opened.lock().await.is_none());
+
+        let connection = zbus::Connection::session().await.expect("private bus");
+        let service = zbus::Proxy::new(
+            &connection,
+            "org.freedesktop.secrets",
+            "/org/freedesktop/secrets",
+            "org.freedesktop.Secret.Service",
+        )
+        .await
+        .expect("private service");
+        let collection: zbus::zvariant::OwnedObjectPath = service
+            .call("ReadAlias", &("default",))
+            .await
+            .expect("existing collection");
+        let (_, prompt): (
+            Vec<zbus::zvariant::OwnedObjectPath>,
+            zbus::zvariant::OwnedObjectPath,
+        ) = service
+            .call("Lock", &(vec![collection],))
+            .await
+            .expect("lock private keyring");
+        assert_eq!(prompt.as_str(), "/");
+        let store = Worker::open(root.join("quiet-store"))
+            .await
+            .expect("private worker");
+        let handle = store.handle();
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(3),
+            cached.sync_account(&handle, &config, account, &[], &|_, _| {}, &cancel),
+        )
+        .await
+        .expect("cached automatic access must not prompt");
+        assert!(matches!(outcome, Err(SyncFailure::Stop(message)) if message.contains("locked")));
+        let fresh = Access::default();
+        let outcome = tokio::time::timeout(
+            Duration::from_secs(3),
+            fresh.connect_watcher(account, &cancel),
+        )
+        .await
+        .expect("fresh watcher must not prompt");
+        assert!(matches!(outcome, Err(SyncFailure::Stop(message)) if message.contains("locked")));
+        assert!(fresh.opened.lock().await.is_none());
+        store.shutdown().await.expect("stop private worker");
+        println!(
+            "Automatic credentials: quiet native initialization, cancellation, cached-sync and fresh-IDLE locked denial passed without network or unlock."
+        );
     }
 }

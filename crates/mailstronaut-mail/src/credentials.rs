@@ -127,6 +127,11 @@ impl fmt::Debug for Store {
     }
 }
 impl Store {
+    /// Whether unattended token rotation can update an existing item without creating one.
+    #[must_use]
+    pub fn supports_native_replacement(&self) -> bool {
+        matches!(&*self.0, oo7::Keyring::DBus(_))
+    }
     /// Connect only to an existing, unlocked native Secret Service collection.
     ///
     /// This never creates a collection or requests unlock. Native automatic work
@@ -250,6 +255,51 @@ impl Store {
                 )
                 .await
                 .map_err(|_| Error::Unavailable)
+        })
+        .await
+        .map_err(|_| Error::TimedOut)?
+    }
+
+    /// Replace an existing native Secret Service item without creating one.
+    ///
+    /// Sandboxed file-backed keyrings cannot guarantee this operation against a
+    /// concurrent deletion and are refused. A missing item returns `false`.
+    ///
+    /// # Errors
+    /// Rejects invalid values, ambiguous or locked items, unsupported backends,
+    /// timeouts and storage failures.
+    pub async fn replace_existing_native(
+        &self,
+        key: &Key,
+        value: &SecretString,
+    ) -> Result<bool, Error> {
+        if value.expose_secret().is_empty() || value.expose_secret().len() > MAX_SECRET_BYTES {
+            return Err(Error::Invalid);
+        }
+        timeout(IO_TIMEOUT, async {
+            self.ready().await?;
+            let items = self
+                .0
+                .search_items(&key.attributes())
+                .await
+                .map_err(|_| Error::Unavailable)?;
+            if items.len() > 1 {
+                return Err(Error::Ambiguous);
+            }
+            let Some(item) = items.first() else {
+                return Ok(false);
+            };
+            if item.is_locked().await.map_err(|_| Error::Unavailable)? {
+                return Err(Error::Locked);
+            }
+            match item {
+                oo7::Item::DBus(_) => item
+                    .set_secret(oo7::Secret::text(value.expose_secret()))
+                    .await
+                    .map_err(|_| Error::Unavailable)?,
+                oo7::Item::File(..) => return Err(Error::Unavailable),
+            }
+            Ok(true)
         })
         .await
         .map_err(|_| Error::TimedOut)?

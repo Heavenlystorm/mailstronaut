@@ -589,6 +589,10 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   `WindowingRequest::Headless`/`App::request_windowing` lifecycle proved above;
   no hidden GPU window or custom daemon. Explicit Quit stops work. Automatic
   credential access must neither create a collection nor request foreground unlock.
+  The automatic sync path now uses an existing unlocked native keyring without
+  requesting unlock; private Secret Service and Dovecot tests cover this path.
+  Sandboxed file-backed OAuth cannot refresh automatically until non-creating
+  token rotation is supported; a cached foreground grant may still be used.
 - [ ] Implement independent background/autostart/notification settings and zero
   hidden work when disabled; unload renderer/models while headless when enabled.
   Reuse `SettingField::switch` and ownership/disabled-state text for each setting;

@@ -76,7 +76,23 @@ Locked storage remained locked; the stopped-service check failed closed, and the
 persisted fixture contained none of the synthetic credential markers in plaintext.
 [Private credential receipt](artifacts/p08-headless/native-credentials.log).
 
-The application has not yet adopted this API in automatic sync/watcher paths.
-Those still use foreground access and must be changed before headless work is
-enabled. Background refresh-token persistence, sandbox permission/credential
-initialization, and a combined release/package gate remain open.
+Automatic sync and IDLE now use quiet credential access. A fresh private native
+keyring run verified that a missing item is not created by rotation, an existing
+item is updated, and ambiguous or locked items fail closed. A separate automatic
+access fixture exercised cancellation and both cached and fresh access to a locked
+collection, returning promptly while it remained locked. The public code paths do
+not invoke unlock; the fixture did not independently monitor prompt requests.
+The local OAuth fixture also exercised native automatic rotation. The synthetic
+Dovecot/Wayland IDLE walkthrough passed new mail, Seen
+reconciliation and reconnect using this path.
+
+In a sandbox, an already initialized store can supply passwords and cached OAuth
+access tokens, but automatic OAuth refresh is refused before contacting the server:
+the pinned file-backed item update can recreate a concurrently deleted item.
+The background window-independent service, sandbox permission/initialization,
+provider-specific behavior and comprehensive deletion-race proof remain open.
+The x86_64 pinned workspace checks and full Nix package gate passed on the
+`669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
+hosted CI, installed Flatpak, and real-provider acceptance were not run.
+The gate passed again after rebasing onto `f277d89`, reusing the package and
+rerunning the changed flake checks.

@@ -68,6 +68,13 @@ async fn round_trip() {
     let b = Key::new("synthetic-b", "same-ref", Purpose::Password).expect("key");
     let refresh = Key::new("synthetic-a", "same-ref", Purpose::RefreshToken).expect("key");
     assert!(store.get(&a).await.expect("empty").is_none());
+    assert!(
+        !store
+            .replace_existing_native(&a, &SecretString::from("synthetic-no-create"))
+            .await
+            .expect("missing item")
+    );
+    assert!(store.get(&a).await.expect("still missing").is_none());
     store
         .put(&a, &SecretString::from("synthetic-first"))
         .await
@@ -80,6 +87,12 @@ async fn round_trip() {
         .put(&refresh, &SecretString::from("synthetic-refresh"))
         .await
         .expect("save refresh token");
+    assert!(
+        store
+            .replace_existing_native(&refresh, &SecretString::from("synthetic-refresh-rotated"))
+            .await
+            .expect("replace existing")
+    );
     store
         .put(&a, &SecretString::from("synthetic-rotated"))
         .await
@@ -112,7 +125,7 @@ async fn round_trip() {
             .expect("read")
             .expect("present")
             .expose_secret(),
-        "synthetic-refresh"
+        "synthetic-refresh-rotated"
     );
     store.delete(&a).await.expect("delete one exact key");
     assert!(reopened.get(&a).await.expect("read missing").is_none());
@@ -206,6 +219,12 @@ async fn ambiguity_and_lock(store: &Store, b: &Key, refresh: &Key) {
     assert!(matches!(store.get(b).await, Err(Error::Ambiguous)));
     assert!(matches!(
         store
+            .replace_existing_native(b, &SecretString::from("synthetic-replacement"))
+            .await,
+        Err(Error::Ambiguous)
+    ));
+    assert!(matches!(
+        store
             .put(b, &SecretString::from("synthetic-replacement"))
             .await,
         Err(Error::Ambiguous)
@@ -218,6 +237,12 @@ async fn ambiguity_and_lock(store: &Store, b: &Key, refresh: &Key) {
     ));
     assert!(backend.is_locked().await.expect("still locked"));
     assert!(matches!(store.get(refresh).await, Err(Error::Locked)));
+    assert!(matches!(
+        store
+            .replace_existing_native(refresh, &SecretString::from("synthetic-new"))
+            .await,
+        Err(Error::Locked)
+    ));
     assert!(matches!(
         store
             .put(refresh, &SecretString::from("synthetic-new"))

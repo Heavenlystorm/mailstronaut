@@ -123,6 +123,30 @@ impl Session {
         outgoing: bool,
         cancel: &CancellationToken,
     ) -> Result<Credential, Error> {
+        self.resolve_inner(account, outgoing, cancel, false).await
+    }
+
+    /// Resolve a credential without creating a keyring item during token rotation.
+    ///
+    /// # Errors
+    /// Refuses file-backed OAuth refresh when safe non-creating rotation is unavailable,
+    /// and reports missing, locked, revoked, cancelled or unavailable credentials.
+    pub async fn resolve_automatic(
+        &self,
+        account: &Account,
+        outgoing: bool,
+        cancel: &CancellationToken,
+    ) -> Result<Credential, Error> {
+        self.resolve_inner(account, outgoing, cancel, true).await
+    }
+
+    async fn resolve_inner(
+        &self,
+        account: &Account,
+        outgoing: bool,
+        cancel: &CancellationToken,
+        automatic: bool,
+    ) -> Result<Credential, Error> {
         let auth = selected(account, outgoing);
         if let Auth::Password { secret_ref } = auth {
             let key = Key::new(&account.id, secret_ref, Purpose::Password)?;
@@ -167,22 +191,43 @@ impl Session {
             });
         }
         state.access = None;
+        if automatic && !self.0.store.supports_native_replacement() {
+            return Err(Error::Credential(credentials::Error::Unavailable));
+        }
         let grant = match provider.refresh(&refresh, cancel).await {
             Ok(grant) => grant,
             Err(oauth::Error::Reauthenticate) => {
                 state.blocked = true;
-                // Known revoked credentials must not trigger retries after restart.
-                // Failure to delete still leaves this live session blocked.
-                let _deleted = self.0.store.delete(&key).await;
+                // Explicit foreground work may remove revoked credentials. Automatic
+                // work must not invoke a Secret Service delete prompt; this live
+                // session stays blocked until the user reauthenticates.
+                if !automatic {
+                    let _deleted = self.0.store.delete(&key).await;
+                }
                 return Err(oauth::Error::Reauthenticate.into());
             }
             Err(error) => return Err(error.into()),
         };
-        if let Some(rotated) = grant.refresh()
-            && let Err(error) = self.0.store.put(&key, rotated).await
-        {
-            state.blocked = true;
-            return Err(error.into());
+        if let Some(rotated) = grant.refresh() {
+            let result = if automatic {
+                self.0
+                    .store
+                    .replace_existing_native(&key, rotated)
+                    .await
+                    .and_then(|replaced| {
+                        if replaced {
+                            Ok(())
+                        } else {
+                            Err(credentials::Error::Unavailable)
+                        }
+                    })
+            } else {
+                self.0.store.put(&key, rotated).await
+            };
+            if let Err(error) = result {
+                state.blocked = true;
+                return Err(error.into());
+            }
         }
         let secret = state.cache(&grant);
         drop(state);
