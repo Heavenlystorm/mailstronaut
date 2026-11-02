@@ -112,7 +112,7 @@ printf '%s\n' 'OK: neither waiting nor a restart resent it'
 capture restarted
 
 # The decision is explicit: dismissing the warning sends nothing.
-click 277 373
+click 277 417
 sleep 1
 capture decision
 wtype -s 300 -k Escape -s 700
@@ -122,7 +122,7 @@ printf '%s\n' 'OK: dismissing the warning sent nothing'
 
 # An unreachable retry cannot erase that the earlier attempt may have delivered.
 stop_server
-click 277 373
+click 277 417
 sleep 1
 click 797 203
 sleep 2
@@ -130,9 +130,11 @@ await_state 'an unreachable retry keeps the warning' delivery_unknown:1
 capture unreachable-retry
 
 serve
-# The failure banner pushes the row down.
-click 277 442
+# The refused retry's banner sits above the outbox, and the longer warning in the row pushes
+# Send again down to 505. The banner is only cleared once the resend starts.
+click 277 505
 sleep 1
+capture final-decision
 click 797 203
 await_attempt
 await_state 'confirming sends it again' accepted:1
