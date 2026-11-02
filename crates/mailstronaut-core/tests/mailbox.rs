@@ -648,3 +648,36 @@ fn clearing_the_cache_keeps_what_the_user_owns_and_restarts_every_history_pass()
         .expect("fetched again");
     assert!(store.message("a", fetched).is_ok());
 }
+
+#[test]
+fn a_write_behind_another_handles_lock_is_refused_and_leaves_nothing_behind() {
+    let root = tempfile::tempdir().expect("fixture");
+    let mut first = Store::open(root.path()).expect("first handle");
+    first.ensure_account("a").expect("account");
+    first
+        .bind_mailbox_context("a", CACHE_CONTEXT)
+        .expect("context");
+    let inbox = folder(&mut first, "a", "INBOX", true);
+    // Another handle to the same database takes the write lock, as a second process would.
+    let other =
+        rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("second connection");
+    other
+        .execute_batch("BEGIN IMMEDIATE")
+        .expect("the other handle holds the write lock");
+    let bytes = original("locked", "Written after the lock is released.");
+    assert!(
+        first
+            .cache_message("a", membership(&inbox, 1, false), 100, None, &bytes)
+            .is_err(),
+        "a write behind another handle's lock is refused"
+    );
+    let inside: i64 = other
+        .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+        .expect("count inside the lock");
+    assert_eq!(inside, 0, "the refused write left no message behind");
+    other.execute_batch("ROLLBACK").expect("release the lock");
+    let cached = first
+        .cache_message("a", membership(&inbox, 1, false), 100, None, &bytes)
+        .expect("written once the lock is released");
+    assert!(first.message("a", cached).is_ok());
+}

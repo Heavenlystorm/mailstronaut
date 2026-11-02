@@ -244,11 +244,9 @@ new dependency graph before claiming current-package acceptance.
   commands, WAL/foreign keys/busy timeout and migration backup/rollback. Present
   unavailable/corrupt stores with `Empty`/`Alert` and a real Retry action; use
   `AlertDialog` only for explicitly destructive purge/reset decisions.
-- [ ] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
+- [x] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
-  [Real kills at three points of one pass leave an intact database with every cached original
-  on disk](evidence/P04-history.md); cache clearing is in `Store::clear_cache` with a store test.
-  Cross-handle transaction evidence is not recorded, so this row stays open.
+  [Named checks for each clause, including real kills at three points of one pass](evidence/P03-durability.md).
 - [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
   attachment/CID descriptors and source/body revisions. No generated summaries.
 - [x] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
