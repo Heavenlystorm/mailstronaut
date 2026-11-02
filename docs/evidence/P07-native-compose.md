@@ -86,6 +86,12 @@ session, with real input and the SMTP fixture on a fixed port:
 - Confirming with the server back is accepted.
 - All three attempts that reached DATA carried byte-identical mail, so the Message-ID is the same.
 
+After a refused retry, the outbox shows a banner and its longer warning pushes "Send again…"
+lower in the row, so the walkthrough aims the final confirmation at that position. On the
+`71c5bcc` base, `delivery.sh` passes, and the full native walkthrough set (sync, IDLE, search,
+priority, compose, delivery, older mail, history, actions, large mail, notifications and
+navigation) exits 0 in private headless sway sessions with synthetic mail.
+
 `crates/mailstronaut-mail/tests/smtp.rs` checks that the pre-flight starts no transaction
 and reports a closed port and a refused sign-in as sending nothing.
 
