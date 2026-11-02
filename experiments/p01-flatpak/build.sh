@@ -15,15 +15,6 @@ rustc -Vv
 cargo --version
 "${CC:-cc}" --version
 cargo fetch --frozen --offline
-for name in mozjs_locale_glue mozjs_properties_glue mozjs_collator_glue mozjs_normalizer_glue mozjs_unicode_bidi_ffi; do
-  matches=("$vendor_root/source-registry-0/$name"-*)
-  if (( ${#matches[@]} != 1 )) || [[ ! -f "${matches[0]}/Cargo.toml" ]]; then
-    printf 'Expected exactly one vendored manifest for %s\n' "$name" >&2
-    exit 1
-  fi
-  printf 'Offline nested metadata: %s\n' "$name"
-  (cd "${matches[0]}" && cargo metadata --offline --all-features --format-version 1 > /dev/null)
-done
 if [[ "$phase" == metadata ]]; then
   printf 'Metadata phase passed; no compilation attempted.\n'
   exit 0

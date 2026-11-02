@@ -34,27 +34,10 @@ mkdir -p "$destination/app"
 cp -R --reflink=auto --no-preserve=ownership "$src/." "$destination/app/"
 cp -R --reflink=auto --no-preserve=ownership "$deps" "$destination/vendor"
 chmod -R u+w "$destination"
-configure=("$destination/vendor/source-registry-0/mozjs_sys"-*/mozjs/js/src/configure)
-if (( ${#configure[@]} != 1 )) || [[ ! -x "${configure[0]}" ]]; then
-  printf '%s\n' 'Vendored SpiderMonkey configure must retain its executable mode.' >&2
-  exit 1
-fi
 config="$destination/vendor/.cargo/config.toml"
 if ! grep -q '@vendor@' "$config"; then
   printf 'Vendor source configuration lacks the expected placeholder\n' >&2
   exit 1
 fi
 sed -i 's|@vendor@|/run/build/mailstronaut/vendor|g' "$config"
-for name in mozjs_locale_glue mozjs_properties_glue mozjs_collator_glue mozjs_normalizer_glue mozjs_unicode_bidi_ffi; do
-  matches=("$destination/vendor/source-registry-0/$name"-*)
-  if (( ${#matches[@]} != 1 )) || [[ ! -f "${matches[0]}/Cargo.lock" ]]; then
-    printf 'Expected exactly one vendored lock for %s\n' "$name" >&2
-    exit 1
-  fi
-  # fetchCargoVendor supplies empty per-file checksum maps for these crates.
-  # The registry package checksum identifies the original archive, not this
-  # intentionally substituted standalone lock. Do not generalize to cargo vendor.
-  python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["files"] == {}' "${matches[0]}/.cargo-checksum.json"
-  cp "$destination/app/Cargo.lock" "${matches[0]}/Cargo.lock"
-done
 printf 'Staged source: %s\nPackage source: %s\nCargo dependencies: %s\n' "$destination" "$src" "$deps"

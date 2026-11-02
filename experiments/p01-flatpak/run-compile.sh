@@ -4,8 +4,10 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$root"
 mkdir -p target/nix-cache
-# Share the Nix gate's build slot; never run both full compiles concurrently.
-exec {gate_lock}>target/p01-package-gate.lock
+# Share the coordinated full-gate lock so this compile never overlaps a Nix gate. Override
+# MAILSTRONAUT_GATE_LOCK only on a host that has no shared gate lock.
+gate_lock_path=${MAILSTRONAUT_GATE_LOCK:-/builds/.mailstronaut-nix-gate.lock}
+exec {gate_lock}>"$gate_lock_path"
 if ! flock --nonblock "$gate_lock"; then
   printf '%s\n' 'Another coordinated package build is already running.' >&2
   exit 73

@@ -47,23 +47,15 @@ bash experiments/p01-flatpak/isolated.sh bash experiments/p01-flatpak/run.sh met
 The package's `src` and `cargoDeps` must already be realized. Staging aborts rather
 than overwrite a nonempty source directory. It checks all three lockfiles agree,
 omits the nightly-only development `.cargo` configuration, and copies dependencies
-without writable hardlinks into the Nix store. Preserve source executable modes:
-SpiderMonkey invokes its bundled `configure` directly. The stage checks that mode
-before continuing. The app and vendor directories are
-siblings: placing vendor inside the app causes nested Cargo calls to mistake its
-crates for workspace members. `cargo fetch --frozen --offline` checks the workspace;
-five nested `cargo metadata --offline --all-features` calls reproduce cbindgen's
-metadata path. Those nested locks may be rewritten within the pinned vendor set.
+without writable hardlinks into the Nix store. The app and vendor directories are
+siblings: placing vendor inside the app causes Cargo to mistake the vendored crates
+for workspace members. `cargo fetch --frozen --offline` checks the workspace.
 
 The Nix vendor separates registry/Git sources, including the two `dpi 0.1.2`
 packages and libcosmic's Iced sources. Plain Cargo vendor rejects duplicate
 name/version pairs from different sources. This experiment reuses the already
 hashed Nix vendor instead of implementing another generator. Its `@vendor@`
-placeholder is resolved for the SDK path. The five mozjs standalone locks are
-replaced with the application's lock, as in the Nix package. Their vendor checksum
-records have empty per-file maps; the package hash still identifies the original
-archive, not the changed lock. This transformation must remain explicit. It does
-not apply unchanged to a vendor tree with per-file checksums.
+placeholder is resolved for the SDK path.
 
 To exercise the manifest's metadata phase through the real builder:
 
@@ -84,9 +76,9 @@ same metadata checks, then builds the whole workspace with one job per available
 CPU, the stable
 SDK compiler, LLVM, thin LTO and one codegen unit. It sets `AS` to the compiler
 driver and uses the inventoried LLVM 22 libclang path. It does not copy Nix-linked
-binaries into `/app`. Native configure/linking and the probe's Platform-runtime
-CLI checks now pass on x86_64. Graphics drivers, GUI, portals, production app
-installation and the final release manifest still require actual proof.
+binaries into `/app`. The probe's Platform-runtime CLI checks pass on x86_64.
+Graphics drivers, GUI, portals, production app installation and the final release
+manifest still require actual proof.
 
 For that long compile, use a transient user service from the project root after
 the Nix gate has exited:
