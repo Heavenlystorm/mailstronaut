@@ -121,6 +121,20 @@ kill -KILL "$app"
 wait "$app" 2>/dev/null || true
 app=''
 printf '%s\n' 'OK: the application was killed while history was still being fetched'
+# What the killed process left behind is consistent: the database is intact, and every cached
+# message has its original on disk.
+[[ $(query 'PRAGMA integrity_check') == ok ]]
+missing=$(python3 - "$XDG_DATA_HOME/mailstronaut" <<'PY'
+import os, sqlite3, sys
+root = sys.argv[1]
+connection = sqlite3.connect(os.path.join(root, 'mail.sqlite3'))
+hashes = {row[0] for row in connection.execute('SELECT blob_hash FROM messages')}
+blobs = os.path.join(root, 'blobs')
+print(sum(1 for value in hashes if not os.path.isfile(os.path.join(blobs, value))))
+PY
+)
+[[ $missing == 0 ]]
+printf '%s\n' 'OK: after the kill the database is intact and every cached message has its original'
 start resumed
 await 'the interrupted pass finished' 1 "$inbox_finished"
 await 'the complete history is cached, mail from over a year ago included' "$total" \

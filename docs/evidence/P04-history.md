@@ -92,6 +92,7 @@ recent messages, which span far more than one cycle's windows:
 ```
 OK: the first windows of history were reviewed and their cursor saved
 OK: the application was killed while history was still being fetched
+OK: after the kill the database is intact and every cached message has its original
 OK: the interrupted pass finished
 OK: the complete history is cached, mail from over a year ago included
 OK: mail older than 30 days was fetched by default

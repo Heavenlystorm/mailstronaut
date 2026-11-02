@@ -246,6 +246,8 @@ new dependency graph before claiming current-package acceptance.
   `AlertDialog` only for explicitly destructive purge/reset decisions.
 - [ ] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
+  [A real kill mid-fetch leaves an intact database with every cached original on
+  disk](evidence/P04-history.md); cache clearing is not implemented, so this row stays open.
 - [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
   attachment/CID descriptors and source/body revisions. No generated summaries.
 - [x] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
