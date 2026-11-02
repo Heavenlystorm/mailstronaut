@@ -360,6 +360,9 @@ impl Workspace {
         let activation = cx.observe_window_activation(window, |this, window, _| {
             this.read_gate
                 .visibility(window.is_window_active() && this.view == View::Inbox);
+            if let Some(announcer) = &this.announcer {
+                announcer.set_window_active(window.is_window_active());
+            }
             if window.is_window_active() {
                 this.withdraw_announcements();
             }
@@ -1484,6 +1487,7 @@ impl Workspace {
         }
         let announcer = crate::mail_notify::Announcer::start(&self.runtime);
         let opened = announcer.opened.clone();
+        announcer.set_window_active(window.is_window_active());
         self.announcer = Some(announcer);
         cx.spawn_in(window, async move |this, cx| {
             while opened.recv().await.is_ok() {
@@ -1515,9 +1519,13 @@ impl Workspace {
             let Ok(Ok((newest, mail))) = job.await else {
                 return;
             };
-            _ = this.update_in(cx, |this, window, _| {
+            _ = this.update_in(cx, |this, _, _| {
                 this.announced_through.insert(account.clone(), newest);
-                if !window.is_window_active() {
+                if this
+                    .announcer
+                    .as_ref()
+                    .is_some_and(|item| !item.window_active())
+                {
                     this.announce(&account, &mail);
                 }
             });

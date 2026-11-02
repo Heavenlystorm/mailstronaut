@@ -12,6 +12,8 @@ use tokio::{runtime::Runtime, sync::mpsc};
 const OPEN_ACTION: &str = "open-inbox";
 const MAX_PREVIEW_CHARS: usize = 160;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 enum Request {
     Show(String, Box<Notification>),
     Withdraw(String),
@@ -21,6 +23,7 @@ enum Request {
 pub struct Announcer {
     requests: mpsc::Sender<Request>,
     pub opened: async_channel::Receiver<()>,
+    window_active: AtomicBool,
     _listener: tokio_util::task::AbortOnDropHandle<()>,
 }
 
@@ -62,8 +65,19 @@ impl Announcer {
         Self {
             requests,
             opened,
+            window_active: AtomicBool::new(false),
             _listener: listener,
         }
+    }
+
+    /// Whether a window is in front. False also covers having no window at all, so
+    /// new mail is announced exactly when the user cannot see the mailbox.
+    pub fn set_window_active(&self, active: bool) {
+        self.window_active.store(active, Ordering::Relaxed);
+    }
+
+    pub fn window_active(&self) -> bool {
+        self.window_active.load(Ordering::Relaxed)
     }
 
     /// Replaces any earlier notification for this account.
