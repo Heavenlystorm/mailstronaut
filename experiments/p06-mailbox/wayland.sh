@@ -76,6 +76,9 @@ if [[ ${MAILSTRONAUT_LOGIN_GUI:-0} == 1 ]]; then
 fi
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
 "$fixture" seed_conversation_gui --ignored --exact --nocapture > "$root/seed.log" 2>&1
+if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
+  "${MAILSTRONAUT_LONG_THREAD_FIXTURE:?prebuilt long-thread fixture}" --ignored --exact seed_long_thread > "$root/long-seed.log" 2>&1
+fi
 if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
   mv "$config" "$root/seeded-config.nix"
 fi
@@ -157,6 +160,44 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
+  click 280 120
+  sleep 1
+  capture long-thread-open
+  click 920 292
+  sleep .5
+  capture long-thread-expanded
+  keys=()
+  for _ in {1..104}; do keys+=(-k Down -s 30); done
+  wtype "${keys[@]}" -s 800
+  python3 - "$root" <<'PYTHREAD'
+import json, sqlite3, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+ids = json.loads((root / 'long-thread-ids.json').read_text())
+c = sqlite3.connect(root / 'data/mailstronaut/mail.sqlite3')
+seen = [n for n, mid in enumerate(ids, 1) if c.execute('SELECT min(seen) FROM effective_memberships WHERE message_id=?', (mid,)).fetchone()[0]]
+assert seen == [105], seen
+PYTHREAD
+  capture long-thread-passive
+  wtype -k Return -s 600
+  copy_body long-thread-old 'Synthetic thread original'
+  python3 - "$root" <<'PYTHREAD'
+import json, re, sqlite3, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+ids = json.loads((root / 'long-thread-ids.json').read_text())
+c = sqlite3.connect(root / 'data/mailstronaut/mail.sqlite3')
+seen = [n for n, mid in enumerate(ids, 1) if c.execute('SELECT min(seen) FROM effective_memberships WHERE message_id=?', (mid,)).fetchone()[0]]
+body = (root / 'long-thread-old-body.txt').read_text()
+number = int(re.search(r'Synthetic thread original (\d{3})\.', body).group(1))
+assert 1 <= number < 105, number
+assert seen == sorted([number, 105]), seen
+PYTHREAD
+  capture long-thread-confirmed
+  printf 'LONG_THREAD_GUI_OK: %s\n' "$root"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_HISTORY_SETTING_GUI:-0} == 1 ]]; then
   wtype -M ctrl , -m ctrl -s 500
   click 310 126

@@ -375,8 +375,9 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   Work in progress: the main mailbox now loads additional cached metadata as the
   user scrolls. A synthetic Wayland walkthrough crossed 100 rows with mouse and
   keyboard and checked explicit-open-only Seen after a refresh and scope changes.
-  [Scoped evidence](evidence/P06-continuous-and-settings.md). Thread-original
-  navigation and wider regression remain open.
+  [Scoped evidence](evidence/P06-continuous-and-settings.md). The thread-original
+  list also loads bounded batches; a 108-original synthetic Wayland test crossed
+  the boundary without marking passive selections Seen. Wider regression remains open.
 - [x] Verify unread dots in both themes, readable 99+ sidebar counts, one app title,
   icon actions with accessible names/tooltips and a single Settings selection state.
   [Synthetic native walkthrough](evidence/P06-ui-feedback.md).

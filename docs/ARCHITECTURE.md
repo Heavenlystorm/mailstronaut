@@ -138,8 +138,8 @@ The native Sidebar routes unified, account and known-folder queries through the
 same canonical store. The mailbox loads metadata in 100-row keyset batches as the
 virtualized list approaches its end. Refreshes preserve the loaded boundary and
 visible row, while changing scope/query retires and clears the previous original.
-The thread's Collapsible List still pages original metadata and reads a body only
-after an original is confirmed.
+The thread's Collapsible List also loads original metadata in bounded batches and
+reads a body only after an original is confirmed.
 Parsed From/To/Cc and sent/received dates use DescriptionList, with Chrono formatting
 in the declared timezone (explicit UTC fallback). None of these controls starts
 folder synchronization or implicitly opens another message.

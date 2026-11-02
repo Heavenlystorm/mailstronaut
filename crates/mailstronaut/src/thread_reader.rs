@@ -1,9 +1,9 @@
 //! Bounded, metadata-only native conversation navigation. Confirmation opens one original.
 
-use std::sync::Arc;
+use std::{collections::HashSet, rc::Rc, sync::Arc};
 
 use gpui::component::{
-    ActiveTheme as _, Disableable as _, IconName, IndexPath,
+    ActiveTheme as _, IconName, IndexPath,
     button::{Button, ButtonVariants as _},
     collapsible::Collapsible,
     label::Label,
@@ -18,38 +18,44 @@ use tokio::runtime::Runtime;
 
 use crate::mailbox::Row;
 
-/// Internal original-message pages; independent of continuous mailbox browsing.
-#[derive(Default)]
-struct Pages {
-    pub after: Option<mailstronaut_core::store::mailbox::Cursor>,
-    previous: Vec<Option<mailstronaut_core::store::mailbox::Cursor>>,
-    pub more: bool,
-}
-impl Pages {
-    pub fn next(&mut self, cursor: mailstronaut_core::store::mailbox::Cursor) {
-        self.previous.push(self.after);
-        self.after = Some(cursor);
-    }
-    pub fn previous(&mut self) {
-        if let Some(after) = self.previous.pop() {
-            self.after = after;
-        }
-    }
-    pub const fn has_previous(&self) -> bool {
-        !self.previous.is_empty()
-    }
-    pub const fn number(&self) -> usize {
-        self.previous.len() + 1
-    }
-}
-
 pub struct Open(pub Row);
+
+type LoadMore = Rc<dyn Fn(&mut Window, &mut App)>;
+
+async fn member_prefix(
+    handle: &Handle,
+    account: String,
+    id: i64,
+    boundary: Option<mailstronaut_core::store::mailbox::Cursor>,
+) -> Result<(Vec<Summary>, bool), mailstronaut_core::worker::Error> {
+    let mut rows = Vec::new();
+    let mut after = None;
+    loop {
+        let batch = handle
+            .conversation_member_page(account.clone(), id, after, 100)
+            .await?;
+        let next = batch.last().map(Summary::cursor);
+        let full = batch.len() == 100;
+        rows.extend(batch);
+        let reached = boundary.is_none_or(|end| {
+            next.is_none_or(|cursor| {
+                (cursor.received_at, cursor.message_id) <= (end.received_at, end.message_id)
+            })
+        });
+        if !full || reached {
+            return Ok((rows, full));
+        }
+        after = next;
+    }
+}
 
 #[derive(Default)]
 struct Members {
     rows: Vec<Summary>,
     zone: String,
     loading: bool,
+    more: bool,
+    on_more: Option<LoadMore>,
 }
 
 impl ListDelegate for Members {
@@ -110,6 +116,18 @@ impl ListDelegate for Members {
     ) {
         cx.notify();
     }
+    fn has_more(&self, _: &App) -> bool {
+        self.more && !self.loading
+    }
+    fn load_more(&mut self, window: &mut Window, cx: &mut Context<ListState<Self>>) {
+        if self.more
+            && !self.loading
+            && let Some(load) = self.on_more.clone()
+        {
+            self.more = false;
+            window.defer(cx, move |window, cx| load(window, cx));
+        }
+    }
     fn loading(&self, _: &App) -> bool {
         self.loading && self.rows.is_empty()
     }
@@ -121,16 +139,33 @@ pub struct ThreadReader {
     group: Option<Row>,
     list: Entity<ListState<Members>>,
     _events: Subscription,
-    pages: Pages,
+    after: Option<mailstronaut_core::store::mailbox::Cursor>,
+    pending: bool,
+    work: Option<tokio::task::AbortHandle>,
     generation: u64,
     expanded: bool,
     notice: String,
 }
 impl EventEmitter<Open> for ThreadReader {}
 
+impl Drop for ThreadReader {
+    fn drop(&mut self) {
+        if let Some(work) = self.work.take() {
+            work.abort();
+        }
+    }
+}
+
 impl ThreadReader {
     pub fn new(runtime: Arc<Runtime>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let list = cx.new(|cx| ListState::new(Members::default(), window, cx).searchable(false));
+        let reader = cx.entity().downgrade();
+        let members = Members {
+            on_more: Some(Rc::new(move |window, cx| {
+                _ = reader.update(cx, |this, cx| this.load_more(window, cx));
+            })),
+            ..Members::default()
+        };
+        let list = cx.new(|cx| ListState::new(members, window, cx).searchable(false));
         let events = cx.subscribe_in(&list, window, |this, list, event, _, cx| {
             if let ListEvent::Confirm(index) = event
                 && this.expanded
@@ -160,7 +195,9 @@ impl ThreadReader {
             group: None,
             list,
             _events: events,
-            pages: Pages::default(),
+            after: None,
+            pending: false,
+            work: None,
             generation: 0,
             expanded: false,
             notice: String::new(),
@@ -191,15 +228,20 @@ impl ThreadReader {
     }
 
     pub fn clear(&mut self, cx: &mut Context<Self>) {
+        if let Some(work) = self.work.take() {
+            work.abort();
+        }
         self.generation = self.generation.wrapping_add(1);
         self.handle = None;
         self.group = None;
-        self.pages = Pages::default();
+        self.after = None;
+        self.pending = false;
         self.expanded = false;
         self.notice.clear();
         self.list.update(cx, |list, cx| {
             list.delegate_mut().rows.clear();
             list.delegate_mut().loading = false;
+            list.delegate_mut().more = false;
             cx.notify();
         });
         cx.notify();
@@ -212,37 +254,72 @@ impl ThreadReader {
         let (Some(handle), Some(group)) = (self.handle.clone(), &self.group) else {
             return;
         };
+        if let Some(work) = self.work.take() {
+            work.abort();
+        }
         self.generation = self.generation.wrapping_add(1);
+        self.pending = false;
         let generation = self.generation;
-        let (account, id, after) = (group.account.clone(), group.id, self.pages.after);
+        let (account, id, boundary) = (group.account.clone(), group.id, self.after);
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
             cx.notify();
         });
-        let job = self.runtime.spawn(async move {
-            handle
-                .conversation_member_page(account, id, after, 100)
-                .await
-        });
+        let job = self
+            .runtime
+            .spawn(async move { member_prefix(&handle, account, id, boundary).await });
+        self.work = Some(job.abort_handle());
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
                 if generation != this.generation || !this.expanded {
                     return;
                 }
+                this.work = None;
                 this.list.update(cx, |list, cx| {
                     list.delegate_mut().loading = false;
                     match result {
-                        Ok(Ok(rows)) => {
-                            this.pages.more = rows.len() == 100;
+                        Ok(Ok((rows, more))) => {
                             let selected = list
                                 .selected_index()
                                 .and_then(|index| list.delegate().rows.get(index.row))
                                 .map(|row| row.id)
                                 .or_else(|| this.group.as_ref().map(|group| group.id));
-                            let index = rows.iter().position(|row| Some(row.id) == selected);
+                            let old_offset = list.scroll_handle().offset();
+                            let anchor = list
+                                .delegate()
+                                .rows
+                                .iter()
+                                .scan(px(0.), |y, row| {
+                                    let here = *y;
+                                    *y += px(64.);
+                                    Some((row.id, here))
+                                })
+                                .find(|(_, y)| *y + px(64.) > -old_offset.y)
+                                .map(|(id, y)| (id, -old_offset.y - y));
+                            let selected_index =
+                                rows.iter().position(|row| Some(row.id) == selected);
+                            this.after = rows.last().map(Summary::cursor);
                             list.delegate_mut().rows = rows;
-                            list.set_selected_index(index.map(IndexPath::new), window, cx);
+                            list.delegate_mut().more = more;
+                            list.set_selected_index(selected_index.map(IndexPath::new), window, cx);
+                            if let Some((id, delta)) = anchor
+                                && old_offset.y < px(0.)
+                                && let Some(y) = list
+                                    .delegate()
+                                    .rows
+                                    .iter()
+                                    .scan(px(0.), |y, row| {
+                                        let here = *y;
+                                        *y += px(64.);
+                                        Some((row.id, here))
+                                    })
+                                    .find_map(|(row, y)| (row == id).then_some(y))
+                            {
+                                let mut offset = old_offset;
+                                offset.y = -y - delta;
+                                list.scroll_handle().set_offset(offset);
+                            }
                             this.notice.clear();
                         }
                         Ok(Err(error)) => this.notice = error.to_string(),
@@ -256,32 +333,56 @@ impl ThreadReader {
         .detach();
     }
 
-    fn turn_page(&mut self, older: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let rows = self.list.read(cx).delegate();
-        if rows.loading {
+    fn load_more(&mut self, window: &Window, cx: &Context<Self>) {
+        if !self.expanded || self.pending || self.list.read(cx).delegate().loading {
             return;
         }
-        if older {
-            let Some(cursor) = rows
-                .rows
-                .last()
-                .filter(|_| self.pages.more)
-                .map(Summary::cursor)
-            else {
-                return;
-            };
-            self.pages.next(cursor);
-        } else if self.pages.has_previous() {
-            self.pages.previous();
-        } else {
+        let (Some(handle), Some(group), Some(after)) =
+            (self.handle.clone(), &self.group, self.after)
+        else {
             return;
-        }
-        self.list.update(cx, |list, cx| {
-            list.delegate_mut().rows.clear();
-            list.set_selected_index(None, window, cx);
-            list.scroll_to_item(IndexPath::new(0), gpui::ScrollStrategy::Top, window, cx);
+        };
+        self.pending = true;
+        let generation = self.generation;
+        let (account, id) = (group.account.clone(), group.id);
+        let job = self.runtime.spawn(async move {
+            handle
+                .conversation_member_page(account, id, Some(after), 100)
+                .await
         });
-        self.refresh(window, cx);
+        self.work = Some(job.abort_handle());
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, _, cx| {
+                if generation != this.generation || !this.expanded {
+                    return;
+                }
+                this.work = None;
+                this.pending = false;
+                this.list.update(cx, |list, cx| {
+                    match result {
+                        Ok(Ok(rows)) => {
+                            let more = rows.len() == 100;
+                            if let Some(last) = rows.last() {
+                                this.after = Some(last.cursor());
+                            }
+                            let mut ids: HashSet<_> =
+                                list.delegate().rows.iter().map(|row| row.id).collect();
+                            list.delegate_mut()
+                                .rows
+                                .extend(rows.into_iter().filter(|row| ids.insert(row.id)));
+                            list.delegate_mut().more = more;
+                            this.notice.clear();
+                        }
+                        Ok(Err(error)) => this.notice = error.to_string(),
+                        Err(_) => this.notice = "Unable to load cached thread metadata.".into(),
+                    }
+                    cx.notify();
+                });
+                cx.notify();
+            });
+        })
+        .detach();
     }
 }
 
@@ -291,42 +392,19 @@ impl Render for ThreadReader {
         if count < 2 {
             return div();
         }
-        let loading = self.list.read(cx).delegate().loading;
-        let footer = div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .gap_2()
-            .child(
-                Button::new("newer-originals")
-                    .ghost()
-                    .label("Newer")
-                    .disabled(loading || !self.pages.has_previous())
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.turn_page(false, window, cx);
-                    })),
-            )
-            .child(Label::new(format!("Page {}", self.pages.number())).text_xs())
-            .child(
-                Button::new("older-originals")
-                    .ghost()
-                    .label("Older")
-                    .disabled(loading || !self.pages.more)
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.turn_page(true, window, cx);
-                    })),
-            );
         let content = div()
             .child(
                 div()
                     .h(px(if count == 2 { 132. } else { 196. }))
                     .child(List::new(&self.list).size_full()),
             )
-            .when(self.pages.more || self.pages.has_previous(), |view| {
-                view.child(footer)
-            })
             .when(!self.notice.is_empty(), |view| {
-                view.child(Label::new(self.notice.clone()).text_xs())
+                view.child(Label::new(self.notice.clone()).text_xs()).child(
+                    Button::new("retry-thread-metadata")
+                        .ghost()
+                        .label("Retry")
+                        .on_click(cx.listener(|this, _, window, cx| this.refresh(window, cx))),
+                )
             });
         div().mb_3().child(
             Collapsible::new()
@@ -344,6 +422,10 @@ impl Render for ThreadReader {
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.expanded = !this.expanded;
                             this.generation = this.generation.wrapping_add(1);
+                            this.pending = false;
+                            if let Some(work) = this.work.take() {
+                                work.abort();
+                            }
                             if this.expanded {
                                 this.refresh(window, cx);
                                 this.list.update(cx, |list, cx| list.focus(window, cx));
@@ -353,5 +435,98 @@ impl Render for ThreadReader {
                 )
                 .content(content),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mailstronaut_core::{
+        store::mailbox::{Flags, Membership},
+        threads::Groups,
+        worker::Worker,
+    };
+    use std::num::NonZeroU32;
+
+    #[tokio::test]
+    async fn refreshed_thread_prefix_keeps_older_boundary_when_a_new_original_arrives() {
+        let root = tempfile::tempdir().expect("private profile");
+        let owner = Worker::open(root.path().to_owned()).await.expect("worker");
+        let store = owner.handle();
+        store.ensure_account("a".into()).await.expect("account");
+        let folder = store
+            .ensure_folder("a".into(), "INBOX".into(), true)
+            .await
+            .expect("folder")
+            .id;
+        let validity = NonZeroU32::new(42).expect("validity");
+        store
+            .select_folder("a".into(), folder, validity)
+            .await
+            .expect("select");
+        let mut ids = Vec::new();
+        for uid in 1..=205 {
+            ids.push(store.cache_message("a".into(), Membership { folder, uid_validity: validity, uid: NonZeroU32::new(uid).expect("uid"), flags: Flags::default() }, i64::from(uid), None, format!("Message-ID: <{uid}@example.test>\r\nSubject: Synthetic\r\n\r\nLocal fixture.").into_bytes()).await.expect("cache"));
+        }
+        let snapshot = store
+            .conversation_snapshot("a".into())
+            .await
+            .expect("snapshot")
+            .expect("projection needed");
+        store
+            .commit_conversations(
+                snapshot,
+                Groups {
+                    groups: vec![ids.clone()],
+                },
+            )
+            .await
+            .expect("project");
+        let (first, more) = member_prefix(&store, "a".into(), ids[0], None)
+            .await
+            .expect("first batch");
+        assert!(more);
+        assert_eq!(first.len(), 100);
+        let boundary = first.last().expect("boundary").cursor();
+        ids.push(
+            store
+                .cache_message(
+                    "a".into(),
+                    Membership {
+                        folder,
+                        uid_validity: validity,
+                        uid: NonZeroU32::new(206).expect("uid"),
+                        flags: Flags::default(),
+                    },
+                    206,
+                    None,
+                    b"Message-ID: <206@example.test>\r\nSubject: Synthetic\r\n\r\nNew.".to_vec(),
+                )
+                .await
+                .expect("arrival"),
+        );
+        let snapshot = store
+            .conversation_snapshot("a".into())
+            .await
+            .expect("snapshot")
+            .expect("projection needed");
+        store
+            .commit_conversations(
+                snapshot,
+                Groups {
+                    groups: vec![ids.clone()],
+                },
+            )
+            .await
+            .expect("project");
+        let (refreshed, more) = member_prefix(&store, "a".into(), ids[0], Some(boundary))
+            .await
+            .expect("refresh");
+        assert!(more);
+        assert_eq!(refreshed.len(), 200);
+        assert!(refreshed.iter().any(|row| row.id == boundary.message_id));
+        assert_eq!(refreshed.first().expect("newest").id, ids[205]);
+        assert!(refreshed.iter().all(|row| !row.seen));
+        owner.shutdown().await.expect("shutdown");
     }
 }
