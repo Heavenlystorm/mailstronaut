@@ -54,6 +54,13 @@ The store owns eligibility in `priority_items`, and a stale result cannot overri
 - After a restart, results and dismissals are unchanged and nothing is analyzed twice.
 - Opening a flagged message explains why, and an ambiguous date shows as uncertain and gives
   the message no priority.
+- With 21 more deadline messages, the group holds its first 20 under a **Show all** header
+  control. That control is clicked, its header offer disappears without an error, and the
+  store still reports all 21 forms as needing attention. Show all reads the group in pages of
+  100, the most one store page can hold, keeping the order it was given.
+
+`mailbox::tests` covers the cut: a full group keeps 20 and reports more, exactly 20 reports
+nothing more, and Show all keeps every row.
 
 `crates/mailstronaut-priority/tests/deadlines.rs` covers wording in three languages, negation,
 quoting, year rollover, leap days, ambiguity, 23- and 25-hour days, a midnight that does not
@@ -76,6 +83,6 @@ messages split into development and held-out sets, which has not been done.
 ## Not established
 
 Any model, and therefore semantic judgment: the rules only see stated cues. Real mail.
-Correcting a date, Show all, and overflow past 20 rows. The Settings
-switch: the feature is off unless `priority.enabled = true` is declared. Time zones beyond
+Correcting a date. The Settings switch: the feature is off unless
+`priority.enabled = true` is declared. Time zones beyond
 the configured or system zone. Phrasings outside the tables simply are not recognized.

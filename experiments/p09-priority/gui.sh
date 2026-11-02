@@ -141,6 +141,20 @@ sleep 1.5
 capture uncertain
 [[ $(query "SELECT a.expires_at IS NULL FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Unclear form'") == 1 ]]
 printf '%s\n' 'OK: an uncertain date gave the message no priority'
+# A group longer than its limit says so, and Show all lists every one of them.
+for number in $(seq 1 21); do
+  message "bulk$number" 'Registrar' "Form $number" 'Please return this form by tomorrow.'
+done
+await 'every bulk form was analyzed' 21 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject LIKE 'Form %' AND a.expires_at IS NOT NULL"
+# The group belongs to the unfiltered inbox, so the search left from above is cleared first.
+click 595 65
+wtype -M ctrl a -m ctrl -k BackSpace -s 1500
+capture busy-group
+click 515 110
+sleep 1.5
+capture show-all
+[[ $(query "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject LIKE 'Form %' AND a.expires_at>strftime('%s','now') AND a.dismissed=0 AND m.read_cleared=0") == 21 ]]
+printf '%s\n' 'OK: all 21 forms still need attention, more than the group shows at first'
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then

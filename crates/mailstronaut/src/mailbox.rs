@@ -158,39 +158,62 @@ pub fn addresses(addresses: &[mailstronaut_core::mime::Mailbox]) -> String {
 }
 
 pub type Dismiss = Rc<dyn Fn(i64, &mut Window, &mut App)>;
+/// Called when the user asks to see every conversation that needs attention.
+pub type ShowAll = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// The priority group as it is shown, and whether more conversations need attention.
+#[derive(Default)]
+pub struct Priority {
+    pub rows: Vec<Row>,
+    pub more: bool,
+}
 
 #[derive(Default)]
 pub struct Rows {
     pub items: Vec<Row>,
     /// The priority group, shown above the mailbox only when it has something in it.
-    pub priority: Vec<Row>,
+    pub priority: Priority,
+    /// Whether the user asked for every conversation that needs attention.
+    pub show_all_priority: bool,
     pub loading: bool,
     pub searching: bool,
     pub time_zone: String,
     /// Called with a row's message when the user dismisses it from the priority group.
     pub on_dismiss: Option<Dismiss>,
+    /// Called when the user asks for every conversation that needs attention.
+    pub on_show_all: Option<ShowAll>,
 }
 
 impl Rows {
     /// The mailbox section comes second whenever the priority group is shown.
     const fn mailbox_section(&self) -> usize {
-        if self.priority.is_empty() { 0 } else { 1 }
+        if self.priority.rows.is_empty() { 0 } else { 1 }
     }
 
     pub fn row(&self, index: IndexPath) -> Option<&Row> {
         if index.section == self.mailbox_section() {
             self.items.get(index.row)
         } else {
-            self.priority.get(index.row)
+            self.priority.rows.get(index.row)
         }
     }
 
     fn position(&self, row: &Row) -> Option<IndexPath> {
         let find = |rows: &[Row]| rows.iter().position(|other| other.same_group(row));
-        find(&self.priority).map(IndexPath::new).or_else(|| {
+        find(&self.priority.rows).map(IndexPath::new).or_else(|| {
             find(&self.items).map(|found| IndexPath::new(found).section(self.mailbox_section()))
         })
     }
+}
+
+/// Cuts a priority group to `limit` rows unless `show_all` asks for all of it, and says
+/// whether anything was cut. The store is asked for one row past the limit to tell that.
+pub fn cut_group<T>(items: &mut Vec<T>, limit: usize, show_all: bool) -> bool {
+    let more = !show_all && items.len() > limit;
+    if more {
+        items.truncate(limit);
+    }
+    more
 }
 
 /// Keep passive selection by canonical group, without scrolling or confirming it.
@@ -200,7 +223,7 @@ pub fn replace(
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
-    replace_with_priority(list, rows, Vec::new(), window, cx);
+    replace_with_priority(list, rows, Priority::default(), window, cx);
 }
 
 /// Like [`replace`], with a priority group. A conversation in the group is not repeated
@@ -208,14 +231,14 @@ pub fn replace(
 pub fn replace_with_priority(
     list: &mut ListState<Rows>,
     mut rows: Vec<Row>,
-    priority: Vec<Row>,
+    priority: Priority,
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
     let old = list
         .selected_index()
         .and_then(|index| list.delegate().row(index).cloned());
-    rows.retain(|row| !priority.iter().any(|other| other.same_group(row)));
+    rows.retain(|row| !priority.rows.iter().any(|other| other.same_group(row)));
     list.delegate_mut().items = rows;
     list.delegate_mut().priority = priority;
     list.delegate_mut().loading = false;
@@ -235,7 +258,7 @@ impl ListDelegate for Rows {
         if section == self.mailbox_section() {
             self.items.len()
         } else {
-            self.priority.len()
+            self.priority.rows.len()
         }
     }
 
@@ -245,22 +268,39 @@ impl ListDelegate for Rows {
         _: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) -> Option<impl IntoElement> {
-        if self.priority.is_empty() {
+        if self.priority.rows.is_empty() {
             return None;
         }
-        let title = if section == self.mailbox_section() {
-            "Everything else"
+        let (title, show_all) = if section == self.mailbox_section() {
+            ("Everything else", None)
         } else {
-            "Needs attention"
+            let show_all = self
+                .priority
+                .more
+                .then(|| self.on_show_all.clone())
+                .flatten();
+            ("Needs attention", show_all)
         };
         Some(
             div()
+                .flex()
+                .items_center()
+                .justify_between()
                 .px_4()
                 .py_1()
                 .border_b_1()
                 .border_color(cx.theme().border)
                 .bg(cx.theme().muted)
-                .child(Label::new(title).text_xs().font_semibold()),
+                .child(Label::new(title).text_xs().font_semibold())
+                .when_some(show_all, |view, show_all| {
+                    view.child(
+                        Button::new("show-all-priority")
+                            .ghost()
+                            .xsmall()
+                            .label("Show all")
+                            .on_click(move |_, window, cx| show_all(window, cx)),
+                    )
+                }),
         )
     }
 
@@ -428,8 +468,30 @@ fn mailbox_today(zone: &str) -> chrono::NaiveDate {
 
 #[cfg(test)]
 mod tests {
-    use super::{Pages, date, display_text, due_label};
+    use super::{Pages, cut_group, date, display_text, due_label};
     use mailstronaut_core::store::mailbox::Cursor;
+
+    #[test]
+    fn a_full_priority_group_shows_its_limit_and_says_more_remain() {
+        let mut items: Vec<u32> = (0..21).collect();
+        assert!(cut_group(&mut items, 20, false));
+        assert_eq!(items.len(), 20);
+        assert_eq!(items.last(), Some(&19));
+    }
+
+    #[test]
+    fn a_group_of_exactly_the_limit_has_nothing_more() {
+        let mut items: Vec<u32> = (0..20).collect();
+        assert!(!cut_group(&mut items, 20, false));
+        assert_eq!(items.len(), 20);
+    }
+
+    #[test]
+    fn show_all_keeps_every_row_and_cuts_nothing() {
+        let mut items: Vec<u32> = (0..45).collect();
+        assert!(!cut_group(&mut items, 20, true));
+        assert_eq!(items.len(), 45);
+    }
 
     #[test]
     fn deadlines_read_as_a_person_says_them() {

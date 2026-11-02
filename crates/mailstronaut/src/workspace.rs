@@ -47,7 +47,7 @@ use mailstronaut_mail::imap::FlagChange;
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
-use crate::mailbox::{Row, Rows};
+use crate::mailbox::{Priority, Row, Rows};
 
 /// How long a queued move can be undone before the server is told about it.
 const UNDO_GRACE: Duration = Duration::from_secs(8);
@@ -236,35 +236,46 @@ type ListPage = (
     Vec<Folder>,
     Vec<(i64, u32)>,
     Vec<mailstronaut_core::store::conversations::Summary>,
-    Vec<Row>,
+    Priority,
 );
-/// More than this much needing attention at once is not a useful group.
-const MAX_PRIORITY_ROWS: u32 = 20;
+/// More than this much needing attention at once is not a useful group until Show all.
+const MAX_PRIORITY_ROWS: usize = 20;
+/// The most conversations the store reads in one page.
+const STORE_PAGE: u32 = 100;
 
 /// The priority group as list rows, one per conversation, soonest to expire first.
 async fn priority_rows(
     store: &Handle,
     accounts: Vec<String>,
-) -> Result<Vec<Row>, mailstronaut_core::worker::Error> {
+    show_all: bool,
+) -> Result<Priority, mailstronaut_core::worker::Error> {
     let now = chrono::Utc::now().timestamp();
-    let items = store
-        .priority_items(accounts.clone(), now, MAX_PRIORITY_ROWS)
-        .await?;
-    let ids = items.iter().map(|item| item.id).collect();
-    let rows = store
-        .ranked_conversation_page(accounts, Scope::Inbox, ids, None, MAX_PRIORITY_ROWS)
-        .await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| {
+    // One row past the limit is asked for, which is how a full group shows it has more.
+    let limit = if show_all {
+        u32::MAX
+    } else {
+        u32::try_from(MAX_PRIORITY_ROWS + 1).unwrap_or(u32::MAX)
+    };
+    let mut items = store.priority_items(accounts.clone(), now, limit).await?;
+    let more = crate::mailbox::cut_group(&mut items, MAX_PRIORITY_ROWS, show_all);
+    // The store reads conversations at most one page at a time, so Show all reads in pages.
+    let page_rows = usize::try_from(STORE_PAGE).unwrap_or(usize::MAX);
+    let mut rows = Vec::with_capacity(items.len());
+    for page in items.chunks(page_rows) {
+        let ids = page.iter().map(|item| item.id).collect();
+        let summaries = store
+            .ranked_conversation_page(accounts.clone(), Scope::Inbox, ids, None, STORE_PAGE)
+            .await?;
+        rows.extend(summaries.into_iter().map(|row| {
             let mut row = Row::from(row);
             if let Some(item) = items.iter().find(|item| item.id == row.id) {
                 row.due.clone_from(&item.due);
                 row.expires_at = Some(item.expires_at);
             }
             row
-        })
-        .collect())
+        }));
+    }
+    Ok(Priority { rows, more })
 }
 
 /// A page of conversations: through the search index when there is a query and it can
@@ -343,9 +354,13 @@ impl Workspace {
             }
         });
         let workspace = cx.entity().downgrade();
+        let show_all_workspace = workspace.clone();
         let rows = Rows {
             on_dismiss: Some(Rc::new(move |message, window, cx| {
                 _ = workspace.update(cx, |this, cx| this.dismiss_priority(message, window, cx));
+            })),
+            on_show_all: Some(Rc::new(move |window, cx| {
+                _ = show_all_workspace.update(cx, |this, cx| this.show_all_priority(window, cx));
             })),
             ..Rows::default()
         };
@@ -854,6 +869,14 @@ impl Workspace {
             );
     }
 
+    /// Asks for every conversation that needs attention, rather than the first few.
+    fn show_all_priority(&mut self, window: &Window, cx: &mut Context<Self>) {
+        self.list.update(cx, |list, _| {
+            list.delegate_mut().show_all_priority = true;
+        });
+        self.refresh_rows(window, cx);
+    }
+
     fn dismiss_priority(&self, message: i64, window: &Window, cx: &Context<Self>) {
         let Some(store) = self.handle() else {
             return;
@@ -943,7 +966,7 @@ impl Workspace {
 
     fn show_page(&mut self, page: ListPage, window: &mut Window, cx: &mut Context<Self>) {
         let (folders, unread, rows, group) = page;
-        self.watch_priority_expiry(&group, window, cx);
+        self.watch_priority_expiry(&group.rows, window, cx);
         self.folders = folders;
         self.unread = unread
             .into_iter()
@@ -982,6 +1005,7 @@ impl Workspace {
             && self.scope == Scope::Inbox
             && query.trim().is_empty()
             && !self.pages.has_previous();
+        let show_all = self.list.read(cx).delegate().show_all_priority;
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
             list.delegate_mut().searching = !query.is_empty();
@@ -1022,11 +1046,11 @@ impl Workspace {
                 .await
                 .map_err(|error| error.to_string())?;
             let group = if show_priority {
-                priority_rows(&handle, accounts.clone())
+                priority_rows(&handle, accounts.clone(), show_all)
                     .await
                     .map_err(|error| error.to_string())?
             } else {
-                Vec::new()
+                Priority::default()
             };
             conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after)
                 .await

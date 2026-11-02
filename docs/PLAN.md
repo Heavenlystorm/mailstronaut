@@ -569,11 +569,11 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   it via unread toggling or stale inference. A newly eligible thread member may
   reprioritize that conversation; reading one member does not read all members.
   [Evidence](evidence/P09-priority-rules.md).
-- [ ] Present priority with `List` sections/headers, `Label`, `Icon`, `Badge::count`
+- [x] Present priority with `List` sections/headers, `Label`, `Icon`, `Badge::count`
   and semantic theme surfaces, stable ordering and a Show all button. Keep normal
   inbox access without a second custom list engine or independently scrolling inbox.
-  [List sections and ordering pass](evidence/P09-priority-rules.md); the group shows at
-  most 20 rows, and Show all remains open.
+  [List sections, ordering and Show all pass](evidence/P09-priority-rules.md); the group
+  shows at most 20 rows until Show all lists the rest in the same list.
 - [ ] Use a small `GroupBox` + `Label`/`Icon` for deadline boxes beneath extracted
   previews; show evidence/timezone/assumptions through a clicked `Popover` or reader
   `DescriptionList`. Use `Dialog`/`Form`/`DatePicker` and Dismiss `Button` for corrections,
