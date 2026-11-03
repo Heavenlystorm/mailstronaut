@@ -96,6 +96,20 @@ As a prerequisite for transferring service ownership out of the window, bounded
 sync and reminder update sends now observe cancellation while waiting for a full
 channel. A stalled receiver therefore cannot by itself keep those tasks alive on
 shutdown. This does not yet make either service independent of the window.
+
+The reminder scheduler now has a window-independent service and relay: its latest
+snapshot is retained without a view subscriber, while notification actions are
+queued for an owner to consume. A private-store test observes an updated reminder
+after the subscriber is dropped. A separate private-bus fixture schedules a real
+synthetic reminder, observes notification delivery and receives its Open action
+through the service without a GPUI view. Pinned workspace checks and focused
+Clippy/tests passed on x86_64-linux. The current workspace still owns this service;
+the application has not yet moved it into a headless session or routed queued
+actions through window reopening. The bounded action queue requires an active
+application-level consumer, so this is not background-mode acceptance.
+The full x86_64 Nix gate also passed, as did the private native Wayland reminder
+walkthrough: it scheduled, rescheduled, restarted and cancelled synthetic reminders
+while checking Seen state. The screenshot remains in the ignored test artifacts.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

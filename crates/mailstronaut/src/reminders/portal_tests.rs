@@ -349,6 +349,52 @@ async fn private_portal_reminders_replace_after_crash_and_honor_actions_privacy_
     assert_eq!(updated.generation, next.generation + 1);
     assert!((3500..=3600).contains(&(updated.due_at - now())));
     drop(client);
+    // The scheduler's service remains active without a GPUI view or subscriber.
+    config.notifications.enabled = true;
+    let current_time = now();
+    let due = handle
+        .schedule_reminder(Schedule {
+            account: "a".into(),
+            message,
+            due_at: current_time + 1,
+            time_zone: "Europe/Paris".into(),
+            now: current_time,
+            expected: Some(updated.generation),
+        })
+        .await
+        .expect("due reminder");
+    let service = Service::start(
+        &tokio::runtime::Handle::current(),
+        handle.clone(),
+        Arc::new(config),
+        Arc::new(Notify::new()),
+        &CancellationToken::new(),
+    );
+    let mut state = service.state.clone();
+    tokio::time::timeout(Duration::from_secs(4), async {
+        loop {
+            let delivered = state.borrow_and_update().as_ref().is_some_and(|snapshot| {
+                snapshot
+                    .0
+                    .iter()
+                    .any(|record| record.id == due.id && record.state == State::Delivered)
+            });
+            if delivered {
+                break;
+            }
+            state.changed().await.expect("service remains active");
+        }
+    })
+    .await
+    .expect("desktop delivery without a window");
+    drop(state);
+    emit(&portal, &due.notification, "open", due.generation).await;
+    let event = tokio::time::timeout(Duration::from_secs(2), service.events.recv())
+        .await
+        .expect("open action deadline")
+        .expect("service event");
+    assert!(matches!(event, Update::Open(record) if record.message == message));
+    drop(service);
     drop(snapshot);
     drop(again);
     drop(muted);

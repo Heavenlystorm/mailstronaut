@@ -35,7 +35,7 @@ use mailstronaut_core::{
 };
 use tokio::{
     runtime::Runtime,
-    sync::{Notify, mpsc},
+    sync::{Notify, mpsc, watch},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -53,10 +53,72 @@ enum Update {
     Error(String),
 }
 
+/// The scheduler and its event relay do not depend on a GPUI window. The owner
+/// must keep consuming open requests, including while no window is present.
+struct Service {
+    cancel: CancellationToken,
+    state: watch::Receiver<Option<Snapshot>>,
+    events: async_channel::Receiver<Update>,
+}
+
+#[derive(Clone)]
+struct Snapshot(Vec<Reminder>, String);
+
+impl Service {
+    fn start(
+        runtime: &tokio::runtime::Handle,
+        store: Handle,
+        config: Arc<Config>,
+        wake: Arc<Notify>,
+        parent: &CancellationToken,
+    ) -> Self {
+        let cancel = parent.child_token();
+        let (updates, mut receiver) = mpsc::channel(8);
+        let (state, state_receiver) = watch::channel(None);
+        let (events, event_receiver) = async_channel::bounded(8);
+        runtime.spawn(engine(store, config, wake, updates, cancel.clone()));
+        let relay_cancel = cancel.clone();
+        runtime.spawn(async move {
+            loop {
+                let update = tokio::select! {
+                    () = relay_cancel.cancelled() => break,
+                    update = receiver.recv() => match update {
+                        Some(update) => update,
+                        None => break,
+                    },
+                };
+                match update {
+                    Update::Snapshot(records, status) => {
+                        state.send_replace(Some(Snapshot(records, status)));
+                    }
+                    event @ (Update::Error(_) | Update::Open(_)) => {
+                        tokio::select! {
+                            () = relay_cancel.cancelled() => break,
+                            result = events.send(event) => if result.is_err() { break; },
+                        }
+                    }
+                }
+            }
+        });
+        Self {
+            cancel,
+            state: state_receiver,
+            events: event_receiver,
+        }
+    }
+}
+
+impl Drop for Service {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
+
 pub struct Reminders {
     runtime: Arc<Runtime>,
     lifetime: CancellationToken,
-    engine: CancellationToken,
+    service: Option<Service>,
+    generation: u64,
     config: Option<Arc<Config>>,
     store: Option<Handle>,
     zone: String,
@@ -71,7 +133,6 @@ impl EventEmitter<Event> for Reminders {}
 
 impl Drop for Reminders {
     fn drop(&mut self) {
-        self.engine.cancel();
         self.lifetime.cancel();
     }
 }
@@ -90,7 +151,8 @@ impl Reminders {
         });
         Self {
             runtime,
-            engine: lifetime.child_token(),
+            service: None,
+            generation: 0,
             lifetime,
             config: None,
             store: None,
@@ -111,36 +173,62 @@ impl Reminders {
         window: &Window,
         cx: &Context<Self>,
     ) {
-        self.engine.cancel();
-        self.engine = self.lifetime.child_token();
+        self.service = None;
+        self.generation = self.generation.wrapping_add(1);
+        let generation = self.generation;
         self.config = Some(config.clone());
         self.store.clone_from(&store);
         self.zone = zone;
         let Some(store) = store else {
             return;
         };
-        let (updates, mut receiver) = mpsc::channel(8);
-        self.runtime.spawn(engine(
+        let service = Service::start(
+            self.runtime.handle(),
             store,
             config.clone(),
             self.wake.clone(),
-            updates,
-            self.engine.clone(),
-        ));
+            &self.lifetime,
+        );
+        let mut state = service.state.clone();
+        let events = service.events.clone();
+        self.service = Some(service);
         cx.spawn_in(window, async move |this, cx| {
-            while let Some(update) = receiver.recv().await {
-                let applied = this.update_in(cx, |this, _, cx| match update {
-                    Update::Snapshot(records, status) => {
-                        this.records = records;
-                        this.status = status.into();
-                        cx.emit(Event::Changed);
-                        cx.notify();
+            let mut watching_state = true;
+            loop {
+                let update = tokio::select! {
+                    changed = state.changed(), if watching_state => {
+                        if changed.is_err() {
+                            watching_state = false;
+                            continue;
+                        }
+                        let snapshot = state.borrow_and_update().clone();
+                        match snapshot {
+                            Some(Snapshot(records, status)) => Update::Snapshot(records, status),
+                            None => continue,
+                        }
                     }
-                    Update::Open(record) => cx.emit(Event::Open(record)),
-                    Update::Error(error) => {
-                        this.error = Some(error.into());
-                        cx.emit(Event::Changed);
-                        cx.notify();
+                    event = events.recv() => match event {
+                        Ok(event) => event,
+                        Err(_) => break,
+                    }
+                };
+                let applied = this.update_in(cx, |this, _, cx| {
+                    if generation != this.generation {
+                        return;
+                    }
+                    match update {
+                        Update::Snapshot(records, status) => {
+                            this.records = records;
+                            this.status = status.into();
+                            cx.emit(Event::Changed);
+                            cx.notify();
+                        }
+                        Update::Open(record) => cx.emit(Event::Open(record)),
+                        Update::Error(error) => {
+                            this.error = Some(error.into());
+                            cx.emit(Event::Changed);
+                            cx.notify();
+                        }
                     }
                 });
                 if applied.is_err() {
@@ -717,6 +805,46 @@ mod tests {
         assert_eq!(sleep_for(Some(100 + 86_400), 100), MAX_SLEEP);
         // Overdue work retries soon rather than spinning.
         assert_eq!(sleep_for(Some(50), 100), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn scheduler_keeps_current_state_without_a_window_subscriber() {
+        use mailstronaut_core::{store::Store, worker::Worker};
+        use std::sync::Arc;
+        use tokio::sync::Notify;
+        use tokio_util::sync::CancellationToken;
+
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+        runtime.block_on(async {
+            let root = tempfile::tempdir().expect("private profile");
+            let mut store = Store::open(root.path()).expect("store");
+            store.ensure_account("a").expect("account");
+            let message = store.ingest_message("a", b"Subject: Synthetic\r\n\r\nFixture.").expect("message");
+            drop(store);
+            let owner = Worker::open(root.path().to_owned()).await.expect("worker");
+            let handle = owner.handle();
+            let config = serde_json::from_value(serde_json::json!({"schemaVersion":1,"accounts":[{"id":"a","provider":"icloud","address":"a@example.test","displayName":"A","userName":"a","auth":{"kind":"password","secretRef":"a"}}]})).expect("config");
+            let wake = Arc::new(Notify::new());
+            let service = super::Service::start(runtime.handle(), handle.clone(), Arc::new(config), wake.clone(), &CancellationToken::new());
+            let mut initial = service.state.clone();
+            tokio::time::timeout(Duration::from_secs(2), initial.changed()).await.expect("initial snapshot").expect("service alive");
+            drop(initial); // No window is listening from this point.
+            handle.schedule_reminder(super::Schedule {
+                account: "a".into(), message, due_at: super::now() + 3600,
+                time_zone: "UTC".into(), now: super::now(), expected: None,
+            }).await.expect("schedule");
+            wake.notify_one();
+            let mut reopened = service.state.clone();
+            tokio::time::timeout(Duration::from_secs(2), async {
+                loop {
+                    let ready = reopened.borrow_and_update().as_ref().is_some_and(|snapshot| snapshot.0.iter().any(|record| record.message == message));
+                    if ready { break; }
+                    reopened.changed().await.expect("service alive");
+                }
+            }).await.expect("background scheduler refreshed state");
+            drop(service);
+            owner.shutdown().await.expect("shutdown");
+        });
     }
 
     #[tokio::test]
