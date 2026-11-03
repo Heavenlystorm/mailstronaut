@@ -44,6 +44,7 @@ fn open_workspace(
     cx: &AsyncApp,
     runtime: Arc<tokio::runtime::Runtime>,
     reminders: gpui::Entity<crate::reminders::Session>,
+    shared_store: crate::SharedStore,
 ) -> gpui::WeakEntity<crate::workspace::Workspace> {
     cx.update(|cx| {
         assert!(cx.graphical_environment().is_some());
@@ -55,7 +56,15 @@ fn open_workspace(
             cx,
             |window, cx| {
                 cx.new(|cx| {
-                    crate::workspace::Workspace::new(None, true, runtime, reminders, window, cx)
+                    crate::workspace::Workspace::new(
+                        None,
+                        true,
+                        runtime,
+                        reminders,
+                        shared_store,
+                        window,
+                        cx,
+                    )
                 })
             },
         )
@@ -98,11 +107,13 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         .ingest_message("a", b"Subject: Synthetic\r\n\r\nFixture.")
         .expect("message");
     drop(store);
-    let owner = runtime
-        .spawn(mailstronaut_core::worker::Worker::open(profile))
-        .await
-        .expect("worker task")
-        .expect("worker");
+    let owner = Arc::new(
+        runtime
+            .spawn(mailstronaut_core::worker::Worker::open(profile))
+            .await
+            .expect("worker task")
+            .expect("worker"),
+    );
     let handle = owner.handle();
     let config: mailstronaut_config::Config = serde_json::from_value(serde_json::json!({
         "schemaVersion": 1, "notifications": {"enabled": false},
@@ -113,6 +124,8 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         session.configure(&Arc::new(config), Some(handle.clone()), cx);
     });
     let (closed, receiver) = async_channel::bounded(1);
+    let shared_store = Arc::new(tokio::sync::OnceCell::new());
+    assert!(shared_store.set(owner.clone()).is_ok());
     cx.update(|cx| {
         cx.on_window_closed(move |cx, _| {
             if cx.windows().is_empty() {
@@ -125,7 +138,14 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         let attach =
             cx.update(|cx| cx.request_windowing(WindowingRequest::Windowed(environment.clone())));
         attach.await.expect("native Wayland attachment");
-        let workspace = open_workspace(cx, runtime.clone(), reminders.clone());
+        let workspace =
+            open_workspace(cx, runtime.clone(), reminders.clone(), shared_store.clone());
+        assert!(
+            workspace
+                .upgrade()
+                .expect("workspace")
+                .read_with(cx, |workspace, _| workspace.uses_owner(&owner))
+        );
         for _ in 0..60 {
             if renderer_threads() == 1 {
                 break;
@@ -211,6 +231,8 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
     }
     assert_eq!(retained.read_with(cx, |count, _| *count), 3);
     drop(reminders);
+    drop(shared_store);
+    let owner = Arc::try_unwrap(owner).unwrap_or_else(|_| panic!("store still owned by a window"));
     runtime
         .spawn(owner.shutdown())
         .await

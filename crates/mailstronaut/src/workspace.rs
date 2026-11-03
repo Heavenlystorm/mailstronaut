@@ -142,6 +142,7 @@ pub struct Workspace {
     link_focus: FocusHandle,
     runtime: Arc<Runtime>,
     owner: Option<Arc<Worker>>,
+    shared_store: crate::SharedStore,
     accounts: Vec<String>,
     folders: Vec<Folder>,
     /// Unread messages by folder ID, from the same read as `folders`.
@@ -246,6 +247,23 @@ type ListPage = (
 const MAX_PRIORITY_ROWS: usize = 20;
 /// The most conversations the store reads in one page.
 const STORE_PAGE: u32 = 100;
+
+/// Concurrent window initialization shares one profile owner, including an
+/// initialization that outlives the window which requested it.
+async fn open_shared_store(
+    shared: &crate::SharedStore,
+    root: PathBuf,
+) -> Result<Arc<Worker>, String> {
+    shared
+        .get_or_try_init(|| async move {
+            Worker::open(root)
+                .await
+                .map(Arc::new)
+                .map_err(|error| error.to_string())
+        })
+        .await
+        .cloned()
+}
 
 /// The priority group as list rows, one per conversation, soonest to expire first.
 async fn priority_rows(
@@ -372,6 +390,7 @@ impl Workspace {
         demo: bool,
         runtime: Arc<Runtime>,
         reminder_session: Entity<crate::reminders::Session>,
+        shared_store: crate::SharedStore,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -533,7 +552,8 @@ impl Workspace {
             focus,
             link_focus: cx.focus_handle(),
             runtime,
-            owner: None,
+            owner: shared_store.get().cloned(),
+            shared_store,
             accounts: Vec::new(),
             folders: Vec::new(),
             unread: HashMap::new(),
@@ -672,6 +692,7 @@ impl Workspace {
         self.status = "Loading native Nix configuration…".into();
         let path = self.config_path.clone();
         let owner = self.owner.clone();
+        let shared_store = self.shared_store.clone();
         let cancel = self.lifetime.child_token();
         let job = self.runtime.spawn(async move {
             let path =
@@ -691,11 +712,7 @@ impl Workspace {
                     .ok_or("Unable to locate local mail storage.")?
                     .data_local_dir()
                     .join("mailstronaut");
-                Some(Arc::new(
-                    Worker::open(root)
-                        .await
-                        .map_err(|error| error.to_string())?,
-                ))
+                Some(open_shared_store(&shared_store, root).await?)
             };
             Ok::<_, String>((owner, config, ownership))
         });
@@ -877,6 +894,13 @@ impl Workspace {
 
     fn handle(&self) -> Option<Handle> {
         self.owner.as_ref().map(|owner| owner.handle())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn uses_owner(&self, owner: &Arc<Worker>) -> bool {
+        self.owner
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, owner))
     }
 
     fn retire_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -3389,6 +3413,33 @@ mod browse_tests {
     use super::*;
     use mailstronaut_core::store::mailbox::{Flags, Membership};
     use std::num::NonZeroU32;
+
+    #[tokio::test]
+    async fn concurrent_windows_reuse_the_same_store_owner() {
+        let root = tempfile::tempdir().expect("private profile");
+        let shared: crate::SharedStore = Arc::new(tokio::sync::OnceCell::new());
+        let (first, second) = tokio::join!(
+            open_shared_store(&shared, root.path().to_owned()),
+            open_shared_store(&shared, root.path().to_owned()),
+        );
+        let first = first.expect("first owner");
+        let second = second.expect("same owner");
+        assert!(Arc::ptr_eq(&first, &second));
+        drop(first);
+        drop(second);
+        let reopened = open_shared_store(&shared, root.path().to_owned())
+            .await
+            .expect("reopened view");
+        assert!(matches!(
+            Worker::open(root.path().to_owned()).await,
+            Err(mailstronaut_core::worker::Error::ProfileInUse)
+        ));
+        drop(reopened);
+        let cell = Arc::try_unwrap(shared).unwrap_or_else(|_| panic!("unexpected session owner"));
+        let owner = cell.into_inner().expect("initialized owner");
+        let owner = Arc::try_unwrap(owner).unwrap_or_else(|_| panic!("unexpected worker owner"));
+        owner.shutdown().await.expect("shutdown");
+    }
 
     #[tokio::test]
     async fn refreshing_a_loaded_prefix_keeps_its_old_boundary_after_new_mail() {

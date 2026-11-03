@@ -109,10 +109,17 @@ the retained entity observed it before a second window was created. The private
 reminder walkthrough also passed scheduling, rescheduling, restart, cancellation
 and Seen checks. Screenshots remain in ignored test artifacts.
 
+The application also retains a single shared store owner through a Tokio
+`OnceCell`; concurrent initializations use the same worker, and a reopened window
+reuses it. A synthetic store test covers concurrent initialization and the profile
+lock. The private Wayland lifecycle probe injects one synthetic owner and verifies
+that both native windows receive that same owner across destruction and reopening.
+The application configuration-loading path has not been independently exercised
+through an interrupted in-flight initialization.
+
 This is not background-mode acceptance: the real application still exits on last
-window close, the store owner and sync remain window-owned, and a notification Open
-action is not yet routed to reopen a window. The synthetic lifecycle probe retained
-its own store owner. Full desktop, Flatpak and provider acceptance remain open.
+window close, sync remains window-owned, and a notification Open action is not yet
+routed to reopen a window. Full desktop, Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.
