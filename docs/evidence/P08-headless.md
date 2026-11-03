@@ -91,6 +91,11 @@ access tokens, but automatic OAuth refresh is refused before contacting the serv
 the pinned file-backed item update can recreate a concurrently deleted item.
 The background window-independent service, sandbox permission/initialization,
 provider-specific behavior and comprehensive deletion-race proof remain open.
+
+As a prerequisite for transferring service ownership out of the window, bounded
+sync and reminder update sends now observe cancellation while waiting for a full
+channel. A stalled receiver therefore cannot by itself keep those tasks alive on
+shutdown. This does not yet make either service independent of the window.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

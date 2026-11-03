@@ -152,11 +152,7 @@ async fn run(work: Loop, cancel: CancellationToken) {
             () = tokio::time::sleep(wait.unwrap_or_default()), if wait.is_some() => {}
         }
         let id = work.account.id.clone();
-        if work
-            .updates
-            .send(Update::Started(id.clone()))
-            .await
-            .is_err()
+        if !crate::cancellable_send::send(&work.updates, Update::Started(id.clone()), &cancel).await
         {
             return;
         }
@@ -212,12 +208,8 @@ async fn run(work: Loop, cancel: CancellationToken) {
                 Err(error)
             }
         };
-        if cancel.is_cancelled()
-            || work
-                .updates
-                .send(Update::Finished(id, report))
-                .await
-                .is_err()
+        if !crate::cancellable_send::send(&work.updates, Update::Finished(id, report), &cancel)
+            .await
         {
             return;
         }

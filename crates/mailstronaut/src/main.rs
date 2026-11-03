@@ -148,3 +148,60 @@ fn listen_for_activation(
     })
     .detach();
 }
+
+mod cancellable_send {
+    // Bounded service updates must not prevent shutdown when a consumer stalls.
+
+    use tokio::sync::mpsc;
+    use tokio_util::sync::CancellationToken;
+
+    pub async fn send<T>(sender: &mpsc::Sender<T>, value: T, cancel: &CancellationToken) -> bool {
+        tokio::select! {
+            biased;
+            () = cancel.cancelled() => false,
+            result = sender.send(value) => result.is_ok(),
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::time::Duration;
+
+        use tokio::sync::mpsc;
+        use tokio_util::sync::CancellationToken;
+
+        #[tokio::test]
+        async fn stalled_updates_do_not_prevent_shutdown() {
+            let (sender, mut receiver) = mpsc::channel(1);
+            let cancel = CancellationToken::new();
+            assert!(super::send(&sender, 1, &cancel).await);
+            let pending = tokio::spawn({
+                let sender = sender.clone();
+                let cancel = cancel.clone();
+                async move { super::send(&sender, 2, &cancel).await }
+            });
+            tokio::task::yield_now().await;
+            assert!(
+                !pending.is_finished(),
+                "the full channel applies backpressure"
+            );
+            cancel.cancel();
+            assert!(
+                !tokio::time::timeout(Duration::from_secs(1), pending)
+                    .await
+                    .expect("shutdown must not hang")
+                    .expect("task")
+            );
+            assert_eq!(receiver.recv().await, Some(1));
+            assert!(receiver.try_recv().is_err());
+            assert!(!super::send(&sender, 3, &cancel).await);
+        }
+
+        #[tokio::test]
+        async fn closed_consumer_stops_the_service() {
+            let (sender, receiver) = mpsc::channel(1);
+            drop(receiver);
+            assert!(!super::send(&sender, 1, &CancellationToken::new()).await);
+        }
+    }
+}

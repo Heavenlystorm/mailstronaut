@@ -605,10 +605,8 @@ async fn engine(
     let mut client = None;
     loop {
         let (records, status, next) = step(&store, &config, &mut client, &cancel).await;
-        if updates
-            .send(Update::Snapshot(records, status))
+        if !crate::cancellable_send::send(&updates, Update::Snapshot(records, status), &cancel)
             .await
-            .is_err()
         {
             return;
         }
@@ -632,7 +630,7 @@ async fn engine(
                         Ok(None) => None,
                         Err(error) => Some(Update::Error(error.into())),
                     };
-                    if let Some(update) = update && updates.send(update).await.is_err() { return; }
+                    if let Some(update) = update && !crate::cancellable_send::send(&updates, update, &cancel).await { return; }
                 }
             }
         }
@@ -719,6 +717,47 @@ mod tests {
         assert_eq!(sleep_for(Some(100 + 86_400), 100), MAX_SLEEP);
         // Overdue work retries soon rather than spinning.
         assert_eq!(sleep_for(Some(50), 100), Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn reminder_engine_stops_when_its_update_consumer_stalls() {
+        use mailstronaut_core::worker::Worker;
+        use std::sync::Arc;
+        use tokio::sync::{Notify, mpsc};
+        use tokio_util::sync::CancellationToken;
+
+        let root = tempfile::tempdir().expect("private profile");
+        let owner = Worker::open(root.path().to_owned()).await.expect("worker");
+        let config = serde_json::from_value(serde_json::json!({
+            "schemaVersion": 1, "accounts": []
+        }))
+        .expect("config");
+        let (updates, mut receiver) = mpsc::channel(1);
+        updates
+            .send(super::Update::Error("occupied".into()))
+            .await
+            .expect("fill channel");
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn(super::engine(
+            owner.handle(),
+            Arc::new(config),
+            Arc::new(Notify::new()),
+            updates,
+            cancel.clone(),
+        ));
+        // The initial store read completes before the first snapshot can be sent.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!task.is_finished());
+        cancel.cancel();
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("engine must stop")
+            .expect("task");
+        assert!(matches!(
+            receiver.recv().await,
+            Some(super::Update::Error(_))
+        ));
+        owner.shutdown().await.expect("shutdown");
     }
 
     #[tokio::test]
