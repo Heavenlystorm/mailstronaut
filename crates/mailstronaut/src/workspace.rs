@@ -1723,8 +1723,29 @@ impl Workspace {
         format!("{} · updated {}", self.status, self.last_sync)
     }
 
-    fn fetch_progress(&self) -> Option<(String, Option<f32>)> {
-        let (account, progress) = self.sync_progress.iter().next()?;
+    fn fetch_progress(&self) -> Vec<(String, Option<f32>)> {
+        Self::progress_rows(&self.syncing, &self.sync_progress)
+    }
+
+    fn progress_rows(
+        syncing: &BTreeSet<String>,
+        progress: &BTreeMap<String, crate::mail_sync::Fetch>,
+    ) -> Vec<(String, Option<f32>)> {
+        syncing
+            .iter()
+            .map(|account| {
+                progress.get(account).map_or_else(
+                    || (format!("{account} · connecting…"), None),
+                    |progress| Self::format_fetch_progress(account, progress),
+                )
+            })
+            .collect()
+    }
+
+    fn format_fetch_progress(
+        account: &str,
+        progress: &crate::mail_sync::Fetch,
+    ) -> (String, Option<f32>) {
         let label = progress.total.map_or_else(
             || {
                 format!(
@@ -1746,7 +1767,7 @@ impl Workspace {
         let percent = progress.total.filter(|total| *total > 0).map(|total| {
             (100.0 * f64::from(progress.completed.min(total)) / f64::from(total)) as f32
         });
-        Some((label, percent))
+        (label, percent)
     }
 
     fn sync_alert(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -3336,6 +3357,7 @@ impl Render for Workspace {
                             .border_t_1()
                             .border_color(border)
                             .flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_3()
                             .child(if self.view == View::Compose {
@@ -3343,15 +3365,22 @@ impl Render for Workspace {
                             } else {
                                 self.sync_status()
                             })
-                            .when_some(self.fetch_progress(), |bar, (label, percent)| {
-                                bar.child(div().child(label.clone())).child(
-                                    Progress::new("sync-progress")
-                                        .w(px(120.))
-                                        .accessibility_label(label)
-                                        .loading(percent.is_none())
-                                        .value(percent.unwrap_or_default()),
-                                )
-                            }),
+                            .children(self.fetch_progress().into_iter().enumerate().map(
+                                |(index, (label, percent))| {
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap_2()
+                                        .child(div().child(label.clone()))
+                                        .child(
+                                            Progress::new(("sync-progress", index))
+                                                .w(px(120.))
+                                                .accessibility_label(label)
+                                                .loading(percent.is_none())
+                                                .value(percent.unwrap_or_default()),
+                                        )
+                                },
+                            )),
                     )
                 },
             )
@@ -3363,6 +3392,46 @@ mod browse_tests {
     use super::*;
     use mailstronaut_core::store::mailbox::{Flags, Membership};
     use std::num::NonZeroU32;
+
+    #[test]
+    fn progress_lists_each_active_account_and_keeps_unknown_totals_indeterminate() {
+        let syncing = ["a".to_owned(), "b".to_owned(), "c".to_owned()]
+            .into_iter()
+            .collect();
+        let progress = [
+            (
+                "a".to_owned(),
+                crate::mail_sync::Fetch {
+                    folder: "INBOX".into(),
+                    completed: 7,
+                    total: Some(10),
+                },
+            ),
+            (
+                "b".to_owned(),
+                crate::mail_sync::Fetch {
+                    folder: "Sent".into(),
+                    completed: 3,
+                    total: None,
+                },
+            ),
+            (
+                "retired".to_owned(),
+                crate::mail_sync::Fetch {
+                    folder: "Old".into(),
+                    completed: 1,
+                    total: Some(1),
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let rows = Workspace::progress_rows(&syncing, &progress);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0], ("a · INBOX: 7 / 10 reviewed".into(), Some(70.)));
+        assert_eq!(rows[1], ("b · Sent: 3 reviewed".into(), None));
+        assert_eq!(rows[2], ("c · connecting…".into(), None));
+    }
 
     #[tokio::test]
     async fn concurrent_windows_reuse_the_same_store_owner() {

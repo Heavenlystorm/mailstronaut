@@ -62,6 +62,9 @@ fi
 if [[ -n ${MAILSTRONAUT_SYNC_GUI_BINARY:-} ]]; then
   bash experiments/p04-sync/gui.sh "$MAILSTRONAUT_SYNC_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_MULTI_PROGRESS_GUI_BINARY:-} ]]; then
+  bash experiments/p04-sync/multi-progress.sh "$MAILSTRONAUT_MULTI_PROGRESS_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_IDLE_GUI_BINARY:-} ]]; then
   bash experiments/p04-sync/idle.sh "$MAILSTRONAUT_IDLE_GUI_BINARY" "$root"
 fi

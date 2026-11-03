@@ -32,6 +32,7 @@ experiments/p04-sync/idle.sh
 experiments/p04-sync/large.sh
 experiments/p04-sync/older.sh
 experiments/p04-sync/history.sh
+experiments/p04-sync/multi-progress.sh
 experiments/p04-sync/faults.sh
 experiments/p04-sync/notify.sh
 experiments/p06-search/gui.sh

@@ -277,8 +277,9 @@ new dependency graph before claiming current-package acceptance.
 - [ ] Show actual fetch progress in the status bar with Kit `Progress`: account/folder,
   completed and known total. Use indeterminate progress while the total is unknown;
   distinguish fetching, offline, retry and finished. Test cancellation and errors. The
-  status bar shows a single account and folder using the backend's measured counts;
-  multiple-account presentation, cancellation and error acceptance remain open.
+  status bar shows each active account and its current folder using the backend's
+  measured counts; cancellation and error acceptance remain open. A private
+  two-account walkthrough and focused progress-state test cover the presentation.
 
 - [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
   expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.
