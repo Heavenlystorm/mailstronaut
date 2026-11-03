@@ -683,9 +683,10 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   precedence, retained UI edits, explicit empty account lists, invalid/concurrent
   sources and changing ownership without silent overwrite. Document export/import
   and why removing a declaration is different from deleting an account's local data.
-  [Real activation passes for immutable links, first and repeated mutable activation,
-  declared precedence and a retained UI edit](evidence/P10-home-manager-activation.md);
-  the empty-list, source-conflict, ownership and documentation parts remain open.
+  [Real activation passes for immutable links, mutable first and repeated activation,
+  declared precedence, retained UI edits, removed declarations, explicit empty account
+  lists, invalid declarations and user-owned files](evidence/P10-home-manager-activation.md);
+  concurrent sources and the export/import documentation remain open.
 - [ ] Verify actual native Wayland launch, assets/fonts/icons, TLS roots, portals,
   keyring, notifications and GPU loader behavior on NixOS.
 - [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native

@@ -2,11 +2,18 @@
 # home-manager-check.nix. Home Manager is pinned by source hash here, so flake.lock is unchanged.
 # ci/home-manager-activation.sh supplies the disposable home directory through
 # MAILSTRONAUT_HM_HOME, because activation must run with HOME equal to homeDirectory.
+#
+# Each argument is a Nix expression, so the script can declare, omit or break a setting:
+#   appearance          the declared appearance (omitted when declareAppearance is false)
+#   mutable             whether the configuration is an application-owned, writable file
+#   accounts            the declared account list; null means one synthetic account
 {
   self,
   pkgs,
   appearance ? "dark",
   mutable ? false,
+  declareAppearance ? true,
+  accounts ? null,
 }:
 let
   homeManagerSource = builtins.fetchTarball {
@@ -14,6 +21,27 @@ let
     sha256 = "sha256-X6xa6sGA7RnJQuZGbFMC+K+KToWAlBDCCjJXfTwEPsw=";
   };
   homeManager = import "${homeManagerSource}/lib" { inherit (pkgs) lib; };
+  syntheticAccount = {
+    id = "declared";
+    provider = "manual";
+    address = "declared@example.test";
+    displayName = "Declared";
+    userName = "declared";
+    imap = {
+      host = "imap.example.test";
+      port = 993;
+      security = "tls";
+    };
+    smtp = {
+      host = "smtp.example.test";
+      port = 587;
+      security = "starttls";
+    };
+    auth = {
+      kind = "password";
+      secretRef = "declared-password";
+    };
+  };
   configuration = homeManager.homeManagerConfiguration {
     inherit pkgs;
     modules = [
@@ -27,32 +55,11 @@ let
         };
         programs.mailstronaut = {
           enable = true;
-          settings = {
-            inherit appearance;
-            accounts = [
-              {
-                id = "declared";
-                provider = "manual";
-                address = "declared@example.test";
-                displayName = "Declared";
-                userName = "declared";
-                imap = {
-                  host = "imap.example.test";
-                  port = 993;
-                  security = "tls";
-                };
-                smtp = {
-                  host = "smtp.example.test";
-                  port = 587;
-                  security = "starttls";
-                };
-                auth = {
-                  kind = "password";
-                  secretRef = "declared-password";
-                };
-              }
-            ];
-          };
+          settings =
+            (if declareAppearance then { inherit appearance; } else { })
+            // {
+              accounts = if accounts == null then [ syntheticAccount ] else accounts;
+            };
           mutableSettings = mutable;
         };
       }
