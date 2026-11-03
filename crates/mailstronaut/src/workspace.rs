@@ -197,7 +197,8 @@ pub struct Workspace {
     _appearance: Subscription,
     _focus_lost: Subscription,
     theme_override: Option<ThemeMode>,
-    engine: Option<crate::mail_sync::Engine>,
+    sync_session: Entity<crate::mail_sync::Session>,
+    _sync_events: Subscription,
     /// Fuzzy search once the store is open; literal search answers until then.
     fuzzy: Option<crate::mail_search::MailSearch>,
     search_pause: Task<()>,
@@ -389,8 +390,7 @@ impl Workspace {
         path: Option<PathBuf>,
         demo: bool,
         runtime: Arc<Runtime>,
-        reminder_session: Entity<crate::reminders::Session>,
-        shared_store: crate::SharedStore,
+        services: crate::Services,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -456,12 +456,9 @@ impl Workspace {
             if window.is_window_active() {
                 this.withdraw_announcements();
             }
-            if window.is_window_active()
-                && let Some(engine) = &this.engine
-                && this.last_wake.elapsed() >= ACTIVATION_WAKE_INTERVAL
-            {
+            if window.is_window_active() && this.last_wake.elapsed() >= ACTIVATION_WAKE_INTERVAL {
                 this.last_wake = Instant::now();
-                engine.wake_all();
+                this.sync_session.read(cx).wake_all();
             }
         });
         let thread_reader =
@@ -494,7 +491,7 @@ impl Workspace {
         let mut read_gate = crate::read_gate::Gate::default();
         read_gate.visibility(window.is_window_active());
         let lifetime = CancellationToken::new();
-        let account_access = crate::account_actions::Access::default();
+        let account_access = services.sync.read(cx).access();
         let composer = cx.new(|cx| {
             crate::composer::Composer::new(
                 runtime.clone(),
@@ -518,7 +515,7 @@ impl Workspace {
             crate::reminders::Reminders::new(
                 runtime.clone(),
                 lifetime.child_token(),
-                reminder_session,
+                services.reminders,
                 window,
                 cx,
             )
@@ -529,6 +526,13 @@ impl Workspace {
             }
             cx.notify();
         });
+        let sync_events = cx.subscribe_in(
+            &services.sync,
+            window,
+            |this, _, event: &crate::mail_sync::Event, window, cx| {
+                this.sync_update(event.0.clone(), window, cx);
+            },
+        );
         let preferences = cx.new(|cx| {
             crate::preferences::Preferences::new(
                 runtime.clone(),
@@ -552,8 +556,8 @@ impl Workspace {
             focus,
             link_focus: cx.focus_handle(),
             runtime,
-            owner: shared_store.get().cloned(),
-            shared_store,
+            owner: services.store.get().cloned(),
+            shared_store: services.store,
             accounts: Vec::new(),
             folders: Vec::new(),
             unread: HashMap::new(),
@@ -609,7 +613,8 @@ impl Workspace {
             _appearance: appearance,
             _focus_lost: focus_lost,
             theme_override: None,
-            engine: None,
+            sync_session: services.sync,
+            _sync_events: sync_events,
             fuzzy: None,
             search_pause: Task::ready(()),
             priority: None,
@@ -842,9 +847,9 @@ impl Workspace {
                         match event {
                             crate::accounts::Event::CacheChanged => this.refresh_rows(window, cx),
                             crate::accounts::Event::CredentialsChanged => {
-                                if let Some(engine) = &this.engine {
-                                    engine.include_folder(&account_id, inbox.clone());
-                                }
+                                this.sync_session
+                                    .read(cx)
+                                    .include_folder(&account_id, inbox.clone());
                             }
                         }
                     }
@@ -1447,9 +1452,7 @@ impl Workspace {
                         this.thread_reader
                             .update(cx, |thread, cx| thread.refresh(window, cx));
                         // Changes reach the server on the account's next cycle.
-                        if let Some(engine) = &this.engine {
-                            engine.wake_all();
-                        }
+                        this.sync_session.read(cx).wake_all();
                     }
                     Ok(Err(error)) => {
                         this.status = error.to_string();
@@ -1552,10 +1555,8 @@ impl Workspace {
         let grace = cx.background_executor().timer(UNDO_GRACE);
         cx.spawn(async move |this, cx| {
             grace.await;
-            _ = this.update(cx, |this, _| {
-                if let Some(engine) = &this.engine {
-                    engine.wake_all();
-                }
+            _ = this.update(cx, |this, cx| {
+                this.sync_session.read(cx).wake_all();
             });
         })
         .detach();
@@ -1722,38 +1723,15 @@ impl Workspace {
 
     /// Restart per-account polling for the active configuration. Explicit sync in
     /// Settings still works when `sync.automatic` is off.
-    fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &Context<Self>) {
+    fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &mut Context<Self>) {
         self.start_announcer(window, cx);
         self.start_priority(config, window, cx);
-        self.engine = None;
         self.sync_errors.clear();
         self.syncing.clear();
         self.sync_progress.clear();
-        let Some(handle) = self.handle().filter(|_| config.sync.automatic) else {
-            return;
-        };
-        let (engine, mut updates) = crate::mail_sync::Engine::start(
-            &self.runtime,
-            &self.account_access,
-            &handle,
-            config,
-            self.lifetime.child_token(),
-        );
-        self.engine = Some(engine);
-        let revision = self.declaration.revision();
-        cx.spawn_in(window, async move |this, cx| {
-            while let Some(update) = updates.recv().await {
-                let applied = this.update_in(cx, |this, window, cx| {
-                    if revision == this.declaration.revision() {
-                        this.sync_update(update, window, cx);
-                    }
-                });
-                if applied.is_err() {
-                    return;
-                }
-            }
-        })
-        .detach();
+        let handle = self.handle();
+        self.sync_session
+            .update(cx, |session, cx| session.configure(config, handle, cx));
     }
 
     fn sync_update(
@@ -1809,9 +1787,7 @@ impl Workspace {
 
     fn sync_now(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.refresh(window, cx);
-        if let Some(engine) = &self.engine {
-            engine.wake_all();
-        }
+        self.sync_session.read(cx).wake_all();
     }
 
     fn sync_status(&self) -> String {
@@ -2403,15 +2379,16 @@ impl Workspace {
                                                             );
                                                             // Standard folders already sync;
                                                             // this covers any other folder.
-                                                            if let (
-                                                                Some(engine),
-                                                                Scope::Folder { account, .. },
-                                                            ) = (&this.engine, &scope)
+                                                            if let Scope::Folder {
+                                                                account, ..
+                                                            } = &scope
                                                             {
-                                                                engine.include_folder(
-                                                                    account,
-                                                                    wire.clone(),
-                                                                );
+                                                                this.sync_session
+                                                                    .read(cx)
+                                                                    .include_folder(
+                                                                        account,
+                                                                        wire.clone(),
+                                                                    );
                                                             }
                                                         },
                                                     ))

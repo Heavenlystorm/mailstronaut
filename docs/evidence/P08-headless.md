@@ -117,9 +117,17 @@ that both native windows receive that same owner across destruction and reopenin
 The application configuration-loading path has not been independently exercised
 through an interrupted in-flight initialization.
 
+The sync loop and credential-access state are now also application-owned, and its
+update stream is drained without a window. In the private native lifecycle probe,
+an account with no available private Secret Service reports a credential failure
+while no window exists. A separate private Dovecot/Wayland run passed initial sync,
+unread preservation, IDLE updates and reconnection with the window open. The former
+does not demonstrate successful mail synchronization while closed.
+
 This is not background-mode acceptance: the real application still exits on last
-window close, sync remains window-owned, and a notification Open action is not yet
-routed to reopen a window. Full desktop, Flatpak and provider acceptance remain open.
+window close, new-mail notification/indexing reactions are window-owned, and a
+notification Open action is not yet routed to reopen a window. Full desktop,
+Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

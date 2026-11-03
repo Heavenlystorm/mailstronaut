@@ -43,8 +43,7 @@ fn detached(cx: &AsyncApp) {
 fn open_workspace(
     cx: &AsyncApp,
     runtime: Arc<tokio::runtime::Runtime>,
-    reminders: gpui::Entity<crate::reminders::Session>,
-    shared_store: crate::SharedStore,
+    services: crate::Services,
 ) -> gpui::WeakEntity<crate::workspace::Workspace> {
     cx.update(|cx| {
         assert!(cx.graphical_environment().is_some());
@@ -56,15 +55,7 @@ fn open_workspace(
             cx,
             |window, cx| {
                 cx.new(|cx| {
-                    crate::workspace::Workspace::new(
-                        None,
-                        true,
-                        runtime,
-                        reminders,
-                        shared_store,
-                        window,
-                        cx,
-                    )
+                    crate::workspace::Workspace::new(None, true, runtime, services, window, cx)
                 })
             },
         )
@@ -119,13 +110,20 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         "schemaVersion": 1, "notifications": {"enabled": false},
         "accounts": [{"id":"a","provider":"icloud","address":"a@example.test","displayName":"A","userName":"a","auth":{"kind":"password","secretRef":"a"}}]
     })).expect("synthetic configuration");
+    let config = Arc::new(config);
     let reminders = cx.new(|_| crate::reminders::Session::new(runtime.clone()));
     reminders.update(cx, |session, cx| {
-        session.configure(&Arc::new(config), Some(handle.clone()), cx);
+        session.configure(&config, Some(handle.clone()), cx);
     });
     let (closed, receiver) = async_channel::bounded(1);
     let shared_store = Arc::new(tokio::sync::OnceCell::new());
     assert!(shared_store.set(owner.clone()).is_ok());
+    let sync = cx.new(|_| crate::mail_sync::Session::new(runtime.clone()));
+    let services = crate::Services {
+        reminders: reminders.clone(),
+        sync,
+        store: shared_store.clone(),
+    };
     cx.update(|cx| {
         cx.on_window_closed(move |cx, _| {
             if cx.windows().is_empty() {
@@ -138,8 +136,7 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         let attach =
             cx.update(|cx| cx.request_windowing(WindowingRequest::Windowed(environment.clone())));
         attach.await.expect("native Wayland attachment");
-        let workspace =
-            open_workspace(cx, runtime.clone(), reminders.clone(), shared_store.clone());
+        let workspace = open_workspace(cx, runtime.clone(), services.clone());
         assert!(
             workspace
                 .upgrade()
@@ -181,6 +178,24 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         );
         retained.update(cx, |count, _| *count += 1);
         if cycle == 1 {
+            services.sync.update(cx, |session, cx| {
+                session.configure(&config, Some(handle.clone()), cx);
+            });
+            let mut sync_observed = false;
+            for _ in 0..100 {
+                if services
+                    .sync
+                    .read_with(cx, |session, _| session.observed_failure())
+                {
+                    sync_observed = true;
+                    break;
+                }
+                tick(cx).await;
+            }
+            assert!(
+                sync_observed,
+                "headless sync must report its bounded credential failure"
+            );
             let now = chrono::Utc::now().timestamp();
             handle
                 .schedule_reminder(mailstronaut_core::store::reminders::Schedule {
@@ -231,6 +246,7 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
     }
     assert_eq!(retained.read_with(cx, |count, _| *count), 3);
     drop(reminders);
+    drop(services);
     drop(shared_store);
     let owner = Arc::try_unwrap(owner).unwrap_or_else(|_| panic!("store still owned by a window"));
     runtime

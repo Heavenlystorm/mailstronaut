@@ -24,6 +24,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::account_actions::{Access, Cycle, SyncFailure};
+use gpui::{Context, EventEmitter};
 
 const FIRST_RETRY: Duration = Duration::from_secs(15);
 const MAX_RETRY: Duration = Duration::from_secs(300);
@@ -38,17 +39,118 @@ const BACKFILL_PAUSE: Duration = Duration::from_secs(30);
 
 /// Progress of one folder's history pass: `completed` of `total` messages reviewed.
 /// `total` is None until the server reports how many messages the folder holds.
+#[derive(Clone)]
 pub struct Fetch {
     pub folder: String,
     pub completed: u32,
     pub total: Option<u32>,
 }
 
+#[derive(Clone)]
 pub enum Update {
     Started(String),
     Finished(String, Result<Cycle, String>),
     /// Fetch progress for one folder of an account, while its cycle runs.
     Progress(String, Fetch),
+}
+
+/// Application-owned polling lifetime. Window views subscribe to updates, but
+/// their destruction does not by itself stop the account loops.
+pub struct Session {
+    runtime: Arc<Runtime>,
+    access: Access,
+    lifetime: CancellationToken,
+    engine: Option<Engine>,
+    generation: u64,
+    #[cfg(test)]
+    observed_failure: bool,
+}
+
+/// A sync update delivered to a currently attached window.
+pub struct Event(pub Update);
+impl EventEmitter<Event> for Session {}
+
+impl Session {
+    /// Construct a retained sync owner without starting network activity.
+    pub fn new(runtime: Arc<Runtime>) -> Self {
+        Self {
+            runtime,
+            access: Access::default(),
+            lifetime: CancellationToken::new(),
+            engine: None,
+            generation: 0,
+            #[cfg(test)]
+            observed_failure: false,
+        }
+    }
+
+    /// Share the same credential access state with foreground account actions.
+    pub fn access(&self) -> Access {
+        self.access.clone()
+    }
+
+    /// Replace the active account loops when the declaration changes.
+    pub fn configure(&mut self, config: &Arc<Config>, store: Option<Handle>, cx: &Context<Self>) {
+        self.engine = None;
+        self.generation = self.generation.wrapping_add(1);
+        let generation = self.generation;
+        let Some(store) = store.filter(|_| config.sync.automatic) else {
+            return;
+        };
+        let (engine, mut updates) = Engine::start(
+            &self.runtime,
+            &self.access,
+            &store,
+            config,
+            self.lifetime.child_token(),
+        );
+        self.engine = Some(engine);
+        cx.spawn(async move |this, cx| {
+            while let Some(update) = updates.recv().await {
+                if this
+                    .update(cx, |this, cx| {
+                        if generation == this.generation {
+                            #[cfg(test)]
+                            {
+                                this.observed_failure |=
+                                    matches!(&update, Update::Finished(_, Err(_)));
+                            }
+                            cx.emit(Event(update));
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// Request a pass for all configured accounts.
+    pub fn wake_all(&self) {
+        if let Some(engine) = &self.engine {
+            engine.wake_all();
+        }
+    }
+
+    /// Include a requested folder in the next account pass.
+    pub fn include_folder(&self, account: &str, folder: String) {
+        if let Some(engine) = &self.engine {
+            engine.include_folder(account, folder);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn observed_failure(&self) -> bool {
+        self.observed_failure
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        self.lifetime.cancel();
+    }
 }
 
 /// How long until the next cycle: history continues quickly, everything else at the poll.

@@ -37,6 +37,13 @@ use gpui::{
 
 type SharedStore = Arc<tokio::sync::OnceCell<Arc<mailstronaut_core::worker::Worker>>>;
 
+#[derive(Clone)]
+struct Services {
+    reminders: gpui::Entity<reminders::Session>,
+    sync: gpui::Entity<mail_sync::Session>,
+    store: SharedStore,
+}
+
 fn main() -> ExitCode {
     let arguments: Vec<_> = env::args_os().skip(1).collect();
     if arguments.as_slice() == ["--internal-project-threads"] {
@@ -85,10 +92,12 @@ fn main() -> ExitCode {
         .with_assets(assets::Assets)
         .run(move |cx| {
             gpui::init(cx);
-            let reminder_session = cx.new(|_| reminders::Session::new(ui_runtime.clone()));
-            let retained_session = reminder_session.clone();
-            let shared_store = Arc::new(tokio::sync::OnceCell::new());
-            let retained_store = shared_store.clone();
+            let services = Services {
+                reminders: cx.new(|_| reminders::Session::new(ui_runtime.clone())),
+                sync: cx.new(|_| mail_sync::Session::new(ui_runtime.clone())),
+                store: Arc::new(tokio::sync::OnceCell::new()),
+            };
+            let retained_services = services.clone();
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,
@@ -100,15 +109,7 @@ fn main() -> ExitCode {
             };
             if gpui::open_window(options, cx, |window, cx| {
                 cx.new(|cx| {
-                    workspace::Workspace::new(
-                        config,
-                        demo,
-                        ui_runtime,
-                        reminder_session,
-                        shared_store,
-                        window,
-                        cx,
-                    )
+                    workspace::Workspace::new(config, demo, ui_runtime, services, window, cx)
                 })
             })
             .is_err()
@@ -117,8 +118,7 @@ fn main() -> ExitCode {
                 cx.quit();
             }
             cx.on_window_closed(move |cx, _| {
-                let _ = &retained_session;
-                let _ = &retained_store;
+                let _ = &retained_services;
                 if cx.windows().is_empty() {
                     cx.quit();
                 }
