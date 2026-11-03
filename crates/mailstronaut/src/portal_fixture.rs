@@ -184,6 +184,72 @@ impl Notifier {
 
 const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
 
+/// The application secret a sandboxed client reads to open its encrypted keyring. The harness writes
+/// the synthetic bytes to `portal-secret`; the fixture never invents a secret.
+struct Secrets(PathBuf);
+
+#[zbus::interface(name = "org.freedesktop.portal.Secret")]
+impl Secrets {
+    #[zbus(property, name = "version")]
+    #[expect(
+        clippy::unused_self,
+        reason = "zbus requires a non-const instance property getter."
+    )]
+    fn version(&self) -> u32 {
+        1
+    }
+
+    #[zbus(name = "RetrieveSecret")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "D-Bus supplies owned options and the message header."
+    )]
+    fn retrieve_secret(
+        &self,
+        fd: zbus::zvariant::OwnedFd,
+        options: HashMap<String, OwnedValue>,
+        #[zbus(header)] header: Header<'_>,
+        #[zbus(connection)] connection: &Connection,
+    ) -> fdo::Result<OwnedObjectPath> {
+        let secret = std::fs::read(self.0.join("portal-secret"))
+            .map_err(|_| fdo::Error::Failed("fixture secret".into()))?;
+        let mut file = std::fs::File::from(std::os::fd::OwnedFd::from(fd));
+        file.write_all(&secret)
+            .map_err(|_| fdo::Error::Failed("fixture secret".into()))?;
+        // Answer like the portal: a request object that later signals its response.
+        let token = options
+            .get("handle_token")
+            .and_then(|value| <&str>::try_from(value).ok())
+            .ok_or_else(|| fdo::Error::InvalidArgs("missing request handle".into()))?;
+        let sender = header
+            .sender()
+            .ok_or_else(|| fdo::Error::Failed("missing sender".into()))?
+            .as_str()
+            .trim_start_matches(':')
+            .replace('.', "_");
+        let path = OwnedObjectPath::try_from(format!(
+            "/org/freedesktop/portal/desktop/request/{sender}/{token}"
+        ))
+        .map_err(|_| fdo::Error::InvalidArgs("request path".into()))?;
+        let (connection, response_path) = (connection.clone(), path.clone());
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let results: HashMap<String, OwnedValue> = HashMap::new();
+            connection
+                .emit_signal(
+                    None::<&str>,
+                    response_path,
+                    "org.freedesktop.portal.Request",
+                    "Response",
+                    &(0u32, results),
+                )
+                .await
+                .expect("synthetic secret response");
+        });
+        Ok(path)
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "explicit private-bus GUI harness only; runs until the harness stops it"]
 async fn serve_portals() {
@@ -204,6 +270,8 @@ async fn serve_portals() {
         .expect("file chooser")
         .serve_at(PORTAL_PATH, Notifier(root.clone()))
         .expect("notifications")
+        .serve_at(PORTAL_PATH, Secrets(root.clone()))
+        .expect("secrets")
         .build()
         .await
         .expect("private portal");

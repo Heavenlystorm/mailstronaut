@@ -132,16 +132,22 @@ impl Access {
             opened.automatic = true;
             return Ok(opened);
         }
-        if ashpd::is_sandboxed() {
-            return Err(
-                "Open Settings to initialize encrypted credentials before automatic sync.".into(),
-            );
-        }
-        let store = cancel
-            .run_until_cancelled(Store::connect_native_background())
-            .await
-            .ok_or(CANCELLED)?
-            .map_err(|error| error.to_string())?;
+        // A sandbox keeps its keyring behind the Secret portal, which needs no prompt, so
+        // automatic work may open that store silently. Its file-backed store cannot replace
+        // items natively, so automatic OAuth refresh stays refused before provider contact.
+        let store = if ashpd::is_sandboxed() {
+            cancel
+                .run_until_cancelled(Store::connect_sandboxed())
+                .await
+                .ok_or(CANCELLED)?
+                .map_err(|error| error.to_string())?
+        } else {
+            cancel
+                .run_until_cancelled(Store::connect_native_background())
+                .await
+                .ok_or(CANCELLED)?
+                .map_err(|error| error.to_string())?
+        };
         let opened = Open {
             session: auth::Session::new(store.clone()),
             store,

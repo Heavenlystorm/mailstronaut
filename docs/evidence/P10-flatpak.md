@@ -57,19 +57,28 @@ The SpiderMonkey-specific checks were removed from the probe. The current depend
   Notification (version 1) portal properties, served by the protocol-accurate fixture on the private
   bus. The request goes through the sandbox's D-Bus proxy (`flatpak/portal-reach.sh`, through the
   `MAILSTRONAUT_FLATPAK_PORTAL_BINARY` switch of `credentials.sh`).
-- A check that opened the composer and attached a file through the chooser inside the sandbox did not
-  reach the attach step. The configured account stayed inactive, because the application reads its
-  password from the system keyring, and the sandbox has no route to the keyring. The application has no
-  Secret portal path yet, so that check was removed rather than recorded as passing.
+- Sandboxed account and composer (`flatpak/attach-smoke.sh`, through the
+  `MAILSTRONAUT_FLATPAK_ATTACH_BINARY` switch of `credentials.sh`). The installed application opens
+  its keyring with the key from the Secret portal, which the private fixture serves
+  (`org.freedesktop.portal.Secret`). The synthetic account "Synthetic sender" becomes active, the
+  composer saves a draft, and the FileChooser portal attaches a synthetic 37-byte file that the
+  sandbox reads. The run passed in the private headless session with network unshared. Its capture
+  shows the composer with the attachment and the status "Saved locally."
+- The Flatpak module archive was regenerated from the final tree, and its pin in the manifest was
+  updated to match. The vendor archive, whose lock file is unchanged, keeps its pin.
+- Automatic OAuth refresh on a file-backed store is refused before any provider contact. The
+  regression test `auth::tests::automatic_refresh_on_a_file_backed_store_is_refused_before_provider_contact`
+  passes. With the fence temporarily removed, the same test fails with `OAuth(Network)`, which shows
+  that the token endpoint is reached without the fence.
 
 ## Not established
 
 - Native Wayland on a real desktop session (only the headless sway session was used), and the
   graphics path: `--device=dri` is declared, but which renderer the window used was not checked.
-- The Secret portal: the application does not read its keyring password from inside the sandbox yet,
-  so an account cannot activate there.
-- The file chooser flow itself inside the sandbox, the document portal that would return a sandbox
-  path for a chosen file, notifications sent from the sandbox, and the Background portal.
+- The Secret and FileChooser portals were exercised only through the protocol-accurate fixture on the
+  private bus, not a real desktop portal. The fixture returns host paths, so the document portal that
+  would return a sandbox path for a chosen file is not exercised.
+- Notifications sent from the sandbox, and the Background portal.
 - The developer element in the metainfo file, and a screenshot entry for the store listing.
 - Release signing, a published repository, aarch64, and the final release manifest.
 

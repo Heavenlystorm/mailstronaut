@@ -335,3 +335,84 @@ fn selected(account: &Account, outgoing: bool) -> &Auth {
         &account.auth
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::TcpListener;
+
+    use mailstronaut_config::Account;
+    use secrecy::{ExposeSecret as _, SecretString};
+    use tokio_util::sync::CancellationToken;
+
+    use super::{Error, Session};
+    use crate::credentials::{self, Store};
+
+    /// An OAuth account whose token endpoint is a local listener, so any contact is observable.
+    fn account(token_port: u16) -> Account {
+        serde_json::from_value(serde_json::json!({
+            "id": "file-backed-synthetic",
+            "provider": "manual",
+            "address": "reader@example.test",
+            "displayName": "Synthetic file-backed",
+            "userName": "reader@example.test",
+            "auth": {
+                "kind": "oauth2",
+                "provider": "custom",
+                "clientId": "synthetic-public-client",
+                "secretRef": "synthetic-refresh",
+                "authorizationUrl": format!("https://127.0.0.1:{token_port}/authorize"),
+                "tokenUrl": format!("https://127.0.0.1:{token_port}/token"),
+                "scopes": ["mail.read"],
+                "sasl": "xoauth2"
+            },
+            "tls": {"caFiles": []}
+        }))
+        .expect("synthetic account")
+    }
+
+    #[tokio::test]
+    async fn automatic_refresh_on_a_file_backed_store_is_refused_before_provider_contact() {
+        let directory = tempfile::tempdir().expect("private directory");
+        let store = Store::file_backed_for_tests(
+            &directory.path().join("default.keyring"),
+            b"SYNTHETIC-KEYRING-KEY-NOT-REAL",
+        )
+        .await
+        .expect("file-backed keyring");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("token listener");
+        listener
+            .set_nonblocking(true)
+            .expect("nonblocking listener");
+        let port = listener.local_addr().expect("listener address").port();
+        let account = account(port);
+        let session = Session::new(store.clone());
+        let (key, _entry, _fingerprint) = session.entry(&account, false).await.expect("entry");
+        store
+            .put(
+                &key,
+                &SecretString::from("SYNTHETIC-REFRESH-TOKEN-NOT-REAL"),
+            )
+            .await
+            .expect("stored refresh token");
+
+        let refused = session
+            .resolve_automatic(&account, false, &CancellationToken::new())
+            .await;
+
+        assert_eq!(
+            refused.err(),
+            Some(Error::Credential(credentials::Error::Unavailable))
+        );
+        assert_eq!(
+            listener.accept().err().map(|error| error.kind()),
+            Some(std::io::ErrorKind::WouldBlock),
+            "automatic refresh contacted the token endpoint"
+        );
+        let stored = store
+            .get(&key)
+            .await
+            .expect("stored token readable")
+            .expect("stored token present");
+        assert_eq!(stored.expose_secret(), "SYNTHETIC-REFRESH-TOKEN-NOT-REAL");
+    }
+}

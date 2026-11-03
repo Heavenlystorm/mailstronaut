@@ -159,6 +159,28 @@ impl Store {
         .map_err(|_| Error::TimedOut)?
     }
 
+    /// Open the sandbox's encrypted keyring through the Secret portal. The portal
+    /// returns the keyring key without a prompt, and oo7 creates the file keyring on
+    /// first use, so automatic work may call this. It is the only store automatic
+    /// work may open inside a sandbox, and it fails closed outside one.
+    ///
+    /// # Errors
+    /// Fails closed when the process is not sandboxed, the portal is missing, or the
+    /// keyring is unusable or times out.
+    pub async fn connect_sandboxed() -> Result<Self, Error> {
+        if !oo7::ashpd::is_sandboxed() {
+            return Err(Error::Unavailable);
+        }
+        timeout(IO_TIMEOUT, async {
+            let backend = oo7::Keyring::new().await.map_err(|_| Error::Unavailable)?;
+            let store = Self(Arc::new(backend));
+            store.ready().await?;
+            Ok(store)
+        })
+        .await
+        .map_err(|_| Error::TimedOut)?
+    }
+
     /// Connect after an explicit foreground user action. oo7 may request a portal
     /// secret or create a missing default collection, both potentially interactive.
     /// Do not invoke this constructor from automatic background retries.
@@ -330,5 +352,24 @@ impl Store {
         })
         .await
         .map_err(|_| Error::TimedOut)?
+    }
+}
+
+#[cfg(test)]
+impl Store {
+    /// A file-backed store over one unlocked keyring file: the shape a sandbox holds without
+    /// native replacement. Only the slot is created here; the lock type stays inside oo7.
+    pub(crate) async fn file_backed_for_tests(
+        path: &std::path::Path,
+        key: &[u8],
+    ) -> Result<Self, Error> {
+        let unlocked = oo7::file::UnlockedKeyring::load(path, oo7::Secret::from(key.to_vec()))
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        let backend = oo7::Keyring::File(Arc::default());
+        if let oo7::Keyring::File(slot) = &backend {
+            *slot.write().await = Some(oo7::file::Keyring::Unlocked(unlocked));
+        }
+        Ok(Self(Arc::new(backend)))
     }
 }
