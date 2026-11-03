@@ -155,9 +155,8 @@ intermittently panicked on GPUI's non-Tokio executor. Indexing while closed, rea
 desktop, Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and private native and bus tests passed with
 the async-io backend, and the Cargo vendor hash was calculated and verified from
-fresh staging. The full Nix release gate for this change has not run: the CI
-root filesystem had 2.9 GiB free, and its daemon rejected a client request to
-place build files on the larger project disk. No disk cleanup was performed.
+fresh staging. The x86_64 Nix release gate passed after configuring the CI
+daemon's build directory on the larger project disk; aarch64 was omitted.
 The shared backend also passed private attachment chooser, new-mail notification,
 and external-link portal walkthroughs. Their synthetic D-Bus handlers use an
 explicit Tokio handle when scheduling delayed responses. A further private-bus
