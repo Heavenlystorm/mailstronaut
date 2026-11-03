@@ -137,9 +137,15 @@ marking mail read; another delivery and notification click reopen the matching
 original and mark only that explicit open read. Ctrl+Q stops the process, and
 closing with background disabled exits. The separate native preferences test saves,
 restarts and exports the Nix setting while preserving other fields. Both use private
-Wayland, Secret Service and portal fixtures. Reminder notification reopening,
-background startup without an initial window, indexing while closed, real desktop,
-Flatpak and provider acceptance remain open.
+Wayland, Secret Service and portal fixtures. An additional private walkthrough
+scheduled a reminder for an already synchronized synthetic message, closed the
+window before delivery, rejected a stale notification generation without reopening
+the window or marking mail read, then opened the original with the current action.
+Only that explicit open and the previously clicked new-mail action marked messages
+read; an unrelated synthetic message stayed unread on the server. This used the
+pinned workspace checks and private Dovecot, Wayland and portal fixtures on
+x86_64 Linux. Background startup without an initial window, indexing while closed,
+real desktop, Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

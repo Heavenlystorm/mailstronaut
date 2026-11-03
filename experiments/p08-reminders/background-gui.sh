@@ -92,6 +92,17 @@ await_query() {
 }
 start initial
 await_query 1 'SELECT count(*) FROM messages'
+# Schedule against the synchronized original while the production process is
+# stopped, then restart it to exercise its real scheduler and profile lock.
+first_id=$(query "SELECT id FROM messages WHERE subject='Synthetic first'")
+wtype -s 200 -M ctrl q -m ctrl
+for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
+if kill -0 "$app" 2>/dev/null; then printf 'Initial quit failed: %s\n' "$artifacts" >&2; exit 1; fi
+wait "$app"; app=''
+MAILSTRONAUT_BACKGROUND_SEED_ROOT="$root" MAILSTRONAUT_BACKGROUND_SEED_MESSAGE="$first_id" \
+  "$portal_fixture" lifecycle_tests::seed_background_reminder --ignored --exact > "$artifacts/seed.log" 2>&1
+start scheduled
+[[ $(query "SELECT count(*) FROM reminders WHERE state='pending'") == 1 ]]
 sleep 2
 [[ $(renderer_threads) -ge 1 ]]
 capture before-close
@@ -132,6 +143,33 @@ window_open
 await_query 1 "SELECT count(*) FROM memberships m JOIN messages x ON x.id=m.message_id WHERE m.seen=1 AND x.subject='Synthetic third'"
 [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 1 ]]
 capture reopened
+swaymsg '[app_id="io.github.eduardz1.Mailstronaut"] kill' > /dev/null
+for _ in {1..100}; do ! window_open && break; kill -0 "$app"; sleep .1; done
+if window_open; then printf 'Reminder test window did not close: %s\n' "$artifacts" >&2; exit 1; fi
+[[ $(query "SELECT count(*) FROM reminders WHERE state='pending'") == 1 ]]
+# Wait long enough for the scheduled deadline; assert that delivery happens
+# while headless, then send an obsolete action before the current one.
+for _ in {1..1200}; do
+  [[ $(query "SELECT count(*) FROM reminders WHERE state='delivered'" || true) == 1 ]] && break
+  kill -0 "$app"; sleep .1
+done
+[[ $(query "SELECT count(*) FROM reminders WHERE state='delivered'") == 1 ]]
+if window_open; then printf 'Reminder delivered with a window open: %s\n' "$artifacts" >&2; exit 1; fi
+notification=$(query 'SELECT notification_id FROM reminders')
+generation=$(query 'SELECT generation FROM reminders')
+printf '%s open %s\n' "$notification" "$((generation + 1))" > "$artifacts/notification-invoke"
+for _ in {1..100}; do [[ ! -e $artifacts/notification-invoke ]] && break; sleep .1; done
+[[ ! -e $artifacts/notification-invoke ]]
+sleep 1
+if window_open; then printf 'Stale reminder opened a window: %s\n' "$artifacts" >&2; exit 1; fi
+[[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 1 ]]
+printf '%s open %s\n' "$notification" "$generation" > "$artifacts/notification-invoke"
+for _ in {1..150}; do window_open && break; kill -0 "$app"; sleep .1; done
+window_open
+await_query 1 "SELECT count(*) FROM memberships m JOIN messages x ON x.id=m.message_id WHERE m.seen=1 AND x.subject='Synthetic first'"
+[[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 2 ]]
+[[ $(server_flags INBOX marker-second) != *S* ]]
+capture reminder-reopened
 wtype -s 200 -M ctrl q -m ctrl
 for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
 if kill -0 "$app" 2>/dev/null; then printf 'Explicit quit did not stop the application: %s\n' "$artifacts" >&2; exit 1; fi
@@ -142,4 +180,4 @@ close_window
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf 'Synthetic credential appeared in a log: %s\n' "$artifacts" >&2; exit 1
 fi
-printf 'Native background sync, launcher and notification reopening, explicit quit and disabled close passed: %s\n' "$artifacts"
+printf 'Native background sync, launcher, new-mail and reminder reopening, stale reminder rejection, explicit quit and disabled close passed: %s\n' "$artifacts"

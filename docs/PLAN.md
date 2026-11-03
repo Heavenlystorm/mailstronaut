@@ -599,8 +599,11 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   bookkeeping have moved into retained application state. Private lifecycle tests
   cover the same owner across windows and synthetic Dovecot synchronization with
   no window. Native close, launcher reopening, new-mail notification opening and
-  explicit Quit pass a private end-to-end test. Startup with `--background`,
-  reminder-action reopening and real desktop acceptance remain open.
+  explicit Quit pass a private end-to-end test. A private native walkthrough
+  also verifies reminder delivery after close,
+  rejection of a stale action, and opening only the intended message on the
+  current action. Startup with `--background` and real desktop acceptance remain
+  open.
   [Evidence](evidence/P08-headless.md).
   Sandboxed file-backed OAuth cannot refresh automatically until non-creating
   token rotation is supported; a cached foreground grant may still be used.

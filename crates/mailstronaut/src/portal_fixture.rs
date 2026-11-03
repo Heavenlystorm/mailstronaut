@@ -279,9 +279,16 @@ async fn serve_portals() {
     // The harness clicks a notification by writing its ID and action to a file.
     let invoke = root.join("notification-invoke");
     loop {
-        if let Ok(text) = std::fs::read_to_string(&invoke)
-            && let Some((id, action)) = text.trim().split_once(' ')
-        {
+        if let Ok(text) = std::fs::read_to_string(&invoke) {
+            let mut fields = text.split_whitespace();
+            let (Some(id), Some(action)) = (fields.next(), fields.next()) else {
+                std::fs::remove_file(&invoke).expect("discard invalid request");
+                continue;
+            };
+            let arguments = fields
+                .next()
+                .and_then(|value| value.parse::<i64>().ok())
+                .map_or_else(Vec::new, |generation| vec![Value::from(generation)]);
             std::fs::remove_file(&invoke).expect("consumed");
             connection
                 .emit_signal(
@@ -289,7 +296,7 @@ async fn serve_portals() {
                     PORTAL_PATH,
                     "org.freedesktop.portal.Notification",
                     "ActionInvoked",
-                    &(id, action, Vec::<Value<'_>>::new()),
+                    &(id, action, arguments),
                 )
                 .await
                 .expect("synthetic click");

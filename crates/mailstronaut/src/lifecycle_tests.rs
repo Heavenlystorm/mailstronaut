@@ -32,6 +32,45 @@ fn tick(cx: &AsyncApp) -> gpui::Task<()> {
     cx.background_executor().timer(Duration::from_millis(50))
 }
 
+#[test]
+#[ignore = "private background reminder fixture only"]
+fn seed_background_reminder() {
+    let root =
+        PathBuf::from(std::env::var_os("MAILSTRONAUT_BACKGROUND_SEED_ROOT").expect("fixture root"));
+    let target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates")
+        .parent()
+        .expect("workspace")
+        .join("target")
+        .canonicalize()
+        .expect("target");
+    let root = root.canonicalize().expect("fixture root");
+    assert!(root.starts_with(target));
+    assert_eq!(
+        std::env::var("DBUS_SESSION_BUS_ADDRESS").expect("private bus"),
+        format!("unix:path={}/runtime/bus", root.display())
+    );
+    let message = std::env::var("MAILSTRONAUT_BACKGROUND_SEED_MESSAGE")
+        .expect("synthetic message id")
+        .parse()
+        .expect("integer message id");
+    let mut store =
+        mailstronaut_core::store::Store::open(&root.join("background-data/mailstronaut"))
+            .expect("synthetic store");
+    let now = chrono::Utc::now().timestamp();
+    store
+        .schedule_reminder(&mailstronaut_core::store::reminders::Schedule {
+            account: "background-synthetic".into(),
+            message,
+            due_at: now + 90,
+            time_zone: "UTC".into(),
+            now,
+            expected: None,
+        })
+        .expect("schedule synthetic reminder");
+}
+
 fn detached(cx: &AsyncApp) {
     cx.update(|cx| {
         assert_eq!(cx.windows().len(), 0);
