@@ -46,14 +46,20 @@ The SpiderMonkey-specific checks were removed from the probe. The current depend
   Wayland session, with network unshared. The capture shows the empty mailbox state with no
   accounts (`flatpak/gui-smoke.sh`, through the `MAILSTRONAUT_FLATPAK_GUI_BINARY` switch of
   `credentials.sh`).
+- The application ships a desktop entry, a metainfo file and its icon from `assets/icon.svg`.
+  `desktop-file-validate` passes. `appstreamcli validate --no-net` passes, with one informational
+  note: no developer element is declared, which is left for the maintainer to decide. The export
+  composes the AppStream data and exports all three files. The composition uses the Nix
+  `appstream` tool, because the host's copy loads a different glibc.
+- The rebuilt installation still reports `mailstronaut 0.1.0`, a valid configuration, and a window
+  in the sandbox.
 
 ## Not established
 
 - Native Wayland on a real desktop session (only the headless sway session was used), and the
   graphics path: `--device=dri` is declared, but which renderer the window used was not checked.
 - The portals: file chooser, secret, notification and background.
-- Desktop and AppStream metainfo files. The export warns that the application has no appstream
-  data, so there is no desktop entry or metainfo yet.
+- The developer element in the metainfo file, and a screenshot entry for the store listing.
 - Release signing, a published repository, aarch64, and the final release manifest.
 
 The P10 Flatpak row therefore stays unchecked.

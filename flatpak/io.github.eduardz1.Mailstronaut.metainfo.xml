@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.eduardz1.Mailstronaut</id>
+  <launchable type="desktop-id">io.github.eduardz1.Mailstronaut.desktop</launchable>
+  <name>Mailstronaut</name>
+  <summary>A local-first email client</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <description>
+    <p>Mailstronaut reads and organizes your mail on this computer. Accounts come from a
+    native Nix configuration, passwords stay in the system keyring, and mail is cached
+    locally so it can be read while offline.</p>
+  </description>
+  <url type="homepage">https://github.com/eduardz1/mailstronaut</url>
+  <url type="bugtracker">https://github.com/eduardz1/mailstronaut/issues</url>
+  <categories>
+    <category>Network</category>
+    <category>Email</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>

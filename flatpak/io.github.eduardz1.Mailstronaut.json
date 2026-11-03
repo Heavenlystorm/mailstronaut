@@ -50,6 +50,16 @@
         },
         {
           "type": "file",
+          "path": "../flatpak/io.github.eduardz1.Mailstronaut.desktop",
+          "dest": "app"
+        },
+        {
+          "type": "file",
+          "path": "../flatpak/io.github.eduardz1.Mailstronaut.metainfo.xml",
+          "dest": "app"
+        },
+        {
+          "type": "file",
           "path": "../flatpak/build-app.sh",
           "dest": "app",
           "dest-filename": "build-app.sh"

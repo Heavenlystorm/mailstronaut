@@ -13,5 +13,8 @@ project.devShells.${system}.default.overrideAttrs (old: {
     pkgs.bubblewrap
     pkgs.curl
     pkgs.jq
+    # flatpak-builder runs appstreamcli for metainfo composition. The host's copy loads its own
+    # glibc beside Nix's, so the Nix build must come first on PATH.
+    pkgs.appstream
   ];
 })

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mailstronaut
+GenericName=Email Client
+Comment=A local-first email client
+Exec=mailstronaut
+Icon=io.github.eduardz1.Mailstronaut
+Terminal=false
+Categories=Network;Email;
+StartupWMClass=io.github.eduardz1.Mailstronaut
