@@ -61,6 +61,23 @@ async fn private_ownership_activation_conflicts_shutdown_and_timeout() {
     assert!(events.is_empty());
 
     assert!(
+        launch_profile_mode(b"synthetic-profile".to_vec(), Duration::from_secs(2), true)
+            .await
+            .expect("background launch")
+            .is_none()
+    );
+    assert!(
+        events.is_empty(),
+        "a background relaunch must not open a window"
+    );
+    assert!(
+        launch_profile_mode(b"other-profile".to_vec(), Duration::from_secs(2), true)
+            .await
+            .is_err(),
+        "background relaunch still checks profile identity"
+    );
+
+    assert!(
         launch_profile(b"other-profile".to_vec(), Duration::from_secs(2))
             .await
             .is_err()

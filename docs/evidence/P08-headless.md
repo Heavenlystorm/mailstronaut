@@ -144,8 +144,27 @@ the window or marking mail read, then opened the original with the current actio
 Only that explicit open and the previously clicked new-mail action marked messages
 read; an unrelated synthetic message stayed unread on the server. This used the
 pinned workspace checks and private Dovecot, Wayland and portal fixtures on
-x86_64 Linux. Background startup without an initial window, indexing while closed,
-real desktop, Flatpak and provider acceptance remain open.
+x86_64 Linux. Native `--background` startup now loads the validated Nix source,
+opens one store owner and starts sync and reminders without a window. The private
+walkthrough checks background synchronization, unchanged Seen, passive repeated
+background launch, normal launcher activation, four start/reopen/quit cycles,
+disabled configuration and missing Wayland display. The independent private bus
+test covers same-profile passive launches and profile conflict rejection. GPUI's
+portal listeners require the shared zbus async-io backend: the Tokio backend
+intermittently panicked on GPUI's non-Tokio executor. Indexing while closed, real
+desktop, Flatpak and provider acceptance remain open.
+The x86_64 pinned workspace checks and private native and bus tests passed with
+the async-io backend, and the Cargo vendor hash was calculated and verified from
+fresh staging. The full Nix release gate for this change has not run: the CI
+root filesystem had 2.9 GiB free, and its daemon rejected a client request to
+place build files on the larger project disk. No disk cleanup was performed.
+The shared backend also passed private attachment chooser, new-mail notification,
+and external-link portal walkthroughs. Their synthetic D-Bus handlers use an
+explicit Tokio handle when scheduling delayed responses. A further private-bus
+test exercises the Secret portal fixture through ashpd and checks the returned
+synthetic bytes. A separate private-bus OAuth test drives the OpenURI fixture,
+PKCE callback and synthetic loopback token exchange. These tests do not establish
+the installed Flatpak credential flow or live provider authorization.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

@@ -16,7 +16,13 @@ use tokio_util::sync::CancellationToken;
 pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
     match arguments {
         [] => None,
+        [flag] if flag == OsStr::new("--background") => None,
         [flag, _path] if flag == OsStr::new("--config") => None,
+        [first, second, _path]
+            if first == OsStr::new("--background") && second == OsStr::new("--config") =>
+        {
+            None
+        }
         [flag] if flag == OsStr::new("--internal-evaluate-config") => Some(helper::run()),
         [flag] if flag == OsStr::new("--internal-evaluate-raw") => Some(helper::run_raw()),
         [flag] if flag == OsStr::new("--version") => {
@@ -25,7 +31,7 @@ pub fn dispatch(arguments: &[OsString]) -> Option<ExitCode> {
         }
         [flag] if flag == OsStr::new("--help") => {
             println!(
-                "Usage: mailstronaut [--demo | --config FILE | --version | config <init|check|export> [--path FILE] | config reconcile --declared FILE [--path FILE]]"
+                "Usage: mailstronaut [--demo | [--background] [--config FILE] | --version | config <init|check|export> [--path FILE] | config reconcile --declared FILE [--path FILE]]"
             );
             Some(ExitCode::SUCCESS)
         }
@@ -118,6 +124,12 @@ fn configuration_command(arguments: &[OsString]) -> Result<String, String> {
 pub fn selected_path(arguments: &[OsString]) -> Option<PathBuf> {
     if let [flag, path] = arguments
         && flag == OsStr::new("--config")
+    {
+        return Some(PathBuf::from(path));
+    }
+    if let [first, second, path] = arguments
+        && first == OsStr::new("--background")
+        && second == OsStr::new("--config")
     {
         return Some(PathBuf::from(path));
     }

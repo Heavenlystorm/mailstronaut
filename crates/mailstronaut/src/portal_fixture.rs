@@ -12,7 +12,7 @@ use zbus::{
 
 /// What the next dialog answers comes from a file the harness writes: `cancel`, `deny`, or
 /// one file URI per line. Every request is recorded, including any suggested name.
-struct Chooser(PathBuf);
+struct Chooser(PathBuf, tokio::runtime::Handle);
 
 impl Chooser {
     fn answer(
@@ -65,7 +65,7 @@ impl Chooser {
         }
         let (connection, response_path) = (connection.clone(), path.clone());
         // The client subscribes to the request object after it receives this reply.
-        tokio::spawn(async move {
+        self.1.spawn(async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             connection
                 .emit_signal(
@@ -186,7 +186,50 @@ const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
 
 /// The application secret a sandboxed client reads to open its encrypted keyring. The harness writes
 /// the synthetic bytes to `portal-secret`; the fixture never invents a secret.
-struct Secrets(PathBuf);
+struct Secrets(PathBuf, tokio::runtime::Handle);
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires the private bus from experiments/p02-accounts/credentials.sh"]
+async fn private_secret_portal_response() {
+    let root =
+        PathBuf::from(std::env::var_os("MAILSTRONAUT_SECRET_TEST_ROOT").expect("fixture root"));
+    let target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates")
+        .parent()
+        .expect("workspace")
+        .join("target")
+        .canonicalize()
+        .expect("target");
+    let root = root.canonicalize().expect("fixture root");
+    assert!(root.starts_with(target));
+    assert_eq!(
+        std::env::var("DBUS_SESSION_BUS_ADDRESS").expect("private bus"),
+        format!("unix:path={}/runtime/bus", root.display())
+    );
+    let fixture = root.join("synthetic-secret-portal");
+    std::fs::create_dir_all(&fixture).expect("fixture directory");
+    let expected = b"SYNTHETIC-PORTAL-SECRET-NOT-REAL";
+    std::fs::write(fixture.join("portal-secret"), expected).expect("synthetic secret");
+    let connection = zbus::connection::Builder::session()
+        .expect("private bus")
+        .name("org.freedesktop.portal.Desktop")
+        .expect("portal name")
+        .serve_at(
+            PORTAL_PATH,
+            Secrets(fixture, tokio::runtime::Handle::current()),
+        )
+        .expect("secret portal")
+        .build()
+        .await
+        .expect("private portal");
+    let actual = tokio::time::timeout(Duration::from_secs(5), ashpd::desktop::secret::retrieve())
+        .await
+        .expect("bounded portal response")
+        .expect("secret retrieval");
+    assert_eq!(actual, expected);
+    connection.close().await.expect("close portal");
+}
 
 #[zbus::interface(name = "org.freedesktop.portal.Secret")]
 impl Secrets {
@@ -232,7 +275,7 @@ impl Secrets {
         ))
         .map_err(|_| fdo::Error::InvalidArgs("request path".into()))?;
         let (connection, response_path) = (connection.clone(), path.clone());
-        tokio::spawn(async move {
+        self.1.spawn(async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             let results: HashMap<String, OwnedValue> = HashMap::new();
             connection
@@ -266,11 +309,17 @@ async fn serve_portals() {
         .expect("private bus")
         .name("org.freedesktop.portal.Desktop")
         .expect("portal name")
-        .serve_at(PORTAL_PATH, Chooser(root.clone()))
+        .serve_at(
+            PORTAL_PATH,
+            Chooser(root.clone(), tokio::runtime::Handle::current()),
+        )
         .expect("file chooser")
         .serve_at(PORTAL_PATH, Notifier(root.clone()))
         .expect("notifications")
-        .serve_at(PORTAL_PATH, Secrets(root.clone()))
+        .serve_at(
+            PORTAL_PATH,
+            Secrets(root.clone(), tokio::runtime::Handle::current()),
+        )
         .expect("secrets")
         .build()
         .await

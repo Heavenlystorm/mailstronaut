@@ -15,6 +15,7 @@ const NAME: &str = include_str!("../../../assets/app-id");
 const PATH: &str = "/io/github/eduardz1/Mailstronaut";
 const INTERFACE: &str = "org.freedesktop.Application";
 const PROFILE_KEY: &str = "io.github.eduardz1.Mailstronaut.profile";
+const BACKGROUND_KEY: &str = "io.github.eduardz1.Mailstronaut.background";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Held for the entire foreground application lifetime.
@@ -63,6 +64,13 @@ impl Application {
                 ));
             }
         }
+        if let Some(background) = platform_data.remove(BACKGROUND_KEY) {
+            let background = bool::try_from(background)
+                .map_err(|_| fdo::Error::InvalidArgs("Invalid launch mode.".into()))?;
+            if background {
+                return Ok(());
+            }
+        }
         match self.activations.try_send(()) {
             Ok(()) | Err(TrySendError::Full(())) => Ok(()),
             Err(TrySendError::Closed(())) => Err(fdo::Error::Failed(
@@ -73,7 +81,11 @@ impl Application {
 }
 
 /// Claim ownership, or forward this launch without starting another UI/backend.
-pub async fn launch(config: Option<&Path>, demo: bool) -> Result<Option<Primary>, &'static str> {
+pub async fn launch(
+    config: Option<&Path>,
+    demo: bool,
+    background: bool,
+) -> Result<Option<Primary>, &'static str> {
     let config = config.ok_or("Unable to locate the native configuration.")?;
     let absolute =
         std::path::absolute(config).map_err(|_| "Unable to resolve configuration path.")?;
@@ -81,12 +93,21 @@ pub async fn launch(config: Option<&Path>, demo: bool) -> Result<Option<Primary>
     // Home Manager may replace a symlink with a new generation while we run.
     let mut profile = vec![u8::from(demo)];
     profile.extend_from_slice(absolute.as_os_str().as_bytes());
-    launch_profile(profile, TIMEOUT).await
+    launch_profile_mode(profile, TIMEOUT, background).await
 }
 
+#[cfg(test)]
 async fn launch_profile(
     profile: Vec<u8>,
     timeout: Duration,
+) -> Result<Option<Primary>, &'static str> {
+    launch_profile_mode(profile, timeout, false).await
+}
+
+async fn launch_profile_mode(
+    profile: Vec<u8>,
+    timeout: Duration,
+    background: bool,
 ) -> Result<Option<Primary>, &'static str> {
     tokio::time::timeout(timeout, async {
         let (sender, activations) = async_channel::bounded(1);
@@ -118,7 +139,7 @@ async fn launch_profile(
             Err(zbus::Error::NameTaken) => {
                 let profile = OwnedValue::try_from(Value::from(profile))
                     .map_err(|_| "Unable to encode activation request.")?;
-                let platform_data = HashMap::from([(PROFILE_KEY.to_owned(), profile)]);
+                let platform_data = HashMap::from([(PROFILE_KEY.to_owned(), profile), (BACKGROUND_KEY.to_owned(), OwnedValue::from(background))]);
                 connection
                     .call_method(Some(NAME), PATH, Some(INTERFACE), "Activate", &(platform_data,))
                     .await

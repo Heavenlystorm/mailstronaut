@@ -12,7 +12,7 @@ use super::*;
 
 const TARGET: &str = "https://links.example.test/report?SYNTHETIC-SECRET";
 
-struct Portal(PathBuf);
+struct Portal(PathBuf, tokio::runtime::Handle);
 
 #[zbus::interface(name = "org.freedesktop.portal.OpenURI")]
 impl Portal {
@@ -81,7 +81,7 @@ impl Portal {
             let response = mode.trim().parse::<u32>().unwrap_or(2);
             let connection = connection.clone();
             let response_path = path.clone();
-            tokio::spawn(async move {
+            self.1.spawn(async move {
                 connection
                     .emit_signal(
                         None::<&str>,
@@ -115,7 +115,10 @@ async fn server(root: PathBuf) -> Connection {
         .expect("private bus")
         .name("org.freedesktop.portal.Desktop")
         .expect("synthetic portal name")
-        .serve_at("/org/freedesktop/portal/desktop", Portal(root))
+        .serve_at(
+            "/org/freedesktop/portal/desktop",
+            Portal(root, tokio::runtime::Handle::current()),
+        )
         .expect("portal interface")
         .build()
         .await

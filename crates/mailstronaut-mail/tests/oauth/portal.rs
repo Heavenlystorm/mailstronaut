@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use secrecy::ExposeSecret as _;
 use zbus::{
     Connection, fdo,
     message::Header,
@@ -21,6 +22,7 @@ use super::{Reply, browser, callback, fixture_with_timeout, query};
 struct Portal {
     port: u16,
     opens: Arc<AtomicUsize>,
+    runtime: tokio::runtime::Handle,
 }
 #[zbus::interface(name = "org.freedesktop.portal.OpenURI")]
 impl Portal {
@@ -88,7 +90,7 @@ impl Portal {
         self.opens.fetch_add(1, Ordering::SeqCst);
         let connection = connection.clone();
         let response_path = path.clone();
-        tokio::spawn(async move {
+        self.runtime.spawn(async move {
             connection
                 .emit_signal(
                     None::<&str>,
@@ -162,6 +164,7 @@ pub async fn run() {
             Portal {
                 port,
                 opens: opens.clone(),
+                runtime: tokio::runtime::Handle::current(),
             },
         )
         .expect("OpenURI interface")
@@ -190,4 +193,85 @@ pub async fn run() {
     println!(
         "Native OpenURI used PKCE; restart refreshed the encrypted grant without reopening the browser."
     );
+}
+
+pub async fn fixture_round_trip() {
+    let root =
+        PathBuf::from(std::env::var_os("MAILSTRONAUT_SECRET_TEST_ROOT").expect("fixture root"));
+    let target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates")
+        .parent()
+        .expect("workspace")
+        .join("target")
+        .canonicalize()
+        .expect("target");
+    let root = root.canonicalize().expect("fixture root");
+    assert!(root.starts_with(target));
+    assert_eq!(
+        std::env::var("DBUS_SESSION_BUS_ADDRESS").expect("private bus"),
+        format!("unix:path={}/runtime/bus", root.display())
+    );
+    let (port, mut requests, server) = fixture_with_timeout(
+        vec![Reply::grant("SYNTHETIC-ACCESS", "SYNTHETIC-REFRESH")],
+        Duration::from_secs(10),
+    )
+    .await;
+    let opens = Arc::new(AtomicUsize::new(0));
+    let portal = zbus::connection::Builder::session()
+        .expect("private bus")
+        .name("org.freedesktop.portal.Desktop")
+        .expect("portal name")
+        .serve_at(
+            "/org/freedesktop/portal/desktop",
+            Portal {
+                port,
+                opens: opens.clone(),
+                runtime: tokio::runtime::Handle::current(),
+            },
+        )
+        .expect("OpenURI fixture")
+        .build()
+        .await
+        .expect("portal");
+    let provider = super::Provider::prepare(&super::auth(port), &super::roots())
+        .await
+        .expect("provider");
+    let flow = provider
+        .begin("reader@example.test")
+        .await
+        .expect("OAuth flow");
+    let url = flow.authorization_url().to_string();
+    let finish = tokio::spawn(async move {
+        flow.finish(&tokio_util::sync::CancellationToken::new())
+            .await
+    });
+    let client = Connection::session().await.expect("client connection");
+    let proxy = zbus::Proxy::new(
+        &client,
+        "org.freedesktop.portal.Desktop",
+        "/org/freedesktop/portal/desktop",
+        "org.freedesktop.portal.OpenURI",
+    )
+    .await
+    .expect("proxy");
+    let token = zbus::zvariant::Value::from("synthetic_oauth")
+        .try_to_owned()
+        .expect("token");
+    let options = HashMap::from([("handle_token", token)]);
+    let _: OwnedObjectPath = proxy
+        .call("OpenURI", &("", url.as_str(), options))
+        .await
+        .expect("portal request");
+    let grant = tokio::time::timeout(Duration::from_secs(10), finish)
+        .await
+        .expect("callback deadline")
+        .expect("flow task")
+        .expect("grant");
+    assert_eq!(grant.access().expose_secret(), "SYNTHETIC-ACCESS");
+    let request = requests.recv().await.expect("token exchange");
+    assert_eq!(request["code"], "SYNTHETIC-PORTAL-CODE");
+    assert_eq!(opens.load(Ordering::SeqCst), 1);
+    server.await.expect("server");
+    portal.close().await.expect("close portal");
 }

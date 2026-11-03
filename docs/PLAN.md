@@ -602,8 +602,9 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   explicit Quit pass a private end-to-end test. A private native walkthrough
   also verifies reminder delivery after close,
   rejection of a stale action, and opening only the intended message on the
-  current action. Startup with `--background` and real desktop acceptance remain
-  open.
+  current action. Native `--background` starts without a window, and repeated
+  background launches are passive; private sync, reopening, disabled setting and
+  missing-display checks pass. Real desktop acceptance remains open.
   [Evidence](evidence/P08-headless.md).
   Sandboxed file-backed OAuth cannot refresh automatically until non-creating
   token rotation is supported; a cached foreground grant may still be used.

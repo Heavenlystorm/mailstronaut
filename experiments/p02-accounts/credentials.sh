@@ -135,6 +135,12 @@ fi
 if [[ -n ${MAILSTRONAUT_ACCOUNT_ACTION_FIXTURE:-} ]]; then
   "$(realpath "$MAILSTRONAUT_ACCOUNT_ACTION_FIXTURE")" account_actions::tests::private_cancellation_and_validation_never_unlock --exact --ignored --nocapture | tee "$root/account-actions.log"
 fi
+if [[ -n ${MAILSTRONAUT_SECRET_PORTAL_FIXTURE:-} ]]; then
+  "$(realpath "$MAILSTRONAUT_SECRET_PORTAL_FIXTURE")" portal_fixture::private_secret_portal_response --exact --ignored --nocapture
+fi
+if [[ -n ${MAILSTRONAUT_OAUTH_PORTAL_FIXTURE:-} ]]; then
+  "$(realpath "$MAILSTRONAUT_OAUTH_PORTAL_FIXTURE")" private_oauth_portal_round_trip --exact --ignored --nocapture
+fi
 cargo_flags=(--locked --offline)
 if [[ ${MAILSTRONAUT_CREDENTIAL_TEST_PROFILE:-debug} == release ]]; then
   cargo_flags+=(--release)

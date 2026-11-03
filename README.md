@@ -14,7 +14,7 @@ TLS IMAP/SMTP, offline SQLite/MIME storage, account-local conversations, durable
 drafts/attachments, submission state and reminders. Their new GPUI workflows are
 tracked separately in the plan. Lexical fuzzy search and conservative local
 deadline rules are available. Multilingual semantic search, validated model
-priority inference and optional background operation remain goals.
+priority inference and full background integration remain goals.
 
 ```sh
 nix develop
@@ -35,7 +35,9 @@ mail, and foreground focus remains subject to the Wayland compositor's policy.
 On native installations, enable “Keep running after closing” in Settings or set
 `background.enabled = true;` in the Nix configuration to retain sync and reminders
 after closing the window. Launching again reopens it; Ctrl+Q quits completely.
-Flatpak background permission and `--background` startup are not implemented yet.
+With that setting enabled, `mailstronaut --background` starts sync and reminders
+without a window in an existing Wayland session; a normal launch opens the window.
+Flatpak background permission and automatic startup are not implemented yet.
 `--demo` never opens the real account store. Cached message
 content becomes read only through an explicit successful open, never list/search
 refresh or focus. Settings now exposes declared accounts, encrypted password

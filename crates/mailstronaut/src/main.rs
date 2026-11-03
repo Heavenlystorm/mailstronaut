@@ -110,6 +110,7 @@ fn main() -> ExitCode {
         return mailstronaut_core::threads::helper::run();
     }
     let demo = arguments.as_slice() == ["--demo"];
+    let background = arguments.first().is_some_and(|arg| arg == "--background");
     if !demo && let Some(status) = config_cli::dispatch(&arguments) {
         return status;
     }
@@ -124,7 +125,7 @@ fn main() -> ExitCode {
     let config = config_cli::selected_path(&arguments);
     // Claim the session name before creating a toolkit, window or store owner.
     // A second launch only asks the existing process to activate its window.
-    let instance = match runtime.block_on(instance::launch(config.as_deref(), demo)) {
+    let instance = match runtime.block_on(instance::launch(config.as_deref(), demo, background)) {
         Ok(Some(instance)) => instance,
         Ok(None) => return ExitCode::SUCCESS,
         Err(message) => {
@@ -144,11 +145,56 @@ fn main() -> ExitCode {
     }
     // Never fall back to X11, even when a session exports DISPLAY as well.
     environment.x11_display = None;
+    let startup = if background {
+        let result = runtime.block_on(async {
+            if ashpd::is_sandboxed() {
+                return Err("Background startup is unavailable in the sandbox.");
+            }
+            let path = config
+                .clone()
+                .ok_or("Unable to locate the native configuration.")?;
+            let executable =
+                env::current_exe().map_err(|_| "Unable to locate configuration helper.")?;
+            let declaration = mailstronaut_config::source::load(
+                path,
+                &executable,
+                &tokio_util::sync::CancellationToken::new(),
+            )
+            .await
+            .map_err(|_| "Unable to load native configuration.")?
+            .ok_or("Native configuration is missing.")?;
+            if !declaration.background.enabled {
+                return Err("Background operation is disabled in the native configuration.");
+            }
+            let root = directories::BaseDirs::new()
+                .ok_or("Unable to locate local mail storage.")?
+                .data_local_dir()
+                .join("mailstronaut");
+            let owner = mailstronaut_core::worker::Worker::open(root)
+                .await
+                .map_err(|_| "Unable to open local mail storage.")?;
+            Ok((Arc::new(declaration), Arc::new(owner)))
+        });
+        match result {
+            Ok(startup) => Some(startup),
+            Err(error) => {
+                eprintln!("{error}");
+                _ = runtime.block_on(instance.close());
+                return ExitCode::FAILURE;
+            }
+        }
+    } else {
+        None
+    };
     let ui_runtime = runtime.clone();
     let activations = instance.activations();
     let disconnected = instance.disconnected();
     gpui::platform::linux(WindowingModes::WAYLAND | WindowingModes::HEADLESS)
-        .with_windowing(WindowingRequest::Windowed(environment.clone()))
+        .with_windowing(if background {
+            WindowingRequest::Headless
+        } else {
+            WindowingRequest::Windowed(environment.clone())
+        })
         .with_quit_mode(QuitMode::Explicit)
         .with_assets(assets::Assets)
         .run(move |cx| {
@@ -160,15 +206,29 @@ fn main() -> ExitCode {
                 sync: cx.new(|_| mail_sync::Session::new(ui_runtime.clone())),
                 store: Arc::new(tokio::sync::OnceCell::new()),
             };
-            let initial = open_main_window(
-                config.clone(),
-                demo,
-                ui_runtime.clone(),
-                services.clone(),
-                cx,
-            )
-            .ok();
-            if initial.is_none() {
+            if let Some((declaration, owner)) = &startup {
+                assert!(services.store.set(owner.clone()).is_ok(), "new store owner");
+                let handle = Some(owner.handle());
+                services.reminders.update(cx, |session, cx| {
+                    session.configure(declaration, handle.clone(), cx);
+                });
+                services
+                    .sync
+                    .update(cx, |session, cx| session.configure(declaration, handle, cx));
+            }
+            let initial = if background {
+                None
+            } else {
+                open_main_window(
+                    config.clone(),
+                    demo,
+                    ui_runtime.clone(),
+                    services.clone(),
+                    cx,
+                )
+                .ok()
+            };
+            if !background && initial.is_none() {
                 eprintln!("Unable to open the native Wayland window.");
                 cx.quit();
             }
@@ -222,9 +282,12 @@ fn main() -> ExitCode {
                 demo,
                 ui_runtime,
                 environment,
+                background,
                 cx,
             );
-            cx.activate(true);
+            if !background {
+                cx.activate(true);
+            }
         });
     // Keep the session name until the platform and its window-owned work stop.
     _ = runtime.block_on(instance.close());
@@ -280,11 +343,12 @@ fn run_lifecycle(
     demo: bool,
     runtime: Arc<tokio::runtime::Runtime>,
     environment: GraphicalEnvironment,
+    initially_headless: bool,
     cx: &gpui::App,
 ) {
     cx.spawn(async move |cx| {
         let mut current = initial;
-        let mut headless = false;
+        let mut headless = initially_headless;
         while receiver.recv().await.is_ok() {
             let request = std::mem::take(&mut *requests.borrow_mut());
             if request.activate || request.target.is_some() {

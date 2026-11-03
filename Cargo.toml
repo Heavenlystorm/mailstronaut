@@ -34,7 +34,7 @@ hyper = { version = "=1.12.0", default-features = false, features = ["http1", "s
 hyper-util = { version = "=0.1.21", default-features = false, features = ["tokio"] }
 oauth2 = { version = "=5.0.0", default-features = false, features = ["timing-resistant-secret-traits"] }
 reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls-native-roots"] }
-zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
+zbus = { version = "=5.19.0", default-features = false, features = ["async-io"] }
 uuid = { version = "=1.29.0", features = ["v4"] }
 mail-parser = { version = "=1.0.0", features = ["full_encoding"] }
 mail-threading = "=0.1.3"

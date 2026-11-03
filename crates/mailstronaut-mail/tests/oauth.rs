@@ -601,3 +601,9 @@ async fn private_secret_service_oauth_rotation_is_serialized_and_revocation_stop
 async fn gui_loopback_server() {
     portal::run().await;
 }
+
+#[tokio::test]
+#[ignore = "requires the private bus from experiments/p02-accounts/credentials.sh"]
+async fn private_oauth_portal_round_trip() {
+    portal::fixture_round_trip().await;
+}

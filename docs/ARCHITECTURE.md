@@ -337,8 +337,11 @@ a fresh caller activation token is still an upstream API/desktop acceptance gap.
 The desktop entry is not yet marked D-Bus activatable. When native background
 operation is enabled, closing the last window detaches Wayland while retaining
 the store, sync and reminder services. Launcher activation reattaches a window;
-notification activation may explicitly open its original. Ctrl+Q quits. Flatpak
-background permission and startup without an initial window remain P08 work.
+notification activation may explicitly open its original. Ctrl+Q quits. Native
+`--background` starts those services without an initial window when enabled in the
+validated Nix configuration; another background launch is passive. It currently
+requires a Wayland session address so a later activation can attach. Flatpak
+background permission and automatic startup remain P08 work.
 
 “Remind me” is a local durable reminder for an email, independent of the read flag,
 priority TTL and server labels. Provide one hour, this evening, tomorrow morning,

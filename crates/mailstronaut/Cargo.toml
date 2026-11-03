@@ -15,7 +15,7 @@ publish = false
 gpui-kit.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
-ashpd = { workspace = true, features = ["notification", "open_uri"] }
+ashpd = { workspace = true, features = ["notification", "open_uri", "secret"] }
 async-channel.workspace = true
 futures-util.workspace = true
 iana-time-zone.workspace = true

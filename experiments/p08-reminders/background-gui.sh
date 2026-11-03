@@ -177,7 +177,49 @@ wait "$app"; app=''
 sed -i 's/background.enabled = true;/background.enabled = false;/' "$config"
 start disabled
 close_window
+if "$binary" --background --config "$config" > "$artifacts/background-disabled.log" 2>&1; then
+  printf 'Disabled background startup unexpectedly succeeded: %s\n' "$artifacts" >&2; exit 1
+fi
+sed -i 's/background.enabled = false;/background.enabled = true;/' "$config"
+if env -u WAYLAND_DISPLAY "$binary" --background --config "$config" > "$artifacts/background-no-display.log" 2>&1; then
+  printf 'Background startup unexpectedly accepted a missing display: %s\n' "$artifacts" >&2; exit 1
+fi
+RUST_BACKTRACE=1 "$binary" --background --config "$config" > "$artifacts/headless-start-app.log" 2>&1 & app=$!
+sleep 3
+kill -0 "$app"
+if window_open; then printf 'Background startup created a window: %s\n' "$artifacts" >&2; exit 1; fi
+message fourth
+await_query 4 'SELECT count(*) FROM messages'
+[[ $(server_flags INBOX marker-fourth) != *S* ]]
+timeout 10 "$binary" --background --config "$config" > "$artifacts/headless-forward.log" 2>&1
+sleep 1
+if window_open; then printf 'Background relaunch created a window: %s\n' "$artifacts" >&2; exit 1; fi
+timeout 10 "$binary" --config "$config" > "$artifacts/headless-activate.log" 2>&1
+for _ in {1..150}; do window_open && break; kill -0 "$app"; sleep .1; done
+window_open
+[[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 2 ]]
+capture headless-start-reopened
+wtype -s 200 -M ctrl q -m ctrl
+for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
+if kill -0 "$app" 2>/dev/null; then printf 'Headless-started app failed to quit: %s\n' "$artifacts" >&2; exit 1; fi
+wait "$app"; app=''
+for cycle in 1 2 3 4; do
+  RUST_BACKTRACE=1 "$binary" --background --config "$config" > "$artifacts/headless-repeat-$cycle-app.log" 2>&1 & app=$!
+  sleep 2
+  kill -0 "$app"
+  if window_open; then printf 'Repeated background startup created a window: %s\n' "$artifacts" >&2; exit 1; fi
+  if [[ -n "$keyboard" ]]; then kill "$keyboard"; wait "$keyboard" 2>/dev/null || true; fi
+  wtype -k Escape -s 300000 > "$artifacts/keyboard.log" 2>&1 & keyboard=$!
+  sleep .3
+  timeout 10 "$binary" --config "$config" > "$artifacts/headless-repeat-$cycle-activate.log" 2>&1
+  for _ in {1..150}; do window_open && break; kill -0 "$app"; sleep .1; done
+  window_open
+  wtype -s 200 -M ctrl q -m ctrl
+  for _ in {1..100}; do kill -0 "$app" 2>/dev/null || break; sleep .1; done
+  if kill -0 "$app" 2>/dev/null; then printf 'Repeated headless app failed to quit: %s\n' "$artifacts" >&2; exit 1; fi
+  wait "$app"; app=''
+done
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf 'Synthetic credential appeared in a log: %s\n' "$artifacts" >&2; exit 1
 fi
-printf 'Native background sync, launcher, new-mail and reminder reopening, stale reminder rejection, explicit quit and disabled close passed: %s\n' "$artifacts"
+printf 'Native headless startup, background sync, passive relaunch, notification reopening, stale reminder rejection and explicit quit passed: %s\n' "$artifacts"
