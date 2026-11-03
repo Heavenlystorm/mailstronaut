@@ -211,11 +211,7 @@ pub struct Workspace {
     older_reached: HashMap<(String, String), Option<mailstronaut_core::sync::Position>>,
     /// Present while older mail is being fetched.
     older_fetch: Option<CancellationToken>,
-    announcer: Option<crate::mail_notify::Announcer>,
-    /// The newest message already considered, per account: new mail is what comes after.
-    announced_through: HashMap<String, i64>,
-    /// Messages announced since a window was last in front, per account.
-    announced_count: HashMap<String, u32>,
+    announcer: Option<Arc<crate::mail_notify::Announcer>>,
     syncing: BTreeSet<String>,
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
     sync_errors: BTreeMap<String, String>,
@@ -225,6 +221,9 @@ pub struct Workspace {
 
 impl Drop for Workspace {
     fn drop(&mut self) {
+        if let Some(announcer) = &self.announcer {
+            announcer.set_window_active(false);
+        }
         self.lifetime.cancel();
         self.account_lifetime.cancel();
         self.query_cancel.cancel();
@@ -232,9 +231,6 @@ impl Drop for Workspace {
 }
 
 const SEARCH_PAUSE: Duration = Duration::from_millis(200);
-/// Mail older than this is not new, however recently it was fetched: older mail can be
-/// fetched on request, and an account can come back after days offline.
-const NEW_MAIL_WITHIN_SECONDS: i64 = 3 * 24 * 3600;
 /// Identifies the progress notification, so that the result replaces it.
 struct AttachmentDownload;
 /// What one list refresh loads: folders, unread counts, the page and the priority group.
@@ -450,12 +446,9 @@ impl Workspace {
             // A message opened while the window was away, such as from a notification, is
             // marked read now that it is in front, if its body had already loaded.
             this.mark_loaded(window, cx);
-            if let Some(announcer) = &this.announcer {
-                announcer.set_window_active(window.is_window_active());
-            }
-            if window.is_window_active() {
-                this.withdraw_announcements();
-            }
+            this.sync_session.update(cx, |session, _| {
+                session.set_window_active(window.is_window_active());
+            });
             if window.is_window_active() && this.last_wake.elapsed() >= ACTIVATION_WAKE_INTERVAL {
                 this.last_wake = Instant::now();
                 this.sync_session.read(cx).wake_all();
@@ -529,8 +522,17 @@ impl Workspace {
         let sync_events = cx.subscribe_in(
             &services.sync,
             window,
-            |this, _, event: &crate::mail_sync::Event, window, cx| {
-                this.sync_update(event.0.clone(), window, cx);
+            |this, _, event: &crate::mail_sync::Event, window, cx| match event {
+                crate::mail_sync::Event::Sync(update) => {
+                    this.sync_update(update.clone(), window, cx);
+                }
+                crate::mail_sync::Event::Open(click) => {
+                    window.activate_window();
+                    match &click.message {
+                        Some(mail) => this.open_new_mail(&click.account, mail, window, cx),
+                        None => this.show_inbox(window, cx),
+                    }
+                }
             },
         );
         let preferences = cx.new(|cx| {
@@ -622,8 +624,6 @@ impl Workspace {
             older_reached: HashMap::new(),
             older_fetch: None,
             announcer: None,
-            announced_through: HashMap::new(),
-            announced_count: HashMap::new(),
             syncing: BTreeSet::new(),
             sync_progress: BTreeMap::new(),
             sync_errors: BTreeMap::new(),
@@ -1602,91 +1602,6 @@ impl Workspace {
         .detach();
     }
 
-    fn start_announcer(&mut self, window: &Window, cx: &Context<Self>) {
-        if self.announcer.is_some() {
-            return;
-        }
-        let announcer = crate::mail_notify::Announcer::start(&self.runtime);
-        let opened = announcer.opened.clone();
-        announcer.set_window_active(window.is_window_active());
-        self.announcer = Some(announcer);
-        cx.spawn_in(window, async move |this, cx| {
-            while let Ok(click) = opened.recv().await {
-                let applied = this.update_in(cx, |this, window, cx| {
-                    window.activate_window();
-                    match &click.message {
-                        Some(mail) => this.open_new_mail(&click.account, mail, window, cx),
-                        None => this.show_inbox(window, cx),
-                    }
-                });
-                if applied.is_err() {
-                    return;
-                }
-            }
-        })
-        .detach();
-    }
-
-    /// The first look at an account only records where it stands, so that mail already
-    /// there at startup is not announced as if it had just arrived.
-    fn look_for_new_mail(&self, account: String, window: &Window, cx: &Context<Self>) {
-        let Some(store) = self.handle() else {
-            return;
-        };
-        let after = self.announced_through.get(&account).copied();
-        let since = chrono::Utc::now().timestamp() - NEW_MAIL_WITHIN_SECONDS;
-        let asked = account.clone();
-        let job = self
-            .runtime
-            .spawn(async move { store.new_inbox_mail(asked, after, since, 100).await });
-        cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok((newest, mail))) = job.await else {
-                return;
-            };
-            _ = this.update_in(cx, |this, _, _| {
-                this.announced_through.insert(account.clone(), newest);
-                if this
-                    .announcer
-                    .as_ref()
-                    .is_some_and(|item| !item.window_active())
-                {
-                    this.announce(&account, &mail);
-                }
-            });
-        })
-        .detach();
-    }
-
-    fn announce(&mut self, account: &str, mail: &[mailstronaut_core::store::analysis::NewMail]) {
-        let (Some(config), Some(announcer)) = (self.declaration.active(), &self.announcer) else {
-            return;
-        };
-        let Some(item) = config.accounts.iter().find(|item| item.id == account) else {
-            return;
-        };
-        if mail.is_empty() || !config.notifications.enabled {
-            return;
-        }
-        let count = self.announced_count.entry(account.to_owned()).or_default();
-        *count = count.saturating_add(u32::try_from(mail.len()).unwrap_or(u32::MAX));
-        let latest = config
-            .notifications
-            .show_preview
-            .then(|| mail.first())
-            .flatten();
-        announcer.show(account, &item.display_name, *count, latest, mail.first());
-    }
-
-    /// Coming back to the window answers whatever was announced.
-    fn withdraw_announcements(&mut self) {
-        let Some(announcer) = &self.announcer else {
-            return;
-        };
-        for (account, _) in self.announced_count.drain() {
-            announcer.withdraw(&account);
-        }
-    }
-
     /// A move that will be tried again keeps its warning until it works. One this server
     /// can never do is reported once and given up on, so it is shown until dismissed.
     fn report_move_failure(
@@ -1724,14 +1639,16 @@ impl Workspace {
     /// Restart per-account polling for the active configuration. Explicit sync in
     /// Settings still works when `sync.automatic` is off.
     fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &mut Context<Self>) {
-        self.start_announcer(window, cx);
         self.start_priority(config, window, cx);
         self.sync_errors.clear();
         self.syncing.clear();
         self.sync_progress.clear();
         let handle = self.handle();
-        self.sync_session
-            .update(cx, |session, cx| session.configure(config, handle, cx));
+        self.sync_session.update(cx, |session, cx| {
+            session.set_window_active(window.is_window_active());
+            session.configure(config, handle, cx);
+        });
+        self.announcer = self.sync_session.read(cx).announcer();
     }
 
     fn sync_update(
@@ -1762,9 +1679,6 @@ impl Workspace {
                 match result {
                     Ok(cycle) => {
                         self.report_move_failure(&account, cycle.move_failure, window, cx);
-                        if cycle.downloaded > 0 || !self.announced_through.contains_key(&account) {
-                            self.look_for_new_mail(account.clone(), window, cx);
-                        }
                         self.last_sync = chrono::Local::now().format("%H:%M").to_string();
                         if cycle.downloaded > 0
                             || cycle.refreshed > 0

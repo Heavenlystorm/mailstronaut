@@ -27,6 +27,7 @@ enum Request {
 }
 
 /// A click on a notification: its account, and the newest message it announced, if known.
+#[derive(Clone)]
 pub struct Opened {
     pub account: String,
     pub message: Option<NewMail>,

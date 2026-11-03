@@ -36,6 +36,7 @@ const COALESCE: Duration = Duration::from_secs(1);
 /// While a folder still has history to fetch, its account comes back this often instead of
 /// at the polling interval, so the history moves steadily without waiting a whole poll.
 const BACKFILL_PAUSE: Duration = Duration::from_secs(30);
+const NEW_MAIL_WITHIN_SECONDS: i64 = 3 * 24 * 3600;
 
 /// Progress of one folder's history pass: `completed` of `total` messages reviewed.
 /// `total` is None until the server reports how many messages the folder holds.
@@ -62,12 +63,23 @@ pub struct Session {
     lifetime: CancellationToken,
     engine: Option<Engine>,
     generation: u64,
+    announcer: Option<Arc<crate::mail_notify::Announcer>>,
+    announced_through: HashMap<String, i64>,
+    announced_count: HashMap<String, u32>,
+    config: Option<Arc<Config>>,
+    store: Option<Handle>,
+    window_active: bool,
     #[cfg(test)]
     observed_failure: bool,
 }
 
 /// A sync update delivered to a currently attached window.
-pub struct Event(pub Update);
+pub enum Event {
+    /// A change in sync progress or outcome.
+    Sync(Update),
+    /// The user explicitly activated a new-mail notification.
+    Open(crate::mail_notify::Opened),
+}
 impl EventEmitter<Event> for Session {}
 
 impl Session {
@@ -79,6 +91,12 @@ impl Session {
             lifetime: CancellationToken::new(),
             engine: None,
             generation: 0,
+            announcer: None,
+            announced_through: HashMap::new(),
+            announced_count: HashMap::new(),
+            config: None,
+            store: None,
+            window_active: false,
             #[cfg(test)]
             observed_failure: false,
         }
@@ -94,6 +112,25 @@ impl Session {
         self.engine = None;
         self.generation = self.generation.wrapping_add(1);
         let generation = self.generation;
+        self.config = Some(config.clone());
+        self.store.clone_from(&store);
+        if self.announcer.is_none() {
+            let announcer = Arc::new(crate::mail_notify::Announcer::start(&self.runtime));
+            announcer.set_window_active(self.window_active);
+            let opened = announcer.opened.clone();
+            self.announcer = Some(announcer);
+            cx.spawn(async move |this, cx| {
+                while let Ok(click) = opened.recv().await {
+                    if this
+                        .update(cx, |_, cx| cx.emit(Event::Open(click)))
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+            })
+            .detach();
+        }
         let Some(store) = store.filter(|_| config.sync.automatic) else {
             return;
         };
@@ -115,7 +152,10 @@ impl Session {
                                 this.observed_failure |=
                                     matches!(&update, Update::Finished(_, Err(_)));
                             }
-                            cx.emit(Event(update));
+                            if let Update::Finished(account, Ok(_)) = &update {
+                                this.look_for_new_mail(account.clone(), cx);
+                            }
+                            cx.emit(Event::Sync(update));
                         }
                     })
                     .is_err()
@@ -139,6 +179,76 @@ impl Session {
         if let Some(engine) = &self.engine {
             engine.include_folder(account, folder);
         }
+    }
+
+    /// Keep desktop notification visibility in sync with the active window.
+    pub fn set_window_active(&mut self, active: bool) {
+        self.window_active = active;
+        if let Some(announcer) = &self.announcer {
+            announcer.set_window_active(active);
+        }
+        if active && let Some(announcer) = &self.announcer {
+            for (account, _) in self.announced_count.drain() {
+                announcer.withdraw(&account);
+            }
+        }
+    }
+
+    /// The view can mark itself inactive when it is destroyed.
+    pub fn announcer(&self) -> Option<Arc<crate::mail_notify::Announcer>> {
+        self.announcer.clone()
+    }
+
+    fn look_for_new_mail(&self, account: String, cx: &Context<Self>) {
+        let Some(store) = self.store.clone() else {
+            return;
+        };
+        let after = self.announced_through.get(&account).copied();
+        let since = chrono::Utc::now().timestamp() - NEW_MAIL_WITHIN_SECONDS;
+        let asked = account.clone();
+        let generation = self.generation;
+        let job = self
+            .runtime
+            .spawn(async move { store.new_inbox_mail(asked, after, since, 100).await });
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok((newest, mail))) = job.await else {
+                return;
+            };
+            _ = this.update(cx, |this, _| {
+                if generation != this.generation {
+                    return;
+                }
+                this.announced_through.insert(account.clone(), newest);
+                if this
+                    .announcer
+                    .as_ref()
+                    .is_some_and(|item| !item.window_active())
+                {
+                    this.announce(&account, &mail);
+                }
+            });
+        })
+        .detach();
+    }
+
+    fn announce(&mut self, account: &str, mail: &[mailstronaut_core::store::analysis::NewMail]) {
+        let (Some(config), Some(announcer)) = (&self.config, &self.announcer) else {
+            return;
+        };
+        let Some(item) = config.accounts.iter().find(|item| item.id == account) else {
+            return;
+        };
+        if mail.is_empty() || !config.notifications.enabled {
+            return;
+        }
+        let count = self.announced_count.entry(account.to_owned()).or_default();
+        *count = count.saturating_add(u32::try_from(mail.len()).unwrap_or(u32::MAX));
+        let latest = config
+            .notifications
+            .show_preview
+            .then(|| mail.first())
+            .flatten();
+        announcer.show(account, &item.display_name, *count, latest, mail.first());
     }
 
     #[cfg(test)]
