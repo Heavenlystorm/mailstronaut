@@ -595,6 +595,11 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   credential access must neither create a collection nor request foreground unlock.
   The automatic sync path now uses an existing unlocked native keyring without
   requesting unlock; private Secret Service and Dovecot tests cover this path.
+  The store owner, reminder scheduler, sync loop and new-mail notification
+  bookkeeping have moved into retained application state. Private lifecycle tests
+  cover the same owner across windows and synthetic Dovecot synchronization with
+  no window; actual application background startup, close/reopen and notification
+  action reopening still need acceptance. [Evidence](evidence/P08-headless.md).
   Sandboxed file-backed OAuth cannot refresh automatically until non-creating
   token rotation is supported; a cached foreground grant may still be used.
 - [ ] Implement independent background/autostart/notification settings and zero

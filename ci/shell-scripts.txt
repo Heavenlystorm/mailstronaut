@@ -24,6 +24,7 @@ experiments/p08-reminders/gui.sh
 experiments/p08-reminders/instance.sh
 experiments/p08-reminders/instance-gui.sh
 experiments/p08-reminders/lifecycle.sh
+experiments/p08-reminders/headless-sync.sh
 experiments/p06-search/reproduce.sh
 experiments/p06-search/run-release.sh
 experiments/p04-sync/idle.sh

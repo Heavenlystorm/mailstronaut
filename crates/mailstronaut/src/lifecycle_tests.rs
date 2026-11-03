@@ -288,3 +288,71 @@ fn native_headless_attach_close_detach_reopen() {
         "Native headless lifecycle: failed attach/retry, two real windows, independent state, live headless loop and released workspaces/HTML workers passed."
     );
 }
+
+#[test]
+#[ignore = "requires the private Dovecot and Secret Service harness"]
+fn headless_sync_with_private_dovecot() {
+    let root =
+        PathBuf::from(std::env::var_os("MAILSTRONAUT_HEADLESS_SYNC_ROOT").expect("fixture root"));
+    let target = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates")
+        .parent()
+        .expect("workspace")
+        .join("target")
+        .canonicalize()
+        .expect("target");
+    assert!(
+        root.canonicalize()
+            .expect("fixture root")
+            .starts_with(target)
+    );
+    let config: mailstronaut_config::Config =
+        serde_json::from_slice(&std::fs::read(root.join("config.json")).expect("fixture config"))
+            .expect("valid config");
+    let config = Arc::new(config);
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("runtime"),
+    );
+    let owner = runtime
+        .block_on(mailstronaut_core::worker::Worker::open(
+            root.join("profile"),
+        ))
+        .expect("worker");
+    let handle = owner.handle();
+    let passed = Rc::new(Cell::new(false));
+    let completed = passed.clone();
+    gpui::platform::linux(WindowingModes::HEADLESS)
+        .with_windowing(WindowingRequest::Headless)
+        .with_quit_mode(QuitMode::Explicit)
+        .run(move |cx| {
+            gpui::init(cx);
+            let session = cx.new(|_| crate::mail_sync::Session::new(runtime.clone()));
+            session.update(cx, |session, cx| {
+                session.configure(&config, Some(handle), cx);
+            });
+            cx.spawn(async move |cx| {
+                std::fs::write(root.join("ready"), b"headless session\n").expect("ready receipt");
+                for _ in 0..600 {
+                    if root.join("stop").is_file() {
+                        break;
+                    }
+                    tick(cx).await;
+                }
+                assert!(root.join("stop").is_file(), "driver must stop the session");
+                drop(session);
+                runtime
+                    .spawn(owner.shutdown())
+                    .await
+                    .expect("shutdown task")
+                    .expect("shutdown");
+                completed.set(true);
+                cx.update(|cx| cx.quit());
+            })
+            .detach();
+        });
+    assert!(passed.get());
+}

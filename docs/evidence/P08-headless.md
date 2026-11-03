@@ -121,13 +121,19 @@ The sync loop and credential-access state are now also application-owned, and it
 update stream is drained without a window. In the private native lifecycle probe,
 an account with no available private Secret Service reports a credential failure
 while no window exists. A separate private Dovecot/Wayland run passed initial sync,
-unread preservation, IDLE updates and reconnection with the window open. The former
-does not demonstrate successful mail synchronization while closed.
+unread preservation, IDLE updates and reconnection with the window open. A further
+headless-only GPUI session fetched two synthetic messages from a private Dovecot,
+including one arriving after the first cycle, while both cached and server copies
+remained unread. That fixture never creates a window; it is not an end-to-end test
+of closing the production application.
 
 This is not background-mode acceptance: the real application still exits on last
-window close, new-mail notification/indexing reactions are window-owned, and a
-notification Open action is not yet routed to reopen a window. Full desktop,
-Flatpak and provider acceptance remain open.
+window close, indexing reactions are window-owned, and a notification Open action
+is not yet routed to reopen a window. New-mail detection and notification
+bookkeeping now run in the retained sync session. Private Dovecot/Wayland tests
+passed for private, preview and disabled notifications, including replacement,
+withdrawal, click-to-open and explicit Seen. Those tests used an inactive window,
+not a closed one. Full desktop, Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.
