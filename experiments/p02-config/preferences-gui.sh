@@ -46,6 +46,9 @@ click 1245 258
 filter_preferences 'Poll interval'
 click 1200 258
 wtype -M ctrl a -m ctrl '120' -k Return -s 200
+filter_preferences 'Keep running after closing'
+click 1245 275
+capture preferences-background
 filter_preferences appearance
 click 1225 274
 wtype -k Up -k Return -s 300
@@ -56,7 +59,7 @@ sleep 1
 "$binary" config check --path "$config"
 "$binary" config export --path "$config" > "$root/preferences-saved.nix"
 python3 - "$root/preferences-saved.nix" "$config" <<'PYSAVED'
-import sys,stat
+import sys,stat,re
 from pathlib import Path
 text=Path(sys.argv[1]).read_text(); source=Path(sys.argv[2]); raw=source.read_text()
 for fragment in ['appearance = "dark";', 'pollSeconds = 120;', 'automatic = false;',
@@ -64,6 +67,7 @@ for fragment in ['appearance = "dark";', 'pollSeconds = 120;', 'automatic = fals
                  'notifications = { enabled = false; showPreview = true; };']:
     assert fragment in text, (fragment,text)
 assert text.count('secretRef = "synthetic-conversation-password";') == 2
+assert re.search(r'background\s*=\s*\{[^}]*enabled\s*=\s*true;', text), text
 assert 'maxBodyBytes' not in raw and 'initialDays' not in raw, 'untouched defaults materialized'
 assert stat.S_IMODE(source.stat().st_mode) == 0o600
 PYSAVED

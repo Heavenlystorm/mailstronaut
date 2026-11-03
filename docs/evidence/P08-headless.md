@@ -1,7 +1,8 @@
 # P08 — Native headless lifecycle feasibility
 
-Status: the pinned toolkit API works in the bounded native probe. This is **not**
-an implementation of background mail, `--background` or headless notifications.
+Status: native close-to-background and reopening work in a private synthetic
+Wayland session. `--background`, autostart and Flatpak background permission remain
+unimplemented; real desktop and provider acceptance remain open.
 
 The test-only `lifecycle_tests` module uses the existing GPUI Kit/GPUI 0.3.10
 family, `WindowingModes::WAYLAND | HEADLESS`, `QuitMode::Explicit` and
@@ -18,8 +19,8 @@ atomic heartbeat with no native window. The external driver requests reopening;
 the second attachment creates another actual workspace/window. Sway reports
 distinct window IDs with the same process PID. After the second close/detach,
 retained application state still has its expected value and the process quits
-normally. This establishes a usable toolkit lifecycle for the planned session
-controller; the retained test value is not an email backend.
+normally. The original feasibility run retained only a test value; later runs also
+exercise a synthetic reminder session and shared store owner.
 
 ## Acceptance
 
@@ -45,12 +46,13 @@ MAILSTRONAUT_LIFECYCLE_FIXTURE=<current app test executable> \
   nix develop .#gui-test --command bash experiments/p08-reminders/lifecycle.sh
 ```
 
-The existing application still exits when its last window closes. Next work must
-move the store/auth/sync/reminder ownership out of Workspace, preserve explicit
-quit and draft durability, use noninteractive credentials in background, and pass
-the real close/sync/notification/reopen tests. Caller-token foreground activation,
-background portal permission, suspend/resume, full HM service activation, hardware
-GPU memory, models, real providers and Flatpak remain separate acceptance.
+The production application now keeps its native session alive after close when
+`background.enabled` is set. It detaches the graphical backend and retains the
+store, sync and reminder services; Ctrl+Q explicitly quits. When the setting is
+off, closing the last window quits. Sandboxed background mode stays disabled until
+the Background portal is integrated. Caller-token foreground activation,
+background portal permission, suspend/resume, full HM service activation,
+hardware GPU memory, models, real providers and Flatpak remain separate acceptance.
 
 No new release/package or installed-app acceptance is claimed for this test-only
 slice; the previous [single-instance package](P08-instance.md) predates it.
@@ -127,13 +129,17 @@ including one arriving after the first cycle, while both cached and server copie
 remained unread. That fixture never creates a window; it is not an end-to-end test
 of closing the production application.
 
-This is not background-mode acceptance: the real application still exits on last
-window close, indexing reactions are window-owned, and a notification Open action
-is not yet routed to reopen a window. New-mail detection and notification
-bookkeeping now run in the retained sync session. Private Dovecot/Wayland tests
-passed for private, preview and disabled notifications, including replacement,
-withdrawal, click-to-open and explicit Seen. Those tests used an inactive window,
-not a closed one. Full desktop, Flatpak and provider acceptance remain open.
+New-mail detection and notification bookkeeping run in the retained sync session.
+The private `background-gui.sh` walkthrough closes the real native window, checks
+that its HTML worker exits, receives new synthetic Dovecot mail while closed and
+confirms that it stays unread. A second launch reopens the same process without
+marking mail read; another delivery and notification click reopen the matching
+original and mark only that explicit open read. Ctrl+Q stops the process, and
+closing with background disabled exits. The separate native preferences test saves,
+restarts and exports the Nix setting while preserving other fields. Both use private
+Wayland, Secret Service and portal fixtures. Reminder notification reopening,
+background startup without an initial window, indexing while closed, real desktop,
+Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

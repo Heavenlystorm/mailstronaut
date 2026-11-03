@@ -127,9 +127,13 @@ pub struct Session {
     error: Option<SharedString>,
 }
 
-enum SessionEvent {
+/// Changes and explicit opens emitted by the retained reminder session.
+pub enum SessionEvent {
+    /// The displayed reminder state changed.
     Changed,
+    /// The user explicitly opened a reminder.
     Open(Reminder),
+    /// The scheduler encountered a redacted error.
     Error(String),
 }
 
@@ -694,7 +698,11 @@ fn sleep_for(next: Option<i64>, now: i64) -> Duration {
     })
 }
 
-async fn resolve_original(
+/// Resolve a reminder against its current account and generation.
+///
+/// # Errors
+/// Returns a redacted worker error if the store cannot be read.
+pub async fn resolve_original(
     store: Handle,
     accounts: Vec<String>,
     record: Reminder,

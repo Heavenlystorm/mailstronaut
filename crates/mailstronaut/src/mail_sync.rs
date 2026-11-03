@@ -107,6 +107,13 @@ impl Session {
         self.access.clone()
     }
 
+    /// Whether the active declaration asks the native app to continue after close.
+    pub fn background_enabled(&self) -> bool {
+        self.config
+            .as_ref()
+            .is_some_and(|config| config.background.enabled)
+    }
+
     /// Replace the active account loops when the declaration changes.
     pub fn configure(&mut self, config: &Arc<Config>, store: Option<Handle>, cx: &Context<Self>) {
         self.engine = None;

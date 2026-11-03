@@ -114,7 +114,7 @@ Artifacts: [summary](artifacts/p02-accounts/summary.json),
 [source hashes](artifacts/p02-accounts/source-check.json),
 [installed smoke](artifacts/p02-accounts/installed-smoke.log).
 
-## Remaining acceptance
+## Remaining acceptance at the time of this account probe
 
 No live sign-in, IMAP/SMTP operation, OAuth callback, locked-desktop prompt,
 Flatpak Secret portal, actual Home Manager link/activation, Wayland account-form

@@ -334,8 +334,11 @@ store profile lock independently prevents another process/bus from opening a
 second owner. CLI configuration and internal helpers bypass session activation.
 The pinned GPUI public API requests Wayland activation from its own seat; forwarding
 a fresh caller activation token is still an upstream API/desktop acceptance gap.
-The desktop entry is not yet marked D-Bus activatable. The foreground process
-currently exits on last-window-close; headless lifetime/reopening remain P08 work.
+The desktop entry is not yet marked D-Bus activatable. When native background
+operation is enabled, closing the last window detaches Wayland while retaining
+the store, sync and reminder services. Launcher activation reattaches a window;
+notification activation may explicitly open its original. Ctrl+Q quits. Flatpak
+background permission and startup without an initial window remain P08 work.
 
 “Remind me” is a local durable reminder for an email, independent of the read flag,
 priority TTL and server labels. Provide one hour, this evening, tomorrow morning,

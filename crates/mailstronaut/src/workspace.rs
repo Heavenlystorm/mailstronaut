@@ -131,6 +131,15 @@ enum View {
     Reminders,
 }
 
+/// A notification action explicitly chosen while the application had no window.
+#[derive(Clone)]
+pub enum PendingOpen {
+    /// A new-mail notification was activated.
+    Mail(crate::mail_notify::Opened),
+    /// A reminder notification was activated.
+    Reminder(mailstronaut_core::store::reminders::Reminder),
+}
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum ReaderMode {
     Text,
@@ -155,6 +164,7 @@ pub struct Workspace {
     onboarding: Entity<crate::onboarding::Onboarding>,
     _preference_events: Subscription,
     loading_config: bool,
+    pending_open: Option<PendingOpen>,
     view: View,
     account_access: crate::account_actions::Access,
     composer: Entity<crate::composer::Composer>,
@@ -515,7 +525,7 @@ impl Workspace {
         });
         let reminder_events = cx.subscribe_in(&reminders, window, |this, _, event, window, cx| {
             if let crate::reminders::Event::Open(record) = event {
-                this.open_reminder(record, window, cx);
+                this.open_notification(PendingOpen::Reminder(record.clone()), window, cx);
             }
             cx.notify();
         });
@@ -527,11 +537,7 @@ impl Workspace {
                     this.sync_update(update.clone(), window, cx);
                 }
                 crate::mail_sync::Event::Open(click) => {
-                    window.activate_window();
-                    match &click.message {
-                        Some(mail) => this.open_new_mail(&click.account, mail, window, cx),
-                        None => this.show_inbox(window, cx),
-                    }
+                    this.open_notification(PendingOpen::Mail(click.clone()), window, cx);
                 }
             },
         );
@@ -571,6 +577,7 @@ impl Workspace {
             onboarding,
             _preference_events: preference_events,
             loading_config: false,
+            pending_open: None,
             view: View::Inbox,
             account_access,
             composer,
@@ -788,6 +795,8 @@ impl Workspace {
                         if this.declaration.active().is_none() {
                             this.view = View::Accounts;
                             this.read_gate.visibility(false);
+                        } else if let Some(target) = this.pending_open.take() {
+                            this.open_notification(target, window, cx);
                         }
                     }
                     Ok(Err(error)) => this.status = error,
@@ -1824,6 +1833,56 @@ impl Workspace {
         self.composer.update(cx, |composer, cx| composer.flush(cx));
         window.focus(&self.focus, cx);
         cx.notify();
+    }
+
+    /// Route a notification click after configuration and the store are ready.
+    pub(crate) fn open_notification(
+        &mut self,
+        target: PendingOpen,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.loading_config || self.declaration.active().is_none() || self.handle().is_none() {
+            self.pending_open = Some(target);
+            return;
+        }
+        window.activate_window();
+        match target {
+            PendingOpen::Mail(click) => {
+                if !self.accounts.contains(&click.account) {
+                    return;
+                }
+                match click.message {
+                    Some(mail) => self.open_new_mail(&click.account, &mail, window, cx),
+                    None => self.show_inbox(window, cx),
+                }
+            }
+            PendingOpen::Reminder(record) => {
+                let Some(handle) = self.handle() else {
+                    return;
+                };
+                let revision = self.declaration.revision();
+                let accounts = self.accounts.clone();
+                let job = self.runtime.spawn(async move {
+                    crate::reminders::resolve_original(handle, accounts, record).await
+                });
+                cx.spawn_in(window, async move |this, cx| {
+                    let result = job.await;
+                    _ = this.update_in(cx, |this, window, cx| {
+                        if revision != this.declaration.revision() {
+                            return;
+                        }
+                        if let Ok(Ok(Some(record))) = result {
+                            this.open_reminder(&record, window, cx);
+                        } else {
+                            this.status = "This reminder changed or is unavailable.".into();
+                            cx.notify();
+                        }
+                    });
+                })
+                .detach();
+            }
+        }
     }
 
     /// A click on a new-mail notification opens the message it announced, like any explicit open.

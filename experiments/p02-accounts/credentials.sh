@@ -68,6 +68,9 @@ fi
 if [[ -n ${MAILSTRONAUT_HEADLESS_SYNC_FIXTURE:-} ]]; then
   bash experiments/p08-reminders/headless-sync.sh "$MAILSTRONAUT_HEADLESS_SYNC_FIXTURE" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_BACKGROUND_GUI_BINARY:-} ]]; then
+  bash experiments/p08-reminders/background-gui.sh "$MAILSTRONAUT_BACKGROUND_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_DELIVERY_GUI_BINARY:-} ]]; then
   bash experiments/p07-compose/delivery.sh "$MAILSTRONAUT_DELIVERY_GUI_BINARY" "$root"
 fi
@@ -165,7 +168,7 @@ files = list(pathlib.Path(sys.argv[1]).rglob('*.keyring'))
 assert files, 'fixture did not persist an encrypted keyring'
 for path in files:
     data = path.read_bytes()
-    for value in (b'SYNTHETIC-ONBOARDING-PASSWORD-NOT-REAL', b'SYNTHETIC-HEADLESS-SECRET-NOT-REAL', b'synthetic-rotated', b'synthetic-other-account', b'synthetic-refresh', b'synthetic-duplicate', b'SYNTHETIC-OAUTH-INITIAL', b'SYNTHETIC-OAUTH-REFRESH-ONE', b'SYNTHETIC-OAUTH-REFRESH-TWO', b'SYNTHETIC-OAUTH-ROTATED', b'SYNTHETIC-OAUTH-REFRESH-THREE', b'SYNTHETIC-OAUTH-RECONNECTED', b'SYNTHETIC-PORTAL-REFRESH-ONE', b'SYNTHETIC-PORTAL-REFRESH-TWO', b'SYNTHETIC-OAUTH-ACCESS-NOT-REAL'):
+    for value in (b'SYNTHETIC-ONBOARDING-PASSWORD-NOT-REAL', b'SYNTHETIC-HEADLESS-SECRET-NOT-REAL', b'SYNTHETIC-BACKGROUND-SECRET-NOT-REAL', b'synthetic-rotated', b'synthetic-other-account', b'synthetic-refresh', b'synthetic-duplicate', b'SYNTHETIC-OAUTH-INITIAL', b'SYNTHETIC-OAUTH-REFRESH-ONE', b'SYNTHETIC-OAUTH-REFRESH-TWO', b'SYNTHETIC-OAUTH-ROTATED', b'SYNTHETIC-OAUTH-REFRESH-THREE', b'SYNTHETIC-OAUTH-RECONNECTED', b'SYNTHETIC-PORTAL-REFRESH-ONE', b'SYNTHETIC-PORTAL-REFRESH-TWO', b'SYNTHETIC-OAUTH-ACCESS-NOT-REAL'):
         assert value not in data, 'synthetic credential appeared in persisted keyring bytes'
 print('Persisted fixture keyring contains none of the synthetic credential markers in plaintext.')
 PY

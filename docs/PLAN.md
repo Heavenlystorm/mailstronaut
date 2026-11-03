@@ -598,14 +598,18 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   The store owner, reminder scheduler, sync loop and new-mail notification
   bookkeeping have moved into retained application state. Private lifecycle tests
   cover the same owner across windows and synthetic Dovecot synchronization with
-  no window; actual application background startup, close/reopen and notification
-  action reopening still need acceptance. [Evidence](evidence/P08-headless.md).
+  no window. Native close, launcher reopening, new-mail notification opening and
+  explicit Quit pass a private end-to-end test. Startup with `--background`,
+  reminder-action reopening and real desktop acceptance remain open.
+  [Evidence](evidence/P08-headless.md).
   Sandboxed file-backed OAuth cannot refresh automatically until non-creating
   token rotation is supported; a cached foreground grant may still be used.
 - [ ] Implement independent background/autostart/notification settings and zero
   hidden work when disabled; unload renderer/models while headless when enabled.
   Reuse `SettingField::switch` and ownership/disabled-state text for each setting;
   a toggle cannot grant portal permission or mutate HM-managed systemd services.
+  The native Nix-backed background switch passes save/restart/export tests;
+  sandbox permission and autostart remain unavailable.
 - [ ] Use the standard Background portal for Flatpak permission/revocation and
   Home Manager-managed native service semantics, without host-unit installation
   from the sandbox. Test close, suspend, login/restart and missing display.

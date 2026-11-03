@@ -24,7 +24,8 @@ queue closes; after the platform stops, ownership is released and the connection
 closes. Losing the bus stops the owner, including its window-owned work. The
 existing core worker profile lock independently prevents a second data owner even
 on a different bus. Configuration CLI commands and internal helpers bypass GUI
-ownership. Last-window-close still exits normally; no background work is added.
+ownership. At the time of this test, last-window-close exited normally; later
+native background work is recorded separately in [P08 headless evidence](P08-headless.md).
 
 This promotes the existing app zbus dev-dependency to a runtime dependency; no
 new version or Cargo.lock change is involved. No toolkit fork, raw native handle,

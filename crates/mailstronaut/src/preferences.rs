@@ -54,6 +54,7 @@ pub struct Snapshot {
 struct Values {
     appearance: String,
     automatic: bool,
+    background: bool,
     poll_seconds: f64,
     initial_days: f64,
     notifications: bool,
@@ -76,6 +77,7 @@ impl Values {
             }
             .into(),
             automatic: config.sync.automatic,
+            background: config.background.enabled,
             poll_seconds: f64::from(config.sync.poll_seconds),
             initial_days: f64::from(config.sync.initial_days.unwrap_or_default()),
             notifications: config.notifications.enabled,
@@ -100,6 +102,12 @@ impl Values {
         }
         if self.automatic != baseline.automatic {
             native::merge(&mut patch, json!({"sync": {"automatic": self.automatic}}));
+        }
+        if self.background != baseline.background {
+            native::merge(
+                &mut patch,
+                json!({"background": {"enabled": self.background}}),
+            );
         }
         if self.poll_seconds != baseline.poll_seconds {
             // Kit supplies f64; standard parsing accepts only a whole, nonnegative
@@ -572,6 +580,8 @@ impl Preferences {
     pub fn sync(view: &Entity<Self>, cx: &App) -> SettingGroup {
         let disabled = !view.read(cx).editable() || view.read(cx).busy();
         let (get, set) = Self::bind(view, |v| v.automatic, |v, value| v.automatic = value);
+        let (get_background, set_background) =
+            Self::bind(view, |v| v.background, |v, value| v.background = value);
         let (get_poll, set_poll) =
             Self::bind(view, |v| v.poll_seconds, |v, value| v.poll_seconds = value);
         let (get_days, set_days) =
@@ -580,8 +590,17 @@ impl Preferences {
             .title("Synchronization")
             .item(
                 SettingItem::new("Sync automatically", SettingField::switch(get, set))
-                    .description("Check configured accounts while Mailstronaut is open.")
+                    .description("Check configured accounts while Mailstronaut is running.")
                     .disabled(disabled),
+            )
+            .item(
+                SettingItem::new("Keep running after closing", SettingField::switch(get_background, set_background))
+                    .description(if ashpd::is_sandboxed() {
+                        "Background permission for Flatpak is not available yet."
+                    } else {
+                        "Keep syncing and reminders active after the window closes. Press Ctrl+Q to quit completely."
+                    })
+                    .disabled(disabled || ashpd::is_sandboxed()),
             )
             .item(
                 SettingItem::new(
@@ -885,6 +904,23 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn background_preference_patches_only_the_explicit_setting() {
+        let config: Config =
+            serde_json::from_value(json!({"schemaVersion": 1, "accounts": []})).expect("config");
+        let baseline = Values::from_config(&config);
+        let mut changed = baseline.clone();
+        changed.background = true;
+        assert_eq!(
+            changed.patch(&baseline).expect("enable"),
+            json!({"background": {"enabled": true}})
+        );
+        assert_eq!(
+            baseline.patch(&changed).expect("disable"),
+            json!({"background": {"enabled": false}})
+        );
+    }
 
     #[test]
     fn model_preferences_patch_only_changed_fields_and_clear_pair() {

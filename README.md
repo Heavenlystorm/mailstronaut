@@ -32,7 +32,10 @@ without a display. GUI startup also requires the session D-Bus. Repeated launche
 of the same configuration request activation of the existing window; a different
 `--config` or demo is refused while it is running. Window activation never opens
 mail, and foreground focus remains subject to the Wayland compositor's policy.
-Closing the last window still exits; `--background` is not implemented yet.
+On native installations, enable “Keep running after closing” in Settings or set
+`background.enabled = true;` in the Nix configuration to retain sync and reminders
+after closing the window. Launching again reopens it; Ctrl+Q quits completely.
+Flatpak background permission and `--background` startup are not implemented yet.
 `--demo` never opens the real account store. Cached message
 content becomes read only through an explicit successful open, never list/search
 refresh or focus. Settings now exposes declared accounts, encrypted password
