@@ -699,6 +699,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   portals, read-only managed configuration and packaged HTML resources.
   Reuse the P02 Settings/source/export and P05 import components; do not create a
   second sandbox-specific settings UI. Packaging and portal policy remain backend work.
+  [A process inside the installed sandbox reaches the FileChooser and Notification portals
+  through the proxy](evidence/P10-flatpak.md); the keyring (Secret portal), the file chooser
+  flow, document files and the Background portal remain open.
 - [x] Run format/strict release Clippy, backend/MIME/renderer tests, private
   credential fixtures and installed CLI/config checks in the official minimal
   Nix container on x86_64. [Hosted evidence](evidence/P01-ci-cache.md).

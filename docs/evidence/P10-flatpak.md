@@ -53,12 +53,23 @@ The SpiderMonkey-specific checks were removed from the probe. The current depend
   `appstream` tool, because the host's copy loads a different glibc.
 - The rebuilt installation still reports `mailstronaut 0.1.0`, a valid configuration, and a window
   in the sandbox.
+- Portal reachability: a process inside the sandbox reads the FileChooser (version 4) and
+  Notification (version 1) portal properties, served by the protocol-accurate fixture on the private
+  bus. The request goes through the sandbox's D-Bus proxy (`flatpak/portal-reach.sh`, through the
+  `MAILSTRONAUT_FLATPAK_PORTAL_BINARY` switch of `credentials.sh`).
+- A check that opened the composer and attached a file through the chooser inside the sandbox did not
+  reach the attach step. The configured account stayed inactive, because the application reads its
+  password from the system keyring, and the sandbox has no route to the keyring. The application has no
+  Secret portal path yet, so that check was removed rather than recorded as passing.
 
 ## Not established
 
 - Native Wayland on a real desktop session (only the headless sway session was used), and the
   graphics path: `--device=dri` is declared, but which renderer the window used was not checked.
-- The portals: file chooser, secret, notification and background.
+- The Secret portal: the application does not read its keyring password from inside the sandbox yet,
+  so an account cannot activate there.
+- The file chooser flow itself inside the sandbox, the document portal that would return a sandbox
+  path for a chosen file, notifications sent from the sandbox, and the Background portal.
 - The developer element in the metainfo file, and a screenshot entry for the store listing.
 - Release signing, a published repository, aarch64, and the final release manifest.
 
