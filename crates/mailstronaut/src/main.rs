@@ -83,6 +83,8 @@ fn main() -> ExitCode {
         .with_assets(assets::Assets)
         .run(move |cx| {
             gpui::init(cx);
+            let reminder_session = cx.new(|_| reminders::Session::new(ui_runtime.clone()));
+            let retained_session = reminder_session.clone();
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,
@@ -93,14 +95,24 @@ fn main() -> ExitCode {
                 ..gpui::component::TitleBar::window_options()
             };
             if gpui::open_window(options, cx, |window, cx| {
-                cx.new(|cx| workspace::Workspace::new(config, demo, ui_runtime, window, cx))
+                cx.new(|cx| {
+                    workspace::Workspace::new(
+                        config,
+                        demo,
+                        ui_runtime,
+                        reminder_session,
+                        window,
+                        cx,
+                    )
+                })
             })
             .is_err()
             {
                 eprintln!("Unable to open the native Wayland window.");
                 cx.quit();
             }
-            cx.on_window_closed(|cx, _| {
+            cx.on_window_closed(move |cx, _| {
+                let _ = &retained_session;
                 if cx.windows().is_empty() {
                     cx.quit();
                 }

@@ -24,8 +24,8 @@ use gpui::component::{
 };
 use gpui::{
     AppContext as _, Context, Entity, EventEmitter, InteractiveElement as _, IntoElement,
-    ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _, Window,
-    div, prelude::FluentBuilder as _,
+    ParentElement as _, Render, SharedString, StatefulInteractiveElement as _, Styled as _,
+    Subscription, Window, div, prelude::FluentBuilder as _,
 };
 use mailstronaut_config::Config;
 use mailstronaut_core::{
@@ -114,15 +114,137 @@ impl Drop for Service {
     }
 }
 
-pub struct Reminders {
+/// Application-owned reminder state. Unlike the picker, this entity is not tied
+/// to a native window and can retain the scheduler across view replacement.
+pub struct Session {
     runtime: Arc<Runtime>,
     lifetime: CancellationToken,
     service: Option<Service>,
     generation: u64,
+    wake: Arc<Notify>,
+    records: Vec<Reminder>,
+    status: SharedString,
+    error: Option<SharedString>,
+}
+
+enum SessionEvent {
+    Changed,
+    Open(Reminder),
+    Error(String),
+}
+
+impl EventEmitter<SessionEvent> for Session {}
+
+impl Session {
+    pub fn new(runtime: Arc<Runtime>) -> Self {
+        Self {
+            runtime,
+            lifetime: CancellationToken::new(),
+            service: None,
+            generation: 0,
+            wake: Arc::default(),
+            records: Vec::new(),
+            status: "".into(),
+            error: None,
+        }
+    }
+
+    pub(crate) fn configure(
+        &mut self,
+        config: &Arc<Config>,
+        store: Option<Handle>,
+        cx: &mut Context<Self>,
+    ) {
+        self.service = None;
+        self.generation = self.generation.wrapping_add(1);
+        let generation = self.generation;
+        self.records.clear();
+        self.status = "".into();
+        self.error = None;
+        cx.emit(SessionEvent::Changed);
+        cx.notify();
+        let Some(store) = store else {
+            return;
+        };
+        let service = Service::start(
+            self.runtime.handle(),
+            store,
+            config.clone(),
+            self.wake.clone(),
+            &self.lifetime,
+        );
+        let mut state = service.state.clone();
+        let events = service.events.clone();
+        self.service = Some(service);
+        cx.spawn(async move |this, cx| {
+            let mut watching_state = true;
+            loop {
+                let update = tokio::select! {
+                    changed = state.changed(), if watching_state => {
+                        if changed.is_err() { watching_state = false; continue; }
+                        let snapshot = state.borrow_and_update().clone();
+                        match snapshot {
+                            Some(Snapshot(records, status)) => Update::Snapshot(records, status),
+                            None => continue,
+                        }
+                    }
+                    event = events.recv() => match event {
+                        Ok(event) => event,
+                        Err(_) => break,
+                    }
+                };
+                let applied = this.update(cx, |this, cx| {
+                    if generation != this.generation {
+                        return;
+                    }
+                    match update {
+                        Update::Snapshot(records, status) => {
+                            this.records = records;
+                            this.status = status.into();
+                            cx.emit(SessionEvent::Changed);
+                            cx.notify();
+                        }
+                        Update::Open(record) => cx.emit(SessionEvent::Open(record)),
+                        Update::Error(error) => {
+                            this.error = Some(error.clone().into());
+                            cx.emit(SessionEvent::Error(error));
+                            cx.notify();
+                        }
+                    }
+                });
+                if applied.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn wake(&self) {
+        self.wake.notify_one();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn has_message(&self, message: i64) -> bool {
+        self.records.iter().any(|record| record.message == message)
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        self.lifetime.cancel();
+    }
+}
+
+pub struct Reminders {
+    runtime: Arc<Runtime>,
+    lifetime: CancellationToken,
+    session: Entity<Session>,
+    _session_events: Subscription,
     config: Option<Arc<Config>>,
     store: Option<Handle>,
     zone: String,
-    wake: Arc<Notify>,
     records: Vec<Reminder>,
     status: SharedString,
     error: Option<SharedString>,
@@ -141,6 +263,7 @@ impl Reminders {
     pub fn new(
         runtime: Arc<Runtime>,
         lifetime: CancellationToken,
+        session: Entity<Session>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -149,18 +272,35 @@ impl Reminders {
                 .time_precision(TimePrecision::Minute)
                 .date_format("%Y-%m-%d %H:%M")
         });
+        let session_events = cx.subscribe(&session, |this, session, event, cx| match event {
+            SessionEvent::Changed => {
+                let session = session.read(cx);
+                this.records.clone_from(&session.records);
+                this.status.clone_from(&session.status);
+                cx.emit(Event::Changed);
+                cx.notify();
+            }
+            SessionEvent::Open(record) => cx.emit(Event::Open(record.clone())),
+            SessionEvent::Error(error) => {
+                this.error = Some(error.clone().into());
+                cx.emit(Event::Changed);
+                cx.notify();
+            }
+        });
+        let records = session.read(cx).records.clone();
+        let status = session.read(cx).status.clone();
+        let error = session.read(cx).error.clone();
         Self {
             runtime,
-            service: None,
-            generation: 0,
+            session,
+            _session_events: session_events,
             lifetime,
             config: None,
             store: None,
             zone: "UTC".into(),
-            wake: Arc::default(),
-            records: Vec::new(),
-            status: "".into(),
-            error: None,
+            records,
+            status,
+            error,
             picker,
         }
     }
@@ -170,73 +310,13 @@ impl Reminders {
         config: &Arc<Config>,
         store: Option<Handle>,
         zone: String,
-        window: &Window,
-        cx: &Context<Self>,
+        cx: &mut Context<Self>,
     ) {
-        self.service = None;
-        self.generation = self.generation.wrapping_add(1);
-        let generation = self.generation;
         self.config = Some(config.clone());
         self.store.clone_from(&store);
         self.zone = zone;
-        let Some(store) = store else {
-            return;
-        };
-        let service = Service::start(
-            self.runtime.handle(),
-            store,
-            config.clone(),
-            self.wake.clone(),
-            &self.lifetime,
-        );
-        let mut state = service.state.clone();
-        let events = service.events.clone();
-        self.service = Some(service);
-        cx.spawn_in(window, async move |this, cx| {
-            let mut watching_state = true;
-            loop {
-                let update = tokio::select! {
-                    changed = state.changed(), if watching_state => {
-                        if changed.is_err() {
-                            watching_state = false;
-                            continue;
-                        }
-                        let snapshot = state.borrow_and_update().clone();
-                        match snapshot {
-                            Some(Snapshot(records, status)) => Update::Snapshot(records, status),
-                            None => continue,
-                        }
-                    }
-                    event = events.recv() => match event {
-                        Ok(event) => event,
-                        Err(_) => break,
-                    }
-                };
-                let applied = this.update_in(cx, |this, _, cx| {
-                    if generation != this.generation {
-                        return;
-                    }
-                    match update {
-                        Update::Snapshot(records, status) => {
-                            this.records = records;
-                            this.status = status.into();
-                            cx.emit(Event::Changed);
-                            cx.notify();
-                        }
-                        Update::Open(record) => cx.emit(Event::Open(record)),
-                        Update::Error(error) => {
-                            this.error = Some(error.into());
-                            cx.emit(Event::Changed);
-                            cx.notify();
-                        }
-                    }
-                });
-                if applied.is_err() {
-                    return;
-                }
-            }
-        })
-        .detach();
+        self.session
+            .update(cx, |session, cx| session.configure(config, store, cx));
     }
 
     /// Reminders the user has not dealt with yet, for the sidebar badge.
@@ -303,7 +383,7 @@ impl Reminders {
                 })
                 .await
         });
-        let wake = self.wake.clone();
+        let wake = self.session.read(cx).wake.clone();
         let label = reminders::display(due_at, &self.zone).unwrap_or_default();
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
@@ -311,6 +391,7 @@ impl Reminders {
                 match result {
                     Ok(Ok(_)) => {
                         this.error = None;
+                        this.session.update(cx, |session, _| session.error = None);
                         this.status = format!("Reminder set for {label}.").into();
                         wake.notify_one();
                     }
@@ -393,7 +474,7 @@ impl Reminders {
         let job = self
             .runtime
             .spawn(async move { store.edit_reminder(account, id, generation, retry).await });
-        let wake = self.wake.clone();
+        let wake = self.session.read(cx).wake.clone();
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update(cx, |this, cx| {

@@ -102,14 +102,17 @@ snapshot is retained without a view subscriber, while notification actions are
 queued for an owner to consume. A private-store test observes an updated reminder
 after the subscriber is dropped. A separate private-bus fixture schedules a real
 synthetic reminder, observes notification delivery and receives its Open action
-through the service without a GPUI view. Pinned workspace checks and focused
-Clippy/tests passed on x86_64-linux. The current workspace still owns this service;
-the application has not yet moved it into a headless session or routed queued
-actions through window reopening. The bounded action queue requires an active
-application-level consumer, so this is not background-mode acceptance.
-The full x86_64 Nix gate also passed, as did the private native Wayland reminder
-walkthrough: it scheduled, rescheduled, restarted and cancelled synthetic reminders
-while checking Seen state. The screenshot remains in the ignored test artifacts.
+through the service without a GPUI view. The application now retains the reminder
+entity outside the window. In a private native Wayland lifecycle probe, the first
+workspace and HTML worker were destroyed, a synthetic reminder was scheduled, and
+the retained entity observed it before a second window was created. The private
+reminder walkthrough also passed scheduling, rescheduling, restart, cancellation
+and Seen checks. Screenshots remain in ignored test artifacts.
+
+This is not background-mode acceptance: the real application still exits on last
+window close, the store owner and sync remain window-owned, and a notification Open
+action is not yet routed to reopen a window. The synthetic lifecycle probe retained
+its own store owner. Full desktop, Flatpak and provider acceptance remain open.
 The x86_64 pinned workspace checks and full Nix package gate passed on the
 `669ebd7` base, including the private credential and OAuth fixtures. Aarch64,
 hosted CI, installed Flatpak, and real-provider acceptance were not run.

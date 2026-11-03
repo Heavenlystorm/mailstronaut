@@ -43,6 +43,7 @@ fn detached(cx: &AsyncApp) {
 fn open_workspace(
     cx: &AsyncApp,
     runtime: Arc<tokio::runtime::Runtime>,
+    reminders: gpui::Entity<crate::reminders::Session>,
 ) -> gpui::WeakEntity<crate::workspace::Workspace> {
     cx.update(|cx| {
         assert!(cx.graphical_environment().is_some());
@@ -53,7 +54,9 @@ fn open_workspace(
             },
             cx,
             |window, cx| {
-                cx.new(|cx| crate::workspace::Workspace::new(None, true, runtime, window, cx))
+                cx.new(|cx| {
+                    crate::workspace::Workspace::new(None, true, runtime, reminders, window, cx)
+                })
             },
         )
         .expect("actual synthetic workspace");
@@ -64,6 +67,10 @@ fn open_workspace(
 #[expect(
     clippy::future_not_send,
     reason = "Native display transitions run on GPUI's UI executor with its non-Send context."
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "One native session verifies service retention across both window lifetimes."
 )]
 async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnvironment) {
     detached(cx);
@@ -84,6 +91,27 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
             .build()
             .expect("mail runtime"),
     );
+    let profile = root.join("reminder-profile");
+    let mut store = mailstronaut_core::store::Store::open(&profile).expect("synthetic store");
+    store.ensure_account("a").expect("account");
+    let message = store
+        .ingest_message("a", b"Subject: Synthetic\r\n\r\nFixture.")
+        .expect("message");
+    drop(store);
+    let owner = runtime
+        .spawn(mailstronaut_core::worker::Worker::open(profile))
+        .await
+        .expect("worker task")
+        .expect("worker");
+    let handle = owner.handle();
+    let config: mailstronaut_config::Config = serde_json::from_value(serde_json::json!({
+        "schemaVersion": 1, "notifications": {"enabled": false},
+        "accounts": [{"id":"a","provider":"icloud","address":"a@example.test","displayName":"A","userName":"a","auth":{"kind":"password","secretRef":"a"}}]
+    })).expect("synthetic configuration");
+    let reminders = cx.new(|_| crate::reminders::Session::new(runtime.clone()));
+    reminders.update(cx, |session, cx| {
+        session.configure(&Arc::new(config), Some(handle.clone()), cx);
+    });
     let (closed, receiver) = async_channel::bounded(1);
     cx.update(|cx| {
         cx.on_window_closed(move |cx, _| {
@@ -97,7 +125,7 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         let attach =
             cx.update(|cx| cx.request_windowing(WindowingRequest::Windowed(environment.clone())));
         attach.await.expect("native Wayland attachment");
-        let workspace = open_workspace(cx, runtime.clone());
+        let workspace = open_workspace(cx, runtime.clone(), reminders.clone());
         for _ in 0..60 {
             if renderer_threads() == 1 {
                 break;
@@ -132,6 +160,33 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
             "the Blitz worker must stop without a hidden window"
         );
         retained.update(cx, |count, _| *count += 1);
+        if cycle == 1 {
+            let now = chrono::Utc::now().timestamp();
+            handle
+                .schedule_reminder(mailstronaut_core::store::reminders::Schedule {
+                    account: "a".into(),
+                    message,
+                    due_at: now + 3600,
+                    time_zone: "UTC".into(),
+                    now,
+                    expected: None,
+                })
+                .await
+                .expect("schedule while window is closed");
+            reminders.update(cx, |session, _| session.wake());
+            let mut observed = false;
+            for _ in 0..60 {
+                if reminders.read_with(cx, |session, _| session.has_message(message)) {
+                    observed = true;
+                    break;
+                }
+                tick(cx).await;
+            }
+            assert!(
+                observed,
+                "application-owned scheduler updates without a window"
+            );
+        }
         std::fs::write(
             root.join(format!("headless-{cycle}")),
             b"no window or HTML worker\n",
@@ -155,6 +210,12 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         }
     }
     assert_eq!(retained.read_with(cx, |count, _| *count), 3);
+    drop(reminders);
+    runtime
+        .spawn(owner.shutdown())
+        .await
+        .expect("shutdown task")
+        .expect("shutdown synthetic worker");
     std::fs::write(
         root.join("passed"),
         b"one app, failed attach, two native windows, two detachments\n",

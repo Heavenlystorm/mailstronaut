@@ -371,6 +371,7 @@ impl Workspace {
         path: Option<PathBuf>,
         demo: bool,
         runtime: Arc<Runtime>,
+        reminder_session: Entity<crate::reminders::Session>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -495,7 +496,13 @@ impl Workspace {
             cx.notify();
         });
         let reminders = cx.new(|cx| {
-            crate::reminders::Reminders::new(runtime.clone(), lifetime.child_token(), window, cx)
+            crate::reminders::Reminders::new(
+                runtime.clone(),
+                lifetime.child_token(),
+                reminder_session,
+                window,
+                cx,
+            )
         });
         let reminder_events = cx.subscribe_in(&reminders, window, |this, _, event, window, cx| {
             if let crate::reminders::Event::Open(record) = event {
@@ -723,7 +730,7 @@ impl Workspace {
                                 let zone = crate::mailbox::local_zone(config.time_zone.as_deref());
                                 let handle = this.handle();
                                 this.reminders.update(cx, |reminders, cx| {
-                                    reminders.configure(&config, handle, zone.clone(), window, cx);
+                                    reminders.configure(&config, handle, zone.clone(), cx);
                                 });
                                 this.list.update(cx, |list, _| {
                                     list.delegate_mut().time_zone = zone;
