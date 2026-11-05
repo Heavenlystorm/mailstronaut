@@ -71,6 +71,25 @@ The SpiderMonkey-specific checks were removed from the probe. The current depend
   passes. With the fence temporarily removed, the same test fails with `OAuth(Network)`, which shows
   that the token endpoint is reached without the fence.
 
+## Current-source acceptance (2026-11-05)
+
+- The production manifest builds the Flatpak from the source archive of commit `ffb85b4`. Its
+  SHA-256 `b8c9c313…daeee9` is the pin in the manifest, and the archive excludes `flatpak/`. The
+  build ran under the shared gate lock, exited 0 and installed `app/io.github.eduardz1.Mailstronaut`.
+- `flatpak/gui-smoke.sh`: the installed application opened its window in the sandbox with network
+  unshared.
+- `flatpak/portal-reach.sh`: the sandbox reached FileChooser (version 4) and Notification (version 1)
+  through the D-Bus proxy.
+- `flatpak/attach-smoke.sh`: the portal-backed keyring holds the synthetic password. The sandboxed
+  account composed a draft and saved it, and the FileChooser fixture attached one synthetic file. The
+  capture shows the attachment and the status "Saved locally."
+- In the same invocation, the private Secret Service round trip and the fail-closed plaintext check
+  pass.
+
+Scope: the Secret and FileChooser portals are protocol-accurate fixtures on the private bus, not the
+desktop's portals. The FileChooser fixture returns host paths, so the document portal is not
+exercised. The Background portal, real-session Wayland and the graphics path are not exercised.
+
 ## Not established
 
 - Native Wayland on a real desktop session (only the headless sway session was used), and the
