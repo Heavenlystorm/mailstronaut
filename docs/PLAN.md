@@ -149,8 +149,12 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   [Bounded installed-package evidence](evidence/P01-web-links.md). Real desktop/
   Flatpak portal activation remains P10/P11 acceptance.
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
-- [ ] Measure long-email responsiveness, repeated message switches, frame memory
-  and hidden idle CPU; drop obsolete documents and stop hidden rendering.
+- [x] Measure long-email responsiveness, repeated message switches, frame memory
+  and hidden idle CPU; drop obsolete documents and stop hidden rendering. Measured in
+  a headless software-rendered session with the release binary: 100 switches with no
+  wrong paint, long-original opens, a flat resident set after the fix, and zero idle
+  CPU while hidden with background operation enabled. Scope and limits:
+  [P01 performance](evidence/P01-performance.md).
 - [ ] Pass current-stack Nix packaging and an early offline Flatpak SDK/runtime
   check, preserving native Wayland and no dependency on a host Nix executable.
 

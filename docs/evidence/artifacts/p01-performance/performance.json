@@ -1,0 +1,71 @@
+{
+  "switches": 100,
+  "wrong_paints": [],
+  "latency_ms": {
+    "count": 100,
+    "median": 73.85061602690257,
+    "p95": 76.72623504186049,
+    "max": 91.29011398181319
+  },
+  "long_original_open_ms": {
+    "count": 5,
+    "median": 107.43868903955445,
+    "max": 110.07704201620072
+  },
+  "pixel_sample_overhead_ms": {
+    "median": 15.958082483848557,
+    "p95": 16.53935300419107
+  },
+  "resident_kib": [
+    {
+      "after": "open-long",
+      "kib": 261488
+    },
+    {
+      "after": "10-switches",
+      "kib": 261872
+    },
+    {
+      "after": "20-switches",
+      "kib": 261920
+    },
+    {
+      "after": "30-switches",
+      "kib": 261992
+    },
+    {
+      "after": "40-switches",
+      "kib": 261980
+    },
+    {
+      "after": "50-switches",
+      "kib": 261980
+    },
+    {
+      "after": "60-switches",
+      "kib": 261980
+    },
+    {
+      "after": "70-switches",
+      "kib": 262044
+    },
+    {
+      "after": "80-switches",
+      "kib": 262032
+    },
+    {
+      "after": "90-switches",
+      "kib": 262032
+    },
+    {
+      "after": "100-switches",
+      "kib": 262068
+    }
+  ],
+  "resident_growth_kib_from_10_to_100_switches": 196,
+  "hidden": {
+    "process_running_after_close": true,
+    "idle_cpu_seconds_over_30s": 0.0,
+    "resident_kib_after_close": 231084
+  }
+}

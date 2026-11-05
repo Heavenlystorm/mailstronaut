@@ -169,6 +169,56 @@ struct GuiMessage {
     order: i64,
 }
 
+/// One long HTML original followed by 100 short ones. Each HTML original starts with a block
+/// of its own colour, so a native capture identifies exactly which original is painted.
+fn performance_messages() -> Vec<GuiMessage> {
+    use std::fmt::Write as _;
+    (0..=100_u32)
+        .map(|index| {
+            let (key, paragraphs, text) = if index == 0 {
+                (
+                    "perf-long".to_owned(),
+                    1_500,
+                    "Synthetic long performance original.".to_owned(),
+                )
+            } else {
+                (
+                    format!("perf-{index:03}"),
+                    3,
+                    format!("Synthetic performance original {index:03}."),
+                )
+            };
+            let red = 16 + (index % 16) * 12;
+            let green = 16 + ((index / 16) % 16) * 12;
+            let blue = 16 + (index / 256) * 100;
+            let mut html =
+                format!("<div style=\"height:120px;background:rgb({red},{green},{blue})\"></div>");
+            for paragraph in 0..paragraphs {
+                let _ = write!(
+                    html,
+                    "<p>Synthetic paragraph {paragraph:04} with ordinary words for layout measurement.</p>"
+                );
+            }
+            GuiMessage {
+                account: 0,
+                key,
+                mid: format!("perf-{index}@example.test"),
+                references: String::new(),
+                uid: 300 + index,
+                sent: false,
+                seen: false,
+                body: text.clone(),
+                subject: Some(format!("Performance {index:03}")),
+                mime: Some(format!(
+                    "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=perf\r\n\r\n--perf\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n--perf\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n--perf--\r\n"
+                )),
+                from: "Synthetic <perf@example.test>".into(),
+                order: -i64::from(index),
+            }
+        })
+        .collect()
+}
+
 #[tokio::test]
 #[ignore = "explicit private native conversation GUI fixture only"]
 #[expect(
@@ -238,6 +288,10 @@ async fn seed_conversation_gui() {
             from: "Correspondent <writer@example.test>".into(),
             order: -i64::from(number),
         }));
+    }
+    if std::env::var("MAILSTRONAUT_PERFORMANCE_MAILBOX").is_ok_and(|value| value == "1") {
+        assert!(!html, "separate synthetic performance fixture");
+        messages = performance_messages();
     }
     if html {
         let port: u16 = std::env::var("MAILSTRONAUT_HTML_HTTP_PORT")

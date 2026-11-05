@@ -46,6 +46,9 @@ pub struct HtmlReader {
     serial: u64,
     requested: Option<View>,
     frame: Option<(View, Arc<RenderImage>)>,
+    // Frames no longer painted. GPUI keeps each one's texture in the sprite atlas until it is
+    // dropped with a window, so `render` releases them rather than letting every switch grow it.
+    retired: Vec<Arc<RenderImage>>,
     ready_serial: Option<u64>,
     status: String,
     links: Arc<[Link]>,
@@ -92,6 +95,7 @@ impl HtmlReader {
             serial: 0,
             requested: None,
             frame: None,
+            retired: Vec::new(),
             ready_serial: None,
             status: String::new(),
             links: Arc::default(),
@@ -117,7 +121,7 @@ impl HtmlReader {
         self.serial = self.serial.wrapping_add(1);
         self.content = None;
         self.requested = None;
-        self.frame = None;
+        self.retire_frame();
         self.links = Arc::default();
         self.ready_serial = None;
         if let Some(sender) = &self.sender {
@@ -130,16 +134,16 @@ impl HtmlReader {
         if self.requested == Some(view) {
             return;
         }
-        let (Some(sender), Some(content)) = (&self.sender, &self.content) else {
+        let (Some(sender), Some(content)) = (self.sender.clone(), self.content.clone()) else {
             return;
         };
         self.serial = self.serial.wrapping_add(1);
         self.requested = Some(view);
-        self.frame = None;
+        self.retire_frame();
         sender.send_replace(Some(Request {
             serial: self.serial,
             epoch: self.epoch,
-            content: content.clone(),
+            content,
             view,
             hit: None,
         }));
@@ -194,6 +198,7 @@ impl HtmlReader {
                 if let Some(pixels) =
                     image::RgbaImage::from_raw(frame.width, frame.height, frame.pixels)
                 {
+                    self.retire_frame();
                     self.frame = Some((
                         view,
                         Arc::new(RenderImage::new([image::Frame::new(pixels)])),
@@ -218,6 +223,12 @@ impl HtmlReader {
 
     pub fn links(&self) -> Arc<[Link]> {
         self.links.clone()
+    }
+
+    fn retire_frame(&mut self) {
+        if let Some((_, image)) = self.frame.take() {
+            self.retired.push(image);
+        }
     }
 
     fn click_link(&self, position: gpui::Point<Pixels>, window: &Window, cx: &Context<Self>) {
@@ -380,6 +391,9 @@ fn measured_view(
 
 impl Render for HtmlReader {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        for image in self.retired.drain(..) {
+            cx.drop_image(image, Some(window));
+        }
         div()
             .size_full()
             .flex()
