@@ -149,6 +149,9 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   [Bounded installed-package evidence](evidence/P01-web-links.md). Real desktop/
   Flatpak portal activation remains P10/P11 acceptance.
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
+  Partial: the mailbox tree, row names, search field and keyboard focus through the
+  list are read over AT-SPI in a private headless session ([P01 accessibility](evidence/P01-accessibility.md)).
+  Screen-reader speech, the reader, compose, dialogs and Settings remain open.
 - [x] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering. Measured in
   a headless software-rendered session with the release binary: 100 switches with no

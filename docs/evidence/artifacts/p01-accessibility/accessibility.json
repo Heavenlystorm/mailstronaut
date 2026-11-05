@@ -1,0 +1,21 @@
+{
+  "nodes_exposed": 34,
+  "unreadable_nodes": [],
+  "row_names_sample": [
+    "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread"
+  ],
+  "focused_after_first_down": [
+    "Synthetic \u00b7 Performance 000 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread"
+  ],
+  "focused_after_second_down": [
+    "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread"
+  ],
+  "checks": {
+    "application_window_exposed": true,
+    "row_names_exposed": true,
+    "search_field_exposed": true,
+    "focus_follows_list_row_one": true,
+    "focus_follows_list_row_two": true,
+    "focus_moved_between_rows": true
+  }
+}

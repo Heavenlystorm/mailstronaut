@@ -321,6 +321,7 @@
             LIBGL_DRIVERS_PATH = "${pkgs.mesa}/lib/dri";
             __EGL_VENDOR_LIBRARY_FILENAMES = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
             MAILSTRONAUT_TEST_VULKAN_ICD = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.${pkgs.stdenv.hostPlatform.parsed.cpu.name}.json";
+            MAILSTRONAUT_ATSPI_LIBEXEC = "${pkgs.at-spi2-core}/libexec";
             FONTCONFIG_FILE = "${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}";
             nativeBuildInputs = old.nativeBuildInputs ++ [
               pkgs.sway-unwrapped
@@ -338,6 +339,8 @@
               pkgs.zenity
               pkgs.gnome-keyring
               pkgs.libsecret
+              # The AT-SPI bus, registry and status service for accessibility-tree acceptance.
+              pkgs.at-spi2-core
               # A disposable real IMAP server for sync, flag and move acceptance.
               pkgs.dovecot
             ];

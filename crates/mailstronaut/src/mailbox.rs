@@ -13,8 +13,8 @@ use gpui::component::{
     tag::Tag,
 };
 use gpui::{
-    App, Context, Hsla, IntoElement, ParentElement as _, Pixels, Styled as _, Window, div,
-    prelude::FluentBuilder as _, px,
+    App, Context, Hsla, IntoElement, ParentElement as _, Pixels, Role,
+    StatefulInteractiveElement as _, Styled as _, Window, div, prelude::FluentBuilder as _, px,
 };
 
 const ROW_HEIGHT: Pixels = px(124.);
@@ -170,6 +170,9 @@ pub struct Rows {
     /// Kit calls this near the end of the virtualized list.
     pub on_load_more: Option<ShowAll>,
     pub more: bool,
+    /// The row that keyboard selection is on. Kit keeps focus on the list, so assistive
+    /// technology is told about this row through the active-descendant relationship.
+    pub selected: Option<IndexPath>,
 }
 
 impl Rows {
@@ -392,7 +395,15 @@ impl ListDelegate for Rows {
             .map(|dismiss| (dismiss, row.id));
         let unread = row.unread > 0;
         Some(
+            // A list item is exposed as a named row only with an explicit role. Kit's item
+            // supplies the id and the label; without the role, assistive technology sees an
+            // unnamed element and keyboard focus has no name.
             ListItem::new(index)
+                .role(Role::ListItem)
+                .when(
+                    self.selected.is_some_and(|selected| selected.eq_row(index)),
+                    ListItem::aria_active_descendant,
+                )
                 .h(ROW_HEIGHT)
                 .px_4()
                 .border_b_1()
@@ -476,11 +487,12 @@ impl ListDelegate for Rows {
 
     fn set_selected_index(
         &mut self,
-        _: Option<IndexPath>,
+        selected: Option<IndexPath>,
         _: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) {
         // ListState owns the index and focus. Only ListEvent::Confirm opens mail.
+        self.selected = selected;
         cx.notify();
     }
 

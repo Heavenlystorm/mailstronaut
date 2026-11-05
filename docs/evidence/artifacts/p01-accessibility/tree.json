@@ -1,0 +1,274 @@
+[
+  {
+    "bus": "org.a11y.atspi.Registry",
+    "path": "/org/a11y/atspi/accessible/root",
+    "name": "main",
+    "role": 14,
+    "states": 0,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/root",
+    "name": "mailstronaut",
+    "role": 75,
+    "states": 0,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/0",
+    "name": "",
+    "role": 23,
+    "states": 1124073730,
+    "children": 15
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/217560760666325931701292080277701525504",
+    "name": "Search cached mail",
+    "role": 79,
+    "states": 1191184768,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/234102792121341291623573518718878089216",
+    "name": "Compose",
+    "role": 43,
+    "states": 1124075776,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/170421669151964335057401247076322377728",
+    "name": "Sync mail or refresh cache",
+    "role": 43,
+    "states": 1124075776,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/140464194902154349969072940820178403328",
+    "name": "Toggle light and dark appearance",
+    "role": 43,
+    "states": 1124075776,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/39269804871632639149716518772829847552",
+    "name": "Unified inbox",
+    "role": 91,
+    "states": 1136656640,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/176499615287401208764002653484592660480",
+    "name": "Drafts & outbox",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/112608723615751851562083675137271398400",
+    "name": "Reminders",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/28886265347422189679869681036687310848",
+    "name": "All cached mail \u00b7 conversation-synthetic \u00b7 conversation-synthetic",
+    "role": 91,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/105093012415141384580484470524491071488",
+    "name": "Cached folder \u00b7 conversation-synthetic \u00b7 INBOX \u00b7 101 unread",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/248021153488554175165094511025984634880",
+    "name": "Cached folder \u00b7 conversation-synthetic \u00b7 Sent \u00b7 0 unread",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/171814406420834980264479721538180874240",
+    "name": "All cached mail \u00b7 other-synthetic \u00b7 other-synthetic",
+    "role": 91,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/38890638225434059968081329511001489408",
+    "name": "Cached folder \u00b7 other-synthetic \u00b7 INBOX \u00b7 0 unread",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/90936841207963164769330708577987330048",
+    "name": "Cached folder \u00b7 other-synthetic \u00b7 Sent \u00b7 0 unread",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/23351536554343927713491895478491545600",
+    "name": "Settings",
+    "role": 91,
+    "states": 1128268032,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/301636929346904191575153246278162317312",
+    "name": "",
+    "role": 31,
+    "states": 1124079872,
+    "children": 7
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/79191210147606534068925511156681932800",
+    "name": "Toggle conversation-synthetic submenu",
+    "role": 43,
+    "states": 1124075776,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/316199032457165946475506091762527502336",
+    "name": "Toggle other-synthetic submenu",
+    "role": 43,
+    "states": 1124075776,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/134990427195637343943595998704717266944",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/191836010327282836621918034732831997952",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/155687028956967838396790644723144458240",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/255586175514348451090150337296577069056",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/220531385088870714696878699356891381760",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/182845470420466472753648912860459302912",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/181701328304705188400066905742468186112",
+    "name": "",
+    "role": 32,
+    "states": 1128268032,
+    "children": 1
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/284572753744535291651599041960779710464",
+    "name": "Synthetic \u00b7 Performance 000 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/298528661812566747645002404982207545344",
+    "name": "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/75032035865215172724106854543545860096",
+    "name": "Synthetic \u00b7 Performance 002 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/151060184462845817967338130036804812800",
+    "name": "Synthetic \u00b7 Performance 003 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/286959255878906650309967838738632409088",
+    "name": "Synthetic \u00b7 Performance 004 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/221705020237142921839816288974709719040",
+    "name": "Synthetic \u00b7 Performance 005 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  },
+  {
+    "bus": ":1.1",
+    "path": "/org/a11y/atspi/accessible/0/221897955183084383492108968718241890304",
+    "name": "Synthetic \u00b7 Performance 006 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "role": 32,
+    "states": 1124073728,
+    "children": 0
+  }
+]

@@ -1,5 +1,9 @@
 # P10 — Flatpak build on the CI host
 
+Note: the archive pin later moved to `c980b732…` for the accessibility row change in `mailbox.rs`.
+The sandbox walkthroughs below last ran on the earlier archive `b8c9c313…`. The pinned build for the
+new archive has not been re-run.
+
 Two steps ran on `ci-py` (x86_64, Ubuntu, 16 cores): the optional SDK probe in
 `experiments/p01-flatpak/`, and then the production manifest in `flatpak/`. Both use the
 Flathub refs pinned in `experiments/p01-flatpak/sdk-lock.json`, installed into an isolated
