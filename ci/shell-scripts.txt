@@ -1,6 +1,11 @@
 ci/check.sh
 ci/nix-check.sh
 ci/remote.sh
+flatpak/prepare.sh
+flatpak/build-app.sh
+flatpak/build-and-install.sh
+flatpak/check.sh
+experiments/p01-flatpak/build.sh
 experiments/p01-blitz/privacy.sh
 experiments/p01-blitz/reader.sh
 experiments/p01-blitz/portal.sh

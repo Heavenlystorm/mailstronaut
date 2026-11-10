@@ -714,10 +714,15 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   concurrent sources and the export/import documentation remain open.
 - [ ] Verify actual native Wayland launch, assets/fonts/icons, TLS roots, portals,
   keyring, notifications and GPU loader behavior on NixOS.
+- [x] Generate production Flatpak archives from the exact Nix package source and
+  vendor inputs, check all lockfiles, normalize archive metadata, reject stale pins
+  by default and expose an explicit maintainer refresh. Keep only compressed inputs
+  after preparation and reuse the optional `nix develop .#flatpak` tool environment.
+  [Workflow](../flatpak/README.md); reproducible hashes and worker-count checks pass.
 - [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native
   Wayland access. No X11/XWayland requirement, broad home access, host Nix daemon,
   plaintext secrets or uncontrolled model downloads.
-  [A production manifest with pinned archives builds the current release source offline,
+  [The production manifest with reproducible pinned archives builds the current source offline,
   runs it in the Platform runtime, opens its window in the sandbox, and passes the sandboxed
   GUI, portal and attach walkthroughs on the CI host](evidence/P10-flatpak.md);
   real-session Wayland, the desktop's own portals, the graphics path and desktop metainfo
@@ -726,9 +731,10 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   portals, read-only managed configuration and packaged HTML resources.
   Reuse the P02 Settings/source/export and P05 import components; do not create a
   second sandbox-specific settings UI. Packaging and portal policy remain backend work.
-  [A process inside the installed sandbox reaches the FileChooser and Notification portals
-  through the proxy](evidence/P10-flatpak.md); the keyring (Secret portal), the file chooser
-  flow, document files and the Background portal remain open.
+  [The installed sandbox reaches FileChooser/Notification and completes a synthetic
+  Secret-keyring and chooser/attachment flow](evidence/P10-flatpak.md). Real desktop
+  portal/document grants, model import, notification actions and the Background
+  portal remain open.
 - [x] Run format/strict release Clippy, backend/MIME/renderer tests, private
   credential fixtures and installed CLI/config checks in the official minimal
   Nix container on x86_64. [Hosted evidence](evidence/P01-ci-cache.md).

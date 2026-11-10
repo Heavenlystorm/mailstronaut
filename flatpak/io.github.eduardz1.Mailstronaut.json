@@ -23,7 +23,6 @@
       "LIBCLANG_PATH": "/usr/lib/sdk/llvm22/lib",
       "CC": "clang",
       "CXX": "clang++",
-      "AS": "clang",
       "FLATPAK_DEST": "/app"
     }
   },
@@ -39,13 +38,13 @@
         {
           "type": "archive",
           "path": "../target/p10-flatpak/app-source.tar.xz",
-          "sha256": "c980b732fa228c7d52c087e691ed1ad68735ee8beffcfebd4db47be76e3a0502",
+          "sha256": "45bebbe13581a2e7bfc3fd999fd48396d1d42bbd89078ba7f83207bc3b62df5f",
           "strip-components": 0
         },
         {
           "type": "archive",
           "path": "../target/p10-flatpak/vendor.tar.xz",
-          "sha256": "0a7438ab3690f593601d513c0a69b0845f87673094baf2d1b0d469e7dbc75582",
+          "sha256": "10dde9661971815b10bdc3f2b08d3f984b57122d926d5f1cfbcfd8d78d452e57",
           "strip-components": 0
         },
         {

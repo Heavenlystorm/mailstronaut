@@ -4,6 +4,8 @@
 set -euo pipefail
 build_jobs=$(nproc)
 export CARGO_BUILD_JOBS="$build_jobs"
+export CMAKE_BUILD_PARALLEL_LEVEL="$build_jobs"
+export MAKEFLAGS="-j$build_jobs"
 mkdir -p "$CARGO_HOME"
 vendor_root=/run/build/mailstronaut/vendor
 cp "$vendor_root/.cargo/config.toml" "$CARGO_HOME/config.toml"

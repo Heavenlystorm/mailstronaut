@@ -19,7 +19,6 @@ if [[ "$phase" == metadata ]]; then
   printf 'Metadata phase passed; no compilation attempted.\n'
   exit 0
 fi
-export AS="${CC:-cc}"
 if [[ -z ${LIBCLANG_PATH:-} ]] || ! compgen -G "$LIBCLANG_PATH/libclang.so*" > /dev/null; then
   printf 'Set LIBCLANG_PATH to the SDK directory containing libclang.so before compilation.\n' >&2
   exit 1

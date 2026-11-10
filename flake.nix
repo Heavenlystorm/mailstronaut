@@ -315,6 +315,19 @@
               ])
             }/bin/python3";
           });
+          # Optional packaging tools; SDKs stay in the isolated project installation.
+          flatpak = self.devShells.${system}.default.overrideAttrs (old: {
+            nativeBuildInputs = old.nativeBuildInputs ++ [
+              pkgs.flatpak
+              pkgs.flatpak-builder
+              pkgs.bubblewrap
+              pkgs.curl
+              pkgs.jq
+              pkgs.appstream
+              pkgs.gnutar
+              pkgs.xz
+            ];
+          });
           # Optional isolated-window acceptance tools; retain every development
           # toolchain/environment setting without relying on inputsFrom.
           gui-test = self.devShells.${system}.default.overrideAttrs (old: {
@@ -336,6 +349,7 @@
               pkgs.wl-clipboard
               pkgs.imagemagick
               pkgs.dbus
+              pkgs.flatpak
               pkgs.zenity
               pkgs.gnome-keyring
               pkgs.libsecret

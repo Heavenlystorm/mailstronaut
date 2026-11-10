@@ -1,0 +1,52 @@
+2026-11-10; ci-py x86_64; pinned Nix shells via ci/remote.sh
+Build status: 0; installed runtime and final Nix gate both exited 0
+
+target/remote/flatpak-preparation.log
+app-source.tar.xz: 45bebbe13581a2e7bfc3fd999fd48396d1d42bbd89078ba7f83207bc3b62df5f
+vendor.tar.xz: 10dde9661971815b10bdc3f2b08d3f984b57122d926d5f1cfbcfd8d78d452e57
+Archives differ from manifest pins. Review the source changes, then run bash flatpak/prepare.sh --update-pins as a maintainer.
+app-source.tar.xz: 45bebbe13581a2e7bfc3fd999fd48396d1d42bbd89078ba7f83207bc3b62df5f
+vendor.tar.xz: 10dde9661971815b10bdc3f2b08d3f984b57122d926d5f1cfbcfd8d78d452e57
+Updated manifest source pins.
+Prepared pinned Flatpak archives in /builds/mailstronaut-dev/target/p10-flatpak
+app-source.tar.xz: 45bebbe13581a2e7bfc3fd999fd48396d1d42bbd89078ba7f83207bc3b62df5f
+vendor.tar.xz: 10dde9661971815b10bdc3f2b08d3f984b57122d926d5f1cfbcfd8d78d452e57
+Prepared pinned Flatpak archives in /builds/mailstronaut-dev/target/p10-flatpak
+118M	target/p10-flatpak
+/dev/mapper/ubuntu--vg-ubuntu--lv   97G   62G   32G  66% /
+/dev/vdb                            98G   66G   28G  71% /mnt/data
+archive-preparation-exit=0
+
+target/remote/flatpak-thread-repro.log
+thread-count-independent-output=passed
+
+target/p10-flatpak-build.log
+    Finished `release` profile [optimized] target(s) in 3m 29s
+Installing app/io.github.eduardz1.Mailstronaut/x86_64/master
+cp: cannot stat '/run/current-system/sw/share/icons/hicolor/index.theme': No such file or directory
+
+target/remote/flatpak-current-acceptance.log
+mailstronaut 0.1.0
+Configuration is valid.
+OK: the installed Flatpak opened its window in the sandbox with network unshared
+Flatpak GUI smoke acceptance: /mnt/data/mailstronaut/dev-target/p02.XhUy5f/flatpak-gui
+OK: the sandbox reached org.freedesktop.portal.FileChooser version 4 through the portal proxy
+OK: the sandbox reached org.freedesktop.portal.Notification version 1 through the portal proxy
+Flatpak portal reachability acceptance: /mnt/data/mailstronaut/dev-target/p02.XhUy5f/flatpak-portal
+OK: the portal-backed keyring holds the synthetic password
+OK: the sandboxed window opened
+OK: the sandboxed composer saved the draft
+OK: the file chooser portal attached one file inside the sandbox
+Flatpak attach acceptance: /mnt/data/mailstronaut/dev-target/p02.XhUy5f/flatpak-attach
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+Unavailable Secret Service fails closed without a plaintext backend.
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+flatpak-acceptance-exit=0
+
+target/remote/flatpak-workflow-land-gate.log
+/dev/mapper/ubuntu--vg-ubuntu--lv   97G   62G   32G  67% /
+/dev/mapper/ubuntu--vg-ubuntu--lv   97G   62G   32G  67% /
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+/dev/mapper/ubuntu--vg-ubuntu--lv   97G   62G   32G  67% /
+/dev/mapper/ubuntu--vg-ubuntu--lv   97G   62G   32G  67% /

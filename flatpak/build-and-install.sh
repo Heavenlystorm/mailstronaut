@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the production Flatpak manifest offline under the shared full-gate lock, then install it
 # into the isolated probe installation. Run inside the optional probe shell from the repository
-# root: nix develop --impure --expr 'import ./experiments/p01-flatpak/shell.nix' --command bash flatpak/build-and-install.sh
+# root: nix develop .#flatpak --command bash flatpak/build-and-install.sh
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
@@ -16,10 +16,16 @@ fi
 mkdir -p target/p10-flatpak
 printf 'running\n' > target/p10-flatpak-build.status
 result=0
-bash experiments/p01-flatpak/isolated.sh flatpak-builder --force-clean --disable-download \
-  --state-dir=target/p10-flatpak/state --repo=target/p10-flatpak/repo --user --install \
-  target/p10-flatpak/build flatpak/io.github.eduardz1.Mailstronaut.json \
-  > target/p10-flatpak-build.log 2>&1 || result=$?
+if { bash flatpak/prepare.sh &&
+  bash experiments/p01-flatpak/isolated.sh bash experiments/p01-flatpak/preflight.sh;
+} > target/p10-flatpak-build.log 2>&1; then
+  bash experiments/p01-flatpak/isolated.sh flatpak-builder --force-clean --disable-download \
+    --state-dir=target/p10-flatpak/state --repo=target/p10-flatpak/repo --user --install \
+    target/p10-flatpak/build flatpak/io.github.eduardz1.Mailstronaut.json \
+    >> target/p10-flatpak-build.log 2>&1 || result=$?
+else
+  result=$?
+fi
 printf '%s\n' "$result" > target/p10-flatpak-build.status.tmp
 mv target/p10-flatpak-build.status.tmp target/p10-flatpak-build.status
 printf 'Flatpak build exited %s; log: %s/target/p10-flatpak-build.log\n' "$result" "$root"

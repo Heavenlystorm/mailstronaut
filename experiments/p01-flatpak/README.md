@@ -51,8 +51,8 @@ without writable hardlinks into the Nix store. The app and vendor directories ar
 siblings: placing vendor inside the app causes Cargo to mistake the vendored crates
 for workspace members. `cargo fetch --frozen --offline` checks the workspace.
 
-The Nix vendor separates registry/Git sources, including the two `dpi 0.1.2`
-packages and libcosmic's Iced sources. Plain Cargo vendor rejects duplicate
+The Nix vendor separates registry/Git sources, including crates with duplicate
+name/version pairs from distinct sources. Plain Cargo vendor rejects duplicate
 name/version pairs from different sources. This experiment reuses the already
 hashed Nix vendor instead of implementing another generator. Its `@vendor@`
 placeholder is resolved for the SDK path.
@@ -74,8 +74,8 @@ After the coordinated Nix release gate has finished, the next acceptance command
 is the explicit `run.sh compile` phase through the isolated wrapper. It runs the
 same metadata checks, then builds the whole workspace with one job per available
 CPU, the stable
-SDK compiler, LLVM, thin LTO and one codegen unit. It sets `AS` to the compiler
-driver and uses the inventoried LLVM 22 libclang path. It does not copy Nix-linked
+SDK compiler, LLVM, thin LTO and one codegen unit, and uses the inventoried LLVM 22
+libclang path. It does not copy Nix-linked
 binaries into `/app`. The probe's Platform-runtime CLI checks pass on x86_64.
 Graphics drivers, GUI, portals, production app installation and the final release
 manifest still require actual proof.
