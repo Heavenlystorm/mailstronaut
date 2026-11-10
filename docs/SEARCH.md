@@ -23,9 +23,13 @@ one engine for both text and vectors, but neither encoder has passed the relevan
 so that advantage buys nothing yet at a cost the desktop would always pay.
 [Measurements and behavior](evidence/P06-fuzzy-search.md).
 
-Search by meaning stays open. It needs an encoder that passes the screen first, and then a
-vector library beside this index. LanceDB remains a candidate only if that combination
-turns out worse than its resource cost.
+Search by meaning stays open. The MiniLM encoder and USearch 2.26.6 now pass
+separate bounded screens; use that pair with Tantivy for production integration.
+USearch supplies filtered F16 cosine search, deletion and persistence through its
+safe Rust API, with default native acceleration features disabled. The 100k
+synthetic screen requires search expansion 2048 to meet recall; its default 128
+fails. [Exact selection, measurements and boundaries](evidence/P06-vector-index.md).
+Combined runtime, canonical lifecycle and native application acceptance remain open.
 
 ### Next encoder candidate (2026-11-10)
 
@@ -108,7 +112,7 @@ Both candidates still fail the fixed relevance screen.
 | **USearch 2.26.6** | Existing vector index with exact/approximate search, filtering, deletion, persistence and quantized storage; safe Rust-facing methods wrap a C++ implementation. Generates no text embeddings itself. | Vector component to compare with Tantivy if needed. Measure native packaging and filters; do not build our own ANN structure. [Rust Index API](https://docs.rs/usearch/2.26.6/usearch/struct.Index.html) |
 | **Nucleo** | Convenient fzf/skim-style Rust matcher. Does not supply the complete persistent mail/semantic retrieval stack. | Suitable for small pickers, not the primary mail-search engine. [Upstream scope](https://github.com/helix-editor/nucleo) |
 | **Meilisearch / milli** | Meilisearch supplies a search server; its internal `milli` crate is `publish = false` in the current workspace. | Avoid adding a server or coupling the desktop to unpublished engine internals. [Current manifest](https://github.com/meilisearch/meilisearch/blob/main/crates/milli/Cargo.toml) |
-| **SQLite FTS5 / sqlite-vec** | Existing FTS5 remains useful baseline infrastructure. The published sqlite-vec Rust setup uses unsafe extension registration. | Do not write fuzzy/semantic behavior around FTS from scratch or add unsafe initialization to our workspace. Reconsider only with a demonstrated maintained safe integration compatible with Servo's SQLite pin. [Upstream Rust setup](https://github.com/asg017/sqlite-vec/blob/main/site/using/rust.md) |
+| **SQLite FTS5 / sqlite-vec** | Existing FTS5 remains useful baseline infrastructure. The published sqlite-vec Rust setup uses unsafe extension registration. | Do not write fuzzy/semantic behavior around FTS from scratch or add unsafe initialization to our workspace. Reconsider only with a demonstrated maintained safe integration compatible with the canonical SQLite version. [Upstream Rust setup](https://github.com/asg017/sqlite-vec/blob/main/site/using/rust.md) |
 
 For LanceDB's pinned probe, use `default-features = false` and keep cloud/remote,
 OpenAI/Bedrock, metrics-export and automatic model download features off. Its

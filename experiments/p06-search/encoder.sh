@@ -6,7 +6,7 @@ cd "$root"
 probe="$root/target/p06-search/encoder"
 mkdir -p "$probe/crates/encoder/src"
 # Keep the shared pins, omitting the original probe's unused engine dependencies.
-sed -E '/^(lancedb|arrow-array|arrow-schema|futures-util|tokio|model2vec-rs) = /d' \
+sed -E '/^(lancedb|arrow-array|arrow-schema|futures-util|tokio|model2vec-rs|usearch|rand|rayon) = /d' \
   experiments/p06-search/workspace.toml.in > "$probe/Cargo.toml"
 python3 - "$probe/Cargo.toml" <<'PY'
 import pathlib,sys

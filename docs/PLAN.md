@@ -449,7 +449,8 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   screen; Potion also exceeds its memory screen. [The MiniLM L12 candidate now passes
   the fixed screen, Rust/reference parity and encoder-only resource limits](evidence/P06-minilm-encoder.md);
   its frozen additional screen also passes (22/24 first, 24/24 top-three), with two
-  retained book-pickup/renewal confusions. Production index/lifecycle budgets and
+  retained book-pickup/renewal confusions. The [USearch API and 10k/100k vector screen also pass](evidence/P06-vector-index.md),
+  selecting the pair for production integration. Combined app/lifecycle budgets and
   the native connector remain open.
 - [x] Provide typo-tolerant fuzzy subject/address/body search, accent/partial terms,
   useful ranking, deliberate exact/filter queries and bounded expansion, using a

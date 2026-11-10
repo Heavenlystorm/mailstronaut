@@ -7,7 +7,7 @@ probe="$root/target/p06-search/probe"
 mkdir -p "$probe/crates/search-probe/src" "$root/target/p06-search/runtime"
 mkdir -p "$probe/crates/embedding-probe/src"
 chmod 700 "$root/target/p06-search/runtime"
-cp experiments/p06-search/workspace.toml.in "$probe/Cargo.toml"
+sed -E '/^(usearch|rand|rayon) = /d' experiments/p06-search/workspace.toml.in > "$probe/Cargo.toml"
 python3 - "$root" "$probe" <<'PY'
 import pathlib,sys
 root,probe=map(pathlib.Path,sys.argv[1:])

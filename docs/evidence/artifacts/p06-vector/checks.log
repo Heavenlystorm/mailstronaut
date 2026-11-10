@@ -1,0 +1,31 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+    Checking mailstronaut-vector-probe v0.0.0 (/builds/mailstronaut-dev/target/p06-search/vector/crates/vector)
+    Finished `release` profile [optimized] target(s) in 0.20s
+   Compiling libc v0.2.191
+   Compiling zerocopy v0.8.63
+   Compiling either v1.19.0
+   Compiling rayon v1.12.0
+   Compiling getrandom v0.3.4
+   Compiling rand_core v0.9.5
+   Compiling ppv-lite86 v0.2.21
+   Compiling rand_chacha v0.9.0
+   Compiling rand v0.9.5
+   Compiling mailstronaut-vector-probe v0.0.0 (/builds/mailstronaut-dev/target/p06-search/vector/crates/vector)
+    Finished `release` profile [optimized] target(s) in 6.89s
+rows=10000 dimensions=384 scalar=F16 build_seconds=2.122
+library_memory_bytes=16860416
+exact_top128_p95_ms=6.008
+expansion=128 recall_hits=297/300 filtered_p95_ms=5.674
+index_bytes=10447632
+Vector benchmark artifacts: /builds/mailstronaut-dev/target/p06-search/vector-bench-10000.nbagb0
+rows=100000 dimensions=384 scalar=F16 build_seconds=104.566
+library_memory_bytes=185352448
+exact_top128_p95_ms=60.753
+expansion=128 recall_hits=158/300 filtered_p95_ms=15.516
+expansion=512 recall_hits=275/300 filtered_p95_ms=43.400
+expansion=2048 recall_hits=300/300 filtered_p95_ms=104.478
+index_bytes=104434128
+Vector benchmark artifacts: /builds/mailstronaut-dev/target/p06-search/vector-bench-100000.AGMJwy
+Filesystem                         Size  Used Avail Use% Mounted on
+/dev/mapper/ubuntu--vg-ubuntu--lv   97G   64G   30G  69% /
+/dev/vdb                            98G   72G   22G  78% /mnt/data

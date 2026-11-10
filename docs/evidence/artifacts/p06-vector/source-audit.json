@@ -1,0 +1,37 @@
+[
+  {
+    "name": "usearch",
+    "version": "2.26.6",
+    "checksum": "b0b5eeb9d30a9be03057a1fa6b0096b6d02a42169fb300e096501aa48ee03ce5",
+    "license": "Apache-2.0",
+    "features": {
+      "default": [
+        "numkong"
+      ],
+      "numkong": [
+        "dep:numkong"
+      ],
+      "openmp": [],
+      "simsimd": [
+        "numkong"
+      ]
+    },
+    "repository": "https://github.com/unum-cloud/USearch"
+  },
+  {
+    "name": "hnsw_rs",
+    "version": "0.3.5",
+    "checksum": "c9b4dcb9840006fae9964e97dfdb354cd00b7a15d69d143caae7eeca0410af9f",
+    "license": "MIT/Apache-2.0",
+    "features": {
+      "default": [],
+      "simdeez_f": [
+        "anndists/simdeez_f"
+      ],
+      "stdsimd": [
+        "anndists/stdsimd"
+      ]
+    },
+    "repository": "https://github.com/jean-pierreBoth/hnswlib-rs"
+  }
+]
