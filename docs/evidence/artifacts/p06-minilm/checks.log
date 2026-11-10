@@ -1,0 +1,69 @@
+2026-11-10; ci-py x86_64; pinned Nix shells
+Fixed screening, Rust parity, release lint/build and bounded privacy checks passed.
+Held-out data is frozen but not yet evaluated in this record.
+
+minilm-quality.log
+{"query": "user-example", "expected": 1, "rank": 1, "top3": [1, 2, 8]}
+{"query": "english-french-registration", "expected": 1, "rank": 1, "top3": [1, 2, 9]}
+{"query": "italian-french-registration", "expected": 1, "rank": 1, "top3": [1, 2, 8]}
+{"query": "english-italian-refund", "expected": 5, "rank": 1, "top3": [5, 6, 7]}
+{"query": "french-italian-refund", "expected": 5, "rank": 1, "top3": [5, 2, 1]}
+{"query": "french-english-repair", "expected": 7, "rank": 1, "top3": [7, 10, 3]}
+{"query": "italian-english-password", "expected": 8, "rank": 1, "top3": [8, 1, 4]}
+{"query": "english-french-parcel", "expected": 4, "rank": 1, "top3": [4, 7, 6]}
+{"query": "english-french-supervision", "expected": 9, "rank": 1, "top3": [9, 2, 1]}
+{"query": "italian-french-electricity", "expected": 10, "rank": 1, "top3": [10, 5, 4]}
+{"top1": 10, "top3": 10, "total": 10, "exampleFirst": true, "passed": true}
+fixed-screen-exit=0
+
+minilm-rust-reference.log
+documents: max_abs_error=1.3411045e-07 min_cosine=0.99999976
+queries: max_abs_error=1.1175871e-07 min_cosine=0.99999982
+Rust vectors: user-example rank=1 top3=[1, 2, 8]
+Rust vectors: english-french-registration rank=1 top3=[1, 2, 9]
+Rust vectors: italian-french-registration rank=1 top3=[1, 2, 8]
+Rust vectors: english-italian-refund rank=1 top3=[5, 6, 7]
+Rust vectors: french-italian-refund rank=1 top3=[5, 2, 1]
+Rust vectors: french-english-repair rank=1 top3=[7, 10, 3]
+Rust vectors: italian-english-password rank=1 top3=[8, 1, 4]
+Rust vectors: english-french-parcel rank=1 top3=[4, 7, 6]
+Rust vectors: english-french-supervision rank=1 top3=[9, 2, 1]
+Rust vectors: italian-french-electricity rank=1 top3=[10, 5, 4]
+Rust-vector screen: top1=10/10 top3=10/10 example_rank=1
+
+minilm-privacy.log
+Actual TCP positive control observed; bounded Rust encoder made no IP socket calls.
+Tampered config rejected before inference; artifacts: /builds/mailstronaut-dev/target/p06-search/minilm-privacy.ZHdt6U
+
+minilm-final-run.log
+hash_verified_model_load_ms=1391.444
+warm_query_encode_p95_ms=58.124
+steady_VmRSS:	  759384 kB
+Encoder artifacts: /builds/mailstronaut-dev/target/p06-search/minilm.6v6wd8
+
+minilm-binary.sha256
+1821351595548870d2ec080d8c8661d607ae24cd749ba693e0f743db8193a8e8  target/release/mailstronaut-encoder-probe
+
+minilm-freeze-check.log
+    Finished `release` profile [optimized] target(s) in 0.29s
+    Finished `release` profile [optimized] target(s) in 15.27s
+Held-out schema/labels frozen; no inference run
+
+Final binary parity
+documents: max_abs_error=1.3411045e-07 min_cosine=0.99999976
+queries: max_abs_error=1.1175871e-07 min_cosine=0.99999982
+Rust vectors: user-example rank=1 top3=[1, 2, 8]
+Rust vectors: english-french-registration rank=1 top3=[1, 2, 9]
+Rust vectors: italian-french-registration rank=1 top3=[1, 2, 8]
+Rust vectors: english-italian-refund rank=1 top3=[5, 6, 7]
+Rust vectors: french-italian-refund rank=1 top3=[5, 2, 1]
+Rust vectors: french-english-repair rank=1 top3=[7, 10, 3]
+Rust vectors: italian-english-password rank=1 top3=[8, 1, 4]
+Rust vectors: english-french-parcel rank=1 top3=[4, 7, 6]
+Rust vectors: english-french-supervision rank=1 top3=[9, 2, 1]
+Rust vectors: italian-french-electricity rank=1 top3=[10, 5, 4]
+Rust-vector screen: top1=10/10 top3=10/10 example_rank=1
+
+Final Nix gate
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux

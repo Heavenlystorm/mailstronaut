@@ -27,6 +27,15 @@ Search by meaning stays open. It needs an encoder that passes the screen first, 
 vector library beside this index. LanceDB remains a candidate only if that combination
 turns out worse than its resource cost.
 
+### Next encoder candidate (2026-11-10)
+
+The pinned multilingual MiniLM L12 sentence encoder passes the unchanged fixed
+screen (10/10 first), independent Candle/PyTorch parity and the provisional
+encoder-only release resource limits. It reuses Candle's existing BERT model,
+with no ONNX runtime or new production dependencies. [Exact evidence and limits](evidence/P06-minilm-encoder.md).
+A new synthetic held-out set is frozen before evaluation. Model adoption and the
+semantic UI/index remain open; this is not an implemented meaning-search feature.
+
 ### Native metadata filters (2026-11-10)
 
 The search toolbar's standard Kit popover combines a literal sender substring with

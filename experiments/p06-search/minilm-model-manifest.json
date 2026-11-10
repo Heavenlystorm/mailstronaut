@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "modelId": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+  "license": "Apache-2.0",
+  "encoder": "bert",
+  "dimensions": 384,
+  "maxTokens": 128,
+  "pooling": "attention-mask-mean",
+  "normalize": "l2",
+  "prefixes": {
+    "query": "",
+    "passage": ""
+  },
+  "files": [
+    {
+      "name": "1_Pooling/config.json",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/1_Pooling/config.json",
+      "sizeBytes": 190,
+      "sha256": "4be450dde3b0273bb9787637cfbd28fe04a7ba6ab9d36ac48e92b11e350ffc23",
+      "hash": "sha256-S+RQ3eOwJzu5eHY3z70o/gSnumq502rEjpKxHjUP/CM="
+    },
+    {
+      "name": "config.json",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/config.json",
+      "sizeBytes": 645,
+      "sha256": "6300193cb75e01cf80c96decef7187dfb33094d97cc1490b7ead6ff134476e4e",
+      "hash": "sha256-YwAZPLdeAc+AyW3s73GH37MwlNl8wUkLfq1v8TRHbk4="
+    },
+    {
+      "name": "model.safetensors",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/model.safetensors",
+      "sizeBytes": 470641600,
+      "sha256": "eaa086f0ffee582aeb45b36e34cdd1fe2d6de2bef61f8a559a1bbc9bd955917b",
+      "hash": "sha256-6qCG8P/uWCrrRbNuNM3R/i1t4r72H4pVmhu8m9lVkXs="
+    },
+    {
+      "name": "sentence_bert_config.json",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/sentence_bert_config.json",
+      "sizeBytes": 53,
+      "sha256": "70f4448f31320443fe3557cacea5abf2dcc4915dda8c80646bec9f3bb0aa5a1f",
+      "hash": "sha256-cPREjzEyBEP+NVfKzqWr8tzEkV3ajIBka+yfO7CqWh8="
+    },
+    {
+      "name": "special_tokens_map.json",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/special_tokens_map.json",
+      "sizeBytes": 239,
+      "sha256": "378eb3bf733eb16e65792d7e3fda5b8a4631387ca04d2015199c4d4f22ae554d",
+      "hash": "sha256-N46zv3M+sW5leS1+P9pbikYxOHygTSAVGZxNTyKuVU0="
+    },
+    {
+      "name": "tokenizer.json",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/tokenizer.json",
+      "sizeBytes": 9081518,
+      "sha256": "2c3387be76557bd40970cec13153b3bbf80407865484b209e655e5e4729076b8",
+      "hash": "sha256-LDOHvnZVe9QJcM7BMVOzu/gEB4ZUhLIJ5lXl5HKQdrg="
+    },
+    {
+      "name": "tokenizer_config.json",
+      "url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/e8f8c211226b894fcb81acc59f3b34ba3efd5f42/tokenizer_config.json",
+      "sizeBytes": 526,
+      "sha256": "5036ea374ffedd706e3bef33e2e0d6953cb868ef8a490e76e32ba0faa37a6b9b",
+      "hash": "sha256-UDbqN0/+3XBuO+8z4uDWlTy4aO+KSQ524yug+qN6a5s="
+    }
+  ]
+}

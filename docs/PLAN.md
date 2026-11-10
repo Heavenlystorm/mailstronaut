@@ -446,7 +446,9 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
 - [ ] Finish model/library adoption gates and choose the smallest maintained
   integration meeting quality/resource budgets. [Tantivy is adopted for lexical
   search](SEARCH.md). Existing E5 and Model2Vec candidates fail their fixed relevance
-  screen; Potion also exceeds its memory screen.
+  screen; Potion also exceeds its memory screen. [The MiniLM L12 candidate now passes
+  the fixed screen, Rust/reference parity and encoder-only resource limits](evidence/P06-minilm-encoder.md);
+  its additional frozen screen and production index/lifecycle budgets remain open.
 - [x] Provide typo-tolerant fuzzy subject/address/body search, accent/partial terms,
   useful ranking, deliberate exact/filter queries and bounded expansion, using a
   maintained library rather than a custom matcher or index.

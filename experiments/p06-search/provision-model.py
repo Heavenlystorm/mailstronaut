@@ -8,11 +8,14 @@ import sys
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-assert sys.argv[1:] in [[], ["--potion"]], "Usage: provision-model.py [--potion]"
+assert sys.argv[1:] in [[], ["--potion"], ["--minilm"]], "Usage: provision-model.py [--potion|--minilm]"
 POTION = sys.argv[1:] == ["--potion"]
+MINILM = sys.argv[1:] == ["--minilm"]
 MANIFEST = json.loads((ROOT / "experiments/p06-search" /
-                       ("potion-model-manifest.json" if POTION else "model-manifest.json")).read_text())
-DESTINATION = ROOT / "target/p06-search" / ("model-potion" if POTION else "model")
+                       ("potion-model-manifest.json" if POTION else
+                        "minilm-model-manifest.json" if MINILM else "model-manifest.json")).read_text())
+DESTINATION = ROOT / "target/p06-search" / ("model-potion" if POTION else
+                                          "model-minilm" if MINILM else "model")
 DESTINATION.mkdir(mode=0o700, parents=True, exist_ok=True)
 assert DESTINATION.resolve().is_relative_to((ROOT / "target").resolve())
 PREFIX = (f"https://huggingface.co/{MANIFEST['modelId']}/resolve/"
@@ -21,6 +24,8 @@ EXPECTED = {"model.safetensors", "tokenizer.json", "config.json",
             "tokenizer_config.json", "special_tokens_map.json"}
 if POTION:
     EXPECTED = {"model.safetensors", "tokenizer.json", "config.json"}
+if MINILM:
+    EXPECTED |= {"sentence_bert_config.json", "1_Pooling/config.json"}
 assert {entry["name"] for entry in MANIFEST["files"]} == EXPECTED
 
 
@@ -39,6 +44,7 @@ for entry in MANIFEST["files"]:
         print(f"Verified existing {name}: {size} bytes", flush=True)
         continue
     temporary = DESTINATION / (name + ".part")
+    temporary.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     # Exclusive creation avoids following an existing path or overwriting evidence.
     with temporary.open("xb") as destination:
         os.chmod(temporary, 0o600)

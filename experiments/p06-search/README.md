@@ -106,3 +106,56 @@ nonzero if it fails. Record completed timing/resource output separately from the
 quality result. Query timing measures the encoder only, not end-to-end retrieval;
 GNU time reports process peak RSS, not idle memory. OS page caches are uncontrolled.
 [Paired results](../../docs/evidence/P06-encoder-comparison.md).
+
+## Quality-first MiniLM comparison
+
+The next candidate is the publisher's
+[multilingual MiniLM L12 sentence encoder](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/tree/e8f8c211226b894fcb81acc59f3b34ba3efd5f42),
+pinned in `minilm-model-manifest.json` (Apache-2.0). Its standard BERT architecture
+matches the existing Candle API family; compatibility and numerical parity for
+these weights still need actual Rust proof. It uses the published 128-token limit,
+attention-mask mean pooling and no E5 task prefixes. Both the sentence and pooling
+configuration files are pinned and validated rather than inferred from the name.
+
+Before rebuilding an encoder/search graph, run the unchanged ten-query relevance
+screen through the independent, test-only CPU reference environment:
+
+```sh
+nix develop --command python3 experiments/p06-search/provision-model.py --minilm
+nix develop .#search-reference --command bash -c \
+  '"$MAILSTRONAUT_REFERENCE_PYTHON" experiments/p06-search/screen.py minilm'
+```
+
+Provisioning is explicit and hash-verifies every artifact. `screen.py` runs entirely
+from the verified local files with remote code, telemetry, network model fallback
+and GPU use disabled. It computes the small fixture's pairwise cosine scores with
+NumPy, not a new production retrieval engine. Account/folder duplicates are excluded
+before ranking. The original thresholds remain top-1 >=8/10, top-3 =10/10 and the
+user example first; a failure returns nonzero. `screen.py e5` can repeat the older
+encoder's reference-only control if its verified files are present.
+
+This is an early quality screen, not model adoption, held-out relevance, Rust
+numerical parity, a Rust resource benchmark or an implemented semantic-search UI.
+No application Cargo dependencies change for this screen. A passing candidate must
+still meet those later gates before integration.
+
+`encoder.sh lock` deliberately generates the separate encoder-only lockfile;
+normal reproduction uses `fetch`, `check`, `run` and `privacy` through the pinned
+search-probe shell. This reuses `workspace.toml.in` and the root lint policy but
+materializes only a BERT encoder member, so the 160-package lock contains no
+LanceDB/Arrow/search engine. It reuses the main Cargo target directory. Release
+uses LLVM/thin LTO/one codegen unit. `privacy` includes an actual TCP observer
+control and rejection of a same-size tampered configuration.
+
+Pass the exported vector file to `reference.py OUTPUT --minilm` through the
+search-reference shell to verify numerical parity and score the actual Rust
+vectors. Resource measurements from `run` are untraced and separate from `privacy`.
+
+`relevance-heldout.json` freezes 26 new synthetic documents and 24 cross-language
+queries, including same-topic negatives and foreign-account/archive copies,
+before the candidate is evaluated against them. Its predeclared screen is at
+least 20/24 top-one and 23/24 top-three. This is additional synthetic coverage,
+not a claim about a representative real mailbox. Run `screen.py minilm --held-out`.
+For Rust parity use the same release encoder with a third argument naming this
+fixture, then `reference.py OUTPUT --minilm --held-out`. Preserve every miss;
+do not edit the frozen corpus or thresholds after observing results.
