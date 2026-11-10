@@ -85,8 +85,22 @@ synthetic messages (12 targets, 12 near-topic negatives, two out-of-scope copies
 and 24 balanced EN/FR/IT cross-language queries. The predeclared thresholds are
 >=20/24 top-one and >=23/24 top-three. The probe commit freezes the corpus and its
 thresholds before evaluation. They are not representative real-mailbox acceptance.
-Held-out evaluation is pending.
+The freeze commit is `98d90a9`. Only after that commit, the Rust encoder exported
+the held-out vectors and the independent reference evaluated them. Both numerical
+parity limits passed again: document maximum absolute error 1.7136335e-7 / minimum
+cosine 0.99999964; query error 1.1920929e-7 / cosine 0.99999976.
 
-Production model manifest/lifecycle, held-out outcomes, chunking/coverage,
+Held-out retrieval passed **22/24 top-one and 24/24 top-three**. The two misses,
+`library-en` and `library-fr`, ranked the book-renewal distractor (117) before the
+correct reserved-book pickup notice (105), which remained second. The corpus,
+labels and thresholds were not edited after observing these misses. This exposes
+a negation/context limitation rather than establishing general email accuracy.
+The original ten-query user-example screen remains separately passed.
+
+Complete receipt: `target/remote/minilm-heldout-reference.log`; exported vectors
+and run metrics: `target/p06-search/minilm-heldout.Vvf27c/` on CI. A persistent
+[held-out receipt](artifacts/p06-minilm/heldout.log) preserves every ranking.
+
+Production model manifest/lifecycle, chunking/coverage,
 incremental vector indexing with deletion/scope/model revision fences, 10k/100k
 budgets, configuration and the native search connector remain required.

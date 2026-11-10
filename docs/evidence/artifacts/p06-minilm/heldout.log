@@ -1,0 +1,31 @@
+2026-11-10; Rust vectors and independent CPU reference; exit 0
+Corpus and thresholds frozen in 98d90a9 before this run. No post-observation edits.
+Command: reference.py target/p06-search/minilm-heldout.Vvf27c/embeddings.json --minilm --held-out
+
+documents: max_abs_error=1.7136335e-07 min_cosine=0.99999964
+queries: max_abs_error=1.1920929e-07 min_cosine=0.99999976
+Rust vectors: internship-en rank=1 top3=[101, 111, 106]
+Rust vectors: internship-it rank=1 top3=[101, 116, 124]
+Rust vectors: travel-en rank=1 top3=[102, 106, 124]
+Rust vectors: travel-fr rank=1 top3=[102, 114, 105]
+Rust vectors: seminar-fr rank=1 top3=[103, 101, 115]
+Rust vectors: seminar-it rank=1 top3=[103, 115, 114]
+Rust vectors: account-en rank=1 top3=[104, 109, 121]
+Rust vectors: account-it rank=1 top3=[104, 116, 109]
+Rust vectors: library-en rank=2 top3=[117, 105, 111]
+Rust vectors: library-fr rank=2 top3=[117, 105, 121]
+Rust vectors: health-it rank=1 top3=[106, 102, 120]
+Rust vectors: health-fr rank=1 top3=[106, 118, 120]
+Rust vectors: survey-en rank=1 top3=[107, 119, 116]
+Rust vectors: survey-it rank=1 top3=[107, 119, 115]
+Rust vectors: payroll-en rank=1 top3=[108, 120, 118]
+Rust vectors: payroll-fr rank=1 top3=[108, 120, 118]
+Rust vectors: backup-fr rank=1 top3=[109, 121, 104]
+Rust vectors: backup-it rank=1 top3=[109, 121, 104]
+Rust vectors: power-en rank=1 top3=[110, 109, 122]
+Rust vectors: power-it rank=1 top3=[110, 122, 121]
+Rust vectors: thesis-en rank=1 top3=[111, 123, 101]
+Rust vectors: thesis-fr rank=1 top3=[111, 101, 123]
+Rust vectors: passport-fr rank=1 top3=[112, 124, 102]
+Rust vectors: passport-it rank=1 top3=[112, 124, 120]
+Rust-vector screen: top1=22/24 top3=24/24 example_rank=None
