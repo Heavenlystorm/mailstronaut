@@ -4578,6 +4578,7 @@ dependencies = [
 name = "mailstronaut-search"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "tantivy",
  "tempfile",
 ]

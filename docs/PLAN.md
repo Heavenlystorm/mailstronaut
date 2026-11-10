@@ -457,16 +457,20 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
 - [ ] Keep queries/text/embeddings/inference local. Models are small CPU encoders,
   pinned/hashed/licensed and explicitly installed; no startup downloads or remote
   fallback. Semantic search is independent of enabling the priority classifier.
-- [ ] Use one native search field with library ranking, scoped account/folder/date/
-  sender filters, honest snippets and conversation deduplication. Search never sets Seen.
-  Use `InputGroup`/`Input` with clear/filter buttons, a filter `Popover`,
-  `Select`/`Combobox` for account/folder and `DatePickerState::range` for date bounds.
-  Use `Label::highlights` for actual literal matches or GPUI `StyledText::with_highlights`
-  for backend-provided UTF-8 ranges; do not fabricate highlights for semantic matches.
+- [x] Use one native search field with library ranking, scoped account/folder/date/
+  sender filters and conversation deduplication. Search never sets Seen.
+  Reuse `Input`, a filter `Popover`, sender `Input` and `DatePickerState::range`
+  with standard presets/Apply/Clear buttons. Account/folder scope stays in the
+  sidebar rather than duplicating its controls in the popover.
   `SearchableVec`/default list substring matching is suitable for small option menus,
   not the required fuzzy or multilingual search engine.
   [The one field, `from:`/`subject:`, scope and Seen pass](evidence/P06-fuzzy-search.md);
-  the filter popover, date bounds, snippets and highlights remain open.
+  [sender/date controls, bounded metadata reads and filtering before Tantivy's hit
+  limit pass](evidence/P06-search-filters.md).
+- [ ] Display honest match snippets and highlights. Use `Label::highlights` for
+  actual literal matches or GPUI `StyledText::with_highlights` for backend-provided
+  UTF-8 ranges. Do not fabricate literal matches for semantic results or highlight
+  a different original from the one the result opens.
 - [ ] Maintain a private rebuildable index keyed by canonical original/source/model
   revision; bounded incremental indexing, restart/model change, deletion/purge and
   disabled accounts must not retain stale results or touch user-owned state.

@@ -12,6 +12,7 @@ readme.workspace = true
 
 [dependencies]
 tantivy.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

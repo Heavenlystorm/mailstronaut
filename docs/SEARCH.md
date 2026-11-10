@@ -1,7 +1,7 @@
 # Strong search: library research and adoption gate
 
-Research date: 2026-10-30. **Source audit and isolated library probe; no production integration.**
-The current application provides local literal SQLite FTS search. The user requires
+Initial research date: 2026-10-30. Tantivy lexical/fuzzy search is now integrated;
+the model comparisons below remain isolated probes. The user requires
 both typo tolerance and multilingual search by meaning, and explicitly wants
 pre-existing components. Do not write a fuzzy matcher, inverted index, vector
 index, transformer, translation system or search service for this feature.
@@ -26,6 +26,24 @@ so that advantage buys nothing yet at a cost the desktop would always pay.
 Search by meaning stays open. It needs an encoder that passes the screen first, and then a
 vector library beside this index. LanceDB remains a candidate only if that combination
 turns out worse than its resource cost.
+
+### Native metadata filters (2026-11-10)
+
+The search toolbar's standard Kit popover combines a literal sender substring with
+an inclusive received-date range. Sender matching covers parsed From names and
+addresses, excluding To/Cc recipients. Dates use the configured time zone and the
+following calendar day's midnight as the exclusive upper bound, including DST
+changes. Sender matching is ASCII case-insensitive; punctuation is literal, with
+no wildcard or query-language interpretation. Account/folder scope stays in the
+sidebar. Applying, clearing and changing scope never mark mail Seen.
+
+With a text query, Tantivy's existing range and regex queries restrict originals
+before its bounded hit collection. SQLite rechecks restrictions on the same
+original used for opening, preserves in-scope thread unread counts and deduplicates
+conversations. Without query text, the store reads filtered metadata directly in
+bounded batches; the text index's hit cap does not restrict those results. The
+additional raw sender field rebuilds the derived index on schema mismatch through
+the existing recovery path. [Behavior and checks](evidence/P06-search-filters.md).
 
 ## Original recommendation, before the measurements above
 
@@ -54,16 +72,18 @@ per source/model revision; encode each query once, then use library retrieval.
 Published crate versions/checksums and repository snapshots are recorded in
 [source-audit.json](evidence/artifacts/p06-search-research/source-audit.json).
 Tantivy and LanceDB source archives were checked against crates.io checksums;
-LanceDB's exact `lance-index =14.0.2` source was inspected as well. No search dependencies
-were added to the application Cargo.toml/Cargo.lock. A later isolated API probe
+LanceDB's exact `lance-index =14.0.2` source was inspected as well. That initial audit
+added no application dependencies; Tantivy was adopted later as described above.
+A later isolated API probe
 built and ran successfully; see [probe evidence](evidence/P06-search-probe.md).
 Model and adoption/resource acceptance remain open.
 The first E5 inference/reference probe passed numerical parity but failed the
 fixed multilingual ranking screen. [Results](evidence/P06-model-probe.md).
 The existing static Model2Vec library then retrieved all ten expected items in the
 top three, but also missed the fixed rank-first/top-one criteria; its debug load
-memory initially needed paired release profiling. LanceDB remains the leading backend
-candidate; neither encoder is adopted yet. These findings do not close P06. The subsequent
+memory initially needed paired release profiling. LanceDB was the initial unified
+backend candidate; the later lexical decision above supersedes that recommendation.
+Neither encoder is adopted yet. These findings do not close P06. The subsequent
 [paired release comparison](evidence/P06-encoder-comparison.md) found that static
 encoding is fast, but its 1.66 GiB process peak exceeds the existing memory screen.
 Both candidates still fail the fixed relevance screen.

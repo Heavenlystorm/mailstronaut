@@ -120,6 +120,10 @@ enum Command {
         Reply<Vec<store::conversations::Summary>>,
     ),
     Folders(Vec<String>, Reply<Vec<Folder>>),
+    FilteredPage(
+        store::browse::FilteredPage,
+        Reply<Vec<store::conversations::Summary>>,
+    ),
     UnreadCounts(Vec<String>, Reply<Vec<(i64, u32)>>),
     RankedPage(
         Vec<String>,
@@ -403,6 +407,16 @@ impl Handle {
         limit: u32,
     ) -> Result<Vec<store::conversations::Summary>, Error> {
         self.request(|reply| Command::RankedPage(accounts, scope, hits, after, limit, reply))
+            .await
+    }
+    /// Read originals matching explicit metadata restrictions and optional index hits.
+    /// # Errors
+    /// Rejects invalid filters, scopes, limits and storage failures.
+    pub async fn filtered_conversation_page(
+        &self,
+        request: store::browse::FilteredPage,
+    ) -> Result<Vec<store::conversations::Summary>, Error> {
+        self.request(|reply| Command::FilteredPage(request, reply))
             .await
     }
     /// Read the oldest changes waiting for the search index.
@@ -1254,6 +1268,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 });
             }
             Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
+            Command::FilteredPage(request, reply) => {
+                respond(reply, || store.filtered_conversation_page(&request));
+            }
             Command::UnreadCounts(accounts, reply) => {
                 respond(reply, || store.unread_counts(&accounts));
             }

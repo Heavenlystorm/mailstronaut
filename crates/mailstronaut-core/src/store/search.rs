@@ -3,6 +3,13 @@
 
 use super::{Error, Store};
 
+// Both query paths use the same parsed From metadata. Do not include To/Cc here:
+// a sender restriction must not match a recipient, nor lose named senders' addresses.
+pub(super) const SENDER_TEXT: &str = "m.sender || ' ' || COALESCE((
+ SELECT group_concat(COALESCE(json_extract(sender.value,'$.name'),'') || ' ' ||
+ COALESCE(json_extract(sender.value,'$.address'),''),' ')
+ FROM json_each(m.metadata,'$.headers.from') sender), '')";
+
 pub(super) const SCHEMA: &str = "
 CREATE TABLE search_pending (seq INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER NOT NULL UNIQUE);
 INSERT INTO search_pending(message_id) SELECT id FROM messages;
@@ -20,7 +27,7 @@ pub struct SearchText {
     pub received_at: i64,
     /// Subject line.
     pub subject: String,
-    /// Displayed sender.
+    /// Parsed From names and addresses, with the displayed sender as a fallback.
     pub sender: String,
     /// Every address on the message.
     pub addresses: String,
@@ -61,13 +68,13 @@ impl Store {
                 .query_row("SELECT COUNT(*) FROM search_pending", [], |row| {
                     row.get::<_, i64>(0)
                 })?;
-        let mut query = self.connection.prepare_cached(
-            "SELECT p.seq,p.message_id,m.account_id,m.received_at,f.subject,m.sender,f.addresses,f.body
+        let mut query = self.connection.prepare_cached(&format!(
+            "SELECT p.seq,p.message_id,m.account_id,m.received_at,f.subject,{SENDER_TEXT},f.addresses,f.body
              FROM search_pending p
              LEFT JOIN messages m ON m.id=p.message_id
              LEFT JOIN message_search f ON f.rowid=p.message_id
              ORDER BY p.seq LIMIT ?1",
-        )?;
+        ))?;
         let mut batch = SearchBatch {
             queued: u64::try_from(queued).unwrap_or_default(),
             ..SearchBatch::default()
@@ -171,6 +178,8 @@ mod tests {
         assert_eq!(text.account, "a");
         assert_eq!(text.subject, "Subject 1");
         assert!(text.sender.contains("Sender"));
+        assert!(text.sender.contains("sender@example.test"));
+        assert!(!text.sender.contains("reader@example.test"));
         assert!(text.addresses.contains("reader@example.test"));
         assert!(text.body.contains("First body."));
         assert_eq!(store.search_pending(1).expect("again").items[0].id, first);

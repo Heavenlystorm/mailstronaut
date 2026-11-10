@@ -2,6 +2,45 @@
 
 use mailstronaut_search::{Change, Document, Error, Index};
 
+#[test]
+fn metadata_restrictions_precede_the_hit_limit_and_treat_sender_metacharacters_literally() {
+    let (_root, index) = fixture();
+    let mut old = document(100, "work", 10, "Budget", "Older relevant message");
+    old.sender = "Name <a+b@example.test>".into();
+    index.apply(vec![Change::Put(old)]).expect("index");
+    let mut filter = mailstronaut_search::Filter {
+        received_from: Some(10),
+        received_before: Some(11),
+        sender: "A+B@EXAMPLE.TEST".into(),
+    };
+    assert_eq!(
+        index
+            .search_filtered("budget", &["work".into()], 1, &filter)
+            .expect("filter"),
+        vec![100]
+    );
+    assert_eq!(
+        index
+            .search_filtered("", &["work".into()], 1, &filter)
+            .expect("filter only"),
+        vec![100]
+    );
+    filter.received_before = Some(10);
+    assert_eq!(
+        index.search_filtered("budget", &["work".into()], 1, &filter),
+        Err(Error::InvalidQuery)
+    );
+    filter.received_from = None;
+    filter.received_before = None;
+    filter.sender = ".*".into();
+    assert_eq!(
+        index
+            .search_filtered("budget", &["work".into()], 1, &filter)
+            .expect("literal filter"),
+        Vec::<i64>::new()
+    );
+}
+
 fn document(id: i64, account: &str, received_at: i64, subject: &str, body: &str) -> Document {
     Document {
         id,

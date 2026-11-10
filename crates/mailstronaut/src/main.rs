@@ -25,6 +25,7 @@ mod portal_fixture;
 mod preferences;
 mod read_gate;
 mod reminders;
+mod search_filters;
 mod thread_reader;
 mod workspace;
 

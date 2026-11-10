@@ -58,10 +58,19 @@ impl MailSearch {
     }
 
     /// Matching messages in order, or `None` if the store's literal search should answer.
-    pub async fn hits(&self, query: String, accounts: Vec<String>) -> Option<Vec<i64>> {
+    pub async fn filtered_hits(
+        &self,
+        query: String,
+        accounts: Vec<String>,
+        filter: mailstronaut_search::Filter,
+    ) -> Option<Vec<i64>> {
         let shared = self.0.clone();
         tokio::task::spawn_blocking(move || {
-            shared.index.get()?.search(&query, &accounts, MAX_HITS).ok()
+            shared
+                .index
+                .get()?
+                .search_filtered(&query, &accounts, MAX_HITS, &filter)
+                .ok()
         })
         .await
         .ok()

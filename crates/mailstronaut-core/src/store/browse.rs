@@ -42,6 +42,54 @@ impl Scope {
     }
 }
 
+/// Explicit metadata filters, applied to the same original as the text query.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SearchFilter {
+    /// Inclusive arrival instant, in UTC seconds.
+    pub received_from: Option<i64>,
+    /// Exclusive arrival instant, in UTC seconds.
+    pub received_before: Option<i64>,
+    /// Literal substring of parsed From names/addresses; ASCII case-insensitive.
+    pub sender: String,
+}
+
+impl SearchFilter {
+    /// Whether no metadata restriction was requested.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        if self.sender.len() > 256
+            || self.sender.chars().any(char::is_control)
+            || matches!((self.received_from, self.received_before), (Some(from), Some(before)) if from >= before)
+        {
+            return Err(Error::InvalidInput);
+        }
+        Ok(())
+    }
+}
+
+/// One bounded filtered conversation read. Ranked hits come from the local index.
+#[derive(Clone)]
+pub struct FilteredPage {
+    /// Enabled configuration account identities.
+    pub accounts: Vec<String>,
+    /// Selected account/folder/inbox scope.
+    pub scope: Scope,
+    /// Literal fallback query, used only without ranked hits.
+    pub query: String,
+    /// Ranked originals, if the local search index answered.
+    pub hits: Option<Vec<i64>>,
+    /// Original-level metadata restrictions.
+    pub filter: SearchFilter,
+    /// Last returned original from the previous batch.
+    pub after: Option<Cursor>,
+    /// Batch size, at most 100.
+    pub limit: u32,
+}
+
 /// Plain whitespace-separated terms, each quoted as an FTS5 phrase. Users do not
 /// supply MATCH operators/column selectors. SQLite owns Unicode tokenization.
 fn search_expression(input: &str) -> Result<Option<String>, Error> {
@@ -87,6 +135,7 @@ WITH page AS (
  JOIN accounts a ON a.id=m.account_id
  LEFT JOIN conversation_members cm ON cm.account_id=m.account_id AND cm.message_id=m.id
  WHERE m.account_id IN (SELECT value FROM json_each(?1)) AND (?5 IS NULL OR m.account_id=?5)
+ AND ?9 IS NULL AND ?10 IS NULL AND ?11=''
  AND (?2 IS NULL OR m.received_at<?2 OR (m.received_at=?2 AND m.id<?3))
  AND EXISTS(SELECT 1 FROM {scoped})
  AND NOT EXISTS(
@@ -148,7 +197,8 @@ impl PageQuery {
         format!("
 WITH {hits}inbox AS (
  SELECT m.id,m.account_id,m.subject,m.sender,m.preview,m.received_at,MIN(s.seen) AS seen,MAX(s.starred) AS starred,MAX(f.is_inbox) AS inbox,
- {matches}
+ ((?9 IS NULL OR m.received_at>=?9) AND (?10 IS NULL OR m.received_at<?10)
+ AND CASE WHEN ?11='' THEN 1 ELSE instr(lower({sender_text}),lower(?11))>0 END) AND {matches}
  FROM {source} JOIN effective_memberships s ON s.message_id=m.id AND s.account_id=m.account_id
  JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
  {join}
@@ -179,6 +229,7 @@ ORDER BY {order} LIMIT ?4",
             member_order = self.member_order,
             after = self.after,
             order = self.order,
+            sender_text = super::search::SENDER_TEXT,
         )
     }
 }
@@ -325,6 +376,56 @@ impl Store {
         after: Option<Cursor>,
         limit: u32,
     ) -> Result<Vec<super::conversations::Summary>, Error> {
+        self.filtered_page(
+            accounts,
+            scope,
+            statement,
+            search,
+            after,
+            limit,
+            &SearchFilter::default(),
+        )
+    }
+
+    /// Read filtered originals before conversation grouping, preserving complete
+    /// in-scope unread counts and selecting a matching original for opening.
+    /// # Errors
+    /// Rejects invalid ranges, limits, scopes and storage failures.
+    pub fn filtered_conversation_page(
+        &self,
+        request: &FilteredPage,
+    ) -> Result<Vec<super::conversations::Summary>, Error> {
+        request.filter.validate()?;
+        let (statement, search) = match &request.hits {
+            Some(hits) if hits.is_empty() => return Ok(Vec::new()),
+            Some(hits) => (RANKED_PAGE.sql(), Some(serde_json::to_string(hits)?)),
+            None => (LITERAL_PAGE.sql(), search_expression(&request.query)?),
+        };
+        self.filtered_page(
+            &request.accounts,
+            &request.scope,
+            &statement,
+            search.as_deref(),
+            request.after,
+            request.limit,
+            &request.filter,
+        )
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Internal SQL bindings share the existing bounded page inputs and metadata filters."
+    )]
+    fn filtered_page(
+        &self,
+        accounts: &[String],
+        scope: &Scope,
+        statement: &str,
+        search: Option<&str>,
+        after: Option<Cursor>,
+        limit: u32,
+        filter: &SearchFilter,
+    ) -> Result<Vec<super::conversations::Summary>, Error> {
         if accounts.len() > 256 || !(1..=100).contains(&limit) {
             return Err(Error::InvalidInput);
         }
@@ -351,7 +452,10 @@ impl Store {
                     account,
                     folder,
                     search,
-                    inbox_only
+                    inbox_only,
+                    filter.received_from,
+                    filter.received_before,
+                    filter.sender
                 ],
                 |row| {
                     Ok(super::conversations::Summary {
@@ -390,7 +494,7 @@ mod tests {
         body: &str,
     ) -> i64 {
         let raw = format!(
-            "From: sender@example.test\r\nTo: reader@example.test\r\nSubject: Café dossier\r\nMessage-ID: <{uid}@{account}.test>\r\nReferences: <root@{account}.test>\r\n\r\n{body}"
+            "From: Named Sender <sender@example.test>\r\nTo: reader@example.test\r\nSubject: Café dossier\r\nMessage-ID: <{uid}@{account}.test>\r\nReferences: <root@{account}.test>\r\n\r\n{body}"
         );
         store
             .cache_message(
@@ -449,6 +553,109 @@ mod tests {
         project(&mut store, "b");
         (root, store, [needle, latest, ancestor, foreign], [sent])
     }
+    #[test]
+    fn metadata_filters_select_matching_originals_without_clearing_unread_siblings() {
+        let (_root, store, [needle, latest, _, foreign], _) = fixture();
+        for hits in [None, Some(vec![foreign, latest, needle])] {
+            let mut request = FilteredPage {
+                accounts: vec!["a".into(), "b".into()],
+                scope: Scope::Inbox,
+                query: String::new(),
+                hits,
+                filter: SearchFilter {
+                    received_from: Some(1),
+                    received_before: Some(2),
+                    sender: "SENDER@EXAMPLE.TEST".into(),
+                },
+                after: None,
+                limit: 100,
+            };
+            let rows = store
+                .filtered_conversation_page(&request)
+                .expect("filtered read");
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].latest.id, needle);
+            assert_eq!(rows[0].latest.sender, "Named Sender");
+            assert_eq!(rows[0].unread, 2, "unmatched sibling still unread");
+            assert!(!rows[0].latest.seen);
+            request.filter.received_from = Some(2);
+            assert!(
+                store.filtered_conversation_page(&request).is_err(),
+                "empty/reversed interval rejected"
+            );
+            request.filter = SearchFilter {
+                sender: "sender%_@example.test".into(),
+                ..SearchFilter::default()
+            };
+            assert!(
+                store
+                    .filtered_conversation_page(&request)
+                    .expect("literal sender")
+                    .is_empty(),
+                "wildcards are literal"
+            );
+            request.filter.sender = "reader@example.test".into();
+            assert!(
+                store
+                    .filtered_conversation_page(&request)
+                    .expect("recipient")
+                    .is_empty(),
+                "a From restriction never matches To"
+            );
+        }
+    }
+
+    #[test]
+    fn sender_only_filters_page_and_scope_without_hiding_thread_members() {
+        let (_root, store, [needle, latest, ancestor, foreign], _) = fixture();
+        let mut request = FilteredPage {
+            accounts: vec!["a".into(), "b".into()],
+            scope: Scope::Inbox,
+            query: String::new(),
+            hits: None,
+            filter: SearchFilter {
+                sender: "SENDER@EXAMPLE.TEST".into(),
+                ..SearchFilter::default()
+            },
+            after: None,
+            limit: 1,
+        };
+        let first = store.filtered_conversation_page(&request).expect("first");
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].latest.id, foreign);
+        request.after = Some(Cursor {
+            received_at: first[0].latest.received_at,
+            message_id: foreign,
+        });
+        let second = store.filtered_conversation_page(&request).expect("second");
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].latest.id, latest);
+        assert_eq!(second[0].unread, 2);
+        request.after = None;
+        request.scope = Scope::Account("a".into());
+        assert_eq!(
+            store.filtered_conversation_page(&request).expect("scope")[0]
+                .latest
+                .id,
+            ancestor
+        );
+        request.query = "Needle".into();
+        assert_eq!(
+            store.filtered_conversation_page(&request).expect("query")[0]
+                .latest
+                .id,
+            needle
+        );
+        request.filter.received_from = Some(2);
+        assert!(
+            store
+                .filtered_conversation_page(&request)
+                .expect("same original")
+                .is_empty(),
+            "text and date must match the same original, not separate thread members"
+        );
+    }
+
     #[test]
     fn local_search_opens_a_matching_member_and_respects_account_folder_and_namespace() {
         let (root, mut store, [needle, latest, ancestor, foreign], [sent]) = fixture();

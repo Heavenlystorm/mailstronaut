@@ -26,6 +26,7 @@ use gpui::component::{
     list::{List, ListEvent, ListState},
     menu::{DropdownMenu as _, PopupMenuItem},
     notification::{Notification, NotificationDelivery},
+    popover::Popover,
     progress::Progress,
     resizable::{h_resizable, resizable_panel},
     setting::{SettingGroup, SettingItem, SettingPage, Settings},
@@ -42,7 +43,7 @@ use mailstronaut_config::{Account, Appearance, Config, source};
 use mailstronaut_core::{
     reminders::When,
     reply::Kind,
-    store::browse::Scope,
+    store::browse::{FilteredPage, Scope, SearchFilter},
     store::mailbox::{Cursor, Folder, FolderRole},
     worker::{Handle, Worker},
 };
@@ -197,6 +198,9 @@ pub struct Workspace {
     headers_open: bool,
     link_cancel: Option<CancellationToken>,
     search: Entity<InputState>,
+    filters: Entity<crate::search_filters::Filters>,
+    filter: SearchFilter,
+    _filter_events: Subscription,
     status: String,
     query: String,
     query_generation: u64,
@@ -316,6 +320,7 @@ async fn conversation_rows(
     scope: Scope,
     query: String,
     after: Option<Cursor>,
+    filter: SearchFilter,
 ) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, mailstronaut_core::worker::Error>
 {
     let hits = match fuzzy {
@@ -325,10 +330,33 @@ async fn conversation_rows(
                 Scope::Inbox => accounts.clone(),
                 Scope::Account(account) | Scope::Folder { account, .. } => vec![account.clone()],
             };
-            search.hits(query.clone(), searched).await
+            search
+                .filtered_hits(
+                    query.clone(),
+                    searched,
+                    mailstronaut_search::Filter {
+                        received_from: filter.received_from,
+                        received_before: filter.received_before,
+                        sender: filter.sender.clone(),
+                    },
+                )
+                .await
         }
         _ => None,
     };
+    if !filter.is_empty() {
+        return store
+            .filtered_conversation_page(FilteredPage {
+                accounts,
+                scope,
+                query,
+                hits,
+                filter,
+                after,
+                limit: 100,
+            })
+            .await;
+    }
     match hits {
         Some(hits) => {
             store
@@ -344,6 +372,10 @@ async fn conversation_rows(
 }
 
 /// Refresh the already-loaded metadata prefix in bounded store batches.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Bounded prefix refresh shares scope, query, filters, and cancellation with the page reader."
+)]
 async fn conversation_prefix(
     handle: &Handle,
     fuzzy: Option<&crate::mail_search::MailSearch>,
@@ -352,6 +384,7 @@ async fn conversation_prefix(
     query: String,
     boundary: Option<Cursor>,
     cancel: &CancellationToken,
+    filter: SearchFilter,
 ) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, String> {
     let mut rows = Vec::new();
     let mut after = None;
@@ -366,6 +399,7 @@ async fn conversation_prefix(
             scope.clone(),
             query.clone(),
             after,
+            filter.clone(),
         )
         .await
         .map_err(|error| error.to_string())?;
@@ -405,6 +439,14 @@ impl Workspace {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search cached mail"));
+        let filters = cx.new(|cx| crate::search_filters::Filters::new(window, cx));
+        let filter_events = cx.subscribe_in(&filters, window, |this, _, event, window, cx| {
+            let crate::search_filters::Event::Applied(filter) = event;
+            this.filter = filter.clone();
+            this.browse = crate::mailbox::Browse::default();
+            this.clear_page(window, cx);
+            this.refresh(window, cx);
+        });
         let text_reader = cx.new(|cx| TextareaState::new(window, cx));
         let html_reader =
             cx.new(|cx| crate::html_reader::HtmlReader::new(runtime.handle(), window, cx));
@@ -612,6 +654,9 @@ impl Workspace {
             headers_open: false,
             link_cancel: None,
             search,
+            filters,
+            filter: SearchFilter::default(),
+            _filter_events: filter_events,
             status: "Opening local mail…".into(),
             query: String::new(),
             query_generation: 0,
@@ -757,6 +802,9 @@ impl Workspace {
                                 }
                                 this.browse = crate::mailbox::Browse::default();
                                 let zone = crate::mailbox::local_zone(config.time_zone.as_deref());
+                                this.filters.update(cx, |filters, cx| {
+                                    filters.set_zone(zone.clone(), window, cx);
+                                });
                                 let handle = this.handle();
                                 this.reminders.update(cx, |reminders, cx| {
                                     reminders.configure(&config, handle, zone.clone(), cx);
@@ -1050,7 +1098,7 @@ impl Workspace {
             .fuzzy
             .as_ref()
             .map_or(0, crate::mail_search::MailSearch::queued);
-        if self.query.trim().is_empty() {
+        if self.query.trim().is_empty() && self.filter.is_empty() {
             format!("{count} cached conversations · local cache")
         } else {
             let matches = if count == 1 { "match" } else { "matches" };
@@ -1102,16 +1150,19 @@ impl Workspace {
         self.query_cancel = self.lifetime.child_token();
         let cancel = self.query_cancel.clone();
         let query = self.query.clone();
+        let filter = self.filter.clone();
         let scope = self.scope.clone();
         let boundary = self.browse.after;
         let fuzzy = self.fuzzy.clone();
         // The group belongs at the top of the unified view, never in searches.
-        let show_priority =
-            self.priority.is_some() && self.scope == Scope::Inbox && query.trim().is_empty();
+        let show_priority = self.priority.is_some()
+            && self.scope == Scope::Inbox
+            && query.trim().is_empty()
+            && filter.is_empty();
         let show_all = self.list.read(cx).delegate().show_all_priority;
         self.list.update(cx, |list, cx| {
             list.delegate_mut().loading = true;
-            list.delegate_mut().searching = !query.is_empty();
+            list.delegate_mut().searching = !query.is_empty() || !filter.is_empty();
             cx.notify();
         });
         self.status = "Searching local cache…".into();
@@ -1163,6 +1214,7 @@ impl Workspace {
                 query,
                 boundary,
                 &cancel,
+                filter,
             )
             .await?;
             Ok((folders, unread, rows, group))
@@ -2059,10 +2111,11 @@ impl Workspace {
             self.fuzzy.clone(),
         );
         let cancel = self.query_cancel.clone();
+        let filter = self.filter.clone();
         let job = self.runtime.spawn(async move {
             tokio::select! {
                 () = cancel.cancelled() => Err("Local query cancelled.".to_owned()),
-                result = conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after) =>
+                result = conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after, filter) =>
                     result.map_err(|error| error.to_string()),
             }
         });
@@ -2424,7 +2477,25 @@ impl Workspace {
             .border_b_1()
             .border_color(border)
             .child(div().flex_1().when(self.view == View::Inbox, |view| {
-                view.child(Input::new(&self.search))
+                let filters = self.filters.clone();
+                view.flex()
+                    .items_center()
+                    .gap_2()
+                    .child(Input::new(&self.search))
+                    .child(
+                        Popover::new("mail-search-filters")
+                            .trigger(
+                                Button::new("search-filters")
+                                    .icon(AssetIcon::ListFilter)
+                                    .label(if self.filter.is_empty() {
+                                        "Filters"
+                                    } else {
+                                        "Filters active"
+                                    })
+                                    .accessibility_label("Search filters"),
+                            )
+                            .content(move |_, _, _| filters.clone()),
+                    )
             }))
             .child(
                 Button::new("compose")
@@ -2529,6 +2600,7 @@ impl Workspace {
     fn can_fetch_older(&self) -> bool {
         self.view == View::Inbox
             && self.query.trim().is_empty()
+            && self.filter.is_empty()
             && self.handle().is_some()
             && !self.older_targets().is_empty()
     }
@@ -3461,6 +3533,10 @@ mod browse_tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "One scenario exercises initial load, prefix refresh and cancellation with explicit query filters."
+    )]
     async fn refreshing_a_loaded_prefix_keeps_its_old_boundary_after_new_mail() {
         let root = tempfile::tempdir().expect("private store");
         let owner = Worker::open(root.path().to_owned()).await.expect("worker");
@@ -3503,6 +3579,7 @@ mod browse_tests {
             String::new(),
             None,
             &cancel,
+            SearchFilter::default(),
         )
         .await
         .expect("initial prefix");
@@ -3535,6 +3612,7 @@ mod browse_tests {
             String::new(),
             Some(boundary),
             &cancel,
+            SearchFilter::default(),
         )
         .await
         .expect("refresh");
@@ -3555,7 +3633,8 @@ mod browse_tests {
                 Scope::Inbox,
                 String::new(),
                 Some(boundary),
-                &cancel
+                &cancel,
+                SearchFilter::default(),
             )
             .await
             .is_err()

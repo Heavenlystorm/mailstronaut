@@ -10,7 +10,7 @@
 //! used, because recency predicts what a person wants in mail better than term frequency.
 
 use core::{error::Error as StdError, fmt};
-use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
+use std::{collections::BTreeMap, fs, ops::Bound, path::Path, sync::Mutex};
 
 use tantivy::{
     DocAddress, Index as Engine, IndexReader, IndexWriter, Order, ReloadPolicy, Searcher,
@@ -18,7 +18,9 @@ use tantivy::{
     collector::TopDocs,
     columnar::Column,
     directory::MmapDirectory,
-    query::{BooleanQuery, FuzzyTermQuery, Occur, PhraseQuery, Query, TermQuery},
+    query::{
+        BooleanQuery, FuzzyTermQuery, Occur, PhraseQuery, Query, RangeQuery, RegexQuery, TermQuery,
+    },
     schema::{
         FAST, Field, INDEXED, IndexRecordOption, STRING, Schema, TextFieldIndexing, TextOptions,
     },
@@ -72,12 +74,23 @@ pub struct Document {
     pub received_at: i64,
     /// Subject line.
     pub subject: String,
-    /// Displayed sender, searched by `from:`.
+    /// Parsed From names and addresses, searched by `from:`.
     pub sender: String,
     /// Every address on the message.
     pub addresses: String,
     /// Readable body text.
     pub body: String,
+}
+
+/// Original-level restrictions, evaluated before the result limit.
+#[derive(Clone, Debug, Default)]
+pub struct Filter {
+    /// Inclusive UTC arrival instant.
+    pub received_from: Option<i64>,
+    /// Exclusive UTC arrival instant.
+    pub received_before: Option<i64>,
+    /// Literal sender substring, ASCII case-insensitive.
+    pub sender: String,
 }
 
 /// One change to apply to the index.
@@ -96,6 +109,7 @@ struct Fields {
     account: Field,
     subject: Field,
     sender: Field,
+    sender_literal: Field,
     addresses: Field,
     body: Field,
 }
@@ -118,6 +132,7 @@ fn schema() -> (Schema, Fields) {
         account: schema.add_text_field("account", STRING),
         subject: schema.add_text_field("subject", text.clone()),
         sender: schema.add_text_field("sender", text.clone()),
+        sender_literal: schema.add_text_field("sender_literal", STRING),
         addresses: schema.add_text_field("addresses", text.clone()),
         body: schema.add_text_field("body", text),
     };
@@ -250,6 +265,10 @@ impl Index {
         indexed.add_i64(self.fields.received_at, document.received_at);
         indexed.add_text(self.fields.account, document.account);
         indexed.add_text(self.fields.subject, document.subject);
+        indexed.add_text(
+            self.fields.sender_literal,
+            document.sender.to_ascii_lowercase(),
+        );
         indexed.add_text(self.fields.sender, document.sender);
         indexed.add_text(self.fields.addresses, document.addresses);
         indexed.add_text(self.fields.body, document.body);
@@ -268,8 +287,33 @@ impl Index {
         accounts: &[String],
         limit: usize,
     ) -> Result<Vec<i64>, Error> {
+        self.search_filtered(input, accounts, limit, &Filter::default())
+    }
+
+    /// Search with literal sender and half-open arrival bounds before limiting hits.
+    /// # Errors
+    /// Rejects invalid bounds, oversized input and storage failures.
+    pub fn search_filtered(
+        &self,
+        input: &str,
+        accounts: &[String],
+        limit: usize,
+        filter: &Filter,
+    ) -> Result<Vec<i64>, Error> {
+        if filter.sender.len() > 256
+            || filter.sender.chars().any(char::is_control)
+            || matches!((filter.received_from, filter.received_before), (Some(from), Some(before)) if from >= before)
+        {
+            return Err(Error::InvalidQuery);
+        }
         let parts = self.parts(input)?;
-        if parts.is_empty() || accounts.is_empty() || limit == 0 {
+        if (parts.is_empty()
+            && filter.sender.is_empty()
+            && filter.received_from.is_none()
+            && filter.received_before.is_none())
+            || accounts.is_empty()
+            || limit == 0
+        {
             return Ok(Vec::new());
         }
         let searcher = self.reader.searcher();
@@ -282,7 +326,28 @@ impl Index {
             if tier == Tier::Typo && !hits.is_empty() {
                 break;
             }
-            let query = self.query(&parts, accounts, tier);
+            let mut clauses: Vec<(Occur, Box<dyn Query>)> =
+                vec![(Occur::Must, Box::new(self.query(&parts, accounts, tier)))];
+            if filter.received_from.is_some() || filter.received_before.is_some() {
+                let lower = filter.received_from.map_or(Bound::Unbounded, |value| {
+                    Bound::Included(Term::from_field_i64(self.fields.received_at, value))
+                });
+                let upper = filter.received_before.map_or(Bound::Unbounded, |value| {
+                    Bound::Excluded(Term::from_field_i64(self.fields.received_at, value))
+                });
+                clauses.push((Occur::Must, Box::new(RangeQuery::new(lower, upper))));
+            }
+            if !filter.sender.is_empty() {
+                let pattern = format!(".*{}.*", regex::escape(&filter.sender.to_ascii_lowercase()));
+                clauses.push((
+                    Occur::Must,
+                    Box::new(
+                        RegexQuery::from_pattern(&pattern, self.fields.sender_literal)
+                            .map_err(|_| Error::InvalidQuery)?,
+                    ),
+                ));
+            }
+            let query = BooleanQuery::new(clauses);
             for id in Self::newest(&searcher, &query, limit)? {
                 if hits.len() < limit && !hits.contains(&id) {
                     hits.push(id);
