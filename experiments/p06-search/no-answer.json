@@ -1,0 +1,16 @@
+{
+  "queries": [
+    {"id":"cinema-en","text":"the booking confirmation for my cinema seats"},
+    {"id":"cinema-fr","text":"la confirmation de réservation de mes places de cinéma"},
+    {"id":"cinema-it","text":"la conferma della prenotazione dei posti al cinema"},
+    {"id":"guitar-en","text":"rescheduling my weekly guitar lesson"},
+    {"id":"guitar-fr","text":"le changement d'horaire de mon cours de guitare"},
+    {"id":"guitar-it","text":"lo spostamento della mia lezione di chitarra"},
+    {"id":"recipe-en","text":"the ingredients for baking a chocolate cake"},
+    {"id":"recipe-fr","text":"les ingrédients pour préparer un gâteau au chocolat"},
+    {"id":"recipe-it","text":"gli ingredienti per preparare una torta al cioccolato"},
+    {"id":"chess-en","text":"the results of the chess tournament"},
+    {"id":"chess-fr","text":"les résultats du tournoi d'échecs"},
+    {"id":"chess-it","text":"i risultati del torneo di scacchi"}
+  ]
+}
