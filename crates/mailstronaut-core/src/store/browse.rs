@@ -23,7 +23,7 @@ pub enum Scope {
     },
 }
 impl Scope {
-    fn parts<'a>(
+    pub(super) fn parts<'a>(
         &'a self,
         accounts: &[String],
     ) -> Result<(Option<&'a str>, Option<i64>, bool), Error> {
@@ -60,7 +60,7 @@ impl SearchFilter {
         *self == Self::default()
     }
 
-    fn validate(&self) -> Result<(), Error> {
+    pub(super) fn validate(&self) -> Result<(), Error> {
         if self.sender.len() > 256
             || self.sender.chars().any(char::is_control)
             || matches!((self.received_from, self.received_before), (Some(from), Some(before)) if from >= before)

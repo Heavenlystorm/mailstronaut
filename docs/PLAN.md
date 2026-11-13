@@ -460,6 +460,10 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   hashed explicit Nix installation, bounded overlap/coverage, exact source/model
   invalidation, filtered retrieval, transactional embedding cache and graph recovery.
   [Implementation and remaining acceptance](evidence/P06-semantic-backend.md).
+- [x] Provide a separate canonical semantic-ingestion frontier and typed worker API;
+  lexical acknowledgments must not discard inference work. Verify bounded readable
+  source hashes, late replay/deletion, upgrade seeding and metadata/UID isolation
+  without setting Seen. [Backend evidence](evidence/P06-semantic-ingestion.md).
 - [ ] Add multilingual retrieval by meaning: **"reminder about doctoral school
   re-enrollment" finds the French doctoral registration notice without matching
   query words**. Test EN/FR/IT paraphrases, cross-language and near-topic negatives.
@@ -732,11 +736,12 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
 - [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native
   Wayland access. No X11/XWayland requirement, broad home access, host Nix daemon,
   plaintext secrets or uncontrolled model downloads.
-  [The production manifest with reproducible pinned archives builds the current source offline,
+  [The production manifest with reproducible pinned archives builds the recorded baseline offline,
   runs it in the Platform runtime, opens its window in the sandbox, and passes the sandboxed
   GUI, portal and attach walkthroughs on the CI host](evidence/P10-flatpak.md);
   real-session Wayland, the desktop's own portals, the graphics path and desktop metainfo
-  remain open.
+  remain open. The semantic-backend source pins are prepared; SDK acceptance of
+  the new inference/vector dependency graph must be rerun.
 - [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
   portals, read-only managed configuration and packaged HTML resources.
   Reuse the P02 Settings/source/export and P05 import components; do not create a

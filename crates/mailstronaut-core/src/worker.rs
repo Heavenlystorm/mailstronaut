@@ -136,6 +136,15 @@ enum Command {
     SearchPending(u32, Reply<store::search::SearchBatch>),
     SearchIndexed(i64, Reply<()>),
     RequeueSearch(Reply<()>),
+    SemanticPending(u32, Reply<store::semantic::Batch>),
+    SemanticIndexed(i64, Reply<()>),
+    RequeueSemantic(Reply<()>),
+    SemanticCandidates(
+        Vec<String>,
+        store::browse::Scope,
+        store::browse::SearchFilter,
+        Reply<std::collections::BTreeMap<i64, String>>,
+    ),
     AnalysisPending(
         Vec<String>,
         u32,
@@ -438,6 +447,38 @@ impl Handle {
     /// Reports storage failures.
     pub async fn requeue_search(&self) -> Result<(), Error> {
         self.request(Command::RequeueSearch).await
+    }
+    /// Read bounded changes for the independent semantic consumer.
+    /// # Errors
+    /// Rejects invalid limits and reports storage failures.
+    pub async fn semantic_pending(&self, limit: u32) -> Result<store::semantic::Batch, Error> {
+        self.request(|reply| Command::SemanticPending(limit, reply))
+            .await
+    }
+    /// Acknowledge a durably persisted embedding batch without consuming lexical work.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn semantic_indexed(&self, through: i64) -> Result<(), Error> {
+        self.request(|reply| Command::SemanticIndexed(through, reply))
+            .await
+    }
+    /// Requeue originals after a model/index policy change.
+    /// # Errors
+    /// Reports storage failures without touching drafts or reminders.
+    pub async fn requeue_semantic(&self) -> Result<(), Error> {
+        self.request(Command::RequeueSemantic).await
+    }
+    /// Canonical allowed original revisions, scoped before any vector result limit.
+    /// # Errors
+    /// Rejects invalid scope/filters and reports storage failures.
+    pub async fn semantic_candidates(
+        &self,
+        accounts: Vec<String>,
+        scope: store::browse::Scope,
+        filter: store::browse::SearchFilter,
+    ) -> Result<std::collections::BTreeMap<i64, String>, Error> {
+        self.request(|reply| Command::SemanticCandidates(accounts, scope, filter, reply))
+            .await
     }
     /// Unread inbox mail not yet analyzed by this policy.
     /// # Errors
@@ -1286,6 +1327,16 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 commit(reply, || store.search_indexed(through));
             }
             Command::RequeueSearch(reply) => commit(reply, || store.requeue_search()),
+            Command::SemanticPending(limit, reply) => {
+                respond(reply, || store.semantic_pending(limit));
+            }
+            Command::SemanticIndexed(through, reply) => {
+                commit(reply, || store.semantic_indexed(through));
+            }
+            Command::RequeueSemantic(reply) => commit(reply, || store.requeue_semantic()),
+            Command::SemanticCandidates(accounts, scope, filter, reply) => respond(reply, || {
+                store.semantic_candidates(&accounts, &scope, &filter)
+            }),
             Command::AnalysisPending(accounts, policy, since, limit, reply) => {
                 respond(reply, || {
                     store.analysis_pending(&accounts, policy, since, limit)
