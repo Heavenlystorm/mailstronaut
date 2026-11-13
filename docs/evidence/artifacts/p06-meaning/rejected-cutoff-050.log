@@ -1,0 +1,22 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+hash_verified_model_load_ms=2201.578
+warm_query_encode_p95_ms=53.011
+steady_VmRSS:	  757544 kB
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 7074.64it/s]
+New no-answer Rust/reference parity passed
+fixed user-example: expected-rank=1
+fixed english-french-registration: expected-rank=None
+fixed italian-french-registration: expected-rank=1
+fixed english-italian-refund: expected-rank=1
+fixed french-italian-refund: expected-rank=None
+fixed french-english-repair: expected-rank=1
+fixed italian-english-password: expected-rank=1
+fixed english-french-parcel: expected-rank=1
+fixed english-french-supervision: expected-rank=1
+fixed italian-french-electricity: expected-rank=1
+fixed: first=8 top3=8 minimum=(8, 10)
+Traceback (most recent call last):
+  File "/builds/mailstronaut-dev/experiments/p06-search/precision.py", line 53, in <module>
+    assert first>=minimum[0] and three>=minimum[1]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
