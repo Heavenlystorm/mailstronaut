@@ -30,3 +30,7 @@ subtract 0.02, round down to three decimals, and clamp to [0, 0.5]. Freeze that
 number before testing the held-out set or the no-answer queries. Keep all original,
 held-out and no-answer acceptance requirements above unchanged. This uses the
 original set for calibration; it does not relabel it as held-out acceptance.
+
+The frozen development rule produced **0.371** (minimum expected-positive cosine
+0.39173101 minus 0.02, rounded down). See the committed development-calibration
+log. That value is now frozen before held-out/no-answer cutoff evaluation.
