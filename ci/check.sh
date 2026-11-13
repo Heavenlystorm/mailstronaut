@@ -3,7 +3,7 @@
 set -euo pipefail
 
 cargo fmt --all -- --check
-nixfmt --check flake.nix examples/config.nix examples/home-manager.nix nix/home-manager.nix nix/home-manager-check.nix
+nixfmt --check flake.nix examples/config.nix examples/home-manager.nix nix/home-manager.nix nix/home-manager-check.nix nix/semantic-model.nix
 actionlint
 mapfile -t scripts < ci/shell-scripts.txt
 shellcheck "${scripts[@]}"

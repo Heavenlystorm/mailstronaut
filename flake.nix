@@ -82,7 +82,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-6SKj1Do4dyHiMejkv5pj3KhjCfVVpnm5s03oVScO6NU=";
+          cargoHash = "sha256-1Hlmuyj2k5FjGt06TIp7Tf1u5eQj6t1gEtLgYzZPEBo=";
           cargoDeps =
             (pkgs.rustPlatform.fetchCargoVendor {
               inherit pname version;
@@ -244,6 +244,7 @@
         in
         {
           mailstronaut = packageFor pkgs;
+          semantic-model = import ./nix/semantic-model.nix { inherit pkgs; };
           default = self.packages.${system}.mailstronaut;
         }
       );
@@ -259,7 +260,7 @@
           # itself supplies only option plumbing here, so it is stubbed, not activated.
           home-manager-module = import ./nix/home-manager-check.nix { inherit self pkgs; };
           nix-format = pkgs.runCommand "mailstronaut-nix-format" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-            nixfmt --check ${self}/flake.nix ${self}/examples/config.nix ${self}/examples/home-manager.nix ${self}/nix/home-manager.nix ${self}/nix/home-manager-check.nix
+            nixfmt --check ${self}/flake.nix ${self}/examples/config.nix ${self}/examples/home-manager.nix ${self}/nix/home-manager.nix ${self}/nix/home-manager-check.nix ${self}/nix/semantic-model.nix
             touch "$out"
           '';
           ci-lint =

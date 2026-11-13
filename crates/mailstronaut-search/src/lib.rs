@@ -9,6 +9,8 @@
 //! should not bring back everything that merely looks like it. Relevance scoring is not
 //! used, because recency predicts what a person wants in mail better than term frequency.
 
+pub mod semantic;
+
 use core::{error::Error as StdError, fmt};
 use std::{collections::BTreeMap, fs, ops::Bound, path::Path, sync::Mutex};
 

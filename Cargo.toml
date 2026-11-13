@@ -57,6 +57,11 @@ mailstronaut-render = { path = "crates/mailstronaut-render" }
 mailstronaut-mail = { path = "crates/mailstronaut-mail" }
 mailstronaut-priority = { path = "crates/mailstronaut-priority" }
 mailstronaut-search = { path = "crates/mailstronaut-search" }
+mailstronaut-models = { path = "crates/mailstronaut-models" }
+candle-core = { version = "=0.11.0", default-features = false }
+candle-nn = { version = "=0.11.0", default-features = false }
+candle-transformers = { version = "=0.11.0", default-features = false }
+tokenizers = { version = "=0.22.2", default-features = false, features = ["onig"] }
 oo7 = { version = "=0.6.0", default-features = false, features = ["async-std", "native_crypto"] }
 secrecy = "=0.10.3"
 async-imap = { version = "=0.12.0", default-features = false, features = ["runtime-tokio"] }
@@ -71,6 +76,7 @@ log = { version = "=0.4.34", features = ["max_level_info", "release_max_level_in
 base64 = "=0.23.1"
 # Lexical mail search. Scoring, stemming and stop words are unused: results are tiered by
 # exactness and ordered by date, and one analyzer serves several languages.
+usearch = { version = "=2.26.6", default-features = false }
 tantivy = { version = "=0.27.0", default-features = false, features = ["mmap", "lz4-compression"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "rustls-native-certs"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "process", "io-util", "time", "sync", "net", "fs"] }

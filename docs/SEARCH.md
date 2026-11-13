@@ -44,6 +44,14 @@ preferred a renewal distractor and are retained as limitations. Production model
 lifecycle and the semantic UI/index remain open; this is not an implemented
 meaning-search feature.
 
+### Production components (2026-11-13)
+
+The [reusable encoder/vector backend](evidence/P06-semantic-backend.md) now lives
+in the workspace, including explicit model provisioning with `.#semantic-model`.
+The canonical semantic queue, configuration/runtime owner, coverage and native
+search connector remain open. These components do not yet make the application
+answer meaning searches. The original fixed/held-out corpora remain unchanged.
+
 ### Native metadata filters (2026-11-10)
 
 The search toolbar's standard Kit popover combines a literal sender substring with

@@ -456,6 +456,10 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   useful ranking, deliberate exact/filter queries and bounded expansion, using a
   maintained library rather than a custom matcher or index.
   [Tantivy, with native acceptance and measurements](evidence/P06-fuzzy-search.md).
+- [x] Verify the reusable CPU encoder and persistent vector adapter in the workspace:
+  hashed explicit Nix installation, bounded overlap/coverage, exact source/model
+  invalidation, filtered retrieval, transactional embedding cache and graph recovery.
+  [Implementation and remaining acceptance](evidence/P06-semantic-backend.md).
 - [ ] Add multilingual retrieval by meaning: **"reminder about doctoral school
   re-enrollment" finds the French doctoral registration notice without matching
   query words**. Test EN/FR/IT paraphrases, cross-language and near-topic negatives.
@@ -479,8 +483,9 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
 - [ ] Maintain a private rebuildable index keyed by canonical original/source/model
   revision; bounded incremental indexing, restart/model change, deletion/purge and
   disabled accounts must not retain stale results or touch user-owned state.
-  [The lexical index passes](evidence/P06-fuzzy-search.md); a model revision does not
-  exist yet, and neither does purging one account's data.
+  [The lexical index passes](evidence/P06-fuzzy-search.md); the semantic component
+  now versions model/projection policy and source hashes, while canonical ingestion,
+  configuration/account invalidation and complete account purge remain open.
 - [ ] Show partial-cache/index coverage and unavailable/disabled models. Local
   lexical/fuzzy search remains usable, but this does not complete semantic acceptance.
   [Messages not yet indexed are counted in the status bar](evidence/P06-fuzzy-search.md);
