@@ -1,0 +1,28 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+verified_load_ms=1547.544
+pair=en-action tokens=35 truncated=false inference_us=48797
+pair=fr-action tokens=39 truncated=false inference_us=39055
+pair=it-action tokens=39 truncated=false inference_us=39313
+pair=en-negation tokens=36 truncated=false inference_us=38575
+pair=fr-neutral tokens=29 truncated=false inference_us=36325
+pair=untrusted-text tokens=44 truncated=false inference_us=39961
+pair=fr-padding tokens=512 truncated=false inference_us=316862
+pair=it-padding tokens=64 truncated=false inference_us=44445
+pair=bounded-overflow tokens=512 truncated=true inference_us=312705
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+
+Loading weights:   0%|          | 0/105 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 105/105 [00:00<00:00, 10519.57it/s]
+en-action: tokens=35 max_abs_logit_error=7.15255737e-07
+fr-action: tokens=39 max_abs_logit_error=2.62260437e-06
+it-action: tokens=39 max_abs_logit_error=4.70876694e-06
+en-negation: tokens=36 max_abs_logit_error=2.38418579e-06
+fr-neutral: tokens=29 max_abs_logit_error=1.93715096e-06
+untrusted-text: tokens=44 max_abs_logit_error=1.22189522e-06
+fr-padding: tokens=512 max_abs_logit_error=1.40070915e-06
+it-padding: tokens=64 max_abs_logit_error=5.24520874e-06
+bounded-overflow: tokens=512 max_abs_logit_error=9.53674316e-07
+fr-action padding invariant: 0
+it-action padding invariant: 0
+Full-logit, pair-tokenization, padding and bounded-overflow parity passed; not priority quality acceptance.
+nli-parity-exit=0

@@ -43,3 +43,36 @@ nix develop .#search-reference --command bash -c \
 Provisioning is an explicit development action, never app startup behavior.
 The existing optional reference shell already contains the independent libraries.
 Model files, compiled probe and observations stay in ignored `target/p09-priority`.
+
+
+## First result and bounded safe-loading follow-up
+
+The unchanged nine-pair reference gate passed. Maximum logit error was
+5.24520874e-6, token IDs/masks matched exactly, and both padding invariants were
+exact. The initial bundle load took about 1.55 s, with short-pair inference around
+36–49 ms and the two 512-token cases around 313–317 ms on CI's 16-vCPU EPYC Genoa
+VM. These are individual observations, not per-mail p95 acceptance.
+
+The buffered loader **failed** the existing 900 MiB peak budget: the first process
+reported 1,507,976 KiB maximum RSS, and the instrumented repeat 1,508,104 KiB. After
+verification it held roughly 710,008 KiB; the transient peak occurs while creating
+the model. After inference it held roughly 721,796 KiB. Keep this failed result.
+[Parity](../../docs/evidence/artifacts/p09-nli/buffered-parity.log),
+[stages](../../docs/evidence/artifacts/p09-nli/buffered-memory-stages.log),
+[resources](../../docs/evidence/artifacts/p09-nli/buffered-resources.txt).
+
+The exact checkpoint's header is 12,602 bytes, placing its tensor data two bytes
+off natural F32 alignment. The pinned Candle safe converter uses an extra typed
+copy for unaligned data, before copying into tensor storage. The eager tokenizer
+also remains resident while constructing the model. This explains a practical
+next hypothesis, not an already measured fix.
+
+Before measuring the variant, retain every model byte/hash and numerical gate.
+Read the weight file into an overallocated owned byte buffer with a small computed
+prefix so its tensor-data start is naturally aligned. Use only safe standard Rust
+I/O/slices and Candle's existing `VarBuilder::from_slice_safetensors`, then release
+the file buffer before constructing the tokenizer. This is caller buffer handling,
+not a transformer implementation, format conversion, unsafe mmap or library fork.
+Measure the same fresh-process peak and rerun every reference/padding case; the
+900 MiB gate is unchanged. The full quality, unload and combined-app gates remain
+open even if this allocation hypothesis succeeds.

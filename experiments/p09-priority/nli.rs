@@ -48,7 +48,15 @@ fn invalid(message: &str) -> io::Error {
 
 fn verified(root: &Path, artifact: &Artifact) -> Result<Vec<u8>> {
     const PREFIX: &str = "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/";
-    if !["model.safetensors", "config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "README.md"].contains(&artifact.name.as_str())
+    if ![
+        "model.safetensors",
+        "config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "README.md",
+    ]
+    .contains(&artifact.name.as_str())
         || artifact.size_bytes > 512 * 1024 * 1024
         || artifact.url != format!("{PREFIX}{}", artifact.name)
         || !artifact.hash.starts_with("sha256-")
@@ -73,6 +81,13 @@ fn verified(root: &Path, artifact: &Artifact) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+fn memory(stage: &str) -> Result<()> {
+    let status = fs::read_to_string("/proc/self/status")?;
+    let values = status.lines().filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:")).collect::<Vec<_>>().join(" ");
+    println!("memory_stage={stage} {values}");
+    Ok(())
+}
+
 fn load(root: &Path) -> Result<(XLMRobertaForSequenceClassification, Tokenizer)> {
     let manifest: Manifest = serde_json::from_str(include_str!("nli-model-manifest.json"))?;
     let mut weights = None;
@@ -83,29 +98,65 @@ fn load(root: &Path) -> Result<(XLMRobertaForSequenceClassification, Tokenizer)>
         match artifact.name.as_str() {
             "model.safetensors" => weights = Some(bytes),
             "tokenizer.json" => tokenizer = Some(Tokenizer::from_bytes(bytes)?),
-            "config.json" => configuration = Some(serde_json::from_slice::<serde_json::Value>(&bytes)?),
+            "config.json" => {
+                configuration = Some(serde_json::from_slice::<serde_json::Value>(&bytes)?);
+            }
             _ => (),
         }
     }
     let configuration = configuration.ok_or_else(|| invalid("missing configuration"))?;
-    if configuration["id2label"] != serde_json::json!({"0":"entailment","1":"neutral","2":"contradiction"}) {
+    if configuration["id2label"]
+        != serde_json::json!({"0":"entailment","1":"neutral","2":"contradiction"})
+    {
         return Err(invalid("unexpected label order").into());
     }
     let config: Config = serde_json::from_value(configuration)?;
-    if config.hidden_size != 384 || config.num_hidden_layers != 6 || config.pad_token_id != 1 || config.max_position_embeddings != 514 {
+    if config.hidden_size != 384
+        || config.num_hidden_layers != 6
+        || config.pad_token_id != 1
+        || config.max_position_embeddings != 514
+    {
         return Err(invalid("unexpected classifier configuration").into());
     }
-    let builder = VarBuilder::from_buffered_safetensors(weights.ok_or_else(|| invalid("missing weights"))?, DType::F32, &Device::Cpu)?;
+    memory("verified_files")?;
+    let builder = VarBuilder::from_buffered_safetensors(
+        weights.ok_or_else(|| invalid("missing weights"))?,
+        DType::F32,
+        &Device::Cpu,
+    )?;
+    memory("builder_ready")?;
     let model = XLMRobertaForSequenceClassification::new(3, &config, builder)?;
-    Ok((model, tokenizer.ok_or_else(|| invalid("missing tokenizer"))?))
+    memory("model_loaded")?;
+    Ok((
+        model,
+        tokenizer.ok_or_else(|| invalid("missing tokenizer"))?,
+    ))
 }
 
-fn infer(model: &XLMRobertaForSequenceClassification, tokenizer: &mut Tokenizer, pair: Pair) -> Result<Observation> {
-    if pair.premise.len() > 32768 || pair.hypothesis.len() > 4096 || pair.pad_to.is_some_and(|length| !(1..=512).contains(&length)) {
+fn infer(
+    model: &XLMRobertaForSequenceClassification,
+    tokenizer: &mut Tokenizer,
+    pair: Pair,
+) -> Result<Observation> {
+    if pair.premise.len() > 32768
+        || pair.hypothesis.len() > 4096
+        || pair
+            .pad_to
+            .is_some_and(|length| !(1..=512).contains(&length))
+    {
         return Err(invalid("oversized synthetic pair").into());
     }
-    tokenizer.with_truncation(Some(TruncationParams { max_length: 512, strategy: TruncationStrategy::OnlyFirst, ..Default::default() }))?;
-    tokenizer.with_padding(pair.pad_to.map(|length| PaddingParams { strategy: PaddingStrategy::Fixed(length), pad_id: 1, pad_token: "<pad>".into(), ..Default::default() }));
+    tokenizer.with_truncation(Some(TruncationParams {
+        max_length: 512,
+        strategy: TruncationStrategy::OnlyFirst,
+        ..Default::default()
+    }))?;
+    tokenizer.with_padding(pair.pad_to.map(|length| PaddingParams {
+        strategy: PaddingStrategy::Fixed(length),
+        pad_id: 1,
+        pad_token: "<pad>".into(),
+        ..Default::default()
+    }));
     let encoded = tokenizer.encode((pair.premise.as_str(), pair.hypothesis.as_str()), true)?;
     if encoded.len() > 512 || encoded.get_type_ids().iter().any(|id| *id != 0) {
         return Err(invalid("unexpected pair encoding").into());
@@ -114,7 +165,10 @@ fn infer(model: &XLMRobertaForSequenceClassification, tokenizer: &mut Tokenizer,
     let mask = Tensor::new(encoded.get_attention_mask(), &Device::Cpu)?.unsqueeze(0)?;
     let types = Tensor::zeros((1, encoded.len()), DType::U32, &Device::Cpu)?;
     let start = Instant::now();
-    let logits = model.forward(&input, &mask, &types)?.squeeze(0)?.to_vec1::<f32>()?;
+    let logits = model
+        .forward(&input, &mask, &types)?
+        .squeeze(0)?
+        .to_vec1::<f32>()?;
     if logits.len() != 3 || !logits.iter().all(|value| value.is_finite()) {
         return Err(invalid("invalid classifier output").into());
     }
@@ -130,17 +184,29 @@ fn infer(model: &XLMRobertaForSequenceClassification, tokenizer: &mut Tokenizer,
 
 fn main() -> Result<()> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    if args.len() != 2 { return Err(invalid("expected model directory and observation output").into()); }
+    if args.len() != 2 {
+        return Err(invalid("expected model directory and observation output").into());
+    }
     let start = Instant::now();
     let (model, mut tokenizer) = load(Path::new(&args[0]))?;
-    println!("verified_load_ms={:.3}", start.elapsed().as_secs_f64() * 1000.);
+    println!(
+        "verified_load_ms={:.3}",
+        start.elapsed().as_secs_f64() * 1000.
+    );
     let pairs: Vec<Pair> = serde_json::from_str(include_str!("nli-pairs.json"))?;
     let mut results = Vec::new();
     for pair in pairs {
         let result = infer(&model, &mut tokenizer, pair)?;
-        println!("pair={} tokens={} truncated={} inference_us={}", result.id, result.input_ids.len(), result.truncated, result.micros);
+        println!(
+            "pair={} tokens={} truncated={} inference_us={}",
+            result.id,
+            result.input_ids.len(),
+            result.truncated,
+            result.micros
+        );
         results.push(result);
     }
+    memory("after_inference")?;
     fs::write(&args[1], serde_json::to_vec(&results)?)?;
     Ok(())
 }

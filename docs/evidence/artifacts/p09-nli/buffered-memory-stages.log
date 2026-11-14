@@ -1,0 +1,19 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+    Checking mailstronaut-nli-probe v0.0.0 (/builds/mailstronaut-dev/target/p09-priority/probe/crates/nli)
+    Finished `release` profile [optimized] target(s) in 0.28s
+   Compiling mailstronaut-nli-probe v0.0.0 (/builds/mailstronaut-dev/target/p09-priority/probe/crates/nli)
+    Finished `release` profile [optimized] target(s) in 16.93s
+memory_stage=verified_files VmHWM:	  726500 kB VmRSS:	  710008 kB
+memory_stage=builder_ready VmHWM:	  726500 kB VmRSS:	  710280 kB
+memory_stage=model_loaded VmHWM:	 1508104 kB VmRSS:	  715304 kB
+verified_load_ms=1552.528
+pair=en-action tokens=35 truncated=false inference_us=46592
+pair=fr-action tokens=39 truncated=false inference_us=39771
+pair=it-action tokens=39 truncated=false inference_us=38938
+pair=en-negation tokens=36 truncated=false inference_us=38813
+pair=fr-neutral tokens=29 truncated=false inference_us=35899
+pair=untrusted-text tokens=44 truncated=false inference_us=40712
+pair=fr-padding tokens=512 truncated=false inference_us=327795
+pair=it-padding tokens=64 truncated=false inference_us=46233
+pair=bounded-overflow tokens=512 truncated=true inference_us=330542
+memory_stage=after_inference VmHWM:	 1508104 kB VmRSS:	  721796 kB
