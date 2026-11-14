@@ -1,5 +1,5 @@
 {
-  "version": "nli-0a71-p1",
+  "version": "nli-0a71-p2-development",
   "rulesPolicy": 2,
   "rulesSourceSha256": "dfd44d4c7d8ffd0c87683c6ffecf063520b9766ec2c6e37dc7c693bc17d6e7b0",
   "actionMin": 0.7,
@@ -15,9 +15,9 @@
   "deadlinePrecisionMin": 0.95,
   "projectionPolicy": "authored-subject-first512-pair-v1",
   "hypotheses": [
-    "This email asks the recipient to take a concrete action or reply.",
-    "This email contains a time-sensitive obligation for the recipient.",
-    "This email is an informational newsletter or advertisement without a personal obligation.",
-    "This email requires attention within the next day."
+    "You need to take an action or send a reply.",
+    "You have a time-sensitive obligation.",
+    "You do not need to do anything in response.",
+    "You need to act today or tomorrow."
   ]
 }

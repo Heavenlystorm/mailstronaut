@@ -9,10 +9,10 @@ use std::{fs, path::Path, time::Instant};
 use tokenizers::Tokenizer;
 
 const HYPOTHESES: [&str; 4] = [
-    "This email asks the recipient to take a concrete action or reply.",
-    "This email contains a time-sensitive obligation for the recipient.",
-    "This email is an informational newsletter or advertisement without a personal obligation.",
-    "This email requires attention within the next day.",
+    "You need to take an action or send a reply.",
+    "You have a time-sensitive obligation.",
+    "You do not need to do anything in response.",
+    "You need to act today or tomorrow.",
 ];
 
 #[derive(Deserialize)]

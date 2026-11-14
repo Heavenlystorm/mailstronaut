@@ -142,3 +142,18 @@ held-out example was encoded. Replace that diagnostic group with the already
 frozen development receipt family before running the wording comparison; never
 move or alter the original corpus split. The three basic controls confirm the
 published entailment/neutral/contradiction label interpretation.
+
+
+## Second development wording pass, before full development encoding
+
+The nine-message wording diagnostic confirms the three logical label controls and
+shows stronger action entailment from the frozen second-person hypotheses than
+from metatextual genre descriptions. Receipt negatives still do not reliably
+entail the informational hypothesis. Preserve the complete diagnostic scores,
+not just the favourable cases, in `wording-diagnostic.log` under the quality
+evidence artifacts. Choose the second-person family for a full **development-only**
+export. `nli-policy-p1.json` preserves the first policy. The current p2-development
+policy changes only the four hypotheses before this export; its inherited
+three-way thresholds are not a final calibrated policy. Any later threshold
+selection may use only these 108 development rows. The 90 held-out rows remain
+unencoded and cannot be used to select hypotheses or thresholds.
