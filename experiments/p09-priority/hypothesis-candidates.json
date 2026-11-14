@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "scope": "development-only diagnostic; no held-out inference",
+  "groups": [
+    "enrollment",
+    "blocked-decision",
+    "marketing"
+  ],
+  "variants": [
+    {
+      "name": "text-genre",
+      "hypotheses": [
+        "This text is a request for action or a reply.",
+        "This text is urgent.",
+        "This text is informational and does not request action.",
+        "This text requests action today or tomorrow."
+      ]
+    },
+    {
+      "name": "second-person",
+      "hypotheses": [
+        "You need to take an action or send a reply.",
+        "You have a time-sensitive obligation.",
+        "You do not need to do anything in response.",
+        "You need to act today or tomorrow."
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "premise": "A person is reading a book.",
+      "hypothesis": "Someone is reading.",
+      "expected": "entailment"
+    },
+    {
+      "premise": "A person is reading a book.",
+      "hypothesis": "Nobody is reading.",
+      "expected": "contradiction"
+    },
+    {
+      "premise": "A person is reading a book.",
+      "hypothesis": "The reader lives in Paris.",
+      "expected": "neutral"
+    }
+  ]
+}

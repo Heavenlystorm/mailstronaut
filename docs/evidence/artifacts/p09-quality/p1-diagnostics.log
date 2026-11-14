@@ -1,0 +1,23 @@
+en True action E/N/C median [0.051, 0.748, 0.178] E min/max 0.009 0.217
+en True urgency E/N/C median [0.054, 0.889, 0.055] E min/max 0.014 0.099
+en True information E/N/C median [0.004, 0.729, 0.268] E min/max 0.002 0.009
+en False action E/N/C median [0.043, 0.511, 0.411] E min/max 0.008 0.118
+en False urgency E/N/C median [0.071, 0.738, 0.189] E min/max 0.018 0.171
+en False information E/N/C median [0.01, 0.571, 0.409] E min/max 0.004 0.033
+fr True action E/N/C median [0.068, 0.772, 0.137] E min/max 0.006 0.426
+fr True urgency E/N/C median [0.066, 0.888, 0.038] E min/max 0.009 0.141
+fr True information E/N/C median [0.002, 0.289, 0.706] E min/max 0.001 0.008
+fr False action E/N/C median [0.046, 0.565, 0.373] E min/max 0.007 0.105
+fr False urgency E/N/C median [0.04, 0.848, 0.107] E min/max 0.016 0.083
+fr False information E/N/C median [0.004, 0.398, 0.598] E min/max 0.002 0.01
+it True action E/N/C median [0.047, 0.803, 0.134] E min/max 0.015 0.801
+it True urgency E/N/C median [0.091, 0.861, 0.049] E min/max 0.018 0.227
+it True information E/N/C median [0.003, 0.326, 0.668] E min/max 0.001 0.017
+it False action E/N/C median [0.09, 0.489, 0.39] E min/max 0.013 0.378
+it False urgency E/N/C median [0.086, 0.788, 0.114] E min/max 0.025 0.291
+it False information E/N/C median [0.009, 0.311, 0.682] E min/max 0.002 0.117
+enrollment-en-0 True rules_only [[0.014, 0.835, 0.151], [0.033, 0.923, 0.044], [0.004, 0.536, 0.459], [0.033, 0.67, 0.297]]
+questionnaire-fr-0 True rules_only [[0.071, 0.835, 0.094], [0.106, 0.842, 0.052], [0.001, 0.113, 0.886], [0.26, 0.423, 0.317]]
+blocked-decision-en-0 True rules_only [[0.023, 0.803, 0.174], [0.027, 0.897, 0.076], [0.003, 0.809, 0.188], [0.026, 0.688, 0.286]]
+blocked-decision-fr-0 True rules_only [[0.067, 0.746, 0.187], [0.063, 0.9, 0.037], [0.001, 0.366, 0.633], [0.055, 0.785, 0.16]]
+blocked-decision-it-0 True rules_only [[0.414, 0.378, 0.208], [0.227, 0.65, 0.123], [0.017, 0.379, 0.604], [0.491, 0.179, 0.33]]

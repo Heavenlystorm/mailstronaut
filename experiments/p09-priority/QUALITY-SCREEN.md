@@ -110,3 +110,27 @@ contain exactly 108 rows and no challenge/held-out observations. The explicit
 `quality-heldout` and evaluator `heldout` commands are reserved until development
 calibration is finished and its final policy is committed. Successful export or
 metric calculation alone is **not** an acceptance marker.
+
+
+## Initial development result and predeclared wording diagnostic
+
+Policy p1 produced no combined corrections over the rules on the 108 development
+messages. Its high three-way entailment and entailment-minus-neutral requirements
+mostly abstained: the model-only action/urgency policy found zero English/French
+positives and one Italian positive. The combined fallback preserved the rules,
+so high combined precision/recall must **not** be attributed to the classifier.
+The full candidate-quality/adoption gate is not passed. Held-out data remains
+unencoded. [Initial results](../../docs/evidence/artifacts/p09-quality/p1-development.log),
+[development-only diagnostics](../../docs/evidence/artifacts/p09-quality/p1-diagnostics.log).
+
+Before further calibration, freeze `hypothesis-candidates.json`: two simpler
+hypothesis families and three elementary NLI label-order sanity controls. Compare
+only bare development examples from enrollment, the implied blocking request and
+marketing in all three languages; no held-out or challenge example is used. Keep
+all scores and the initial outcome. This diagnoses whether metatextual wording,
+input framing or scoring is at fault before selecting any new policy.
+The maintained Transformers [zero-shot pipeline](https://github.com/huggingface/transformers/blob/main/src/transformers/pipelines/zero_shot_classification.py)
+uses templated hypotheses and, in independent-label mode, entailment-versus-
+contradiction normalization. Any use of that standard score must retain the
+three-way neutral value for abstention, be calibrated only on development and
+be frozen before held-out evaluation. It is not a trustworthy confidence number.
