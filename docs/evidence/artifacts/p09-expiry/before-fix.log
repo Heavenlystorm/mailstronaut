@@ -1,0 +1,33 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.228
+   Compiling num-traits v0.2.19
+   Compiling serde v1.0.228
+   Compiling aho-corasick v1.1.5
+   Compiling regex-automata v0.4.18
+   Compiling serde_json v1.0.154
+   Compiling syn v2.0.119
+   Compiling regex v1.13.1
+   Compiling serde_derive v1.0.228
+   Compiling chrono v0.4.45
+   Compiling chrono-tz v0.10.4
+   Compiling mailstronaut-priority v0.1.0 (/builds/mailstronaut-dev/crates/mailstronaut-priority)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.68s
+
+running 1 test
+     Running tests/deadlines.rs (target/debug/build/mailstronaut-priority/1203d3135b5bcaac/out/deadlines-1203d3135b5bcaac)
+
+thread 'expired_explicit_requests_never_receive_a_new_no_deadline_ttl' (4040255) panicked at crates/mailstronaut-priority/tests/deadlines.rs:557:9:
+An expired request gained a fresh TTL: Please complete the form by 3 November 2026.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test expired_explicit_requests_never_receive_a_new_no_deadline_ttl ... FAILED
+
+failures:
+
+failures:
+    expired_explicit_requests_never_receive_a_new_no_deadline_ttl
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p mailstronaut-priority --test deadlines`

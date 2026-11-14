@@ -537,12 +537,57 @@ fn a_message_that_arrives_after_its_deadline_is_not_prioritized_for_it() {
     late.authored = Some(anchor(Paris).timestamp());
     late.received_at = anchor(Paris).timestamp() + 40 * 3600;
     let result = analyze(&late);
+    assert!(!result.priority);
+    assert_eq!(result.expires_at, None);
+    assert!(result.reasons.contains(&Reason::AlreadyExpired));
     assert!(!in_priority(
         result.expires_at,
         late.received_at,
         false,
         false
     ));
+}
+
+#[test]
+fn expired_explicit_requests_never_receive_a_new_no_deadline_ttl() {
+    for body in [
+        "Please complete the form by 3 November 2026.",
+        "Merci de compléter le formulaire avant le 3 novembre 2026.",
+        "Per favore compila il modulo entro il 3 novembre 2026.",
+        "Please complete the form by 4 November 2026 at 08:00.",
+    ] {
+        let result = analyze(&message("Form", Some(body), true));
+        assert!(
+            !result.priority,
+            "An expired request gained a fresh TTL: {body}"
+        );
+        assert_eq!(result.expires_at, None);
+        assert!(result.reasons.contains(&Reason::AlreadyExpired));
+    }
+}
+
+#[test]
+fn a_future_obligation_survives_an_older_deadline_in_the_same_message() {
+    let result = analyze(&message(
+        "Updated form",
+        Some(
+            "Please complete the old form by 3 November 2026; please return the replacement by 6 November 2026.",
+        ),
+        true,
+    ));
+    assert!(result.priority);
+    assert!(!result.reasons.contains(&Reason::AlreadyExpired));
+    assert_eq!(result.deadlines.len(), 1);
+    assert_eq!(result.deadlines[0].date, date(11, 6));
+    assert_eq!(
+        result.expires_at,
+        Some(
+            Paris
+                .with_ymd_and_hms(2026, 11, 7, 0, 0, 0)
+                .unwrap()
+                .timestamp()
+        )
+    );
 }
 
 #[test]

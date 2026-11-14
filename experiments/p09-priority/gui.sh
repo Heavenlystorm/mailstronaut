@@ -35,6 +35,8 @@ message flight 'Airline' 'Flight confirmation' 'Your flight leaves tomorrow. Hav
 message colleague 'Tom' 'Meeting notes' 'Here are the notes from yesterday.'
 message elsewhere 'Someone' 'For a list' 'Could you look at this?' 'list@example.test'
 message ambiguous 'Office' 'Unclear form' 'The form is due 03/04/2030.'
+expired_date=$(python3 -c 'import datetime as d; print(d.date.today()-d.timedelta(days=2))')
+message expired 'Registrar' 'Expired questionnaire' "Please complete this questionnaire by $expired_date."
 dovecot_start
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
 config="$artifacts/config.nix"
@@ -83,9 +85,10 @@ group='SELECT COALESCE(group_concat(subject," | "),"") FROM (SELECT m.subject FR
 live="SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE a.expires_at>strftime('%s','now') AND a.dismissed=0 AND m.read_cleared=0"
 
 start initial
-await 'the inbox was cached' 7 'SELECT count(*) FROM messages'
-await 'every message was analyzed' 7 'SELECT count(*) FROM analysis'
-await 'only the two that ask something of the reader qualified' 'Domanda veloce | Réinscription en école doctorale' "$group"
+await 'the inbox was cached' 8 'SELECT count(*) FROM messages'
+await 'every message was analyzed' 8 'SELECT count(*) FROM analysis'
+await 'only actionable, unexpired requests qualified' 'Domanda veloce | Réinscription en école doctorale' "$group"
+await 'an expired questionnaire got no fresh lifetime' 1 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Expired questionnaire' AND a.expires_at IS NULL AND EXISTS(SELECT 1 FROM json_each(a.data,'\$.reasons') WHERE value='AlreadyExpired')"
 [[ $(query 'SELECT count(*) FROM effective_memberships WHERE seen=1') == 0 ]]
 printf '%s\n' 'OK: analysis set no Seen flag'
 sleep 1

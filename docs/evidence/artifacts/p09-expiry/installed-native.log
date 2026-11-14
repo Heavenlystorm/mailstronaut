@@ -1,0 +1,36 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+mailstronaut 0.1.0
+OK: the inbox was cached
+OK: every message was analyzed
+OK: only actionable, unexpired requests qualified
+OK: an expired questionnaire got no fresh lifetime
+OK: analysis set no Seen flag
+OK: dismissing took one message out of the group
+OK: dismissing did not read the message
+OK: opening took the last message out of the group
+OK: it is unread again
+OK: marking it unread did not bring it back
+OK: a new delivery qualified by itself
+OK: the delivery is still in the group after a restart
+OK: results and dismissals survived a restart
+OK: an uncertain date gave the message no priority
+OK: every bulk form was analyzed
+OK: all 21 forms still need attention, more than the group shows at first
+Native priority acceptance: /mnt/data/mailstronaut/dev-target/p02.IlNhwA/priority-gui
+
+running 1 test
+Quiet native lookup created no collections; default alias before/after session: ///org/freedesktop/secrets/collection/login.
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.23s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.03s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /mnt/data/mailstronaut/dev-target/p02.IlNhwA

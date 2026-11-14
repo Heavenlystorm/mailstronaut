@@ -348,6 +348,14 @@ fn ends_at(date: NaiveDate, time: Option<NaiveTime>, offset: Option<i32>, zone: 
 /// Deadlines in the author's own text, relative to when the message was written.
 #[must_use]
 pub fn find(body: &str, anchor: DateTime<Tz>) -> Vec<Deadline> {
+    constraints(body, anchor)
+        .into_iter()
+        .filter(|deadline| deadline.date >= anchor.date_naive())
+        .collect()
+}
+
+/// Past obligations still constrain priority even though they are not upcoming.
+pub(crate) fn constraints(body: &str, anchor: DateTime<Tz>) -> Vec<Deadline> {
     let zone = anchor.timezone();
     let today = anchor.date_naive();
     let mut found = Vec::new();
@@ -373,9 +381,6 @@ pub fn find(body: &str, anchor: DateTime<Tz>) -> Vec<Deadline> {
                 let Some(resolved) = resolve(&captures, today) else {
                     continue;
                 };
-                if resolved.date < today {
-                    continue;
-                }
                 let (time, stated_offset, zone_certain) = stated_time(&captures);
                 let ending = if resolved.certain && zone_certain {
                     ends_at(resolved.date, time, stated_offset, zone)

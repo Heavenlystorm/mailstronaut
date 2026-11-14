@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub use deadline::Deadline;
 
 /// Bumped whenever these rules change meaning, so results can be told apart.
-pub const POLICY_VERSION: u32 = 1;
+pub const POLICY_VERSION: u32 = 2;
 /// How far a Date header may differ from server receipt and still be believed.
 const MAX_DATE_DISCREPANCY: i64 = 48 * 3600;
 const HOUR: i64 = 3600;
@@ -156,7 +156,7 @@ pub fn analyze(input: &Input<'_>) -> Analysis {
     let deadlines = if no_action {
         Vec::new()
     } else {
-        deadline::find(body, moment)
+        deadline::constraints(body, moment)
     };
     if input.direct {
         reasons.push(Reason::DirectRecipient);
@@ -169,16 +169,25 @@ pub fn analyze(input: &Input<'_>) -> Analysis {
     if urgent {
         reasons.push(Reason::Urgent);
     }
-    // The soonest deadline that has not already ended when the message was written.
+    // Dates mean authorship, but already-expired requests cannot get a fresh TTL.
     let accepted = deadlines
         .iter()
         .filter_map(|deadline| deadline.ends_at)
-        .filter(|ends| *ends > moment.timestamp())
+        .filter(|ends| *ends > input.received_at)
         .min();
     if accepted.is_some() {
         reasons.push(Reason::Deadline);
     }
-    let eligible = !no_action && !bulk;
+    let expired = accepted.is_none()
+        && deadlines.iter().any(|deadline| {
+            deadline
+                .ends_at
+                .is_some_and(|ends| ends <= input.received_at)
+        });
+    if expired {
+        reasons.push(Reason::AlreadyExpired);
+    }
+    let eligible = !no_action && !bulk && !expired;
     let expires_at = if !eligible {
         None
     } else if let Some(ends) = accepted {
@@ -195,7 +204,10 @@ pub fn analyze(input: &Input<'_>) -> Analysis {
         priority: expires_at.is_some(),
         reasons,
         expires_at,
-        deadlines,
+        deadlines: deadlines
+            .into_iter()
+            .filter(|deadline| deadline.date >= moment.date_naive())
+            .collect(),
         anchor_assumed,
     }
 }

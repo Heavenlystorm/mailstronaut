@@ -688,7 +688,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
 - [x] Expire date-only deadlines at exclusive next **local calendar midnight**;
   explicit times expire at their instant. "Due tomorrow" remains today/tomorrow,
   never the following day. Past obligations are never newly prioritized.
-  [Evidence](evidence/P09-priority-rules.md).
+  [Rules evidence](evidence/P09-priority-rules.md); a policy-2 regression fixes an
+  expired request incorrectly receiving a fresh no-deadline TTL, retaining
+  mixed future obligations. [Fix and native evidence](evidence/P09-expired-requests.md).
 - [x] Choose bounded contextual 24h/3d/7d TTLs without accepted deadlines, anchored
   to receipt and never sliding on restart/resync; persist reason/time/version.
   [24 and 72 hours](evidence/P09-priority-rules.md); seven days is deliberately not
