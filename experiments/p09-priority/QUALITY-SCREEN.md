@@ -79,3 +79,34 @@ Accepted deadline precision must use the same context veto, retaining rejected
 text as uncertain evidence rather than inventing a deadline. These rules may be
 calibrated only on development data and frozen again before held-out scoring;
 none of the held-out messages may be encoded during development evaluation.
+
+
+## Development harness, frozen before first scoring
+
+`nli-policy.json` is the initial numeric policy above, with explicit hypotheses,
+projection identity and the exact policy-2 rule-source hash. Conflicting strong
+action and informational votes abstain to rules. `nli-quality.rs` reuses the exact
+application rule/date/quote source as a module materialized in the ignored probe;
+it does not maintain a second matcher. Synthetic sender/group/thread identifiers
+are used only for split validation and reports, never as model input. Input is the
+subject and the library's authored-text ranges. Gold labels are used only for
+metrics, not projection or decisions.
+
+The isolated quality lock adds the already pinned application Chrono/timezone/regex
+graph, with no application Cargo.lock change. Check/build first; encode **only the
+development split** and then evaluate the raw observations with the offline test
+runtime:
+
+```sh
+nix develop --command bash experiments/p09-priority/nli.sh check
+nix develop --command bash experiments/p09-priority/nli.sh quality-development
+nix develop .#search-reference --command bash -c \
+  '"$MAILSTRONAUT_REFERENCE_PYTHON" experiments/p09-priority/quality-evaluate.py development'
+```
+
+Run these commands through `ci/remote.sh`. Compilation copies the frozen corpora,
+but selection happens before inference or per-message output: development must
+contain exactly 108 rows and no challenge/held-out observations. The explicit
+`quality-heldout` and evaluator `heldout` commands are reserved until development
+calibration is finished and its final policy is committed. Successful export or
+metric calculation alone is **not** an acceptance marker.

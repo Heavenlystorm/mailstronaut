@@ -670,8 +670,10 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   [Rules, store and native acceptance](evidence/P09-priority-rules.md).
 - [ ] Run bounded local analysis for newly received readable inbox mail independently
   of opening; explicit opt-in backlog, CPU/memory budgets and unload/cancellation.
-  [The rules run this way](evidence/P09-priority-rules.md); no model exists to budget,
-  and unread mail up to 30 days old is analyzed without asking, because rules are cheap.
+  [The rules run this way](evidence/P09-priority-rules.md); no application model
+  worker exists yet. Research loading costs are measured separately; idle/unload,
+  backlog consent and combined budgets remain open. Unread mail up to 30 days old
+  is analyzed without asking only by the cheap rules.
 - [ ] Select a pinned/hashed/licensed lightweight EN/FR/IT model after reference
   logits, held-out quality, confidence and resource measurements. Abstain on
   unreadable/encrypted/unsupported/ambiguous input; treat model text as untrusted.
@@ -680,8 +682,10 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   evaluation. Full-logit/token/padding parity and isolated safe-loading memory now
   pass, retaining the first over-budget result. This is not the required 180-message
   priority-quality, application lifecycle or combined-model acceptance. The
-  [180-message grouped quality corpus and policy](../experiments/p09-priority/QUALITY-SCREEN.md)
-  are frozen before classification; quality evaluation remains open.
+  [grouped quality corpus and policy](../experiments/p09-priority/QUALITY-SCREEN.md)
+  are frozen before classification: 180 original messages plus 18 held-out semantic
+  challenges, with 108 development and 90 held-out messages. Quality evaluation
+  remains open.
 - [x] Extract actionable date evidence using existing date parsing and exact spans;
   distinguish deadlines from quoted dates, meetings, negation and marketing.
   [Evidence](evidence/P09-priority-rules.md).

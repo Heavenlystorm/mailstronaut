@@ -8,16 +8,22 @@ mkdir -p "$probe/crates/nli/src"
 # The existing minimal encoder graph already pins every required dependency.
 sed -E '/^(lancedb|arrow-array|arrow-schema|futures-util|tokio|model2vec-rs|usearch|rand|rayon) = /d' \
   experiments/p06-search/workspace.toml.in > "$probe/Cargo.toml"
-python3 - "$probe" <<'PY'
-import pathlib,sys
+python3 - "$probe" <<'PYTHON'
+import pathlib,sys,tomllib
 probe=pathlib.Path(sys.argv[1])
 text=pathlib.Path('Cargo.toml').read_text()
-with (probe/'Cargo.toml').open('a') as output:
-    output.write('\n'+text[text.index('[workspace.lints.rust]'):text.index('# Retain source locations')])
-lock=pathlib.Path('experiments/p06-search/encoder-Cargo.lock').read_text()
-assert lock.count('name = "mailstronaut-encoder-probe"')==1
-(probe/'Cargo.lock').write_text(lock.replace('name = "mailstronaut-encoder-probe"','name = "mailstronaut-nli-probe"'))
-PY
+pins=tomllib.loads(text)['workspace']['dependencies']
+base=(probe/'Cargo.toml').read_text()
+extra='\nchrono = { version = "'+pins['chrono']+'", features = ["serde"] }\nchrono-tz = "'+pins['chrono-tz']+'"\nregex = "'+pins['regex']+'"\n'
+base=base.replace('\n[profile.dev]',extra+'\n[profile.dev]',1)
+(probe/'Cargo.toml').write_text(base+'\n'+text[text.index('[workspace.lints.rust]'):text.index('# Retain source locations')])
+frozen=pathlib.Path('experiments/p09-priority/Cargo.lock')
+if frozen.exists():
+    lock=frozen.read_text()
+else:
+    lock=pathlib.Path('Cargo.lock').read_text()
+(probe/'Cargo.lock').write_text(lock)
+PYTHON
 cat > "$probe/crates/nli/Cargo.toml" <<'TOML'
 [package]
 name = "mailstronaut-nli-probe"
@@ -33,14 +39,27 @@ tokenizers.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+regex.workspace = true
 [lints]
 workspace = true
 TOML
 cp experiments/p09-priority/nli.rs "$probe/crates/nli/src/main.rs"
+cp experiments/p09-priority/nli-quality.rs "$probe/crates/nli/src/quality.rs"
+mkdir -p "$probe/crates/nli/src/rules"
+# Test materialization only: use the exact owned rule/quote code, not another matcher.
+cp crates/mailstronaut-priority/src/lib.rs "$probe/crates/nli/src/rules/mod.rs"
+cp crates/mailstronaut-priority/src/deadline.rs "$probe/crates/nli/src/rules/deadline.rs"
+cp experiments/p09-priority/priority-corpus.json experiments/p09-priority/semantic-challenges.json "$probe/crates/nli/src/"
 cp experiments/p09-priority/nli-model-manifest.json experiments/p09-priority/nli-pairs.json "$probe/crates/nli/src/"
 export CARGO_TARGET_DIR="$root/target"
 export CARGO_CACHE_AUTO_CLEAN_FREQUENCY=never
 case "${1:-check}" in
+  quality-lock)
+    cargo generate-lockfile --manifest-path "$probe/Cargo.toml" --offline
+    cp "$probe/Cargo.lock" experiments/p09-priority/Cargo.lock
+    ;;
   check)
     cargo fmt --manifest-path "$probe/Cargo.toml" --all
     cargo clippy --manifest-path "$probe/Cargo.toml" --release --all-targets --locked --offline -- -D warnings
@@ -53,5 +72,14 @@ case "${1:-check}" in
       "$root/target/p09-priority/model" "$root/target/p09-priority/parity/observed.json" \
       | tee target/p09-priority/parity/metrics.log
     ;;
-  *) printf 'Usage: %s [check|run]\n' "$0" >&2; exit 2 ;;
+  quality-development|quality-heldout)
+    split=${1#quality-}
+    run="$root/target/p09-priority/$split"
+    mkdir -p "$run"
+    command time -v -o "$run/resources.txt" \
+      "$CARGO_TARGET_DIR/release/mailstronaut-nli-probe" \
+      "$root/target/p09-priority/model" "$run/observed.json" "$split" \
+      | tee "$run/metrics.log"
+    ;;
+  *) printf 'Usage: %s [quality-lock|check|run|quality-development|quality-heldout]\n' "$0" >&2; exit 2 ;;
 esac

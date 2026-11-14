@@ -11,6 +11,10 @@ use tokenizers::{PaddingParams, PaddingStrategy, Tokenizer, TruncationParams, Tr
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
+mod quality;
+/// The exact current application rules, copied only into this isolated probe.
+pub mod rules;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Artifact {
@@ -105,7 +109,11 @@ fn verified(root: &Path, artifact: &Artifact) -> Result<(Vec<u8>, usize)> {
 
 fn memory(stage: &str) -> Result<()> {
     let status = fs::read_to_string("/proc/self/status")?;
-    let values = status.lines().filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:")).collect::<Vec<_>>().join(" ");
+    let values = status
+        .lines()
+        .filter(|line| line.starts_with("VmRSS:") || line.starts_with("VmHWM:"))
+        .collect::<Vec<_>>()
+        .join(" ");
     println!("memory_stage={stage} {values}");
     Ok(())
 }
@@ -203,11 +211,19 @@ fn infer(
 
 fn main() -> Result<()> {
     let args: Vec<_> = env::args_os().skip(1).collect();
-    if args.len() != 2 {
+    if !(2..=3).contains(&args.len()) {
         return Err(invalid("expected model directory and observation output").into());
     }
     let start = Instant::now();
     let (model, mut tokenizer) = load(Path::new(&args[0]))?;
+    if let Some(split) = args.get(2) {
+        return quality::run(
+            &model,
+            &mut tokenizer,
+            split.to_str().ok_or_else(|| invalid("invalid split"))?,
+            Path::new(&args[1]),
+        );
+    }
     println!(
         "verified_load_ms={:.3}",
         start.elapsed().as_secs_f64() * 1000.
