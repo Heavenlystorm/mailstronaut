@@ -35,6 +35,22 @@ touch -d '4 hours ago' "$mail_root/new/french.synthetic"
 touch -d '3 hours ago' "$mail_root/new/italian.synthetic"
 touch -d '2 hours ago' "$mail_root/new/english.synthetic"
 touch -d '1 hour ago' "$mail_root/new/other.synthetic"
+expected_messages=4
+if [[ ${MAILSTRONAUT_SEARCH_SCOPE:-0} == 1 ]]; then
+  message scoped 'Inbox colleague' 'Scopebudget note for you' 'An older inbox match behind many newer Sent matches.'
+  touch -d '5 hours ago' "$mail_root/new/scoped.synthetic"
+  python3 - "$mail_root" <<'PYTHON'
+import email.utils,pathlib,sys,time
+root=pathlib.Path(sys.argv[1])/'.Sent'
+for part in ('new','cur','tmp'): (root/part).mkdir(parents=True,exist_ok=True)
+for i in range(1005):
+    (root/'new'/f'scope-{i}.synthetic').write_text(
+        f'From: Archive colleague <archive@example.test>\nTo: reader@example.test\nSubject: Scopebudget sent {i}\n'
+        f'Message-ID: <scope-sent-{i}@example.test>\nDate: {email.utils.formatdate(time.time(),usegmt=True)}\n\n'
+        f'Synthetic Sent match {i}.\n')
+PYTHON
+  expected_messages=1010
+fi
 dovecot_start
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
 config="$artifacts/config.nix"
@@ -71,7 +87,7 @@ trap cleanup EXIT
 query() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(sys.argv[2]).fetchone()[0])' "$database" "$1" 2>/dev/null; }
 await() {
   local what=$1 expected=$2 sql=$3
-  for _ in {1..150}; do
+  for _ in {1..450}; do
     [[ $(query "$sql" || true) == "$expected" ]] && { printf 'OK: %s\n' "$what"; return 0; }
     kill -0 "$app"; sleep .2
   done
@@ -100,7 +116,7 @@ expect_opened() {
 }
 
 start initial
-await 'the inbox was cached' 4 'SELECT count(*) FROM messages'
+await 'the configured folders were cached' "$expected_messages" 'SELECT count(*) FROM messages'
 await 'everything was indexed' 0 'SELECT count(*) FROM search_pending'
 sleep 1
 
@@ -121,12 +137,34 @@ capture fields
 open_first_row
 expect_opened 'Quarterly budget review' 'field names and a word beginning found the English message'
 
+if [[ ${MAILSTRONAUT_SEARCH_SCOPE:-0} == 1 ]]; then
+  type_query 'scopebudget'
+  capture scoped-inbox
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 3 ]]
+  open_first_row
+  expect_opened 'Scopebudget note for you' 'an older inbox match survives 1005 newer Sent matches'
+  [[ $(query "SELECT count(*) FROM memberships s JOIN folders f ON f.id=s.folder_id WHERE s.seen=1 AND f.name='Sent'") == 0 ]]
+  # The same query in Sent must show Sent mail, without opening any inbox sibling.
+  click 80 350
+  sleep 1
+  capture scoped-sent
+  open_first_row
+  [[ $(query "SELECT count(*) FROM memberships s JOIN folders f ON f.id=s.folder_id WHERE s.seen=1 AND f.name='Sent'") == 1 ]]
+  click 80 155
+  sleep .5
+  type_query 'scopebudegt'
+  capture scoped-typo
+  open_first_row
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 5 ]]
+  printf '%s\n' 'OK: scoped exact/typo search and folder switching preserve explicit-open Seen'
+fi
+
 type_query 'zzzzzzzzzz'
 capture nothing
 
 # Mail arriving now becomes searchable without touching anything.
 message delivered 'Latecomer' 'Unmistakable xylophone notice' 'Delivered while the application is running.'
-await 'the new delivery was cached' 5 'SELECT count(*) FROM messages'
+await 'the new delivery was cached' "$((expected_messages + 1))" 'SELECT count(*) FROM messages'
 await 'the new delivery was indexed' 0 'SELECT count(*) FROM search_pending'
 type_query 'xylofone'
 capture delivered

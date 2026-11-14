@@ -138,6 +138,11 @@ enum Command {
         u32,
         Reply<Vec<store::conversations::Summary>>,
     ),
+    SearchScope(
+        Vec<String>,
+        store::browse::Scope,
+        Reply<std::collections::BTreeSet<i64>>,
+    ),
     SearchPending(u32, Reply<store::search::SearchBatch>),
     SearchIndexed(i64, Reply<()>),
     RequeueSearch(Reply<()>),
@@ -442,6 +447,17 @@ impl Handle {
         sources: std::collections::BTreeMap<i64, String>,
     ) -> Result<Vec<store::conversations::Summary>, Error> {
         self.request(|reply| Command::RevisionedPage(page, sources, reply))
+            .await
+    }
+    /// Current canonical IDs in an enabled search scope, before bounded text collection.
+    /// # Errors
+    /// Rejects disabled/invalid scopes and storage failures.
+    pub async fn search_scope(
+        &self,
+        accounts: Vec<String>,
+        scope: store::browse::Scope,
+    ) -> Result<std::collections::BTreeSet<i64>, Error> {
+        self.request(|reply| Command::SearchScope(accounts, scope, reply))
             .await
     }
     /// Read the oldest changes waiting for the search index.
@@ -1340,6 +1356,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 respond(reply, || {
                     store.ranked_conversation_page(&accounts, &scope, &hits, after, limit)
                 });
+            }
+            Command::SearchScope(accounts, scope, reply) => {
+                respond(reply, || store.search_scope(&accounts, &scope));
             }
             Command::SearchPending(limit, reply) => {
                 respond(reply, || store.search_pending(limit));

@@ -12,6 +12,7 @@ fn metadata_restrictions_precede_the_hit_limit_and_treat_sender_metacharacters_l
         received_from: Some(10),
         received_before: Some(11),
         sender: "A+B@EXAMPLE.TEST".into(),
+        ..mailstronaut_search::Filter::default()
     };
     assert_eq!(
         index
@@ -38,6 +39,68 @@ fn metadata_restrictions_precede_the_hit_limit_and_treat_sender_metacharacters_l
             .search_filtered("budget", &["work".into()], 1, &filter)
             .expect("literal filter"),
         Vec::<i64>::new()
+    );
+}
+
+#[test]
+fn canonical_scope_precedes_the_hit_cap_and_the_choice_of_fuzzy_tier() {
+    use std::{collections::BTreeSet, sync::Arc};
+    let (_root, index) = fixture();
+    let mut docs = vec![
+        Change::Put(document(
+            10_000,
+            "work",
+            1,
+            "Scopebudget",
+            "In the chosen folder",
+        )),
+        Change::Put(document(
+            10_001,
+            "work",
+            2,
+            "Scheduel",
+            "In the chosen folder",
+        )),
+    ];
+    for id in 10_002..11_007 {
+        docs.push(Change::Put(document(
+            id,
+            "work",
+            id,
+            "Scopebudget schedule",
+            "In a different folder",
+        )));
+    }
+    index.apply(docs).expect("index synthetic mail");
+    let accounts = ["work".into()];
+    let unscoped = index
+        .search("scopebudget", &accounts, 1000)
+        .expect("unscoped");
+    assert_eq!(unscoped.len(), 1000);
+    assert!(!unscoped.contains(&10_000));
+    let mut filter = mailstronaut_search::Filter {
+        originals: Some(Arc::new(BTreeSet::from([10_000, 10_001]))),
+        ..Default::default()
+    };
+    assert_eq!(
+        index
+            .search_filtered("scopebudget", &accounts, 1000, &filter)
+            .expect("scope before cap"),
+        [10_000]
+    );
+    // Exact matches in another folder must not suppress the in-scope typo tier.
+    assert_eq!(
+        index
+            .search_filtered("schedule", &accounts, 1000, &filter)
+            .expect("scoped typo"),
+        [10_001]
+    );
+    filter.originals = Some(Arc::default());
+    assert_eq!(
+        index
+            .search_filtered("scopebudget", &accounts, 1000, &filter)
+            .expect("empty scope"),
+        [] as [i64; 0]
     );
 }
 

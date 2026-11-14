@@ -89,6 +89,13 @@ bounded batches; the text index's hit cap does not restrict those results. The
 additional raw sender field rebuilds the derived index on schema mismatch through
 the existing recovery path. [Behavior and checks](evidence/P06-search-filters.md).
 
+Canonical folder/inbox membership also restricts the existing Tantivy ID fast-field
+collector before its 1,000-original cap and before deciding whether typo fallback
+is needed. This prevents newer matches in other folders starving a selected scope.
+The store rechecks membership at projection time. Ranked prefix refresh follows
+original identity across exact/prefix tiers rather than comparing dates across
+ranks. [Scope and refresh evidence](evidence/P06-search-scope.md).
+
 ## Original recommendation, before the measurements above
 
 **Probe LanceDB 0.41.0 first as the unified embedded search library.** It already

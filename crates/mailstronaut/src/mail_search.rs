@@ -22,7 +22,7 @@ const BATCH: u32 = 64;
 const BETWEEN_BATCHES: Duration = Duration::from_millis(20);
 const AFTER_FAILURE: Duration = Duration::from_mins(1);
 /// Matching messages considered for one search, in every page of its results.
-const MAX_HITS: usize = 1000;
+pub const MAX_HITS: usize = 1000;
 
 #[derive(Default)]
 struct Shared {

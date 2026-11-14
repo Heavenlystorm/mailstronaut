@@ -1,0 +1,15 @@
+thread 'workspace::ranked_search_tests::ranked_refresh_retains_the_loaded_boundary_across_nonchronological_tiers' (4092264) panicked at crates/mailstronaut/src/workspace_search_tests.rs:39:9:
+assertion `left == right` failed
+  left: 100
+ right: 200
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test workspace::ranked_search_tests::ranked_refresh_retains_the_loaded_boundary_across_nonchronological_tiers ... FAILED
+
+failures:
+
+failures:
+    workspace::ranked_search_tests::ranked_refresh_retains_the_loaded_boundary_across_nonchronological_tiers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 59 filtered out; finished in 1.71s
+
+error: test failed, to rerun pass `-p mailstronaut --bin mailstronaut`

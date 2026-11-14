@@ -342,7 +342,7 @@ async fn conversation_rows(
     query: String,
     after: Option<Cursor>,
     filter: SearchFilter,
-) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, String> {
+) -> Result<(Vec<mailstronaut_core::store::conversations::Summary>, bool), String> {
     // Explicit related-mail mode. Quotes and field constraints retain word intent.
     if related_intent(&query)
         && let Some(meaning) = meaning
@@ -371,6 +371,7 @@ async fn conversation_rows(
                 found.sources,
             )
             .await
+            .map(|rows| (rows, true))
             .map_err(|error| error.to_string());
     }
     let hits = match fuzzy {
@@ -388,12 +389,19 @@ async fn conversation_rows(
                         received_from: filter.received_from,
                         received_before: filter.received_before,
                         sender: filter.sender.clone(),
+                        originals: Some(Arc::new(
+                            store
+                                .search_scope(accounts.clone(), scope.clone())
+                                .await
+                                .map_err(|error| error.to_string())?,
+                        )),
                     },
                 )
                 .await
         }
         _ => None,
     };
+    let ranked = hits.is_some();
     if !filter.is_empty() {
         return store
             .filtered_conversation_page(FilteredPage {
@@ -406,6 +414,7 @@ async fn conversation_rows(
                 limit: 100,
             })
             .await
+            .map(|rows| (rows, ranked))
             .map_err(|error| error.to_string());
     }
     match hits {
@@ -420,6 +429,7 @@ async fn conversation_rows(
                 .await
         }
     }
+    .map(|rows| (rows, ranked))
     .map_err(|error| error.to_string())
 }
 
@@ -445,11 +455,20 @@ async fn conversation_prefix(
         if cancel.is_cancelled() {
             return Err("Local query cancelled.".into());
         }
-        let batch = tokio::select! {
+        let (batch, ranked) = tokio::select! {
             biased;
             () = cancel.cancelled() => return Err("Local query cancelled.".into()),
             result = conversation_rows(handle, fuzzy, meaning, accounts.clone(), scope.clone(), query.clone(), after, filter.clone()) => result?,
         };
+        if batch.iter().any(|row| {
+            rows.iter().any(
+                |loaded: &mailstronaut_core::store::conversations::Summary| {
+                    loaded.latest.id == row.latest.id
+                },
+            )
+        }) {
+            return Err("Local search results changed. Refresh to retry.".into());
+        }
         after = batch.last().map(|row| Cursor {
             received_at: row.latest.received_at,
             message_id: row.latest.id,
@@ -457,9 +476,17 @@ async fn conversation_prefix(
         let more = batch.len() == 100;
         rows.extend(batch);
         let reached = boundary.is_none_or(|old| {
-            after.is_some_and(|next| {
-                (next.received_at, next.message_id) <= (old.received_at, old.message_id)
-            })
+            if ranked {
+                // Word-match tiers and related-mail scores are not chronological.
+                // Seek the actual original; a vanished boundary is bounded by the
+                // existing lexical cap (semantic suggestions have a lower cap).
+                rows.iter().any(|row| row.latest.id == old.message_id)
+                    || rows.len() >= crate::mail_search::MAX_HITS
+            } else {
+                after.is_some_and(|next| {
+                    (next.received_at, next.message_id) <= (old.received_at, old.message_id)
+                })
+            }
         });
         if !more || reached {
             break;
@@ -2282,7 +2309,7 @@ impl Workspace {
                 }
                 this.browse.pending = false;
                 match result {
-                    Ok(Ok(rows)) => {
+                    Ok(Ok((rows, _))) => {
                         this.browse.more = rows.len() == 100;
                         if let Some(last) = rows.last() {
                             this.browse.after = Some(Cursor {
@@ -3838,3 +3865,6 @@ mod browse_tests {
         owner.shutdown().await.expect("shutdown");
     }
 }
+
+#[cfg(test)]
+mod search_tests;

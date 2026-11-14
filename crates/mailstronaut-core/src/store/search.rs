@@ -56,6 +56,38 @@ pub struct SearchBatch {
 }
 
 impl Store {
+    /// Canonical original IDs in the enabled account/folder/inbox scope.
+    /// Supply these to the text collector before its hit limit; recheck scope
+    /// when projecting results because memberships may change during a search.
+    /// This reads identifiers only, including headers-only cached mail.
+    /// # Errors
+    /// Rejects invalid/disabled scopes and storage failures.
+    pub fn search_scope(
+        &self,
+        accounts: &[String],
+        scope: &super::browse::Scope,
+    ) -> Result<std::collections::BTreeSet<i64>, Error> {
+        if accounts.len() > 256 {
+            return Err(Error::InvalidInput);
+        }
+        let (account, folder, inbox) = scope.parts(accounts)?;
+        let mut query = self.connection.prepare_cached(
+            "SELECT m.id FROM messages m
+             WHERE m.account_id IN (SELECT value FROM json_each(?1))
+             AND (?2 IS NULL OR m.account_id=?2)
+             AND EXISTS(SELECT 1 FROM effective_memberships s JOIN folders f
+              ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity
+              WHERE s.message_id=m.id AND s.account_id=m.account_id
+              AND (?3 IS NULL OR f.id=?3) AND (?4=0 OR f.is_inbox=1))",
+        )?;
+        query
+            .query_map(
+                rusqlite::params![serde_json::to_string(accounts)?, account, folder, inbox],
+                |row| row.get(0),
+            )?
+            .collect::<Result<_, _>>()
+            .map_err(Error::from)
+    }
     /// Read the oldest queued changes without removing them.
     /// # Errors
     /// Rejects an empty batch size and reports storage failures.
@@ -163,6 +195,85 @@ mod tests {
             .select_folder("a", folder, NonZeroU32::new(42).expect("namespace"))
             .expect("generation");
         (root, store, folder)
+    }
+
+    #[test]
+    fn scope_candidates_follow_current_memberships_and_enabled_accounts_without_reading() {
+        use super::super::browse::Scope;
+        let (_root, mut store, inbox) = fixture();
+        let first = cache(&mut store, inbox, 1, "Inbox original.");
+        let sent = store.ensure_folder("a", "Sent", false).expect("Sent").id;
+        store
+            .select_folder("a", sent, NonZeroU32::new(42).expect("namespace"))
+            .expect("select Sent");
+        let second = cache(&mut store, sent, 2, "Sent original.");
+        let accounts = vec!["a".into()];
+        assert_eq!(
+            store.search_scope(&accounts, &Scope::Inbox).expect("inbox"),
+            [first].into()
+        );
+        assert_eq!(
+            store
+                .search_scope(&accounts, &Scope::Account("a".into()))
+                .expect("account"),
+            [first, second].into()
+        );
+        assert_eq!(
+            store
+                .search_scope(
+                    &accounts,
+                    &Scope::Folder {
+                        account: "a".into(),
+                        folder: sent
+                    }
+                )
+                .expect("Sent"),
+            [second].into()
+        );
+        assert_eq!(
+            store.search_scope(&[], &Scope::Inbox).expect("no accounts"),
+            std::collections::BTreeSet::new()
+        );
+        assert!(
+            store
+                .search_scope(&[], &Scope::Account("a".into()))
+                .is_err()
+        );
+        store.ensure_account("b").expect("other account");
+        let foreign = store
+            .ensure_folder("b", "Sent", false)
+            .expect("foreign folder")
+            .id;
+        assert_eq!(
+            store
+                .search_scope(
+                    &accounts,
+                    &Scope::Folder {
+                        account: "a".into(),
+                        folder: foreign
+                    }
+                )
+                .expect("foreign empty"),
+            std::collections::BTreeSet::new()
+        );
+        assert_eq!(
+            store
+                .connection
+                .query_row("SELECT count(*) FROM memberships WHERE seen=1", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("flags"),
+            0
+        );
+        store
+            .select_folder("a", inbox, NonZeroU32::new(43).expect("new namespace"))
+            .expect("reset UIDVALIDITY");
+        assert_eq!(
+            store
+                .search_scope(&accounts, &Scope::Inbox)
+                .expect("retired memberships"),
+            std::collections::BTreeSet::new()
+        );
     }
 
     #[test]

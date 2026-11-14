@@ -490,7 +490,9 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   not the required fuzzy or multilingual search engine.
   [The one field, `from:`/`subject:`, scope and Seen pass](evidence/P06-fuzzy-search.md);
   [sender/date controls, bounded metadata reads and filtering before Tantivy's hit
-  limit pass](evidence/P06-search-filters.md).
+  limit pass](evidence/P06-search-filters.md). Canonical folder IDs now also
+  restrict Tantivy's collector before the hit cap, including fuzzy-tier choice;
+  [large-folder native and ranked-refresh evidence](evidence/P06-search-scope.md).
 - [ ] Display honest match snippets and highlights. Use `Label::highlights` for
   actual literal matches or GPUI `StyledText::with_highlights` for backend-provided
   UTF-8 ranges. Do not fabricate literal matches for semantic results or highlight

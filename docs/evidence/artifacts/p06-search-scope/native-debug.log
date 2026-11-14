@@ -1,0 +1,32 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+OK: the configured folders were cached
+OK: everything was indexed
+OK: searching and listing results set no Seen flag
+OK: a misspelled, accent-free word found the French notice
+OK: two misspelled Italian words found the Italian message
+OK: field names and a word beginning found the English message
+OK: an older inbox match survives 1005 newer Sent matches
+OK: scoped exact/typo search and folder switching preserve explicit-open Seen
+OK: the new delivery was cached
+OK: the new delivery was indexed
+OK: a delivery that arrived while running is searchable
+OK: the index rebuilt itself
+OK: search works from the rebuilt index
+Native search acceptance: /mnt/data/mailstronaut/dev-target/p02.TJlv03/search-gui
+
+running 1 test
+Quiet native lookup created no collections; default alias before/after session: ///org/freedesktop/secrets/collection/login.
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.21s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /mnt/data/mailstronaut/dev-target/p02.TJlv03

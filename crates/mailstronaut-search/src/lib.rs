@@ -12,12 +12,18 @@
 pub mod semantic;
 
 use core::{error::Error as StdError, fmt};
-use std::{collections::BTreeMap, fs, ops::Bound, path::Path, sync::Mutex};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    ops::Bound,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 use tantivy::{
     DocAddress, Index as Engine, IndexReader, IndexWriter, Order, ReloadPolicy, Searcher,
     TantivyDocument, TantivyError, Term,
-    collector::TopDocs,
+    collector::{FilterCollector, TopDocs},
     columnar::Column,
     directory::MmapDirectory,
     query::{
@@ -93,6 +99,9 @@ pub struct Filter {
     pub received_before: Option<i64>,
     /// Literal sender substring, ASCII case-insensitive.
     pub sender: String,
+    /// Current canonical originals in the selected scope. `Some(empty)` permits none.
+    /// Shared across segment predicates without cloning the complete set.
+    pub originals: Option<Arc<BTreeSet<i64>>>,
 }
 
 /// One change to apply to the index.
@@ -314,6 +323,7 @@ impl Index {
             && filter.received_from.is_none()
             && filter.received_before.is_none())
             || accounts.is_empty()
+            || filter.originals.as_ref().is_some_and(|ids| ids.is_empty())
             || limit == 0
         {
             return Ok(Vec::new());
@@ -350,7 +360,7 @@ impl Index {
                 ));
             }
             let query = BooleanQuery::new(clauses);
-            for id in Self::newest(&searcher, &query, limit)? {
+            for id in Self::newest(&searcher, &query, limit, filter.originals.as_ref())? {
                 if hits.len() < limit && !hits.contains(&id) {
                     hits.push(id);
                 }
@@ -362,9 +372,24 @@ impl Index {
         Ok(hits)
     }
 
-    fn newest(searcher: &Searcher, query: &dyn Query, limit: usize) -> Result<Vec<i64>, Error> {
+    fn newest(
+        searcher: &Searcher,
+        query: &dyn Query,
+        limit: usize,
+        originals: Option<&Arc<BTreeSet<i64>>>,
+    ) -> Result<Vec<i64>, Error> {
         let order = TopDocs::with_limit(limit).order_by_fast_field("received_at", Order::Desc);
-        let found: Vec<(Option<i64>, DocAddress)> = searcher.search(query, &order)?;
+        let found: Vec<(Option<i64>, DocAddress)> = if let Some(originals) = originals {
+            let originals = originals.clone();
+            let collector = FilterCollector::new(
+                "id".to_owned(),
+                move |id: i64| originals.contains(&id),
+                order,
+            );
+            searcher.search(query, &collector)?
+        } else {
+            searcher.search(query, &order)?
+        };
         let mut columns: BTreeMap<u32, Column<i64>> = BTreeMap::new();
         let mut ids = Vec::with_capacity(found.len());
         for (_, address) in found {
