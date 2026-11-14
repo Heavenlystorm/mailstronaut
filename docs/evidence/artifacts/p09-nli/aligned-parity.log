@@ -1,0 +1,38 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+    Checking mailstronaut-nli-probe v0.0.0 (/builds/mailstronaut-dev/target/p09-priority/probe/crates/nli)
+    Finished `release` profile [optimized] target(s) in 0.29s
+   Compiling mailstronaut-nli-probe v0.0.0 (/builds/mailstronaut-dev/target/p09-priority/probe/crates/nli)
+    Finished `release` profile [optimized] target(s) in 16.96s
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+memory_stage=verified_files VmHWM:	  439008 kB VmRSS:	  439008 kB
+memory_stage=builder_ready VmHWM:	  439228 kB VmRSS:	  439228 kB
+memory_stage=model_loaded VmHWM:	  857344 kB VmRSS:	  439604 kB
+memory_stage=tokenizer_loaded VmHWM:	  857344 kB VmRSS:	  710632 kB
+verified_load_ms=1342.076
+pair=en-action tokens=35 truncated=false inference_us=51372
+pair=fr-action tokens=39 truncated=false inference_us=39947
+pair=it-action tokens=39 truncated=false inference_us=38165
+pair=en-negation tokens=36 truncated=false inference_us=37897
+pair=fr-neutral tokens=29 truncated=false inference_us=35341
+pair=untrusted-text tokens=44 truncated=false inference_us=40820
+pair=fr-padding tokens=512 truncated=false inference_us=322046
+pair=it-padding tokens=64 truncated=false inference_us=47849
+pair=bounded-overflow tokens=512 truncated=true inference_us=314722
+memory_stage=after_inference VmHWM:	  857344 kB VmRSS:	  717744 kB
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+
+Loading weights:   0%|          | 0/105 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 105/105 [00:00<00:00, 7259.45it/s]
+en-action: tokens=35 max_abs_logit_error=7.15255737e-07
+fr-action: tokens=39 max_abs_logit_error=2.62260437e-06
+it-action: tokens=39 max_abs_logit_error=4.70876694e-06
+en-negation: tokens=36 max_abs_logit_error=2.38418579e-06
+fr-neutral: tokens=29 max_abs_logit_error=1.93715096e-06
+untrusted-text: tokens=44 max_abs_logit_error=1.22189522e-06
+fr-padding: tokens=512 max_abs_logit_error=1.40070915e-06
+it-padding: tokens=64 max_abs_logit_error=5.24520874e-06
+bounded-overflow: tokens=512 max_abs_logit_error=9.53674316e-07
+fr-action padding invariant: 0
+it-action padding invariant: 0
+Full-logit, pair-tokenization, padding and bounded-overflow parity passed; not priority quality acceptance.
+nli-aligned-parity-exit=0

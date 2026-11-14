@@ -76,3 +76,31 @@ not a transformer implementation, format conversion, unsafe mmap or library fork
 Measure the same fresh-process peak and rerun every reference/padding case; the
 900 MiB gate is unchanged. The full quality, unload and combined-app gates remain
 open even if this allocation hypothesis succeeds.
+
+
+## Aligned-slice result
+
+The unchanged full-logit/token/padding/overflow gate passed again. No model byte,
+label, neural layer, float precision or inference output changed. The fresh-process
+peak is **857,344 KiB (837.25 MiB)**, within the isolated 900 MiB ceiling; after
+inference RSS was 717,744 KiB. This uses the same CPU and release flags. The exact
+publisher checkpoint remains hash-verified, and there is no derived weight file,
+unsafe workspace code, dependency addition or format conversion.
+
+This closes the numerical API and isolated loading feasibility question, not
+priority adoption. Full per-mail p95, grouped held-out priority precision/recall,
+languages/abstention, idle unload/cancellation, actual app and combined semantic +
+priority memory remain open. Do not compare the isolated process against a whole
+client or call it an end-user laptop measurement.
+[Aligned parity/stages](../../docs/evidence/artifacts/p09-nli/aligned-parity.log),
+[resources](../../docs/evidence/artifacts/p09-nli/aligned-resources.txt).
+
+
+Strict isolated release Clippy and the numerical probe build pass. A separate
+comparison confirms all nine token/mask/logit/truncation observations are
+**bit-identical** to the original buffered run, not merely within tolerance.
+The serialized Nix gate passes (`gate-exit=0`); its application package is the
+unchanged, already verified `4b1ed49` package, so only lint/format checks rebuilt.
+[Gate receipt](../../docs/evidence/artifacts/p09-nli/nix-gate.log).
+CI retains about 25 GiB root / 10 GiB data; the 425 MiB model is the only large new
+research artifact and remains under the project target. No cleanup was needed.

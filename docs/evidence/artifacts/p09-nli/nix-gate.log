@@ -1,0 +1,6 @@
+All nine aligned results are bit-identical to the original buffered-loader observations.
+building '/nix/store/b8m3q7n6ys2abijwjn3b8dfy40k23f4f-mailstronaut-ci-lint.drv'...
+building '/nix/store/79x62b99z7dizv4qzlla00y478x0d59k-mailstronaut-nix-format.drv'...
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+gate-exit=0

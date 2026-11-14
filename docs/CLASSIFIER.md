@@ -39,6 +39,13 @@ Primary evidence: [model card](https://huggingface.co/MoritzLaurer/multilingual-
 [pinned config](https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/blob/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/config.json),
 [Candle classifier API](https://docs.rs/candle-transformers/0.11.0/candle_transformers/models/xlm_roberta/struct.XLMRobertaForSequenceClassification.html).
 
+The [frozen numerical probe](../experiments/p09-priority/NLI-SCREEN.md) now passes
+full-logit reference parity, pair formatting, masks, padding and bounded premise
+overflow. Its first buffered load failed the memory ceiling; a hash-preserving
+aligned owned slice plus deferred tokenizer initialization passes the isolated
+ceiling through the existing safe Candle API. This is research feasibility,
+not an implemented application classifier or the required priority-quality gate.
+
 ## 2. JevBench research is discovery, not email validation
 
 Inspected the user-suggested board and its public JSON API on 2026-10-27. The live

@@ -46,7 +46,7 @@ fn invalid(message: &str) -> io::Error {
     io::Error::other(message)
 }
 
-fn verified(root: &Path, artifact: &Artifact) -> Result<Vec<u8>> {
+fn verified(root: &Path, artifact: &Artifact) -> Result<(Vec<u8>, usize)> {
     const PREFIX: &str = "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/";
     if ![
         "model.safetensors",
@@ -67,18 +67,40 @@ fn verified(root: &Path, artifact: &Artifact) -> Result<Vec<u8>> {
     if !fs::symlink_metadata(&path)?.is_file() {
         return Err(invalid("expected regular artifact").into());
     }
-    let file = fs::File::open(path)?;
+    let mut file = fs::File::open(path)?;
     if file.metadata()?.len() != artifact.size_bytes {
         return Err(invalid("artifact size mismatch").into());
     }
-    let mut bytes = Vec::new();
-    file.take(artifact.size_bytes + 1).read_to_end(&mut bytes)?;
-    if u64::try_from(bytes.len())? != artifact.size_bytes
-        || format!("{:x}", Sha256::digest(&bytes)) != artifact.sha256
+    let (bytes, offset) = if artifact.name == "model.safetensors" {
+        let mut header = [0_u8; 8];
+        file.read_exact(&mut header)?;
+        let header_length = usize::try_from(u64::from_le_bytes(header))?;
+        let length = usize::try_from(artifact.size_bytes)?;
+        if header_length > 1024 * 1024 || header_length + 8 > length {
+            return Err(invalid("unsupported tensor header").into());
+        }
+        // Keep the exact checkpoint bytes, but align its tensor-data start. The
+        // safe library converter otherwise copies the giant embedding twice.
+        let mut bytes = vec![0_u8; length + 7];
+        let offset = (8 - (bytes.as_ptr().addr() + 8 + header_length) % 8) % 8;
+        bytes[offset..offset + 8].copy_from_slice(&header);
+        file.read_exact(&mut bytes[offset + 8..offset + length])?;
+        if file.read(&mut [0_u8; 1])? != 0 {
+            return Err(invalid("artifact size changed").into());
+        }
+        bytes.truncate(offset + length);
+        (bytes, offset)
+    } else {
+        let mut bytes = Vec::new();
+        file.take(artifact.size_bytes + 1).read_to_end(&mut bytes)?;
+        (bytes, 0)
+    };
+    if u64::try_from(bytes.len() - offset)? != artifact.size_bytes
+        || format!("{:x}", Sha256::digest(&bytes[offset..])) != artifact.sha256
     {
         return Err(invalid("artifact checksum mismatch").into());
     }
-    Ok(bytes)
+    Ok((bytes, offset))
 }
 
 fn memory(stage: &str) -> Result<()> {
@@ -94,10 +116,10 @@ fn load(root: &Path) -> Result<(XLMRobertaForSequenceClassification, Tokenizer)>
     let mut configuration = None;
     let mut tokenizer = None;
     for artifact in manifest.files {
-        let bytes = verified(root, &artifact)?;
+        let (bytes, offset) = verified(root, &artifact)?;
         match artifact.name.as_str() {
-            "model.safetensors" => weights = Some(bytes),
-            "tokenizer.json" => tokenizer = Some(Tokenizer::from_bytes(bytes)?),
+            "model.safetensors" => weights = Some((bytes, offset)),
+            "tokenizer.json" => tokenizer = Some(bytes),
             "config.json" => {
                 configuration = Some(serde_json::from_slice::<serde_json::Value>(&bytes)?);
             }
@@ -119,18 +141,15 @@ fn load(root: &Path) -> Result<(XLMRobertaForSequenceClassification, Tokenizer)>
         return Err(invalid("unexpected classifier configuration").into());
     }
     memory("verified_files")?;
-    let builder = VarBuilder::from_buffered_safetensors(
-        weights.ok_or_else(|| invalid("missing weights"))?,
-        DType::F32,
-        &Device::Cpu,
-    )?;
+    let (bytes, offset) = weights.ok_or_else(|| invalid("missing weights"))?;
+    let builder = VarBuilder::from_slice_safetensors(&bytes[offset..], DType::F32, &Device::Cpu)?;
     memory("builder_ready")?;
     let model = XLMRobertaForSequenceClassification::new(3, &config, builder)?;
+    drop(bytes);
     memory("model_loaded")?;
-    Ok((
-        model,
-        tokenizer.ok_or_else(|| invalid("missing tokenizer"))?,
-    ))
+    let tokenizer = Tokenizer::from_bytes(tokenizer.ok_or_else(|| invalid("missing tokenizer"))?)?;
+    memory("tokenizer_loaded")?;
+    Ok((model, tokenizer))
 }
 
 fn infer(

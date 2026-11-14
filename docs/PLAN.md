@@ -677,7 +677,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   unreadable/encrypted/unsupported/ambiguous input; treat model text as untrusted.
   The [frozen API/reference screen](../experiments/p09-priority/NLI-SCREEN.md)
   pins the planned six-layer candidate and nine numerical test pairs before
-  evaluation. This is not the required 180-message priority-quality acceptance.
+  evaluation. Full-logit/token/padding parity and isolated safe-loading memory now
+  pass, retaining the first over-budget result. This is not the required 180-message
+  priority-quality, application lifecycle or combined-model acceptance.
 - [x] Extract actionable date evidence using existing date parsing and exact spans;
   distinguish deadlines from quoted dates, meetings, negation and marketing.
   [Evidence](evidence/P09-priority-rules.md).
