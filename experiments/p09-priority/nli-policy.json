@@ -1,5 +1,5 @@
 {
-  "version": "nli-0a71-p2-calibration",
+  "version": "nli-0a71-p2",
   "rulesPolicy": 2,
   "rulesSourceSha256": "dfd44d4c7d8ffd0c87683c6ffecf063520b9766ec2c6e37dc7c693bc17d6e7b0",
   "actionMin": 0.25,

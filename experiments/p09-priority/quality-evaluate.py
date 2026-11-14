@@ -106,6 +106,19 @@ for subset in ('all','original','challenges'):
         print(json.dumps(entry),flush=True)
 timings=sorted(row['micros']/1000 for row in outcomes)
 print(f"{split}: messages={len(outcomes)} p95_ms={np.percentile(timings,95):.3f} excerpt_only={sum(row['truncated'] for row in outcomes)}",flush=True)
-result=dict(split=split,policy=policy,policy_sha256=hashlib.sha256(policy_path.read_bytes()).hexdigest(),summaries=summaries,outcomes=outcomes)
+overall=[row for row in summaries if row['subset']=='all']
+quality=all(row['combined']['precision'] is not None and row['combined']['precision']>=policy['precisionMin']
+            and row['combined']['recall'] is not None and row['combined']['recall']>=policy['recallMin']
+            and row['deadline_precision'] is not None and row['deadline_precision']>=policy['deadlinePrecisionMin']
+            for row in summaries if row['subset'] in ('all','original'))
+benefit=(sum(row['corrections'] for row in overall)>0
+         and sum(row['combined']['f1'] for row in overall)>sum(row['baseline']['f1'] for row in overall)
+         and sum(row['combined']['fp'] for row in overall)<=sum(row['baseline']['fp'] for row in overall))
+accepted=quality and benefit
+result=dict(split=split,policy=policy,policy_sha256=hashlib.sha256(policy_path.read_bytes()).hexdigest(),summaries=summaries,outcomes=outcomes,quality=quality,benefit=benefit,accepted=accepted)
 (directory/'evaluation.json').write_text(json.dumps(result,indent=2)+'\n')
 print('Evaluation completed. This is synthetic policy research, not application adoption.',flush=True)
+
+if split == 'heldout':
+    print(f"heldout-quality-gate={'pass' if accepted else 'fail'} quality={quality} benefit={benefit}",flush=True)
+    sys.exit(0 if accepted else 1)

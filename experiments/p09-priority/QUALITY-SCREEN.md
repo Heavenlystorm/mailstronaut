@@ -174,3 +174,22 @@ their false/neutral receipt examples, before computing its aggregate metrics.
 Preserve the inherited-threshold p2 result as another non-improving outcome.
 No held-out row has been encoded; final adoption still requires its unchanged
 quality and benefit gates.
+
+
+## Final p2 freeze before held-out inference
+
+The single registered calibration corrects seven development false negatives
+without adding a false positive or regressing a previously correct decision.
+Combined EN/FR/IT recall is 20/20, 19/20 and 18/20 at 100% development precision;
+the model alone recalls 11/20, 16/20 and 10/20. Retain the complete counts, including
+abstentions, in `p2-calibrated-development.log`. These are small correlated training
+examples, not accuracy claims. Freeze `nli-policy.json` as **nli-0a71-p2**, unchanged
+hypotheses, thresholds, source projection and guards. This is the final policy
+before encoding any held-out row. No further tuning on its results is allowed.
+
+The held-out evaluator now explicitly fails unless both original and combined
+per-language precision/recall and accepted-deadline precision meet the unchanged
+limits, and combined macro F1 improves with at least one correction and no increase
+in total false positives. It writes all outcomes before reporting failure. Its
+result still cannot prove application lifecycle, combined memory, native UI or
+live-provider acceptance.
