@@ -43,3 +43,39 @@ rules-only comparison; disclose unsupported forms and mixed-language limitations
 A synthetic pass is not live-mail accuracy or calibration proof. Reference logits,
 full per-mail CPU/p95/memory, idle unloading/cancellation, combined semantic-model
 costs and actual native/runtime/packaging acceptance remain separate gates.
+
+## Held-out semantic challenge extension, before first evaluation
+
+The initial 180 messages remain byte-for-byte unchanged (SHA-256
+`a2ff10ab4315b03c8a185301baff00f90f8f15ae4038c308ead8b59e268306ca`).
+Their simple obligations deliberately exercise the existing rules, so they alone
+may not establish a benefit from adding a model. Before any model **or rules**
+evaluation on either quality set, freeze `semantic-challenges.json`: six new
+semantic families, three translations each, **held-out only**, 18 additional rows.
+They cover implied recipient authorisation/consent, another person's obligation,
+inline grammar examples and a superseded request. No new sender/thread/family
+crosses into calibration. These are context decisions character matching alone
+cannot reliably make.
+
+Combined scope: 198 messages, 36 families, 66 messages per language. Development
+stays the original 108 rows; held-out is 90 rows, 30 per language (17 positive,
+13 negative). Report original and challenge subsets separately as well as combined
+metrics. Keep the original language thresholds and require them on both the
+original held-out and combined set. Model adoption also needs a held-out benefit
+over rules, not just a passing raw accuracy: report additions/vetoes and require
+at least one model-dependent correction and improved combined macro F1 without
+increasing total false positives. Small correlated synthetic counts still do not
+establish live-mail accuracy.
+
+Clarify the prospective combined decision before evaluation: existing definitive
+no-action/expired guards win. A confident model-positive uses the initial action,
+neutral-margin, urgency/deadline criteria above. A strong non-obligation result
+(action contradiction >=0.70 with >=0.15 margin over neutral, or informational
+entailment >=0.80 with action entailment <=0.30) can veto a rule positive. Otherwise
+the model abstains and preserves the existing rules-only decision, explicitly
+recorded as such. This fallback does not count as model coverage or a model
+correction. Report model-only scores/abstention alongside the combined policy.
+Accepted deadline precision must use the same context veto, retaining rejected
+text as uncertain evidence rather than inventing a deadline. These rules may be
+calibrated only on development data and frozen again before held-out scoring;
+none of the held-out messages may be encoded during development evaluation.
