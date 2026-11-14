@@ -44,7 +44,11 @@ full-logit reference parity, pair formatting, masks, padding and bounded premise
 overflow. Its first buffered load failed the memory ceiling; a hash-preserving
 aligned owned slice plus deferred tokenizer initialization passes the isolated
 ceiling through the existing safe Candle API. This is research feasibility,
-not an implemented application classifier or the required priority-quality gate.
+not an implemented application classifier. The separately frozen task-quality
+screen has now **rejected** the final p2 candidate: it adds false positives and
+fails contextual deadline precision. [Quality decision](evidence/P09-model-quality.md).
+Keep it out of the application; its numerical/resource feasibility does not make
+it an adequate priority classifier.
 
 ## 2. JevBench research is discovery, not email validation
 

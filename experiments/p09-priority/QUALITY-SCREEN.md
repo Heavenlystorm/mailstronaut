@@ -193,3 +193,26 @@ limits, and combined macro F1 improves with at least one correction and no incre
 in total false positives. It writes all outcomes before reporting failure. Its
 result still cannot prove application lifecycle, combined memory, native UI or
 live-provider acceptance.
+
+
+## Held-out decision: rejected, no application adoption
+
+The frozen p2 evaluation encoded exactly 90 held-out rows and **failed** its
+unchanged quality and benefit gate (exit 1). Combined EN/FR/IT counts are
+TP/FP/FN = 14/2/3, 15/4/2 and 17/7/0. Rules alone are 14/2/3, 14/2/3 and 15/4/2.
+Thus there are three model-dependent corrections but five regressions, total
+false positives grow from eight to thirteen, and combined macro F1 falls from
+0.8434 to 0.8370. Original-subset Italian precision also fails (14/18 = 0.7778).
+Accepted deadline precision is 12/14 = 0.8571 in every language on the combined
+set: the rule parser misattributes dates in two semantic challenge families,
+and the context model does not veto them. The original subset alone achieves
+12/12 accepted dates, demonstrating why the semantic extension was necessary.
+Warm p95 is 247.317 ms; isolated peak is 859264 KiB.
+
+Keep `p2-heldout.log` with all subsets/counts. Do not retune this policy on those
+results, relabel the failures, remove the challenge families or call the rule
+fallback model success. This candidate is not selected for application use.
+Production remains rules-only with its documented contextual limitations. A new
+candidate requires a separately frozen held-out extension and its own resource
+and quality evidence. Numeric/reference and isolated loading success do not
+override the failed task-quality gate.

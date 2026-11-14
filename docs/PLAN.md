@@ -684,11 +684,16 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   priority-quality, application lifecycle or combined-model acceptance. The
   [grouped quality corpus and policy](../experiments/p09-priority/QUALITY-SCREEN.md)
   are frozen before classification: 180 original messages plus 18 held-out semantic
-  challenges, with 108 development and 90 held-out messages. Quality evaluation
-  remains open.
-- [x] Extract actionable date evidence using existing date parsing and exact spans;
+  challenges, with 108 development and 90 held-out messages. The final p2 policy
+  **failed** held-out quality/benefit: five extra false positives, lower macro F1,
+  and 12/14 accepted-deadline precision per language. Do not integrate this
+  rejected candidate. [Full quality decision](evidence/P09-model-quality.md).
+- [ ] Extract actionable date evidence using existing date parsing and exact spans;
   distinguish deadlines from quoted dates, meetings, negation and marketing.
-  [Evidence](evidence/P09-priority-rules.md).
+  [The bounded rule implementation passes its original cases](evidence/P09-priority-rules.md),
+  but the later frozen semantic challenges expose dates belonging to another
+  person or an inline grammar example. Contextual acceptance is reopened;
+  [the classifier did not correct these errors](evidence/P09-model-quality.md).
 - [x] Expire date-only deadlines at exclusive next **local calendar midnight**;
   explicit times expire at their instant. "Due tomorrow" remains today/tomorrow,
   never the following day. Past obligations are never newly prioritized.
