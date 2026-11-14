@@ -346,6 +346,76 @@ mod tests {
         );
     }
     #[test]
+    fn a_source_changed_after_retrieval_is_fenced_without_losing_its_cursor_rank() {
+        let (_root, mut store, inbox) = fixture();
+        let first = cache(&mut store, "a", inbox, 1, "\r\nFirst meaning match.");
+        let second = cache(&mut store, "a", inbox, 2, "\r\nSecond meaning match.");
+        let accounts = vec!["a".into()];
+        let unread = store.unread_counts(&accounts).expect("unread");
+        let mut sources = store
+            .semantic_candidates(&accounts, &Scope::Inbox, &SearchFilter::default())
+            .expect("retrieval snapshot");
+        let mut page = super::super::browse::FilteredPage {
+            accounts,
+            scope: Scope::Inbox,
+            query: "cross-language phrase".into(),
+            hits: Some(vec![second, first]),
+            filter: SearchFilter::default(),
+            after: None,
+            limit: 1,
+        };
+        let before = store
+            .revisioned_conversation_page(&page, &sources)
+            .expect("ranked original");
+        assert_eq!(before[0].latest.id, second);
+        let cursor = before[0].latest.cursor();
+        // A replacement arrives between vector retrieval and canonical presentation.
+        let replacement = "b".repeat(64);
+        store
+            .connection
+            .execute(
+                "UPDATE messages SET blob_hash=?2 WHERE id=?1",
+                params![second, replacement],
+            )
+            .expect("source changed");
+        assert_eq!(
+            store
+                .revisioned_conversation_page(&page, &sources)
+                .expect("stale source excluded")[0]
+                .latest
+                .id,
+            first
+        );
+        page.after = Some(cursor);
+        assert_eq!(
+            store
+                .revisioned_conversation_page(&page, &sources)
+                .expect("old rank cursor retained")[0]
+                .latest
+                .id,
+            first
+        );
+        page.after = None;
+        sources.insert(second, replacement);
+        assert_eq!(
+            store
+                .revisioned_conversation_page(&page, &sources)
+                .expect("fresh source positive control")[0]
+                .latest
+                .id,
+            second
+        );
+        sources.remove(&second);
+        assert!(store.revisioned_conversation_page(&page, &sources).is_err());
+        assert_eq!(
+            store
+                .unread_counts(&page.accounts)
+                .expect("no read side effects"),
+            unread
+        );
+    }
+
+    #[test]
     fn bounded_unicode_sources_report_coverage_and_exclude_encrypted_or_headers_only_mail() {
         let (_root, mut store, inbox) = fixture();
         let long = cache(

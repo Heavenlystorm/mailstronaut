@@ -1,0 +1,24 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+OK: all synthetic mail fetched
+OK: word index ready
+OK: meaning queue committed
+OK: English meaning query opens French notice first
+OK: word matcher still finds budget
+Native multilingual meaning retrieval, explicit-only Seen, exact intent, word search, Settings save and missing-model fallback passed: /mnt/data/mailstronaut/dev-target/p02.mArORX/meaning-gui
+
+running 1 test
+Quiet native lookup created no collections; default alias before/after session: ///org/freedesktop/secrets/collection/login.
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.42s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /mnt/data/mailstronaut/dev-target/p02.mArORX

@@ -65,6 +65,10 @@ fn real_encoder_exports_frozen_reference_cases_and_reports_window_coverage() {
         )
         .expect("export");
     }
+    assert!(matches!(
+        encoder.document_cancellable("A retired document", || true),
+        Err(Error::Cancelled)
+    ));
     assert!(matches!(encoder.query(""), Err(Error::Input)));
     assert!(matches!(encoder.query("line\ncontrol"), Err(Error::Input)));
     assert!(matches!(

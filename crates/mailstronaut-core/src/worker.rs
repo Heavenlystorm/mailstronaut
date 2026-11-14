@@ -124,6 +124,11 @@ enum Command {
         store::browse::FilteredPage,
         Reply<Vec<store::conversations::Summary>>,
     ),
+    RevisionedPage(
+        store::browse::FilteredPage,
+        std::collections::BTreeMap<i64, String>,
+        Reply<Vec<store::conversations::Summary>>,
+    ),
     UnreadCounts(Vec<String>, Reply<Vec<(i64, u32)>>),
     RankedPage(
         Vec<String>,
@@ -426,6 +431,17 @@ impl Handle {
         request: store::browse::FilteredPage,
     ) -> Result<Vec<store::conversations::Summary>, Error> {
         self.request(|reply| Command::FilteredPage(request, reply))
+            .await
+    }
+    /// Project semantic results only while their indexed source hashes remain current.
+    /// # Errors
+    /// Reports invalid requests/storage failures without opening or setting Seen.
+    pub async fn revisioned_conversation_page(
+        &self,
+        page: store::browse::FilteredPage,
+        sources: std::collections::BTreeMap<i64, String>,
+    ) -> Result<Vec<store::conversations::Summary>, Error> {
+        self.request(|reply| Command::RevisionedPage(page, sources, reply))
             .await
     }
     /// Read the oldest changes waiting for the search index.
@@ -1311,6 +1327,11 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
             Command::FilteredPage(request, reply) => {
                 respond(reply, || store.filtered_conversation_page(&request));
+            }
+            Command::RevisionedPage(page, sources, reply) => {
+                respond(reply, || {
+                    store.revisioned_conversation_page(&page, &sources)
+                });
             }
             Command::UnreadCounts(accounts, reply) => {
                 respond(reply, || store.unread_counts(&accounts));

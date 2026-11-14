@@ -178,7 +178,7 @@ const LITERAL_PAGE: PageQuery = PageQuery {
 };
 const RANKED_PAGE: PageQuery = PageQuery {
     // Only the hits and their conversations, rather than ranking a whole mailbox.
-    hits: "hits(id,hit_rank) AS MATERIALIZED (SELECT value,key FROM json_each(?7)),
+    hits: "hits(id,hit_rank,expected) AS MATERIALIZED (SELECT COALESCE(json_extract(value,'$.id'),value),key,json_extract(value,'$.source') FROM json_each(?7)),
  wanted(id) AS MATERIALIZED (
   SELECT id FROM hits UNION
   SELECT others.message_id FROM hits h CROSS JOIN messages hit ON hit.id=h.id
@@ -186,7 +186,7 @@ const RANKED_PAGE: PageQuery = PageQuery {
   CROSS JOIN conversation_members others ON others.account_id=mine.account_id AND others.conversation_id=mine.conversation_id
  ),",
     source: "wanted w CROSS JOIN messages m ON m.id=w.id",
-    matches: "h.id IS NOT NULL AS matches,h.hit_rank AS hit_rank",
+    matches: "(h.id IS NOT NULL AND (h.expected IS NULL OR h.expected=m.blob_hash)) AS matches,h.hit_rank AS hit_rank",
     join: "LEFT JOIN hits h ON h.id=m.id",
     member_order: "hit_rank ASC,",
     after: "(?2 IS NULL OR hit_rank>COALESCE((SELECT hit_rank FROM hits WHERE id=?3),-1))",
@@ -406,6 +406,54 @@ impl Store {
             &request.scope,
             &statement,
             search.as_deref(),
+            request.after,
+            request.limit,
+            &request.filter,
+        )
+    }
+
+    /// Read semantic-ranked originals only if their exact indexed sources still
+    /// match. Revision checks and conversation projection share one SQLite query.
+    /// Stale hits keep their rank/cursor positions but cannot match or be opened.
+    /// # Errors
+    /// Rejects missing/invalid revisions, oversized hit lists, filters and storage errors.
+    pub fn revisioned_conversation_page(
+        &self,
+        request: &FilteredPage,
+        sources: &std::collections::BTreeMap<i64, String>,
+    ) -> Result<Vec<super::conversations::Summary>, Error> {
+        #[derive(serde::Serialize)]
+        struct Hit<'a> {
+            id: i64,
+            source: &'a str,
+        }
+        request.filter.validate()?;
+        let ids = request.hits.as_ref().ok_or(Error::InvalidInput)?;
+        if ids.len() > 1000 || sources.len() > 1000 {
+            return Err(Error::InvalidInput);
+        }
+        let hits = ids
+            .iter()
+            .map(|id| {
+                let source = sources.get(id).ok_or(Error::InvalidInput)?;
+                if *id <= 0
+                    || source.len() != 64
+                    || !source.bytes().all(|byte| byte.is_ascii_hexdigit())
+                {
+                    return Err(Error::InvalidInput);
+                }
+                Ok(Hit { id: *id, source })
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        if hits.is_empty() {
+            return Ok(Vec::new());
+        }
+        let hits = serde_json::to_string(&hits)?;
+        self.filtered_page(
+            &request.accounts,
+            &request.scope,
+            &RANKED_PAGE.sql(),
+            Some(&hits),
             request.after,
             request.limit,
             &request.filter,

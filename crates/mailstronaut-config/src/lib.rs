@@ -44,6 +44,9 @@ pub struct Config {
     /// Synchronization limits.
     #[serde(default)]
     pub sync: Sync,
+    /// Optional local meaning-search configuration.
+    #[serde(default)]
+    pub search: Search,
     /// Local priority configuration.
     #[serde(default)]
     pub priority: Priority,
@@ -145,6 +148,17 @@ impl Default for Sync {
         }
     }
 }
+/// Optional, explicitly provisioned local meaning search.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+#[non_exhaustive]
+pub struct Search {
+    /// Enable the pinned multilingual CPU encoder, independently of priority rules.
+    pub semantic: bool,
+    /// Directory containing the supported hash-verified model files. Never downloaded.
+    pub model_directory: Option<String>,
+}
+
 /// Local priority analysis settings.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields, default)]
@@ -501,6 +515,18 @@ impl Config {
             "sync.maxBodyBytes",
             "outside supported range",
         );
+        check(
+            !self.search.semantic || self.search.model_directory.is_some(),
+            "search.modelDirectory",
+            "install a local model before enabling meaning search",
+        );
+        if let Some(path) = &self.search.model_directory {
+            check(
+                valid_path(path),
+                "search.modelDirectory",
+                "absolute path required",
+            );
+        }
         check(
             (1..=8760).contains(&self.priority.max_ttl_hours),
             "priority.maxTtlHours",
@@ -875,6 +901,23 @@ mod tests {
         assert!(!config.priority.enabled);
         assert!(config.notifications.enabled);
         assert_eq!(config.sync.poll_seconds, 300);
+    }
+
+    #[test]
+    fn meaning_search_is_explicit_local_and_independent_of_priority() {
+        let defaults = evaluate_unisolated("{ schemaVersion = 1; }").expect("defaults");
+        assert!(!defaults.search.semantic);
+        assert_eq!(defaults.search.model_directory, None);
+        let local = evaluate_unisolated(r#"{ schemaVersion = 1; search = { semantic = true; modelDirectory = "/not-installed-yet/model"; }; }"#).expect("pure configuration does not inspect or fetch models");
+        assert!(local.search.semantic);
+        assert!(!local.priority.enabled);
+        for invalid in [
+            "{ schemaVersion = 1; search.semantic = true; }",
+            r#"{ schemaVersion = 1; search.modelDirectory = "relative-model"; }"#,
+            r#"{ schemaVersion = 1; search.remoteUrl = "https://example.test"; }"#,
+        ] {
+            assert!(evaluate_unisolated(invalid).is_err());
+        }
     }
 
     #[test]

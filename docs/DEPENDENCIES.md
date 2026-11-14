@@ -1,6 +1,6 @@
 # Dependency decisions
 
-Research snapshot: 2026-10-30. The current UI is **GPUI Kit + Blitz**. The
+Research snapshot: 2026-10-30; semantic connector updated 2026-11-13. The current UI is **GPUI Kit + Blitz**. The
 previous toolkit/browser graph is retired. Versions below describe the selected
 integration, not completed runtime, privacy or distribution acceptance. Add actual
 dependencies centrally and commit the lockfile and Nix vendor hash together.
@@ -126,3 +126,13 @@ need not share their Rust types. No DOM/font objects cross the rendering task
 boundary. Do not assert origin isolation or CSP enforcement from browser APIs
 that Blitz does not implement. The explicit provider and sanitizer policy is
 specified in RENDERING.md.
+
+
+The native related-mail connector reuses the verified Candle/tokenizers encoder,
+USearch safe API and existing SQLite worker. It adds no new dependency or remote
+inference service. The 0.371 similarity floor is only a candidate trim: the frozen
+no-answer screen failed, so Related is explicit and labelled. An existing local
+cross-encoder is the next research option if rejection quality needs improving;
+[upstream retrieve-and-rerank guidance](https://www.sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html)
+describes the standard two-stage approach. No new reranker is selected without
+multilingual quality and combined CPU/memory measurements.

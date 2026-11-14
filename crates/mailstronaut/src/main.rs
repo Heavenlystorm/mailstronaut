@@ -17,6 +17,7 @@ mod link_portal;
 mod mail_notify;
 mod mail_priority;
 mod mail_search;
+mod mail_semantic;
 mod mail_sync;
 mod mailbox;
 mod onboarding;

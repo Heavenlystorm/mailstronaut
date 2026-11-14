@@ -32,6 +32,8 @@ pub enum Error {
     Installation,
     /// The pinned model cannot be initialized or evaluated.
     Inference,
+    /// The caller retired a bounded document projection before its next window.
+    Cancelled,
     /// A query exceeds the limit, contains controls, or has no readable text.
     Input,
 }
@@ -40,6 +42,7 @@ impl fmt::Display for Error {
         f.write_str(match self {
             Self::Installation => "local model files are unavailable or fail verification",
             Self::Inference => "local model inference is unavailable",
+            Self::Cancelled => "local model work was cancelled",
             Self::Input => "search text is empty or exceeds supported limits",
         })
     }
@@ -192,6 +195,17 @@ impl Encoder {
     /// # Errors
     /// Rejects empty text and reports redacted tokenizer/model failures.
     pub fn document(&self, text: &str) -> Result<Projection, Error> {
+        self.document_cancellable(text, || false)
+    }
+
+    /// Encode bounded windows, checking caller cancellation before each inference.
+    /// # Errors
+    /// Reports [`Error::Cancelled`] when retired, otherwise the same errors as `document`.
+    pub fn document_cancellable(
+        &self,
+        text: &str,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Projection, Error> {
         let (bounded, byte_truncated) = bounded_text(text);
         if bounded.trim().is_empty() {
             return Err(Error::Input);
@@ -204,7 +218,12 @@ impl Encoder {
         let vectors = windows
             .by_ref()
             .take(MAX_WINDOWS)
-            .map(|window| self.window(window))
+            .map(|window| {
+                if cancelled() {
+                    return Err(Error::Cancelled);
+                }
+                self.window(window)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Projection {
             vectors,

@@ -451,7 +451,7 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   its frozen additional screen also passes (22/24 first, 24/24 top-three), with two
   retained book-pickup/renewal confusions. The [USearch API and 10k/100k vector screen also pass](evidence/P06-vector-index.md),
   selecting the pair for production integration. Combined app/lifecycle budgets and
-  the native connector remain open.
+  robust no-answer discrimination remain open.
 - [x] Provide typo-tolerant fuzzy subject/address/body search, accent/partial terms,
   useful ranking, deliberate exact/filter queries and bounded expansion, using a
   maintained library rather than a custom matcher or index.
@@ -464,12 +464,23 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   lexical acknowledgments must not discard inference work. Verify bounded readable
   source hashes, late replay/deletion, upgrade seeding and metadata/UID isolation
   without setting Seen. [Backend evidence](evidence/P06-semantic-ingestion.md).
-- [ ] Add multilingual retrieval by meaning: **"reminder about doctoral school
+- [ ] Complete multilingual relevance/no-answer acceptance. The explicit native
+  Related mode retrieves multilingual suggestions with honest labels and preserves
+  word search as the default; its frozen no-answer screen fails (4/12 false-positive
+  queries), so do not mark the overall quality gate complete. Keep the original and
+  held-out corpora unchanged; evaluate any existing local reranker on independently
+  frozen data, within combined resource budgets. **"reminder about doctoral school
   re-enrollment" finds the French doctoral registration notice without matching
-  query words**. Test EN/FR/IT paraphrases, cross-language and near-topic negatives.
-- [ ] Keep queries/text/embeddings/inference local. Models are small CPU encoders,
+  query words** remains a required native case.
+- [x] Verify the native Related button, Settings enable/path save, missing-model word
+  fallback, matched-original opening and passive Seen behavior in private Wayland.
+  Use standard Kit `Button`, `Alert`, status and `SettingField` controls from the
+  [component mapping](INTERFACE.md#p06-mailbox-threads-and-search).
+  [Real-model worker and native Dovecot/Wayland evidence](evidence/P06-native-meaning.md).
+- [x] Keep queries/text/embeddings/inference local. Models are small CPU encoders,
   pinned/hashed/licensed and explicitly installed; no startup downloads or remote
   fallback. Semantic search is independent of enabling the priority classifier.
+  [Explicit installation and native ownership/fallback checks](evidence/P06-native-meaning.md).
 - [x] Use one native search field with library ranking, scoped account/folder/date/
   sender filters and conversation deduplication. Search never sets Seen.
   Reuse `Input`, a filter `Popover`, sender `Input` and `DatePickerState::range`
@@ -488,12 +499,14 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   revision; bounded incremental indexing, restart/model change, deletion/purge and
   disabled accounts must not retain stale results or touch user-owned state.
   [The lexical index passes](evidence/P06-fuzzy-search.md); the semantic component
-  now versions model/projection policy and source hashes, while canonical ingestion,
-  configuration/account invalidation and complete account purge remain open.
+  now versions model/projection policy and source hashes. Canonical ingestion,
+  source-fenced presentation and configured-account/model/cap retirement are
+  implemented; combined-scale recovery and secure account purge remain open.
 - [ ] Show partial-cache/index coverage and unavailable/disabled models. Local
   lexical/fuzzy search remains usable, but this does not complete semantic acceptance.
   [Messages not yet indexed are counted in the status bar](evidence/P06-fuzzy-search.md);
-  partial-cache and model states remain open.
+  model indexed/pending/excerpt and unavailable states are implemented; partial
+  server-cache coverage remains open.
 - [ ] Pass fixed and held-out relevance, filter/isolation/restart/deletion tests,
   the user's French example, and measured 10k/100k CPU/RAM/index/build budgets.
 

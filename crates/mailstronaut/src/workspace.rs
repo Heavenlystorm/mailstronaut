@@ -147,6 +147,12 @@ enum ReaderMode {
     Html,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SearchMode {
+    Words,
+    Related,
+}
+
 pub struct Workspace {
     focus: FocusHandle,
     link_focus: FocusHandle,
@@ -215,6 +221,8 @@ pub struct Workspace {
     _sync_events: Subscription,
     /// Fuzzy search once the store is open; literal search answers until then.
     fuzzy: Option<crate::mail_search::MailSearch>,
+    meaning: Option<crate::mail_semantic::Meaning>,
+    search_mode: SearchMode,
     search_pause: Task<()>,
     /// Only while `priority.enabled` is set in the configuration.
     priority: Option<crate::mail_priority::PriorityEngine>,
@@ -245,6 +253,14 @@ impl Drop for Workspace {
 }
 
 const SEARCH_PAUSE: Duration = Duration::from_millis(200);
+fn related_intent(query: &str) -> bool {
+    !query.trim().is_empty()
+        && !query.contains('"')
+        && !query.split_whitespace().any(|word| {
+            let word = word.to_ascii_lowercase();
+            word.starts_with("from:") || word.starts_with("subject:")
+        })
+}
 /// Identifies the progress notification, so that the result replaces it.
 struct AttachmentDownload;
 /// What one list refresh loads: folders, unread counts, the page and the priority group.
@@ -313,16 +329,50 @@ async fn priority_rows(
 
 /// A page of conversations: through the search index when there is a query and it can
 /// answer, and otherwise through the store's own literal search.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "One scoped page shares optional lexical/semantic readers, filters and its cursor."
+)]
 async fn conversation_rows(
     store: &Handle,
     fuzzy: Option<&crate::mail_search::MailSearch>,
+    meaning: Option<&crate::mail_semantic::Meaning>,
     accounts: Vec<String>,
     scope: Scope,
     query: String,
     after: Option<Cursor>,
     filter: SearchFilter,
-) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, mailstronaut_core::worker::Error>
-{
+) -> Result<Vec<mailstronaut_core::store::conversations::Summary>, String> {
+    // Explicit related-mail mode. Quotes and field constraints retain word intent.
+    if related_intent(&query)
+        && let Some(meaning) = meaning
+    {
+        let found = meaning
+            .hits(
+                query.clone(),
+                store.clone(),
+                accounts.clone(),
+                scope.clone(),
+                filter.clone(),
+            )
+            .await
+            .map_err(str::to_owned)?;
+        return store
+            .revisioned_conversation_page(
+                FilteredPage {
+                    accounts,
+                    scope,
+                    query,
+                    hits: Some(found.ids),
+                    filter,
+                    after,
+                    limit: 100,
+                },
+                found.sources,
+            )
+            .await
+            .map_err(|error| error.to_string());
+    }
     let hits = match fuzzy {
         Some(search) if !query.trim().is_empty() => {
             // The number of hits is bounded, so other accounts must not use them up.
@@ -355,7 +405,8 @@ async fn conversation_rows(
                 after,
                 limit: 100,
             })
-            .await;
+            .await
+            .map_err(|error| error.to_string());
     }
     match hits {
         Some(hits) => {
@@ -369,6 +420,7 @@ async fn conversation_rows(
                 .await
         }
     }
+    .map_err(|error| error.to_string())
 }
 
 /// Refresh the already-loaded metadata prefix in bounded store batches.
@@ -379,6 +431,7 @@ async fn conversation_rows(
 async fn conversation_prefix(
     handle: &Handle,
     fuzzy: Option<&crate::mail_search::MailSearch>,
+    meaning: Option<&crate::mail_semantic::Meaning>,
     accounts: Vec<String>,
     scope: Scope,
     query: String,
@@ -392,17 +445,11 @@ async fn conversation_prefix(
         if cancel.is_cancelled() {
             return Err("Local query cancelled.".into());
         }
-        let batch = conversation_rows(
-            handle,
-            fuzzy,
-            accounts.clone(),
-            scope.clone(),
-            query.clone(),
-            after,
-            filter.clone(),
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+        let batch = tokio::select! {
+            biased;
+            () = cancel.cancelled() => return Err("Local query cancelled.".into()),
+            result = conversation_rows(handle, fuzzy, meaning, accounts.clone(), scope.clone(), query.clone(), after, filter.clone()) => result?,
+        };
         after = batch.last().map(|row| Cursor {
             received_at: row.latest.received_at,
             message_id: row.latest.id,
@@ -670,6 +717,8 @@ impl Workspace {
             sync_session: services.sync,
             _sync_events: sync_events,
             fuzzy: None,
+            meaning: None,
+            search_mode: SearchMode::Words,
             search_pause: Task::ready(()),
             priority: None,
             priority_expiry: Task::ready(()),
@@ -1073,6 +1122,85 @@ impl Workspace {
         .detach();
     }
 
+    fn start_meaning(&mut self, config: &Config, window: &Window, cx: &Context<Self>) {
+        let accounts: Vec<_> = config
+            .accounts
+            .iter()
+            .map(|account| account.id.clone())
+            .collect();
+        if config.search.semantic
+            && self.meaning.as_ref().is_some_and(|engine| {
+                engine.configured(&config.search, &accounts, config.sync.max_body_bytes)
+            })
+        {
+            return;
+        }
+        if let Some(old) = self.meaning.take() {
+            old.stop();
+        }
+        if !config.search.semantic || accounts.is_empty() {
+            self.search_mode = SearchMode::Words;
+            return;
+        }
+        let (Some(store), Some(directories)) = (self.handle(), directories::BaseDirs::new()) else {
+            return;
+        };
+        let (engine, mut changed) = crate::mail_semantic::Meaning::start(
+            self.runtime.handle(),
+            directories.data_local_dir().join("mailstronaut/meaning"),
+            config.search.clone(),
+            accounts,
+            store,
+            self.lifetime.child_token(),
+            config.sync.max_body_bytes,
+        );
+        let cancelled = engine.cancel();
+        self.meaning = Some(engine);
+        cx.spawn_in(window, async move |this, cx| {
+            let mut previous_revision = None;
+            loop {
+                tokio::select! {
+                    biased;
+                    () = cancelled.cancelled() => return,
+                    result = changed.changed() => { if result.is_err() { return; } }
+                }
+                if cancelled.is_cancelled() {
+                    return;
+                }
+                let state = changed.borrow().clone();
+                let revision = match state {
+                    crate::mail_semantic::State::Ready { revision, .. } => Some(revision),
+                    _ => None,
+                };
+                let changed_index = revision != previous_revision;
+                previous_revision = revision;
+                if this
+                    .update_in(cx, |this, window, cx| {
+                        let retired = this.search_mode == SearchMode::Related
+                            && matches!(state, crate::mail_semantic::State::Unavailable(_));
+                        if retired {
+                            this.search_mode = SearchMode::Words;
+                        }
+                        if retired
+                            || (changed_index
+                                && this.search_mode == SearchMode::Related
+                                && related_intent(&this.query))
+                        {
+                            this.refresh_rows(window, cx);
+                        } else {
+                            this.status = this.page_status(this.browse.loaded);
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        })
+        .detach();
+    }
+
     fn start_search(&mut self) {
         if self.fuzzy.is_some() {
             return;
@@ -1094,11 +1222,21 @@ impl Workspace {
     }
 
     fn page_status(&self, count: usize) -> String {
+        let base = self.lexical_page_status(count);
+        match &self.meaning {
+            Some(meaning) => format!("{base} · {}", meaning.label()),
+            None => base,
+        }
+    }
+
+    fn lexical_page_status(&self, count: usize) -> String {
         let waiting = self
             .fuzzy
             .as_ref()
             .map_or(0, crate::mail_search::MailSearch::queued);
-        if self.query.trim().is_empty() && self.filter.is_empty() {
+        if self.search_mode == SearchMode::Related && related_intent(&self.query) {
+            format!("{count} related conversations · suggested by meaning")
+        } else if self.query.trim().is_empty() && self.filter.is_empty() {
             format!("{count} cached conversations · local cache")
         } else {
             let matches = if count == 1 { "match" } else { "matches" };
@@ -1137,6 +1275,10 @@ impl Workspace {
         };
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "One query/configuration generation fence covers this native refresh transaction."
+    )]
     fn refresh_rows(&mut self, window: &Window, cx: &mut Context<Self>) {
         let Some(handle) = self.handle() else {
             return;
@@ -1154,6 +1296,10 @@ impl Workspace {
         let scope = self.scope.clone();
         let boundary = self.browse.after;
         let fuzzy = self.fuzzy.clone();
+        let meaning = self
+            .meaning
+            .clone()
+            .filter(|_| self.search_mode == SearchMode::Related);
         // The group belongs at the top of the unified view, never in searches.
         let show_priority = self.priority.is_some()
             && self.scope == Scope::Inbox
@@ -1209,6 +1355,7 @@ impl Workspace {
             let rows = conversation_prefix(
                 &handle,
                 fuzzy.as_ref(),
+                meaning.as_ref(),
                 accounts,
                 scope,
                 query,
@@ -1700,6 +1847,7 @@ impl Workspace {
     /// Restart per-account polling for the active configuration. Explicit sync in
     /// Settings still works when `sync.automatic` is off.
     fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &mut Context<Self>) {
+        self.start_meaning(config, window, cx);
         self.start_priority(config, window, cx);
         self.sync_errors.clear();
         self.syncing.clear();
@@ -1733,6 +1881,9 @@ impl Workspace {
                 self.sync_progress.remove(&account);
                 if let Some(search) = &self.fuzzy {
                     search.wake();
+                }
+                if let Some(meaning) = &self.meaning {
+                    meaning.wake();
                 }
                 if let Some(priority) = &self.priority {
                     priority.wake();
@@ -2112,11 +2263,15 @@ impl Workspace {
         );
         let cancel = self.query_cancel.clone();
         let filter = self.filter.clone();
+        let meaning = self
+            .meaning
+            .clone()
+            .filter(|_| self.search_mode == SearchMode::Related);
         let job = self.runtime.spawn(async move {
             tokio::select! {
                 () = cancel.cancelled() => Err("Local query cancelled.".to_owned()),
-                result = conversation_rows(&handle, fuzzy.as_ref(), accounts, scope, query, after, filter) =>
-                    result.map_err(|error| error.to_string()),
+                result = conversation_rows(&handle, fuzzy.as_ref(), meaning.as_ref(), accounts, scope, query, after, filter) =>
+                    result,
             }
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -2162,6 +2317,10 @@ impl Workspace {
         .detach();
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Declarative Kit settings composition delegates all field behavior to existing preference components."
+    )]
     fn account_settings(&self, cx: &Context<Self>) -> impl IntoElement {
         let loading = self.loading_config;
         let reload_disabled = loading || self.demo || self.preferences.read(cx).busy();
@@ -2207,6 +2366,13 @@ impl Workspace {
                 .group(crate::preferences::Preferences::notifications(
                     &self.preferences,
                     cx,
+                ))
+                .group(crate::preferences::Preferences::search(
+                    &self.preferences,
+                    cx,
+                    self.meaning
+                        .as_ref()
+                        .map(crate::mail_semantic::Meaning::state),
                 ))
                 .group(crate::preferences::Preferences::priority(
                     &self.preferences,
@@ -2482,6 +2648,21 @@ impl Workspace {
                     .items_center()
                     .gap_2()
                     .child(Input::new(&self.search))
+                    .when(self.meaning.is_some(), |view| view.child(
+                        Button::new("related-mail")
+                            .icon(AssetIcon::Sparkles)
+                            .label("Related")
+                            .selected(self.search_mode == SearchMode::Related && related_intent(&self.query))
+                            .disabled(!related_intent(&self.query) || !self.meaning.as_ref().is_some_and(|engine| matches!(engine.state(), crate::mail_semantic::State::Ready { .. })))
+                            .accessibility_label("Find related mail by meaning")
+                            .tooltip("Related mail across languages. Suggestions may include unrelated mail; quotes and field filters stay literal.")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.search_mode = if this.search_mode == SearchMode::Related { SearchMode::Words } else { SearchMode::Related };
+                                this.browse = crate::mailbox::Browse::default();
+                                this.clear_page(window, cx);
+                                this.refresh_rows(window, cx);
+                            })),
+                    ))
                     .child(
                         Popover::new("mail-search-filters")
                             .trigger(
@@ -2535,6 +2716,15 @@ impl Workspace {
             .flex()
             .flex_col()
             .child(self.sync_alert(cx))
+            .when(
+                self.search_mode == SearchMode::Related && related_intent(&self.query),
+                |view| {
+                    view.child(Alert::info(
+                        "related-mail-notice",
+                        "Related mail · Suggestions by meaning, not exact word matches.",
+                    ))
+                },
+            )
             .child(
                 div()
                     .flex_1()
@@ -2645,6 +2835,9 @@ impl Workspace {
                         this.older_reached.extend(progress);
                         if let Some(search) = &this.fuzzy {
                             search.wake();
+                        }
+                        if let Some(meaning) = &this.meaning {
+                            meaning.wake();
                         }
                         if let Some(priority) = &this.priority {
                             priority.wake();
@@ -3574,6 +3767,7 @@ mod browse_tests {
         let first = conversation_prefix(
             &store,
             None,
+            None,
             accounts.clone(),
             Scope::Inbox,
             String::new(),
@@ -3607,6 +3801,7 @@ mod browse_tests {
         let refreshed = conversation_prefix(
             &store,
             None,
+            None,
             accounts.clone(),
             Scope::Inbox,
             String::new(),
@@ -3628,6 +3823,7 @@ mod browse_tests {
         assert!(
             conversation_prefix(
                 &store,
+                None,
                 None,
                 accounts,
                 Scope::Inbox,

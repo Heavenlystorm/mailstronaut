@@ -1,0 +1,7 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+Installed package: /nix/store/yi5wzbfi15hmspzhcmd8z4h171g1mibl-mailstronaut-0.1.0
+mailstronaut 0.1.0
+Configuration is valid.
+{ accounts = [ ]; appearance = "system"; background = { autostart = false; enabled = false; }; notifications = { enabled = true; showPreview = false; }; priority = { defaultTtlHours = 72; enabled = false; languages = [ "en" "fr" "it" ]; maxTtlHours = 168; }; privacy = { remoteContent = "ask"; }; reminders = { evening = "18:00"; morning = "09:00"; }; schemaVersion = 1; search = { modelDirectory = "/nix/store/hzr9x59qmlw5kqa6m4qyw1fyf8gbx37x-mailstronaut-minilm-e8f8c211226b894fcb81acc59f3b34ba3efd5f42"; semantic = true; }; sync = { automatic = true; maxBodyBytes = 2097152; pollSeconds = 300; }; }
+installed-smoke=0

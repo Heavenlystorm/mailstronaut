@@ -51,7 +51,7 @@ The root Cargo.toml owns metadata, dependencies, profiles and lint policy with
 | `mailstronaut-core` | Canonical identities, SQLite/blob ownership, MIME projections, threads, drafts/operations/reminders |
 | `mailstronaut-mail` | Standard TLS/IMAP/lettre SMTP/OAuth/credential adapters |
 | `mailstronaut-render` | Sanitized Blitz document, bounded message resources and CPU raster output, no window/network capabilities |
-| `mailstronaut-search` | Canonically fed Tantivy lexical/fuzzy index and revision-filtered, rebuildable USearch vector cache; semantic application connector remains open |
+| `mailstronaut-search` | Canonically fed Tantivy lexical/fuzzy index and revision-filtered, rebuildable USearch vector cache; explicit related-mail mode and off-thread inference owner |
 | `mailstronaut-models` | Hash-verified, explicitly installed CPU sentence encoder and bounded library-tokenized windows; no network/model downloads |
 | `mailstronaut-priority` | Bounded local priority/deadline rules, exact evidence spans and expiry decisions; model adoption remains a separate gate |
 
@@ -171,13 +171,28 @@ about renewing doctoral registration even when it contains none of those query
 words. English/French/Italian paraphrase and cross-language retrieval are acceptance
 cases; fuzzy character matching alone cannot satisfy this requirement.
 
-Use one native search field with lexical/fuzzy and semantic candidate ranking,
+Use one native search field, word search by default and an explicit Related mode, with
 useful matching snippets and unchanged account/folder/date/sender filter semantics.
 Conversation grouping must retain which original matched and open that original.
 Searching or loading result previews does not mark a message Seen. Show partial
 mail-cache/semantic-index coverage and an explicit unavailable-model state; local
 lexical/fuzzy search stays usable when semantic inference is disabled or absent.
 That degraded mode does not constitute completion of semantic search acceptance.
+
+The optional runtime owner verifies the explicitly installed MiniLM, drains the
+independent canonical queue in eight-original batches and persists embeddings before
+acknowledging work. It never owns message actions. Canonical account/folder/date/
+sender/source revisions are checked before vector retrieval and again in the same
+SQL statement that projects the matching original. An account/model/analysis-cap
+change retires the owner; cancellation is checked between bounded model windows.
+
+Related mode uses the existing USearch cosine ordering with a development-derived
+0.371 floor and at most twenty originals. This is a shortlist of suggestions, not
+a probability of relevance. The frozen no-answer screen failed (4/12 false-positive
+queries), so do not silently substitute suggestions for empty word results or
+claim automatic no-answer acceptance. Quotes and fielded intent remain lexical.
+The native runtime reports indexing/excerpt coverage and unavailable installations;
+it neither downloads models nor requires the independent priority classifier.
 
 Queries, readable email text, embeddings, indexing and retrieval remain on device.
 Choose a lightweight CPU multilingual encoder, an existing Rust inference/runtime

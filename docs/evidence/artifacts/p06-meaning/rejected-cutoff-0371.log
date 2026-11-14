@@ -1,0 +1,72 @@
+warning: Git tree '/builds/mailstronaut-dev' is dirty
+Frozen cutoff: 0.371
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 11830.68it/s]
+New no-answer Rust/reference parity passed
+fixed user-example: expected-rank=1
+fixed english-french-registration: expected-rank=1
+fixed italian-french-registration: expected-rank=1
+fixed english-italian-refund: expected-rank=1
+fixed french-italian-refund: expected-rank=1
+fixed french-english-repair: expected-rank=1
+fixed italian-english-password: expected-rank=1
+fixed english-french-parcel: expected-rank=1
+fixed english-french-supervision: expected-rank=1
+fixed italian-french-electricity: expected-rank=1
+fixed: first=10 top3=10 minimum=(8, 10)
+fixed no-answer cinema-en: maximum-cosine=0.539827
+fixed no-answer cinema-fr: maximum-cosine=0.523057
+fixed no-answer cinema-it: maximum-cosine=0.528138
+fixed no-answer guitar-en: maximum-cosine=0.476562
+fixed no-answer guitar-fr: maximum-cosine=0.291660
+fixed no-answer guitar-it: maximum-cosine=0.273225
+fixed no-answer recipe-en: maximum-cosine=0.045537
+fixed no-answer recipe-fr: maximum-cosine=0.082872
+fixed no-answer recipe-it: maximum-cosine=0.066988
+fixed no-answer chess-en: maximum-cosine=0.311751
+fixed no-answer chess-fr: maximum-cosine=0.218806
+fixed no-answer chess-it: maximum-cosine=0.302177
+heldout internship-en: expected-rank=1
+heldout internship-it: expected-rank=1
+heldout travel-en: expected-rank=1
+heldout travel-fr: expected-rank=1
+heldout seminar-fr: expected-rank=1
+heldout seminar-it: expected-rank=1
+heldout account-en: expected-rank=1
+heldout account-it: expected-rank=1
+heldout library-en: expected-rank=2
+heldout library-fr: expected-rank=None
+heldout health-it: expected-rank=1
+heldout health-fr: expected-rank=1
+heldout survey-en: expected-rank=1
+heldout survey-it: expected-rank=1
+heldout payroll-en: expected-rank=1
+heldout payroll-fr: expected-rank=1
+heldout backup-fr: expected-rank=1
+heldout backup-it: expected-rank=1
+heldout power-en: expected-rank=1
+heldout power-it: expected-rank=1
+heldout thesis-en: expected-rank=1
+heldout thesis-fr: expected-rank=1
+heldout passport-fr: expected-rank=1
+heldout passport-it: expected-rank=1
+heldout: first=22 top3=23 minimum=(20, 23)
+heldout no-answer cinema-en: maximum-cosine=0.519977
+heldout no-answer cinema-fr: maximum-cosine=0.467265
+heldout no-answer cinema-it: maximum-cosine=0.452260
+heldout no-answer guitar-en: maximum-cosine=0.393721
+heldout no-answer guitar-fr: maximum-cosine=0.231084
+heldout no-answer guitar-it: maximum-cosine=0.229741
+heldout no-answer recipe-en: maximum-cosine=0.087184
+heldout no-answer recipe-fr: maximum-cosine=0.088369
+heldout no-answer recipe-it: maximum-cosine=0.082666
+heldout no-answer chess-en: maximum-cosine=0.217860
+heldout no-answer chess-fr: maximum-cosine=0.261936
+heldout no-answer chess-it: maximum-cosine=0.214588
+No-answer queries with any hit at frozen cutoff: ['cinema-en', 'cinema-fr', 'cinema-it', 'guitar-en']
+Traceback (most recent call last):
+  File "/builds/mailstronaut-dev/experiments/p06-search/precision.py", line 62, in <module>
+    assert len(failures)<=1
+           ^^^^^^^^^^^^^^^^
+AssertionError

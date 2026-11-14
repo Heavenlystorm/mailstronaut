@@ -107,6 +107,9 @@ fi
 if [[ -n ${MAILSTRONAUT_SEARCH_GUI_BINARY:-} ]]; then
   bash experiments/p06-search/gui.sh "$MAILSTRONAUT_SEARCH_GUI_BINARY" "$root"
 fi
+if [[ -n ${MAILSTRONAUT_MEANING_GUI_BINARY:-} ]]; then
+  bash experiments/p06-search/meaning.sh "$MAILSTRONAUT_MEANING_GUI_BINARY" "$root"
+fi
 if [[ -n ${MAILSTRONAUT_FILTERS_GUI_BINARY:-} ]]; then
   bash experiments/p06-search/filters.sh "$MAILSTRONAUT_FILTERS_GUI_BINARY" "$root"
 fi

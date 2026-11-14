@@ -13,8 +13,11 @@ The retained backend provides native Nix configuration, encrypted credentials,
 TLS IMAP/SMTP, offline SQLite/MIME storage, account-local conversations, durable
 drafts/attachments, submission state and reminders. Their new GPUI workflows are
 tracked separately in the plan. Lexical fuzzy search and conservative local
-deadline rules are available. Multilingual semantic search, validated model
-priority inference and full background integration remain goals.
+deadline rules are available. Optional on-device **Related** search finds mail
+across languages using an explicitly installed pinned model; word search stays the
+default and suggestions may include unrelated mail. See [search configuration](docs/CONFIGURATION.md#local-search-by-meaning).
+Validated model priority inference, robust semantic no-answer handling and full
+background/portal integration remain goals.
 
 ```sh
 nix develop

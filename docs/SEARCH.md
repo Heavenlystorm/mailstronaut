@@ -1,7 +1,8 @@
 # Strong search: library research and adoption gate
 
 Initial research date: 2026-10-30. Tantivy lexical/fuzzy search is now integrated;
-the model comparisons below remain isolated probes. The user requires
+the model comparisons below preserve the research history. Explicit native Related
+mode now connects the verified MiniLM/USearch pair. The user requires
 both typo tolerance and multilingual search by meaning, and explicitly wants
 pre-existing components. Do not write a fuzzy matcher, inverted index, vector
 index, transformer, translation system or search service for this feature.
@@ -29,7 +30,8 @@ USearch supplies filtered F16 cosine search, deletion and persistence through it
 safe Rust API, with default native acceleration features disabled. The 100k
 synthetic screen requires search expansion 2048 to meet recall; its default 128
 fails. [Exact selection, measurements and boundaries](evidence/P06-vector-index.md).
-Combined runtime, canonical lifecycle and native application acceptance remain open.
+Canonical ingestion and the native runtime are implemented; combined large-mailbox
+costs and robust no-answer acceptance remain open.
 
 ### Next encoder candidate (2026-11-10)
 
@@ -40,17 +42,34 @@ with no ONNX runtime or new production dependencies. [Exact evidence and limits]
 A separate 26-document/24-query synthetic set was frozen in `98d90a9` before
 evaluation. Rust/reference parity passed and retrieval scored 22/24 top-one,
 24/24 top-three, above its predeclared thresholds. The two book-pickup queries
-preferred a renewal distractor and are retained as limitations. Production model
-lifecycle and the semantic UI/index remain open; this is not an implemented
-meaning-search feature.
+preferred a renewal distractor and are retained as limitations. The native Related connector now uses this encoder, with the narrower product
+boundary below; this screen alone is not whole-feature acceptance.
 
 ### Production components (2026-11-13)
 
 The [reusable encoder/vector backend](evidence/P06-semantic-backend.md) now lives
 in the workspace, including explicit model provisioning with `.#semantic-model`.
-The canonical semantic queue, configuration/runtime owner, coverage and native
-search connector remain open. These components do not yet make the application
-answer meaning searches. The original fixed/held-out corpora remain unchanged.
+The independent canonical queue, configuration/runtime owner, coverage and native
+Related connector now use these components. The original fixed/held-out corpora
+remain unchanged. [Native connector evidence](evidence/P06-native-meaning.md).
+
+Word search stays the default. Explicit Related mode uses the same field, canonical
+filters and matching-original opening, showing suggestions across languages. The
+user's English doctoral query retrieves the French notice. Quotes and field
+constraints stay lexical, with no fabricated keyword highlights. A default-off
+native `search.semantic` setting and explicit `search.modelDirectory` installation
+control the owner independently of priority mail. Model failures keep word search
+working and display an unavailable state in Settings/status.
+
+A development-derived cosine floor of 0.371 trims weak tail candidates. It retained
+the fixed/held-out positive gates, but failed the frozen no-answer gate: four of
+twelve absent-topic queries returned a candidate. Thus automatic high-confidence
+fallback is not accepted; suggestions are explicitly labelled Related, with this
+limitation visible in the tooltip/Settings. Both failed threshold trials and the
+unchanged gates remain in [the precision screen](../experiments/p06-search/precision-screen.md).
+Do not tune those test cases into a claimed held-out pass. Standard local
+cross-encoder reranking over a bounded candidate set is a researched future
+alternative, subject to extra quality/resource evidence, not an implemented fix.
 
 ### Native metadata filters (2026-11-10)
 

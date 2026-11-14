@@ -21,6 +21,8 @@ use usearch::{Index as Graph, IndexOptions, MetricKind, ScalarKind};
 use super::Error;
 
 use mailstronaut_models::{DIMENSIONS, MAX_WINDOWS as WINDOWS};
+/// The verified encoder used by this semantic backend.
+pub use mailstronaut_models::{Encoder, POLICY as ENCODER_POLICY};
 const MAX_GRAPH_BYTES: u64 = 1024 * 1024 * 1024;
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS state (
@@ -265,6 +267,16 @@ impl Index {
         Ok(self.sources.get(&id).is_some_and(|stored| stored == source))
     }
 
+    /// Whether an original has any cached source, for idempotent removal replay.
+    /// # Errors
+    /// A failed mutation requires reopening before consulting cached state.
+    pub fn has_original(&self, id: i64) -> Result<bool, Error> {
+        if !self.healthy {
+            return Err(Error::Storage);
+        }
+        Ok(self.sources.contains_key(&id))
+    }
+
     /// Search allowed canonical revisions before applying the bounded message cap.
     /// The caller materializes enabled-account/folder/date/sender restrictions from
     /// the canonical store; a different source revision is never a match.
@@ -276,7 +288,25 @@ impl Index {
         allowed: &BTreeMap<i64, String>,
         limit: usize,
     ) -> Result<Vec<i64>, Error> {
-        if !self.healthy || !valid(query) || !(1..=1000).contains(&limit) {
+        self.search_above(query, allowed, limit, -1.)
+    }
+
+    /// Related-mail candidates above a cosine floor, not a relevance probability.
+    /// Canonical revision and scope checks still precede the bounded message cap.
+    /// # Errors
+    /// Rejects invalid query vectors, limits and nonfinite/out-of-range floors.
+    pub fn search_above(
+        &self,
+        query: &[f32],
+        allowed: &BTreeMap<i64, String>,
+        limit: usize,
+        minimum_similarity: f32,
+    ) -> Result<Vec<i64>, Error> {
+        if !self.healthy
+            || !valid(query)
+            || !(1..=1000).contains(&limit)
+            || !(-1. ..=1.).contains(&minimum_similarity)
+        {
             return Err(Error::Storage);
         }
         if allowed.is_empty() {
@@ -296,7 +326,9 @@ impl Index {
         Ok(hits
             .keys
             .into_iter()
-            .filter_map(|key| i64::try_from(key).ok())
+            .zip(hits.distances)
+            .filter(|(_, distance)| distance.is_finite() && *distance <= 1. - minimum_similarity)
+            .filter_map(|(key, _)| i64::try_from(key).ok())
             .filter(|id| seen.insert(*id))
             .take(limit)
             .collect())
@@ -453,6 +485,23 @@ mod tests {
                 .search(&vector(0), &allowed(&[1, 2]), 2)
                 .expect("query"),
             [1, 2]
+        );
+        assert_eq!(
+            index
+                .search_above(&vector(0), &allowed(&[1, 2]), 2, 0.371)
+                .expect("related floor"),
+            [1]
+        );
+        assert_eq!(
+            index
+                .search_above(&vector(0), &allowed(&[2]), 2, 0.371)
+                .expect("unrelated"),
+            Vec::<i64>::new()
+        );
+        assert!(
+            index
+                .search_above(&vector(0), &allowed(&[1]), 2, f32::NAN)
+                .is_err()
         );
         let mut scope = allowed(&[1, 2]);
         scope.insert(1, "b".repeat(64));

@@ -73,7 +73,7 @@ fn real_model_vectors_preserve_frozen_relevance_through_private_index_and_restar
         for (query, vector) in fixtures.queries.iter().zip(&vectors.queries) {
             let vector: Vec<_> = vector.iter().copied().map(f32::from_bits).collect();
             let hits = index
-                .search(&vector, &allowed, 3)
+                .search_above(&vector, &allowed, 3, 0.371)
                 .expect("scoped semantic retrieval");
             let rank = hits.iter().position(|id| *id == query.expected);
             first += usize::from(rank == Some(0));
@@ -92,7 +92,9 @@ fn real_model_vectors_preserve_frozen_relevance_through_private_index_and_restar
         for (vector, expected) in vectors.queries.iter().zip(before) {
             let vector: Vec<_> = vector.iter().copied().map(f32::from_bits).collect();
             assert_eq!(
-                index.search(&vector, &allowed, 3).expect("reopened query"),
+                index
+                    .search_above(&vector, &allowed, 3, 0.371)
+                    .expect("reopened query"),
                 expected
             );
         }

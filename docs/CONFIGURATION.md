@@ -96,6 +96,10 @@ in
     pollSeconds = 300;
     maxBodyBytes = 2097152;
   };
+  search = {
+    semantic = false; # explicitly enables the Related search button
+    modelDirectory = null; # explicitly installed pinned MiniLM directory
+  };
   priority = {
     enabled = true;
     modelDirectory = null; # null: rules only, no network/download
@@ -432,6 +436,46 @@ managed file or activates Home Manager. The user can import the saved attrset as
 the module's native `settings`, or install it directly with `xdg.configFile`.
 This gives a short declare → edit → export → review/import workflow without a
 bidirectional dotfile editor or another configuration language.
+
+### Local search by meaning
+
+`search.semantic` defaults to false. Enabling it exposes a **Related** button next
+to the ordinary search field; words stay the default. Related suggestions can
+cross languages, but may include unrelated mail. Quotes and `from:`/`subject:`
+constraints keep their literal/fielded intent. The pinned model is independent of
+`priority.enabled`, which still controls priority rules/classification.
+
+Install the model explicitly with `nix build .#semantic-model`. In a Home Manager
+configuration using this project's flake input, the native settings can reference
+its immutable output directly:
+
+```nix
+programs.mailstronaut = {
+  enable = true;
+  mutableSettings = true;
+  settings.search = {
+    semantic = true;
+    modelDirectory = "${mailstronaut.packages.${pkgs.stdenv.hostPlatform.system}.semantic-model}";
+  };
+};
+```
+
+Here `mailstronaut` denotes the project's flake input. Declaring the model path
+realizes that separate hashed model derivation; the application never downloads
+weights. An ordinary absolute installation path also works if all pinned files
+verify. The GUI's standard Search settings use the same native ownership,
+Save/Discard and Export to Nix flow. Managed sources remain read-only. Home Manager
+reactivation of this new setting still needs its own runtime acceptance.
+
+The status bar reports indexed originals, pending work and excerpt-only coverage;
+missing/corrupt installations are explicit and leave lexical/fuzzy search usable.
+The local derived cache lives under the XDG data directory in `mailstronaut/meaning`.
+It uses the canonical source hashes and model/projection policy; it is not a second
+configuration file. Text is bounded by `min(sync.maxBodyBytes, 32768)`, with up to
+eight token windows per original. This is partial analysis for long mail, not
+complete-message semantic coverage. Inference runs off the UI thread and never
+changes Seen. The frozen no-answer quality gate and combined 100k app budgets
+remain open; see [SEARCH.md](SEARCH.md).
 
 ## Provider and authentication matrix
 

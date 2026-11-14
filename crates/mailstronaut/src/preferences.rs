@@ -62,6 +62,8 @@ struct Values {
     zone: String,
     morning: String,
     evening: String,
+    meaning: bool,
+    meaning_directory: String,
     priority: bool,
     model_directory: String,
     model_revision: String,
@@ -85,6 +87,8 @@ impl Values {
             zone: config.time_zone.clone().unwrap_or_default(),
             morning: config.reminders.morning.clone(),
             evening: config.reminders.evening.clone(),
+            meaning: config.search.semantic,
+            meaning_directory: config.search.model_directory.clone().unwrap_or_default(),
             priority: config.priority.enabled,
             model_directory: config.priority.model_directory.clone().unwrap_or_default(),
             model_revision: config.priority.model_revision.clone().unwrap_or_default(),
@@ -159,6 +163,14 @@ impl Values {
             native::merge(
                 &mut patch,
                 json!({"reminders": {"evening": self.evening.trim()}}),
+            );
+        }
+        if self.meaning != baseline.meaning || self.meaning_directory != baseline.meaning_directory
+        {
+            let directory = self.meaning_directory.trim();
+            native::merge(
+                &mut patch,
+                json!({"search": {"semantic": self.meaning, "modelDirectory": if directory.is_empty() { None } else { Some(directory) }}}),
             );
         }
         if self.priority != baseline.priority {
@@ -650,6 +662,33 @@ impl Preferences {
                 .description("Notification previews can reveal private mail on screen.")
                 .disabled(disabled),
             )
+    }
+
+    pub fn search(
+        view: &Entity<Self>,
+        cx: &App,
+        state: Option<crate::mail_semantic::State>,
+    ) -> SettingGroup {
+        let disabled = !view.read(cx).editable() || view.read(cx).busy();
+        let (enabled, set_enabled) = Self::bind(view, |v| v.meaning, |v, value| v.meaning = value);
+        let (directory, set_directory) = Self::bind::<SharedString>(
+            view,
+            |v| v.meaning_directory.clone().into(),
+            |v, value| v.meaning_directory = value.to_string(),
+        );
+        SettingGroup::new().title("Search")
+            .item(SettingItem::new("Search by meaning", SettingField::switch(enabled,set_enabled))
+                .description("Enable the Related search button for cross-language suggestions. Results may include unrelated mail. Runs on this device; quotes keep searches literal.")
+                .keywords(["semantic", "meaning", "search", "model"]).disabled(disabled))
+            .item(SettingItem::new("Search model directory", SettingField::input(directory,set_directory))
+                .description("Explicitly install the pinned semantic-model Nix package and use its directory. No automatic downloads; independent of priority mail.")
+                .keywords(["semantic", "meaning", "search", "model"]).disabled(disabled))            .item(SettingItem::render(move |_,_,_| {
+                match &state {
+                    Some(state) if matches!(state, crate::mail_semantic::State::Unavailable(_)) => Alert::warning("meaning-model-state",state.label()),
+                    Some(state) => Alert::info("meaning-model-state",state.label()),
+                    None => Alert::info("meaning-model-state","Meaning search is disabled. Save preferences to apply changes."),
+                }
+            }).keywords(["meaning", "semantic", "search", "model"]))
     }
 
     pub fn priority(view: &Entity<Self>, cx: &App) -> SettingGroup {
