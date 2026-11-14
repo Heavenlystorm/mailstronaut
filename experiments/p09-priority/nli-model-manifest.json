@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "modelId": "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli",
+  "revision": "0a71e92a985b6e1ad1828cf67ce9c459639c1dca",
+  "license": "MIT",
+  "licenseEvidence": "README.md",
+  "architecture": "XLMRobertaForSequenceClassification",
+  "maxTokens": 512,
+  "labels": [
+    "entailment",
+    "neutral",
+    "contradiction"
+  ],
+  "files": [
+    {
+      "name": "README.md",
+      "url": "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/README.md",
+      "sizeBytes": 6741,
+      "sha256": "f28aebb1babf603b5c5c107670645f2b00e09a2e9a39132293ad0a9a7ab6fa34",
+      "hash": "sha256-8orrsbq/YDtcXBB2cGRfKwDgmi6aORMik60Kmnq2+jQ="
+    },
+    {
+      "name": "config.json",
+      "url": "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/config.json",
+      "sizeBytes": 1032,
+      "sha256": "79862295be1538a947e0f56d495ef8d658c3eaebcfb42c7ad96229d195ca745d",
+      "hash": "sha256-eYYilb4VOKlH4PVtSV741ljD6uvPtCx62WIp0ZXKdF0="
+    },
+    {
+      "name": "model.safetensors",
+      "url": "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/model.safetensors",
+      "sizeBytes": 427997022,
+      "sha256": "91b323ccf247ec1e3b5925d566230bae7c52de8147e6062b42e250089a3fc80b",
+      "hash": "sha256-kbMjzPJH7B47WSXVZiMLrnxS3oFH5gYrQuJQCJo/yAs="
+    },
+    {
+      "name": "special_tokens_map.json",
+      "url": "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/special_tokens_map.json",
+      "sizeBytes": 280,
+      "sha256": "06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f",
+      "hash": "sha256-BuQFo23+S5YE9IT2oeYZrxp/fQnjSoVV6wt3tmMYBn8="
+    },
+    {
+      "name": "tokenizer.json",
+      "url": "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/tokenizer.json",
+      "sizeBytes": 17082758,
+      "sha256": "098c131bb4423163db239755e309facaa6850059f850f9f3d88a78344a4b631c",
+      "hash": "sha256-CYwTG7RCMWPbI5dV4wn6yqaFAFn4UPnz2Ip4NEpLYxw="
+    },
+    {
+      "name": "tokenizer_config.json",
+      "url": "https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli/resolve/0a71e92a985b6e1ad1828cf67ce9c459639c1dca/tokenizer_config.json",
+      "sizeBytes": 565,
+      "sha256": "86139ce1f39e814bcdb99a6fe30c0c4983911508aad07417e616d994fb74eb25",
+      "hash": "sha256-hhOc4fOegUvNuZpv4wwMSYORFQiq0HQX5hbZlPt06yU="
+    }
+  ]
+}

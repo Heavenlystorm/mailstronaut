@@ -48,3 +48,4 @@ experiments/p06-search/meaning.sh
 experiments/p07-compose/delivery.sh
 experiments/p07-compose/actions.sh
 experiments/p09-priority/gui.sh
+experiments/p09-priority/nli.sh

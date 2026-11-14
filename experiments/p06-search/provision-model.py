@@ -8,20 +8,26 @@ import sys
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-assert sys.argv[1:] in [[], ["--potion"], ["--minilm"]], "Usage: provision-model.py [--potion|--minilm]"
+assert sys.argv[1:] in [[], ["--potion"], ["--minilm"], ["--nli"]], "Usage: provision-model.py [--potion|--minilm|--nli]"
+NLI = sys.argv[1:] == ["--nli"]
 POTION = sys.argv[1:] == ["--potion"]
 MINILM = sys.argv[1:] == ["--minilm"]
 MANIFEST = json.loads((ROOT / "experiments/p06-search" /
-                       ("potion-model-manifest.json" if POTION else
+                       ("../p09-priority/nli-model-manifest.json" if NLI else
+                        "potion-model-manifest.json" if POTION else
                         "minilm-model-manifest.json" if MINILM else "model-manifest.json")).read_text())
 DESTINATION = ROOT / "target/p06-search" / ("model-potion" if POTION else
                                           "model-minilm" if MINILM else "model")
+if NLI:
+    DESTINATION = ROOT / "target/p09-priority/model"
 DESTINATION.mkdir(mode=0o700, parents=True, exist_ok=True)
 assert DESTINATION.resolve().is_relative_to((ROOT / "target").resolve())
 PREFIX = (f"https://huggingface.co/{MANIFEST['modelId']}/resolve/"
           f"{MANIFEST['revision']}/")
 EXPECTED = {"model.safetensors", "tokenizer.json", "config.json",
             "tokenizer_config.json", "special_tokens_map.json"}
+if NLI:
+    EXPECTED |= {"README.md"}
 if POTION:
     EXPECTED = {"model.safetensors", "tokenizer.json", "config.json"}
 if MINILM:
