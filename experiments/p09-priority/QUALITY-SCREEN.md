@@ -157,3 +157,20 @@ policy changes only the four hypotheses before this export; its inherited
 three-way thresholds are not a final calibrated policy. Any later threshold
 selection may use only these 108 development rows. The 90 held-out rows remain
 unencoded and cannot be used to select hypotheses or thresholds.
+
+
+## Development calibration of the second-person observations
+
+Before recalculating combined metrics, register a single small revised policy:
+use the maintained independent-label entailment-versus-contradiction action score
+>=0.70, while retaining three-way action entailment >=0.25 and neutral <=0.75.
+Require an existing future actionable deadline or three-way urgency entailment
+>=0.15, neutral <=0.75 and urgency entailment-versus-contradiction >=0.40. The
+urgency vote is deliberately weaker than the action vote; it cannot independently
+create priority. Strong contradiction/information vetoes and definitive rule
+guards are unchanged. Do not interpret these scores as calibrated probabilities.
+This policy is chosen from the development-only wording observations, including
+their false/neutral receipt examples, before computing its aggregate metrics.
+Preserve the inherited-threshold p2 result as another non-improving outcome.
+No held-out row has been encoded; final adoption still requires its unchanged
+quality and benefit gates.

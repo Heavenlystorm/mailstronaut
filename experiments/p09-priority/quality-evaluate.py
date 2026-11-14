@@ -49,7 +49,14 @@ for row in report['rows']:
     future = [item for item in rules['deadlines'] if item['ends_at'] is not None and item['ends_at']>row['as_of']]
     deadline = min(future,key=lambda item:item['ends_at'])['date'] if future else None
     baseline = rules['priority'] and rules['expires_at'] is not None and rules['expires_at']>row['as_of']
-    positive = action>=threshold['actionMin'] and action-neutral>=threshold['actionMargin'] and (urgency>=threshold['urgencyMin'] or bool(future))
+    if policy.get('scoreMode') == 'independent-label-with-neutral-v1':
+        action_vote = (action>=threshold['actionMin'] and neutral<=threshold['actionNeutralMax']
+                       and action/(action+contradiction)>=threshold['actionEntailmentVsContradictionMin'])
+        urgent_vote = (urgency>=threshold['urgencyMin'] and probabilities[1][1]<=threshold['urgencyNeutralMax']
+                       and urgency/(urgency+probabilities[1][2])>=threshold['urgencyEntailmentVsContradictionMin'])
+        positive = action_vote and (urgent_vote or bool(future))
+    else:
+        positive = action>=threshold['actionMin'] and action-neutral>=threshold['actionMargin'] and (urgency>=threshold['urgencyMin'] or bool(future))
     negative = ((contradiction>=threshold['contradictionMin'] and contradiction-neutral>=threshold['contradictionMargin'])
                 or (information>=threshold['informationMin'] and action<=threshold['vetoActionMax']))
     conflicting = information>=threshold['informationMin'] and action>threshold['vetoActionMax']

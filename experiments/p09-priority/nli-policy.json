@@ -1,10 +1,9 @@
 {
-  "version": "nli-0a71-p2-development",
+  "version": "nli-0a71-p2-calibration",
   "rulesPolicy": 2,
   "rulesSourceSha256": "dfd44d4c7d8ffd0c87683c6ffecf063520b9766ec2c6e37dc7c693bc17d6e7b0",
-  "actionMin": 0.7,
-  "actionMargin": 0.15,
-  "urgencyMin": 0.65,
+  "actionMin": 0.25,
+  "urgencyMin": 0.15,
   "informationMin": 0.8,
   "vetoActionMax": 0.3,
   "contradictionMin": 0.7,
@@ -19,5 +18,10 @@
     "You have a time-sensitive obligation.",
     "You do not need to do anything in response.",
     "You need to act today or tomorrow."
-  ]
+  ],
+  "scoreMode": "independent-label-with-neutral-v1",
+  "actionEntailmentVsContradictionMin": 0.7,
+  "actionNeutralMax": 0.75,
+  "urgencyEntailmentVsContradictionMin": 0.4,
+  "urgencyNeutralMax": 0.75
 }
