@@ -126,7 +126,7 @@ unencoded. [Initial results](../../docs/evidence/artifacts/p09-quality/p1-develo
 Before further calibration, freeze `hypothesis-candidates.json`: two simpler
 hypothesis families and three elementary NLI label-order sanity controls. Compare
 only bare development examples from enrollment, the implied blocking request and
-marketing in all three languages; no held-out or challenge example is used. Keep
+receipts in all three languages; no held-out or challenge example is used. Keep
 all scores and the initial outcome. This diagnoses whether metatextual wording,
 input framing or scoring is at fault before selecting any new policy.
 The maintained Transformers [zero-shot pipeline](https://github.com/huggingface/transformers/blob/main/src/transformers/pipelines/zero_shot_classification.py)
@@ -134,3 +134,11 @@ uses templated hypotheses and, in independent-label mode, entailment-versus-
 contradiction normalization. Any use of that standard score must retain the
 three-way neutral value for abstention, be calibrated only on development and
 be frozen before held-out evaluation. It is not a trustworthy confidence number.
+
+The diagnostic's split assertion initially stopped after the three elementary
+controls: marketing belongs to the held-out split, so it was correctly excluded
+and the expected nine development examples were not available. No variant or
+held-out example was encoded. Replace that diagnostic group with the already
+frozen development receipt family before running the wording comparison; never
+move or alter the original corpus split. The three basic controls confirm the
+published entailment/neutral/contradiction label interpretation.
