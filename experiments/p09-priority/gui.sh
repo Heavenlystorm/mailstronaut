@@ -45,6 +45,7 @@ cat > "$config" <<NIX
   schemaVersion = 1;
   managed = true;
   appearance = "light";
+  timeZone = "Europe/Paris";
   sync.pollSeconds = 3600;
   priority.enabled = true;
   accounts = [{
@@ -144,6 +145,35 @@ sleep 1.5
 capture uncertain
 [[ $(query "SELECT a.expires_at IS NULL FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Unclear form'") == 1 ]]
 printf '%s\n' 'OK: an uncertain date gave the message no priority'
+if [[ ${MAILSTRONAUT_DEADLINE_CORRECTION:-0} == 1 ]]; then
+  correction="SELECT c.due FROM deadline_corrections c JOIN messages m ON m.id=c.message_id WHERE m.subject='Unclear form'"
+  click 656 370
+  capture correction-dialog
+  wtype -k Escape -s 500
+  [[ $(query 'SELECT count(*) FROM deadline_corrections') == 0 ]]
+  click 656 370
+  click 640 172
+  capture correction-calendar
+  # GPUI Kit opens April 2030 from the detected date. The 15th falls
+  # in the second column of the third week in this Sunday-first calendar.
+  click 493 352
+  capture correction-selected
+  click 790 220
+  await 'the selected deadline persisted on the exact original' '2030-04-15' "$correction"
+  [[ $(query "SELECT count(*) FROM deadline_corrections WHERE priority_until IS NOT NULL") == 0 ]]
+  [[ $(query "SELECT json_extract(data,'\$.zone') FROM deadline_corrections") == 'Europe/Paris' ]]
+  [[ $(query "SELECT json_extract(data,'\$.ends_at') FROM deadline_corrections") == "$(date -d '2030-04-15T22:00:00Z' +%s)" ]]
+  capture corrected
+  close_window
+  start correction-restart
+  click 595 65
+  wtype -s 80 'Unclear form'
+  sleep 1.5
+  click 350 150
+  sleep 1.5
+  await 'the correction survived reopening the original' '2030-04-15' "$correction"
+  capture corrected-after-restart
+fi
 # A group longer than its limit says so, and Show all lists every one of them.
 for number in $(seq 1 21); do
   message "bulk$number" 'Registrar' "Form $number" 'Please return this form by tomorrow.'
@@ -158,6 +188,26 @@ sleep 1.5
 capture show-all
 [[ $(query "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject LIKE 'Form %' AND a.expires_at>strftime('%s','now') AND a.dismissed=0 AND m.read_cleared=0") == 21 ]]
 printf '%s\n' 'OK: all 21 forms still need attention, more than the group shows at first'
+if [[ ${MAILSTRONAUT_DEADLINE_CORRECTION:-0} == 1 ]]; then
+  message timed-correction 'Registrar' 'Timed correction sample' 'The questionnaire is due 15 April 2030 at 10:30.'
+  await 'a timed original was analyzed' 1 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Timed correction sample' AND a.expires_at IS NOT NULL"
+  click 595 65
+  wtype -s 80 'Timed correction sample' -s 1200
+  click 350 150
+  capture timed-original
+  click 656 390
+  capture timed-dialog
+  click 640 172
+  capture timed-picker
+  # Edit the embedded clock using the same time field as custom reminders.
+  click 618 470
+  wtype -s 200 '1142' -s 300 -k Escape -s 300
+  capture timed-selected
+  click 790 220
+  await 'the timed deadline persisted with the new time' '2030-04-15 11:42' "SELECT c.due FROM deadline_corrections c JOIN messages m ON m.id=c.message_id WHERE m.subject='Timed correction sample'"
+  [[ $(query "SELECT json_extract(c.data,'\$.ends_at') FROM deadline_corrections c JOIN messages m ON m.id=c.message_id WHERE m.subject='Timed correction sample'") == "$(date -d '2030-04-15T09:42:00Z' +%s)" ]]
+  capture timed-corrected
+fi
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then

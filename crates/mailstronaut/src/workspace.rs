@@ -53,6 +53,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::mailbox::{Priority, Row, Rows};
 
+mod deadlines;
+
 /// How long a queued move can be undone before the server is told about it.
 const UNDO_GRACE: Duration = Duration::from_secs(8);
 /// Returning to the window checks for mail, at most this often.
@@ -199,6 +201,7 @@ pub struct Workspace {
     opened_omitted: Option<mailstronaut_core::outline::Omitted>,
     /// Why the opened message was or was not flagged, if it has been analyzed.
     opened_analysis: Option<mailstronaut_priority::Analysis>,
+    corrected_deadline: Option<mailstronaut_core::store::analysis::DeadlineCorrection>,
     preferred_reader: ReaderMode,
     reader_notice: String,
     headers_open: bool,
@@ -723,6 +726,7 @@ impl Workspace {
             opened_message: None,
             opened_omitted: None,
             opened_analysis: None,
+            corrected_deadline: None,
             preferred_reader: ReaderMode::Html,
             reader_notice: String::new(),
             headers_open: false,
@@ -1053,6 +1057,7 @@ impl Workspace {
         self.opened_message = None;
         self.opened_omitted = None;
         self.opened_analysis = None;
+        self.corrected_deadline = None;
         self.headers_open = false;
         self.reader_notice.clear();
         self.read_gate
@@ -1463,7 +1468,10 @@ impl Workspace {
                     .analysis_data(row.id)
                     .await?
                     .and_then(|data| serde_json::from_str(&data).ok());
-                Ok::<_, mailstronaut_core::worker::Error>((message, omitted, analysis))
+                let corrected = handle
+                    .deadline_correction(row.account.clone(), row.id)
+                    .await?;
+                Ok::<_, mailstronaut_core::worker::Error>((message, omitted, analysis, corrected))
             });
             cx.spawn_in(window, async move |this, cx| {
                 let result = job.await;
@@ -1474,9 +1482,10 @@ impl Workspace {
                         return;
                     }
                     match result {
-                        Ok(Ok((message, omitted, analysis))) => {
+                        Ok(Ok((message, omitted, analysis, corrected))) => {
                             this.opened_omitted = omitted;
                             this.opened_analysis = analysis;
+                            this.corrected_deadline = corrected;
                             let readable = message.readable_text();
                             let text = readable.map_or_else(
                                 || "No readable body is cached.".into(),
@@ -3004,19 +3013,24 @@ impl Workspace {
             .opened_analysis
             .as_ref()
             .map_or_else(Vec::new, |analysis| {
+                if self.corrected_deadline.is_some() {
+                    return Vec::new();
+                }
                 crate::mail_priority::explanation(analysis)
                     .into_iter()
                     .chain(crate::mail_priority::deadline_notes(analysis))
                     .collect()
             });
         let muted = cx.theme().muted_foreground;
-        div().when(!notes.is_empty(), |view| {
-            view.mb_3().children(
-                notes
-                    .into_iter()
-                    .map(|note| Label::new(note).text_sm().text_color(muted)),
-            )
-        })
+        div()
+            .when(!notes.is_empty(), |view| {
+                view.mb_3().children(
+                    notes
+                        .into_iter()
+                        .map(|note| Label::new(note).text_sm().text_color(muted)),
+                )
+            })
+            .child(self.deadline_controls(cx))
     }
 
     /// Attachments of a message too large to keep are listed like any others, and

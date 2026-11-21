@@ -3,7 +3,10 @@
 //! The store owns final eligibility, not whatever produced a result: reading, dismissing
 //! and expiry are decided here, so that a late result can never bring a message back.
 
+use chrono::{Days, LocalResult, NaiveDate, NaiveTime, TimeZone as _};
+use chrono_tz::Tz;
 use rusqlite::{OptionalExtension as _, params};
+use serde::{Deserialize, Serialize};
 
 use super::{Error, Store};
 
@@ -14,6 +17,84 @@ ALTER TABLE analysis ADD COLUMN due TEXT;
 ALTER TABLE analysis ADD COLUMN dismissed INTEGER NOT NULL DEFAULT 0 CHECK(dismissed IN (0, 1));
 CREATE INDEX analysis_expiry ON analysis(expires_at) WHERE expires_at IS NOT NULL;
 ";
+
+pub(super) const DEADLINE_CORRECTIONS_SCHEMA: &str = "
+CREATE TABLE deadline_corrections (
+ message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+ data TEXT NOT NULL,
+ due TEXT NOT NULL,
+ priority_until INTEGER
+);
+";
+
+/// A deadline explicitly entered by the reader.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DeadlineCorrection {
+    /// The selected civil date.
+    pub date: NaiveDate,
+    /// An explicit time, or the end of the selected date.
+    pub time: Option<NaiveTime>,
+    /// The timezone in effect when the user made the correction.
+    pub zone: String,
+    /// The fixed expiration instant in Unix seconds.
+    pub ends_at: i64,
+}
+
+/// One explicit correction to the deadline of a cached original.
+#[derive(Clone, Debug)]
+pub struct CorrectDeadline {
+    /// The original's owning account.
+    pub account: String,
+    /// Canonical message ID.
+    pub message: i64,
+    /// The selected civil date.
+    pub date: NaiveDate,
+    /// An explicit time, or the end of the selected date.
+    pub time: Option<NaiveTime>,
+    /// The timezone used to interpret the selection.
+    pub zone: Tz,
+    /// When the user submitted the correction, in Unix seconds.
+    pub now: i64,
+}
+
+impl CorrectDeadline {
+    /// Resolve the civil time. An ambiguous or nonexistent explicit time has no
+    /// single instant and must be corrected at the input.
+    #[must_use]
+    pub fn resolve(&self) -> Option<DeadlineCorrection> {
+        let ends_at = if let Some(time) = self.time {
+            self.zone
+                .from_local_datetime(&self.date.and_time(time))
+                .single()?
+        } else {
+            let next = self.date.checked_add_days(Days::new(1))?;
+            let midnight = next.and_hms_opt(0, 0, 0)?;
+            let boundary = match self.zone.from_local_datetime(&midnight) {
+                LocalResult::Single(at) | LocalResult::Ambiguous(at, _) => at,
+                LocalResult::None => self
+                    .zone
+                    .from_local_datetime(&self.date.and_hms_opt(23, 59, 59)?)
+                    .single()?
+                    .checked_add_signed(chrono::TimeDelta::seconds(1))?,
+            };
+            // A calendar date skipped entirely by this zone has no deadline.
+            if boundary
+                .checked_sub_signed(chrono::TimeDelta::seconds(1))?
+                .date_naive()
+                != self.date
+            {
+                return None;
+            }
+            boundary
+        };
+        Some(DeadlineCorrection {
+            date: self.date,
+            time: self.time,
+            zone: self.zone.name().into(),
+            ends_at: ends_at.timestamp(),
+        })
+    }
+}
 
 /// A newly arrived message, as far as announcing it needs.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -76,6 +157,60 @@ pub struct PriorityItem {
 const IN_INBOX: &str = "EXISTS(SELECT 1 FROM effective_memberships s JOIN folders f ON f.id=s.folder_id AND f.account_id=s.account_id AND f.uidvalidity=s.uidvalidity WHERE s.message_id=m.id AND s.account_id=m.account_id AND f.is_inbox=1 AND s.seen=0)";
 
 impl Store {
+    /// Save user evidence independently of automatic analysis. A correction can
+    /// change an active priority deadline but cannot start or restart priority.
+    /// # Errors
+    /// Rejects invalid civil times and originals no longer in the declared account.
+    pub fn correct_deadline(
+        &mut self,
+        edit: &CorrectDeadline,
+    ) -> Result<DeadlineCorrection, Error> {
+        let corrected = edit.resolve().ok_or(Error::InvalidInput)?;
+        let due = corrected.time.map_or_else(
+            || corrected.date.to_string(),
+            |time| format!("{} {}", corrected.date, time.format("%H:%M")),
+        );
+        let count = self.connection.execute(
+            &format!(
+                "INSERT INTO deadline_corrections(message_id,data,due,priority_until)
+                 SELECT m.id,?3,?4,CASE WHEN m.read_cleared=0 AND a.dismissed=0 AND {IN_INBOX}
+                   AND (CASE WHEN c.message_id IS NULL THEN a.expires_at ELSE c.priority_until END)>?5
+                   THEN ?6 END
+                 FROM messages m LEFT JOIN analysis a ON a.message_id=m.id
+                 LEFT JOIN deadline_corrections c ON c.message_id=m.id
+                 WHERE m.account_id=?1 AND m.id=?2
+                 ON CONFLICT(message_id) DO UPDATE SET data=excluded.data,due=excluded.due,
+                   priority_until=excluded.priority_until"
+            ),
+            params![edit.account, edit.message, serde_json::to_string(&corrected)?, due, edit.now, corrected.ends_at],
+        )?;
+        if count == 0 {
+            return Err(Error::MissingMessage);
+        }
+        Ok(corrected)
+    }
+
+    /// Read the user's correction for an original in the specified account.
+    /// # Errors
+    /// Reports storage or decoding failures.
+    pub fn deadline_correction(
+        &self,
+        account: &str,
+        message: i64,
+    ) -> Result<Option<DeadlineCorrection>, Error> {
+        let data: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT c.data FROM deadline_corrections c JOIN messages m ON m.id=c.message_id
+             WHERE m.account_id=?1 AND m.id=?2",
+                params![account, message],
+                |row| row.get(0),
+            )
+            .optional()?;
+        data.map(|data| serde_json::from_str(&data).map_err(Error::from))
+            .transpose()
+    }
+
     /// Unread inbox mail received since a moment and not yet analyzed by this policy.
     /// # Errors
     /// Rejects invalid limits and reports storage failures.
@@ -171,10 +306,19 @@ impl Store {
             return Err(Error::InvalidInput);
         }
         let mut query = self.connection.prepare_cached(&format!(
-            "SELECT m.id,a.expires_at,a.due FROM analysis a JOIN messages m ON m.id=a.message_id
-             WHERE a.expires_at>?2 AND a.dismissed=0 AND m.read_cleared=0
+            "WITH active(message_id,ends_at,due) AS (
+               SELECT a.message_id,a.expires_at,a.due FROM analysis a
+               WHERE a.expires_at>?2 AND a.dismissed=0
+                 AND NOT EXISTS(SELECT 1 FROM deadline_corrections c WHERE c.message_id=a.message_id)
+               UNION ALL
+               SELECT c.message_id,c.priority_until,c.due FROM deadline_corrections c
+                JOIN analysis a ON a.message_id=c.message_id
+               WHERE c.priority_until>?2 AND a.dismissed=0
+             )
+             SELECT m.id,active.ends_at,active.due FROM active JOIN messages m ON m.id=active.message_id
+             WHERE m.read_cleared=0
              AND m.account_id IN (SELECT value FROM json_each(?1)) AND {IN_INBOX}
-             ORDER BY a.expires_at,m.id DESC LIMIT ?3"
+             ORDER BY active.ends_at,m.id DESC LIMIT ?3"
         ))?;
         query
             .query_map(
@@ -555,6 +699,107 @@ mod tests {
             Vec::<i64>::new()
         );
         assert!(fixture.store.new_inbox_mail("a", None, 0, 0).is_err());
+    }
+
+    fn correction(message: i64, now: i64) -> CorrectDeadline {
+        CorrectDeadline {
+            account: "a".into(),
+            message,
+            date: NaiveDate::from_ymd_opt(2026, 10, 25).expect("date"),
+            time: None,
+            zone: chrono_tz::Europe::Paris,
+            now,
+        }
+    }
+
+    #[test]
+    fn a_correction_controls_active_expiry_and_survives_reanalysis_and_cache_clear() {
+        let mut fixture = fixture();
+        let inbox = fixture.inbox;
+        let now = 1_792_908_000;
+        let id = cache(&mut fixture, inbox, 1, false, now);
+        let unowned = cache(&mut fixture, inbox, 2, false, now);
+        give_priority(&mut fixture, id, now + 100);
+        let edit = correction(id, now);
+        let corrected = fixture
+            .store
+            .correct_deadline(&edit)
+            .expect("correct deadline");
+        let end = chrono::DateTime::parse_from_rfc3339("2026-10-26T00:00:00+01:00")
+            .expect("first instant after the long local day")
+            .timestamp();
+        assert_eq!(corrected.ends_at, end);
+        give_priority(&mut fixture, id, now + 200);
+        let items = fixture
+            .store
+            .priority_items(&accounts(), now + 300, 10)
+            .expect("group");
+        assert_eq!(
+            items,
+            [PriorityItem {
+                id,
+                expires_at: end,
+                due: Some("2026-10-25".into())
+            }]
+        );
+        assert_eq!(group(&fixture, end), Vec::<i64>::new());
+        assert_eq!(
+            fixture.store.deadline_correction("b", id).expect("foreign"),
+            None
+        );
+        assert!(
+            fixture
+                .store
+                .correct_deadline(&CorrectDeadline {
+                    account: "b".into(),
+                    ..edit
+                })
+                .is_err()
+        );
+
+        fixture.store.clear_cache("a").expect("clear cache");
+        assert_eq!(
+            fixture
+                .store
+                .deadline_correction("a", id)
+                .expect("saved correction"),
+            Some(corrected)
+        );
+        assert!(matches!(
+            fixture.store.message("a", unowned),
+            Err(Error::MissingMessage)
+        ));
+    }
+
+    #[test]
+    fn corrections_never_start_priority_for_expired_dismissed_or_read_originals() {
+        let mut fixture = fixture();
+        let inbox = fixture.inbox;
+        let now = 1_792_908_000;
+        let expired = cache(&mut fixture, inbox, 1, false, now - 200);
+        let dismissed = cache(&mut fixture, inbox, 2, false, now);
+        let read = cache(&mut fixture, inbox, 3, true, now);
+        give_priority(&mut fixture, expired, now - 1);
+        give_priority(&mut fixture, dismissed, now + 100);
+        give_priority(&mut fixture, read, now + 100);
+        fixture.store.dismiss_priority(dismissed).expect("dismiss");
+        for id in [expired, dismissed, read] {
+            fixture
+                .store
+                .correct_deadline(&correction(id, now))
+                .expect("save evidence");
+            give_priority(&mut fixture, id, now + 9000);
+        }
+        assert_eq!(group(&fixture, now), Vec::<i64>::new());
+    }
+
+    #[test]
+    fn an_explicit_time_in_a_dst_fold_or_gap_is_rejected() {
+        let mut edit = correction(1, 0);
+        edit.time = NaiveTime::from_hms_opt(2, 30, 0);
+        assert_eq!(edit.resolve(), None);
+        edit.date = NaiveDate::from_ymd_opt(2026, 3, 29).expect("gap date");
+        assert_eq!(edit.resolve(), None);
     }
 
     #[test]

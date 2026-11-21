@@ -27,7 +27,7 @@ pub mod reminders;
 pub mod search;
 pub mod semantic;
 
-const SCHEMA_VERSION: u32 = 15;
+const SCHEMA_VERSION: u32 = 16;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -190,6 +190,7 @@ impl Store {
             M::up(moves::HOLD_SCHEMA).foreign_key_check(),
             M::up(backfill::SCHEMA).foreign_key_check(),
             M::up(semantic::SCHEMA).foreign_key_check(),
+            M::up(analysis::DEADLINE_CORRECTIONS_SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -262,10 +263,9 @@ impl Store {
         return Ok(());
     }
 
-    /// Drop one account's cached mail. What the user owns stays: messages that a reminder, a
-    /// queued move or a pending flag change still refers to, and everything in drafts and the
-    /// outbox. Every folder's history pass starts again, since nothing it fetched remains.
-    /// Original messages that nothing references are then removed from disk too.
+    /// Drop one account's cached mail. Keep originals with reminders, pending moves,
+    /// pending flag changes or corrected deadlines. Drafts and the outbox are preserved.
+    /// Reset each folder's history pass and remove unreferenced originals from disk.
     ///
     /// # Errors
     /// Reports storage and filesystem failures, and then nothing is removed.
@@ -352,12 +352,13 @@ impl Store {
     }
 }
 
-/// Messages the user owns beyond the cache, because a reminder, a queued move or a pending flag
-/// change refers to them. Clearing an account's cache keeps them. Takes the account as `?1`.
+/// Messages with local user state that clearing an account's cache preserves.
+/// Takes the account as `?1`.
 const OWNED: &str =
     "SELECT message_id FROM reminders WHERE account_id=?1 AND message_id IS NOT NULL
     UNION SELECT message_id FROM pending_moves WHERE account_id=?1
-    UNION SELECT message_id FROM pending_operations WHERE account_id=?1 AND message_id IS NOT NULL";
+    UNION SELECT message_id FROM pending_operations WHERE account_id=?1 AND message_id IS NOT NULL
+    UNION SELECT c.message_id FROM deadline_corrections c JOIN messages m ON m.id=c.message_id WHERE m.account_id=?1";
 
 /// What clearing one account's cache removed, and what it kept because the user owns it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

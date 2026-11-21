@@ -163,6 +163,15 @@ enum Command {
         Reply<Vec<store::analysis::AnalysisInput>>,
     ),
     StoreAnalysis(Vec<store::analysis::AnalysisResult>, Reply<()>),
+    CorrectDeadline(
+        store::analysis::CorrectDeadline,
+        Reply<store::analysis::DeadlineCorrection>,
+    ),
+    DeadlineCorrection(
+        String,
+        i64,
+        Reply<Option<store::analysis::DeadlineCorrection>>,
+    ),
     PriorityItems(
         Vec<String>,
         i64,
@@ -533,6 +542,27 @@ impl Handle {
         results: Vec<store::analysis::AnalysisResult>,
     ) -> Result<(), Error> {
         self.request(|reply| Command::StoreAnalysis(results, reply))
+            .await
+    }
+    /// Persist an explicit deadline correction on the store owner.
+    /// # Errors
+    /// Rejects invalid civil times and missing or mismatched originals.
+    pub async fn correct_deadline(
+        &self,
+        edit: store::analysis::CorrectDeadline,
+    ) -> Result<store::analysis::DeadlineCorrection, Error> {
+        self.request(|reply| Command::CorrectDeadline(edit, reply))
+            .await
+    }
+    /// Read a deadline correction for an original.
+    /// # Errors
+    /// Reports storage or decoding failures.
+    pub async fn deadline_correction(
+        &self,
+        account: String,
+        message: i64,
+    ) -> Result<Option<store::analysis::DeadlineCorrection>, Error> {
+        self.request(|reply| Command::DeadlineCorrection(account, message, reply))
             .await
     }
     /// The priority group right now, soonest to expire first.
@@ -1384,6 +1414,12 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::StoreAnalysis(results, reply) => {
                 commit(reply, || store.store_analysis(&results));
+            }
+            Command::CorrectDeadline(edit, reply) => {
+                commit(reply, || store.correct_deadline(&edit));
+            }
+            Command::DeadlineCorrection(account, message, reply) => {
+                respond(reply, || store.deadline_correction(&account, message));
             }
             Command::PriorityItems(accounts, now, limit, reply) => {
                 respond(reply, || store.priority_items(&accounts, now, limit));

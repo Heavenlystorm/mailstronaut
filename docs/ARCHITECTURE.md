@@ -122,6 +122,7 @@ Minimum logical tables and invariants:
 | `provider_ids` | Optional Gmail X-GM-MSGID/X-GM-THRID; scoped to account, not universal IDs |
 | `conversations` / membership | Stable local conversation ID, account-scoped ancestry projection, last activity, unread count |
 | `analysis` | Message/body hash, model/tokenizer/policy revisions, scores/reasons, priority start/expiration, deadline evidence, status, dismissal/read-cleared state |
+| `deadline_corrections` | Canonical original, user-selected civil date and optional time, timezone, fixed expiry and the priority expiry allowed at submission |
 | `reminders` | ID, message ID, scheduled UTC instant, display timezone, generation, pending/delivered/cancelled state, notification ID |
 | `drafts` / `outbox` | Draft content/attachments, chosen identity, fixed Message-ID, submission phase, durable errors and reconciliation state |
 | `pending_operations` | ID, target identity, intended flag/move state, submitted/confirmed/conflict state; replay is explicit and idempotent where possible |
@@ -335,8 +336,11 @@ is supported by an exact source span: “Due tomorrow · 28 Oct” or “Due 28 
 11:00 Europe/Paris”. The reader also shows the source quote, timezone assumption,
 and edit/dismiss controls. Never infer a deadline from an arbitrary date alone.
 An expired box may remain in the message reader as “Deadline passed”; remove it
-from active priority. Corrected/dismissed deadline evidence is local user state
-and survives resync/model upgrades. No automatic reminder is implied by a box.
+from active priority. The reader's deadline correction keeps one user-selected
+deadline per original, including its timezone and fixed instant. It survives
+resync, reanalysis and cache clearing. A correction may change an active expiry.
+Read, dismissed, expired and ordinary messages stay out of priority. Setting a
+deadline does not schedule a reminder.
 
 ## 7. Remind me and background lifecycle
 

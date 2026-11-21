@@ -720,8 +720,10 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   `DescriptionList`. Use `Dialog`/`Form`/`DatePicker` and Dismiss `Button` for corrections,
   retaining backend persistence/expiry; evidence must not require hover alone.
   [A `Tag` below the preview, Dismiss, and evidence in the reader
-  pass](evidence/P09-priority-rules.md), since rows must share one height; correcting a
-  date remains open.
+  pass](evidence/P09-priority-rules.md), since rows must share one height.
+  The [deadline correction walkthrough](evidence/P09-deadline-correction.md)
+  covers both date and time editing, cancel/save, timezone and restart.
+  Screen-reader acceptance remains open.
 - [x] Expose priority rules and reserved local model directory/revision using Kit
   Settings switch/input fields, with native Nix Save/Discard/export ownership.
   Clearly distinguish local rules from unfinished model inference.
