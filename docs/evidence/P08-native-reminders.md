@@ -31,10 +31,20 @@ Run on the CI server through `ci/remote.sh`.
 
 Real desktop notification servers and their buttons, caller-token foreground focus,
 reminder-action reopening after window close and `--background`, suspend and resume,
-evening/tomorrow presets and DST behaviour through the GUI remain unverified
+and invalid DST civil times through the GUI remain unverified
 (the policy has unit tests). Editable morning/evening/timezone settings now have their own
 [native preference acceptance](P02-preferences.md). Foreground single-instance
 ownership/passive routing has [separate bounded evidence](P08-instance.md).
+
+## Presets and time zone reload
+
+`MAILSTRONAUT_REMINDER_PRESETS_GUI=1` extends the native reminder walkthrough. It passed locally
+on `722472b` in private profile `target/p06.d7HOM1`. The test opens the real menu for each action
+and reads the generated SQLite state. This evening refuses a past time on the current civil day,
+Tomorrow morning uses the next civil day and configured time, and reloading from Europe/Paris to
+UTC makes new reminders use UTC. The previously scheduled Paris reminder retains its original UTC
+instant and IANA zone. Only the two explicitly opened originals have Seen. Invalid DST times still
+have backend coverage only.
 
 ## Time details and rescheduling
 

@@ -10,6 +10,7 @@ copy_body reminder-original 'Synthetic unrelated same-subject message.'
 check_seen unrelated
 click 1039 244
 wtype -s 200 -k Down -k Down -k Down -k Down -k Return -s 500
+sleep .7
 capture reminder-custom
 # Cancel must not persist anything or change the explicit-open state.
 click 690 220
@@ -22,6 +23,7 @@ PYCANCEL
 check_seen unrelated
 click 1039 244
 wtype -s 200 -k Down -k Down -k Down -k Down -k Return -s 400
+sleep .7
 click 640 172
 # Calendar geometry comes from Kit's standard medium 32px cells. Choose a future
 # day in the displayed month and edit its embedded time field, using native input.
@@ -68,6 +70,7 @@ check_seen unrelated
 # Editing the listed original keeps its identity and changes only the generation
 # and selected instant. The same Kit picker handles rescheduling.
 click 343 300
+sleep .7
 capture reminder-reschedule
 click 640 172
 click 618 "$hour_y"
@@ -94,11 +97,16 @@ wtype -M ctrl -M shift d -m shift -m ctrl -s 400
 capture reminder-dark
 wtype -M ctrl -M shift d -m shift -m ctrl -s 300
 # A different original starts with tomorrow morning, not the prior 11:42 value.
-wtype -M ctrl 1 -m ctrl -s 300 -M ctrl k -m ctrl 'other-account' -k Return -s 400 -M ctrl l -m ctrl -k Down -k Return -s 500
+click 80 155
+click 595 65
+wtype -M ctrl a -m ctrl -k BackSpace -s 300 'other-account' -s 1200
+click 350 150
+sleep .6
 copy_body reminder-other 'Synthetic other-account reply.'
 check_seen unrelated other
 click 1039 244
 wtype -s 200 -k Down -k Down -k Down -k Down -k Return -s 400
+sleep .7
 capture reminder-other-default
 click 790 220
 sleep .6
@@ -159,5 +167,67 @@ for name in ['initial-app.log','offline-app.log']:
 print('Cancellation preserved both originals, their Seen state, and the empty draft/outbox state.',flush=True)
 PYDONE
 check_seen unrelated other
+if [[ ${MAILSTRONAUT_REMINDER_PRESETS_GUI:-0} == 1 ]]; then
+  cp "$config" "$root/pre-timezone.nix"
+  click 80 155
+  click 350 150
+  sleep .6
+  copy_body reminder-presets 'Synthetic unrelated same-subject message.'
+  click 1039 244
+  wtype -s 200 -k Down -k Down -k Return -s 900
+  python3 - "$root" <<'PYEVE'
+import datetime as dt, json, sqlite3, sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
+root=Path(sys.argv[1]); mid=json.loads((root/'conversation-ids.json').read_text())['unrelated']
+zone=ZoneInfo('Europe/Paris')
+now=dt.datetime.now(zone)
+evening=dt.datetime.combine(now.date(),dt.time(18),zone)
+db=sqlite3.connect(root/'data/mailstronaut/mail.sqlite3')
+due, name, state=db.execute('SELECT due_at,time_zone,state FROM reminders WHERE message_id=?',(mid,)).fetchone()
+if now < evening:
+    assert (due,name,state)==(int(evening.timestamp()),zone.key,'pending')
+else:
+    assert state=='cancelled'
+print('This evening uses the original civil day and refuses a past time.', flush=True)
+PYEVE
+  click 1039 244
+  wtype -s 200 -k Down -k Down -k Down -k Return -s 900
+  python3 - "$root" <<'PYTOM'
+import datetime as dt, json, sqlite3, sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
+root=Path(sys.argv[1]); mid=json.loads((root/'conversation-ids.json').read_text())['unrelated']
+zone=ZoneInfo('Europe/Paris')
+day=dt.datetime.now(zone).date()+dt.timedelta(days=1)
+expected=(int(dt.datetime.combine(day,dt.time(9),zone).timestamp()),zone.key,'pending')
+db=sqlite3.connect(root/'data/mailstronaut/mail.sqlite3')
+assert db.execute('SELECT due_at,time_zone,state FROM reminders WHERE message_id=?',(mid,)).fetchone()==expected
+(root/'paris-reminder.json').write_text(json.dumps(expected))
+print('Tomorrow morning uses the next civil day and configured time.',flush=True)
+PYTOM
+  sed -i 's/timeZone = "Europe\/Paris";/timeZone = "UTC";/' "$config"
+  wtype -M ctrl -M shift r -m shift -m ctrl -s 1200
+  click 350 274
+  sleep .6
+  copy_body reminder-utc 'Synthetic other-account reply.'
+  click 1039 244
+  wtype -s 200 -k Down -k Down -k Down -k Return -s 900
+  python3 - "$root" <<'PYZONE'
+import datetime as dt, json, sqlite3, sys
+from pathlib import Path
+root=Path(sys.argv[1]); ids=json.loads((root/'conversation-ids.json').read_text())
+db=sqlite3.connect(root/'data/mailstronaut/mail.sqlite3')
+def reminder(mid):
+    return db.execute('SELECT due_at,time_zone,state FROM reminders WHERE message_id=?',(mid,)).fetchone()
+day=dt.datetime.now(dt.timezone.utc).date()+dt.timedelta(days=1)
+assert reminder(ids['other'])==(int(dt.datetime.combine(day,dt.time(9),dt.timezone.utc).timestamp()),'UTC','pending')
+assert list(reminder(ids['unrelated']))==json.loads((root/'paris-reminder.json').read_text())
+print('Timezone reload changes new presets and preserves an existing reminder instant and zone.',flush=True)
+PYZONE
+  capture reminder-timezone-reload
+  cp "$root/pre-timezone.nix" "$config"
+  check_seen unrelated other
+fi
 [[ $(sha256sum "$config") == "$original_config" ]]
 printf 'Native reminder acceptance: %s\n' "$root"

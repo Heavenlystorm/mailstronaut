@@ -21,5 +21,20 @@ evaluated configuration rather than matching text:
 - A mutable activation does not silently overwrite a user-owned file that the application did not
   create.
 
-Not established: concurrent configuration sources, the export and import documentation, and
-activation on NixOS. Those remain open, so the P10 row stays unchecked.
+## Local NixOS recheck
+
+The local x86_64 NixOS run on application source `722472b` passed all eight scenarios
+above and two additional ones:
+
+- A competing writer holds the actual configuration lock. Activation fails with the
+  expected conflict, the source checksum stays unchanged, and activation succeeds
+  once the lock is released.
+- The installed client's `config export` output becomes the `settings` expression of a
+  new Home Manager generation. A fresh disposable home receives the exported appearance,
+  900-second interval and declared account in a writable native file.
+
+The fixture uses a separate home, profile, XDG runtime directory and bus address.
+Home Manager installed the real package and skipped desktop-service activation. Use the
+[maintenance guide](../MAINTENANCE.md) for backup and redeclaration. This verifies the CLI
+export round trip. The GUI edit/portal export workflow and autostart on the live desktop
+have separate acceptance requirements.

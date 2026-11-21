@@ -7,6 +7,7 @@
 #   appearance          the declared appearance (omitted when declareAppearance is false)
 #   mutable             whether the configuration is an application-owned, writable file
 #   accounts            the declared account list; null means one synthetic account
+#   settings            an exported native declaration, or null to use fixture settings
 {
   self,
   pkgs,
@@ -14,6 +15,7 @@
   mutable ? false,
   declareAppearance ? true,
   accounts ? null,
+  settings ? null,
 }:
 let
   homeManagerSource = builtins.fetchTarball {
@@ -47,7 +49,10 @@ let
     modules = [
       self.homeManagerModules.default
       {
+        nix.assumeXdg = true;
         home = {
+          # This disposable activation owns no legacy roots under /nix/var/nix.
+          activationGenerateGcRoot = false;
           # Home Manager refuses activation unless this matches the running user.
           username = builtins.getEnv "USER";
           homeDirectory = builtins.getEnv "MAILSTRONAUT_HM_HOME";
@@ -56,10 +61,13 @@ let
         programs.mailstronaut = {
           enable = true;
           settings =
-            (if declareAppearance then { inherit appearance; } else { })
-            // {
-              accounts = if accounts == null then [ syntheticAccount ] else accounts;
-            };
+            if settings != null then
+              settings
+            else
+              (if declareAppearance then { inherit appearance; } else { })
+              // {
+                accounts = if accounts == null then [ syntheticAccount ] else accounts;
+              };
           mutableSettings = mutable;
         };
       }

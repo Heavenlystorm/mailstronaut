@@ -594,8 +594,9 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   `set_date_time` for the current reminder or tomorrow morning; avoid duplicating
   the external preset menu inside it.
 - [ ] Complete native GUI coverage for evening/tomorrow presets, invalid civil
-  times and timezone changes with a reminder already scheduled. DST policy has
-  backend tests; these user-facing cases remain separate acceptance.
+  times and timezone changes with a reminder already scheduled. [Presets and
+  timezone reload pass natively](evidence/P08-native-reminders.md#presets-and-time-zone-reload);
+  invalid DST civil times have backend coverage only.
 - [x] Use `TimeField` for configured morning/evening defaults and searchable
   `Combobox` for editable timezone; verify save/discard/restart through the native
   Settings workflow. [Evidence](evidence/P02-preferences.md).
@@ -752,15 +753,15 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   for mutable reconciliation/export; no duplicate per-field HM schema or hidden
   preference database. Test generated activation against the installed package
   with disposable, explicitly stubbed HM plumbing. [Evidence](evidence/P02-native-nix.md).
-- [ ] Verify full Home Manager evaluation/generation activation (without stubbed
+- [x] Verify full Home Manager evaluation/generation activation (without stubbed
   plumbing), immutable links, mutable first/repeated activation, declared-value
   precedence, retained UI edits, explicit empty account lists, invalid/concurrent
   sources and changing ownership without silent overwrite. Document export/import
   and why removing a declaration is different from deleting an account's local data.
-  [Real activation passes for immutable links, mutable first and repeated activation,
-  declared precedence, retained UI edits, removed declarations, explicit empty account
-  lists, invalid declarations and user-owned files](evidence/P10-home-manager-activation.md);
-  concurrent sources and the export/import documentation remain open.
+  [Real activation in a disposable NixOS home passed all listed cases, including
+  competing writers and CLI export/reimport](evidence/P10-home-manager-activation.md).
+  [Configuration redeclaration and backup](MAINTENANCE.md); GUI round trip and live
+  desktop autostart remain separate acceptance.
 - [ ] Verify actual native Wayland launch, assets/fonts/icons, TLS roots, portals,
   keyring, notifications and GPU loader behavior on NixOS.
 - [x] Generate production Flatpak archives from the exact Nix package source and
