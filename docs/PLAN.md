@@ -822,8 +822,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
 - [ ] Local priority/read/deadline/expiry and contextual reminder cases pass;
   model limits, accuracy/languages, cache coverage and unsupported crypto are clear.
 - [ ] Nix/Home Manager and Flatpak installation/runtime pass; hosted CI is green.
-- [ ] Document backup/upgrade/downgrade, data/cache purge, local Thunderbird import
-  caveats, privacy and operational limits. Obtain publishing/signing authorization.
+- [x] Document backup, upgrade and rollback, account removal and cache limitations,
+  Thunderbird migration caveats and profile privacy. [Profile recovery](MAINTENANCE.md)
+- [ ] Obtain publishing and signing authorization for the release artifacts.
 
 ## Implementation sequence and traceability
 
