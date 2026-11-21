@@ -61,13 +61,17 @@ pub enum Coverage {
     },
 }
 
-/// The coverage of one folder, named by its account and its server name.
+/// The coverage of one discovered folder.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FolderCoverage {
+    /// Stable local folder identity.
+    pub id: i64,
     /// The configured account identifier.
     pub account: String,
     /// The folder's server name, as stored.
     pub folder: String,
+    /// Whether this folder participates in the unified inbox.
+    pub inbox: bool,
     /// What the folder's pass has cached so far.
     pub coverage: Coverage,
 }
@@ -83,7 +87,8 @@ impl Store {
         }
         let selected = serde_json::to_string(accounts)?;
         let mut statement = self.connection.prepare_cached(
-            "SELECT f.account_id, f.name, b.reviewed, b.total, b.finished_at, b.cap_days, b.account_id IS NOT NULL
+            "SELECT f.account_id, f.name, b.reviewed, b.total, b.finished_at, b.cap_days,
+                    b.account_id IS NOT NULL, f.id, f.is_inbox
              FROM folders f LEFT JOIN backfill b ON b.account_id=f.account_id AND b.folder_id=f.id
              WHERE f.account_id IN (SELECT value FROM json_each(?1))
              ORDER BY f.account_id, f.name",
@@ -104,8 +109,10 @@ impl Store {
                     }
                 };
                 Ok(FolderCoverage {
+                    id: row.get(7)?,
                     account: row.get(0)?,
                     folder: row.get(1)?,
+                    inbox: row.get(8)?,
                     coverage,
                 })
             })?
@@ -231,7 +238,7 @@ mod tests {
             .ensure_folder("a", "Archive", false)
             .expect("archive")
             .id;
-        store.ensure_folder("a", "Trash", false).expect("trash");
+        let trash = store.ensure_folder("a", "Trash", false).expect("trash").id;
         let other = store.ensure_folder("b", "INBOX", true).expect("other").id;
         store
             .save_backfill(
@@ -264,21 +271,27 @@ mod tests {
             store.coverage(&["a".into()]).expect("coverage"),
             [
                 FolderCoverage {
+                    id: archive,
                     account: "a".into(),
                     folder: "Archive".into(),
+                    inbox: false,
                     coverage: Coverage::Complete { cap_days: Some(30) },
                 },
                 FolderCoverage {
+                    id: inbox,
                     account: "a".into(),
                     folder: "INBOX".into(),
+                    inbox: true,
                     coverage: Coverage::Partial {
                         reviewed: 128,
                         total: Some(300),
                     },
                 },
                 FolderCoverage {
+                    id: trash,
                     account: "a".into(),
                     folder: "Trash".into(),
+                    inbox: false,
                     coverage: Coverage::NotStarted,
                 },
             ]

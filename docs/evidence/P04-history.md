@@ -46,6 +46,29 @@ have committed, so an interrupted window repeats safely.
 A finished pass rests for six hours (`REWALK_SECONDS`) and then starts again, so flags on
 old mail and gaps are reconciled without rescanning the history on every poll.
 
+## Scoped cache coverage
+
+The Kit status bar shows **Server history incomplete** for missing, unfinished or
+out-of-date history passes in the selected scope. A finished capped pass shows the
+configured number of days. Unified inbox checks inboxes for configured accounts;
+account and folder views check their own scope. Searches keep this status beside
+their match count. This describes the recorded history pass. It does not count
+messages that could not be retrieved or claim that retained mail was evicted.
+
+The pinned local workspace check passed strict Clippy and 332 tests (27 private
+fixtures ignored). A headless Wayland walkthrough against a private Dovecot server
+cached 2,304 synthetic messages, resumed after three interruptions, and left
+server and local Seen unchanged. The status bar showed incomplete coverage at
+1,024 reviewed, cleared the warning on completion, and showed a 30-day limit
+after a separate capped run and restart. That run excluded the three older
+messages and still passed UIDVALIDITY reset. Captures and logs are in
+`target/p02.mHsDfD/history-gui` and `target/local-checks/history-wayland.log`.
+
+The two-account native progress check also passed. At capture `progress-38.png`
+under `target/p02.rpNtPU/progress`, both accounts had a measured count and separate
+Kit progress bars. Both retained their original Seen state. The fixture uses a
+shorter state directory to keep Dovecot's Unix socket paths within the local limit.
+
 ## Progress contract
 
 After each window, the cycle sends
@@ -62,8 +85,8 @@ For a status bar that is not listening to updates, `Store::coverage` (worker `co
 each folder of the asked accounts as `NotStarted`, `Partial { reviewed, total }` or
 `Complete { cap_days }`, read from the backfill table. It never reports a percentage that the
 pass did not measure.
-`Cycle.backfill_pending` is true while any folder still has history to fetch. The status bar is
-not wired to these updates yet; `Workspace::sync_update` ignores them for now.
+`Cycle.backfill_pending` is true while any folder still has history to fetch. The status bar
+uses these updates per active account and reads durable coverage again on completion or failure.
 
 ## Checks
 

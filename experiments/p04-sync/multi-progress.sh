@@ -5,7 +5,8 @@ binary=$(realpath "${1:?prebuilt application}")
 root=$(realpath "${2:?private fixture root}")
 [[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus" ]]
 [[ $XDG_DATA_HOME == "$root/data" ]]
-artifacts="$root/multi-progress"
+# Dovecot appends /dovecot/run/token-login/imap-urlauth to this path.
+artifacts="$root/progress"
 mkdir -p "$artifacts"
 database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
 imap_user=synthetic-progress-user
@@ -13,6 +14,11 @@ imap_password=SYNTHETIC-PROGRESS-SECRET-NOT-REAL
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=dovecot.sh
 source "$(dirname "${BASH_SOURCE[0]}")/dovecot.sh"
+cleanup() {
+  if declare -F session_cleanup > /dev/null; then session_cleanup; fi
+  dovecot_cleanup
+}
+trap cleanup EXIT
 python3 - "$mail_root/new" <<'PY'
 import datetime, pathlib, sys
 root = pathlib.Path(sys.argv[1])
@@ -45,8 +51,6 @@ done
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
-cleanup() { session_cleanup; dovecot_cleanup; }
-trap cleanup EXIT
 start sync
 query() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(sys.argv[2]).fetchone()[0])' "$database" "$1" 2>/dev/null; }
 for attempt in {1..40}; do

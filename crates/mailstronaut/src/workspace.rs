@@ -31,6 +31,7 @@ use gpui::component::{
     resizable::{h_resizable, resizable_panel},
     setting::{SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarGroup, SidebarItem as _, SidebarMenu, SidebarMenuItem},
+    status_bar::StatusBar,
     tab::{Tab, TabBar},
     toolbar::{Toolbar, ToolbarGroup},
 };
@@ -43,6 +44,7 @@ use mailstronaut_config::{Account, Appearance, Config, source};
 use mailstronaut_core::{
     reminders::When,
     reply::Kind,
+    store::backfill::FolderCoverage,
     store::browse::{FilteredPage, Scope, SearchFilter},
     store::mailbox::{Cursor, Folder, FolderRole},
     worker::{Handle, Worker},
@@ -54,6 +56,7 @@ use tokio_util::sync::CancellationToken;
 use crate::mailbox::{Priority, Row, Rows};
 
 mod deadlines;
+mod history;
 
 /// How long a queued move can be undone before the server is told about it.
 const UNDO_GRACE: Duration = Duration::from_secs(8);
@@ -240,6 +243,8 @@ pub struct Workspace {
     syncing: BTreeSet<String>,
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
     sync_errors: BTreeMap<String, String>,
+    history: Option<Vec<FolderCoverage>>,
+    history_task: Task<()>,
     last_sync: String,
     last_wake: Instant,
 }
@@ -759,6 +764,8 @@ impl Workspace {
             syncing: BTreeSet::new(),
             sync_progress: BTreeMap::new(),
             sync_errors: BTreeMap::new(),
+            history: None,
+            history_task: Task::ready(()),
             last_sync: String::new(),
             last_wake: Instant::now(),
         };
@@ -1888,6 +1895,8 @@ impl Workspace {
         self.sync_errors.clear();
         self.syncing.clear();
         self.sync_progress.clear();
+        self.history = None;
+        self.refresh_history(cx);
         let handle = self.handle();
         self.sync_session.update(cx, |session, cx| {
             session.set_window_active(window.is_window_active());
@@ -1915,6 +1924,7 @@ impl Workspace {
             crate::mail_sync::Update::Finished(account, result) => {
                 self.syncing.remove(&account);
                 self.sync_progress.remove(&account);
+                self.refresh_history(cx);
                 if let Some(search) = &self.fuzzy {
                     search.wake();
                 }
@@ -1949,17 +1959,30 @@ impl Workspace {
 
     fn sync_now(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.refresh(window, cx);
+        self.refresh_history(cx);
         self.sync_session.read(cx).wake_all();
     }
 
     fn sync_status(&self) -> String {
-        if !self.syncing.is_empty() {
-            return format!("{} · syncing…", self.status);
+        let status = if !self.syncing.is_empty() {
+            format!("{} · syncing…", self.status)
+        } else if self.last_sync.is_empty() {
+            self.status.clone()
+        } else {
+            format!("{} · updated {}", self.status, self.last_sync)
+        };
+        if self.view == View::Inbox
+            && let (Some(history), Some(config)) = (&self.history, self.declaration.active())
+            && let Some(label) = history::label(
+                &self.scope,
+                &self.accounts,
+                history,
+                config.sync.initial_days,
+            )
+        {
+            return format!("{status} · {label}");
         }
-        if self.last_sync.is_empty() {
-            return self.status.clone();
-        }
-        format!("{} · updated {}", self.status, self.last_sync)
+        status
     }
 
     fn fetch_progress(&self) -> Vec<(String, Option<f32>)> {
@@ -2892,6 +2915,7 @@ impl Workspace {
                         .delivery(NotificationDelivery::InApp),
                     cx,
                 );
+                this.refresh_history(cx);
                 this.refresh_rows(window, cx);
             });
         })
@@ -3609,8 +3633,6 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let background = cx.theme().background;
         let foreground = cx.theme().foreground;
-        let muted = cx.theme().muted_foreground;
-        let border = cx.theme().border;
         Self::with_actions(div(), cx)
             .size_full()
             .key_context("Mailstronaut")
@@ -3655,38 +3677,35 @@ impl Render for Workspace {
                 self.view != View::Compose || !self.syncing.is_empty(),
                 |view| {
                     view.child(
-                        div()
-                            .px_4()
-                            .py_2()
-                            .text_xs()
-                            .text_color(muted)
-                            .border_t_1()
-                            .border_color(border)
-                            .flex()
-                            .flex_wrap()
-                            .items_center()
-                            .gap_3()
-                            .child(if self.view == View::Compose {
-                                "Syncing…".to_owned()
-                            } else {
-                                self.sync_status()
-                            })
-                            .children(self.fetch_progress().into_iter().enumerate().map(
-                                |(index, (label, percent))| {
-                                    div()
-                                        .flex()
-                                        .items_center()
-                                        .gap_2()
-                                        .child(div().child(label.clone()))
-                                        .child(
-                                            Progress::new(("sync-progress", index))
-                                                .w(px(120.))
-                                                .accessibility_label(label)
-                                                .loading(percent.is_none())
-                                                .value(percent.unwrap_or_default()),
-                                        )
-                                },
-                            )),
+                        StatusBar::new().px_4().py_2().child(
+                            div()
+                                .w_full()
+                                .flex()
+                                .flex_wrap()
+                                .items_center()
+                                .gap_3()
+                                .child(if self.view == View::Compose {
+                                    "Syncing…".to_owned()
+                                } else {
+                                    self.sync_status()
+                                })
+                                .children(self.fetch_progress().into_iter().enumerate().map(
+                                    |(index, (label, percent))| {
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap_2()
+                                            .child(div().child(label.clone()))
+                                            .child(
+                                                Progress::new(("sync-progress", index))
+                                                    .w(px(120.))
+                                                    .accessibility_label(label)
+                                                    .loading(percent.is_none())
+                                                    .value(percent.unwrap_or_default()),
+                                            )
+                                    },
+                                )),
+                        ),
                     )
                 },
             )
