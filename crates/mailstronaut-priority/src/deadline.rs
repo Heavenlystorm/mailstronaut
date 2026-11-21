@@ -90,7 +90,18 @@ static QUOTE_HEADER: LazyLock<Regex> = LazyLock::new(|| {
         .expect("static pattern")
 });
 
-/// The ranges of a body the author wrote: no quoted lines, reply tails or signature.
+/// Inline quotation marks exclude cited instructions and language examples.
+/// A single apostrophe is not a reliable delimiter in the supported languages.
+static INLINE_QUOTE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"“[^”]*”|«[^»]*»|„[^“]*“|"[^"]*""#).expect("static pattern"));
+
+/// A clause explicitly attributed to previous instructions.
+static COPIED_INSTRUCTIONS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(?:(?:copied|quoted|taken)\s+from\s+(?:(?:the|an?)\s+)?(?:old|previous|superseded)\s+(?:form|instructions?|notice)|(?:provient\s+de|repris(?:e)?\s+de)\s+l['’]ancien(?:ne)?\s+(?:formulaire|consigne)|(?:ripres[oa]|copiat[oa]|tratt[oa])\s+d(?:al|alla|alle)\s+(?:vecchi[oaie]|precedent[ei])\s+(?:modulo|istruzion[ei]))\b")
+        .expect("static pattern")
+});
+
+/// The ranges of the author's current prose, without quoted or copied instructions.
 pub(crate) fn authored(body: &str) -> Vec<Range<usize>> {
     let mut ranges = Vec::new();
     let mut offset = 0;
@@ -104,8 +115,24 @@ pub(crate) fn authored(body: &str) -> Vec<Range<usize>> {
         if text == "-- " || QUOTE_HEADER.is_match(text.trim()) {
             break;
         }
-        if !text.trim_start().starts_with('>') {
-            ranges.push(start..start + text.len());
+        if text.trim_start().starts_with('>') {
+            continue;
+        }
+        for (offset, clause) in clauses(text) {
+            if COPIED_INSTRUCTIONS.is_match(clause) {
+                continue;
+            }
+            let start = start + offset;
+            let mut cursor = 0;
+            for quote in INLINE_QUOTE.find_iter(clause) {
+                if cursor < quote.start() {
+                    ranges.push(start + cursor..start + quote.start());
+                }
+                cursor = quote.end();
+            }
+            if cursor < clause.len() {
+                ranges.push(start + cursor..start + clause.len());
+            }
         }
     }
     ranges
@@ -116,10 +143,17 @@ fn clauses(line: &str) -> impl Iterator<Item = (usize, &str)> {
     let mut start = 0;
     let mut pieces = Vec::new();
     let bytes = line.as_bytes();
+    let mut quotes = INLINE_QUOTE.find_iter(line).peekable();
     for (index, byte) in bytes.iter().enumerate() {
         let ends = matches!(byte, b';' | b'!' | b'?')
             || (*byte == b'.' && bytes.get(index + 1).is_none_or(u8::is_ascii_whitespace));
-        if ends && line.is_char_boundary(index + 1) {
+        if !ends {
+            continue;
+        }
+        while quotes.peek().is_some_and(|quote| quote.end() <= index) {
+            quotes.next();
+        }
+        if quotes.peek().is_none_or(|quote| quote.start() > index) {
             pieces.push((start, &line[start..=index]));
             start = index + 1;
         }
@@ -360,51 +394,49 @@ pub(crate) fn constraints(body: &str, anchor: DateTime<Tz>) -> Vec<Deadline> {
     let today = anchor.date_naive();
     let mut found = Vec::new();
     for range in authored(body) {
-        let line = &body[range.clone()];
-        for (offset, clause) in clauses(line) {
-            if NOT_AN_OBLIGATION.is_match(clause) {
+        let clause = &body[range.clone()];
+        if NOT_AN_OBLIGATION.is_match(clause) {
+            continue;
+        }
+        let mut previous = 0;
+        for captures in DEADLINE.captures_iter(clause) {
+            let Some(whole) = captures.get(0) else {
+                continue;
+            };
+            let cue = captures
+                .name("cue")
+                .map_or_else(|| whole.start(), |cue| cue.start());
+            let before = clause.get(previous..cue).unwrap_or_default();
+            previous = whole.end();
+            if NEGATED.is_match(before) {
                 continue;
             }
-            let mut previous = 0;
-            for captures in DEADLINE.captures_iter(clause) {
-                let Some(whole) = captures.get(0) else {
-                    continue;
-                };
-                let cue = captures
-                    .name("cue")
-                    .map_or_else(|| whole.start(), |cue| cue.start());
-                let before = clause.get(previous..cue).unwrap_or_default();
-                previous = whole.end();
-                if NEGATED.is_match(before) {
-                    continue;
-                }
-                let Some(resolved) = resolve(&captures, today) else {
-                    continue;
-                };
-                let (time, stated_offset, zone_certain) = stated_time(&captures);
-                let ending = if resolved.certain && zone_certain {
-                    ends_at(resolved.date, time, stated_offset, zone)
-                } else {
-                    None
-                };
-                let start = range.start + offset + cue;
-                let span = start..range.start + offset + whole.end();
-                let deadline = Deadline {
-                    quote: body[span.clone()].to_owned(),
-                    span,
-                    date: resolved.date,
-                    time,
-                    zone: zone.name().to_owned(),
-                    zone_assumed: stated_offset.is_none(),
-                    form: resolved.form,
-                    ends_at: ending,
-                };
-                let repeated = found.iter().any(|other: &Deadline| {
-                    other.date == deadline.date && other.time == deadline.time
-                });
-                if !repeated && found.len() < MAX_DEADLINES {
-                    found.push(deadline);
-                }
+            let Some(resolved) = resolve(&captures, today) else {
+                continue;
+            };
+            let (time, stated_offset, zone_certain) = stated_time(&captures);
+            let ending = if resolved.certain && zone_certain {
+                ends_at(resolved.date, time, stated_offset, zone)
+            } else {
+                None
+            };
+            let start = range.start + cue;
+            let span = start..range.start + whole.end();
+            let deadline = Deadline {
+                quote: body[span.clone()].to_owned(),
+                span,
+                date: resolved.date,
+                time,
+                zone: zone.name().to_owned(),
+                zone_assumed: stated_offset.is_none(),
+                form: resolved.form,
+                ends_at: ending,
+            };
+            let repeated = found
+                .iter()
+                .any(|other: &Deadline| other.date == deadline.date && other.time == deadline.time);
+            if !repeated && found.len() < MAX_DEADLINES {
+                found.push(deadline);
             }
         }
     }

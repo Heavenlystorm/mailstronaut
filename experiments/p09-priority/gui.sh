@@ -178,6 +178,9 @@ fi
 for number in $(seq 1 21); do
   message "bulk$number" 'Registrar' "Form $number" 'Please return this form by tomorrow.'
 done
+# This phase tests grouping, not IDLE. Wake sync after the fixture delivery so
+# a watch reconnect during the preceding restart cannot delay the walkthrough.
+wtype -M ctrl r -m ctrl
 await 'every bulk form was analyzed' 21 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject LIKE 'Form %' AND a.expires_at IS NOT NULL"
 # The group belongs to the unfiltered inbox, so the search left from above is cleared first.
 click 595 65
@@ -190,6 +193,7 @@ capture show-all
 printf '%s\n' 'OK: all 21 forms still need attention, more than the group shows at first'
 if [[ ${MAILSTRONAUT_DEADLINE_CORRECTION:-0} == 1 ]]; then
   message timed-correction 'Registrar' 'Timed correction sample' 'The questionnaire is due 15 April 2030 at 10:30.'
+  wtype -M ctrl r -m ctrl
   await 'a timed original was analyzed' 1 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Timed correction sample' AND a.expires_at IS NOT NULL"
   click 595 65
   wtype -s 80 'Timed correction sample' -s 1200
@@ -207,6 +211,20 @@ if [[ ${MAILSTRONAUT_DEADLINE_CORRECTION:-0} == 1 ]]; then
   await 'the timed deadline persisted with the new time' '2030-04-15 11:42' "SELECT c.due FROM deadline_corrections c JOIN messages m ON m.id=c.message_id WHERE m.subject='Timed correction sample'"
   [[ $(query "SELECT json_extract(c.data,'\$.ends_at') FROM deadline_corrections c JOIN messages m ON m.id=c.message_id WHERE m.subject='Timed correction sample'") == "$(date -d '2030-04-15T09:42:00Z' +%s)" ]]
   capture timed-corrected
+fi
+if [[ ${MAILSTRONAUT_DEADLINE_CONTEXT:-0} == 1 ]]; then
+  message context-quote 'Office' 'Context grammar example' 'The phrase “Please send the form by tomorrow!” is an example in a textbook.'
+  message context-old 'Office' 'Context old form' 'The text asking you to renew by tomorrow was copied from the old form.'
+  message context-current 'Office' 'Context current form' 'The note to renew before tomorrow was copied from an old form. Please send “proof of address” by tomorrow.'
+  wtype -M ctrl r -m ctrl
+  await 'all three contextual cases were analyzed' 3 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject LIKE 'Context %' AND a.policy=3"
+  await 'the current obligation survived the copied clause' 1 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject='Context current form' AND a.expires_at IS NOT NULL AND json_array_length(a.data,'\$.deadlines')=1"
+  await 'quoted and copied obligations gave neither priority nor deadlines' 2 "SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject IN ('Context grammar example','Context old form') AND a.expires_at IS NULL AND json_array_length(a.data,'\$.deadlines')=0"
+  await 'the contextual checks did not mark any original read' 0 "SELECT count(*) FROM effective_memberships s JOIN messages m ON m.id=s.message_id WHERE m.subject LIKE 'Context %' AND s.seen=1"
+  click 595 65
+  wtype -M ctrl a -m ctrl -k BackSpace -s 300 'Context current form' -s 1200
+  click 350 150
+  capture context-current-deadline
 fi
 close_window
 

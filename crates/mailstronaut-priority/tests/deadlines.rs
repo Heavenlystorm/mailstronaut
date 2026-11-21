@@ -161,6 +161,41 @@ fn quoted_mail_and_signatures_are_not_the_authors_own_text() {
 }
 
 #[test]
+fn cited_requests_and_copied_instructions_do_not_become_current_deadlines() {
+    let written = anchor(Paris).timestamp();
+    let result = |body: &str| {
+        analyze(&Input {
+            subject: "Synthetic example",
+            body: Some(body),
+            direct: true,
+            authored: Some(written),
+            received_at: written,
+            zone: Paris,
+            max_ttl_hours: 168,
+        })
+    };
+    for body in [
+        "The example “Please send the form by tomorrow!” is from a textbook.",
+        "La phrase « Veuillez déposer le formulaire avant demain » est un exemple.",
+        "La frase « Per favore invia il modulo entro domani » è solo un esempio.",
+        "The note to renew by tomorrow was copied from an old form.",
+        "La demande de renouvellement avant demain provient de l’ancien formulaire.",
+        "Il testo sul rinnovo entro domani è ripreso dal vecchio modulo.",
+    ] {
+        let analysis = result(body);
+        assert_eq!(analysis.deadlines, Vec::<Deadline>::new(), "{body}");
+        assert!(!analysis.priority, "{body}");
+    }
+
+    let mixed = "The old text asking you to renew by tomorrow was copied from the old form. Please send “proof of address” by Friday.";
+    let analysis = result(mixed);
+    assert!(analysis.priority);
+    assert_eq!(analysis.deadlines.len(), 1);
+    assert_eq!(analysis.deadlines[0].date, date(11, 6));
+    assert_eq!(&mixed[analysis.deadlines[0].span.clone()], "by Friday");
+}
+
+#[test]
 fn past_dates_are_never_new_deadlines() {
     assert_eq!(dates("Deadline: 2026-11-03"), Vec::<NaiveDate>::new());
     assert_eq!(dates("Due 3 November 2026."), Vec::<NaiveDate>::new());

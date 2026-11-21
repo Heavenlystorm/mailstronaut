@@ -48,9 +48,10 @@ TOML
 cp experiments/p09-priority/nli.rs "$probe/crates/nli/src/main.rs"
 cp experiments/p09-priority/nli-quality.rs "$probe/crates/nli/src/quality.rs"
 mkdir -p "$probe/crates/nli/src/rules"
-# Test materialization only: use the exact owned rule/quote code, not another matcher.
-cp crates/mailstronaut-priority/src/lib.rs "$probe/crates/nli/src/rules/mod.rs"
-cp crates/mailstronaut-priority/src/deadline.rs "$probe/crates/nli/src/rules/deadline.rs"
+# The registered p1/p2 scores used policy 2 from this exact application commit.
+rules_revision=783e1fa459524fa4169273f59f54b78cacce3fbb
+git show "$rules_revision:crates/mailstronaut-priority/src/lib.rs" > "$probe/crates/nli/src/rules/mod.rs"
+git show "$rules_revision:crates/mailstronaut-priority/src/deadline.rs" > "$probe/crates/nli/src/rules/deadline.rs"
 cp experiments/p09-priority/priority-corpus.json experiments/p09-priority/semantic-challenges.json "$probe/crates/nli/src/"
 cp experiments/p09-priority/nli-model-manifest.json experiments/p09-priority/nli-pairs.json "$probe/crates/nli/src/"
 export CARGO_TARGET_DIR="$root/target"

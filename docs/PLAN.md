@@ -693,9 +693,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
 - [ ] Extract actionable date evidence using existing date parsing and exact spans;
   distinguish deadlines from quoted dates, meetings, negation and marketing.
   [The bounded rule implementation passes its original cases](evidence/P09-priority-rules.md),
-  but the later frozen semantic challenges expose dates belonging to another
-  person or an inline grammar example. Contextual acceptance is reopened;
-  [the classifier did not correct these errors](evidence/P09-model-quality.md).
+  and [policy 3 excludes inline examples and explicitly superseded clauses](evidence/P09-context.md).
+  The semantic challenges still expose general recipient attribution limits.
+  Keep this open until those cases have independent acceptance.
 - [x] Expire date-only deadlines at exclusive next **local calendar midnight**;
   explicit times expire at their instant. "Due tomorrow" remains today/tomorrow,
   never the following day. Past obligations are never newly prioritized.

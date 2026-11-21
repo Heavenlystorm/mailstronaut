@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub use deadline::Deadline;
 
 /// Bumped whenever these rules change meaning, so results can be told apart.
-pub const POLICY_VERSION: u32 = 2;
+pub const POLICY_VERSION: u32 = 3;
 /// How far a Date header may differ from server receipt and still be believed.
 const MAX_DATE_DISCREPANCY: i64 = 48 * 3600;
 const HOUR: i64 = 3600;

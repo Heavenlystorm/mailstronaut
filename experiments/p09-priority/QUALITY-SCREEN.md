@@ -92,6 +92,10 @@ are used only for split validation and reports, never as model input. Input is t
 subject and the library's authored-text ranges. Gold labels are used only for
 metrics, not projection or decisions.
 
+Later application rules advance separately. The probe materializes policy 2
+from Git revision `783e1fa459524fa4169273f59f54b78cacce3fbb` so reproducing
+the rejected candidate measures the original rule source and projections.
+
 The isolated quality lock adds the already pinned application Chrono/timezone/regex
 graph, with no application Cargo.lock change. Check/build first; encode **only the
 development split** and then evaluate the raw observations with the offline test

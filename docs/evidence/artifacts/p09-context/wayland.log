@@ -1,0 +1,26 @@
+OK: the inbox was cached
+OK: every message was analyzed
+OK: only actionable, unexpired requests qualified
+OK: an expired questionnaire got no fresh lifetime
+OK: analysis set no Seen flag
+OK: dismissing took one message out of the group
+OK: dismissing did not read the message
+OK: opening took the last message out of the group
+OK: it is unread again
+OK: marking it unread did not bring it back
+OK: a new delivery qualified by itself
+OK: the delivery is still in the group after a restart
+OK: results and dismissals survived a restart
+OK: an uncertain date gave the message no priority
+OK: the selected deadline persisted on the exact original
+OK: the correction survived reopening the original
+OK: every bulk form was analyzed
+OK: all 21 forms still need attention, more than the group shows at first
+OK: a timed original was analyzed
+OK: the timed deadline persisted with the new time
+OK: all three contextual cases were analyzed
+OK: the current obligation survived the copied clause
+OK: quoted and copied obligations gave neither priority nor deadlines
+OK: the contextual checks did not mark any original read
+Native priority acceptance: /home/eduard/.t3/projects/mailstronaut/target/p02.63kRLp/priority-gui
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
