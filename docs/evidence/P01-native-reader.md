@@ -1,5 +1,25 @@
 # Native GPUI Kit text reader
 
+## Local installed-package reader recheck
+
+The local x86_64 Nix package built from `722472b` passed the private Wayland reader
+walkthrough (`target/p01.pp26xO`). The fixture now waits for the expected frame at
+the current scale before clicking or inspecting pixels. It verified:
+
+- Source-local RGB raster bands at 1× and 2×, fallback text, scroll/Home/End,
+  responsive CSS, and light/dark rendering across repeated message switches.
+- Four explicit portal requests to the expected synthetic URI, including a
+  keyboard activation, cancellation, and a 2× pointer hit.
+- Exact plain-text clipboard contents and Seen only on explicit opens, including
+  offline restart. Independent observer controls detected the synthetic network
+  and file operations. The reader attempted neither.
+
+The local `nix flake check`, `nix build`, `nix run -- --version` and installed
+example configuration check passed for this application source. The walkthrough
+uses a private portal and software graphics in headless Sway.
+
+## Initial text reader implementation
+
 2026-10-31. P01 remains open. The reader uses the published GPUI Kit 0.8.1
 `TextareaState` and `Textarea::readonly(true)`, without a custom selection/editor
 implementation, HTML interpreter or dependency fork.

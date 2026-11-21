@@ -138,6 +138,18 @@ stop() {
   wait "$app"; app=''
 }
 capture() { timeout 15 grim "$root/$1.png"; }
+capture_marker() {
+  local name=$1 x=$2 y=$3 rgb=$4 w=${5:-1280} h=${6:-840}
+  for _ in {1..30}; do
+    capture "$name"
+    if [[ $(magick "$root/$name.png" -format "%wx%h %[pixel:p{$x,$y}]" info:) == "${w}x${h} srgb($rgb)" ]]; then
+      return
+    fi
+    sleep .1
+  done
+  printf 'Timed out waiting for rendered marker in %s\n' "$root/$name.png" >&2
+  return 1
+}
 click() {
   swaymsg seat seat0 cursor set "$1" "$2" > /dev/null
   swaymsg seat seat0 cursor press button1 > /dev/null
@@ -199,18 +211,19 @@ check_seen
 wtype -s 150 -M ctrl l -m ctrl -k Down -s 200 -M ctrl r -m ctrl -s 500
 check_seen
 wtype -s 150 -k Return -s 800
-capture alpha
+# Wait for the real painted original and its Seen callback on busy software Vulkan.
+capture_marker alpha 800 395 51,170,102
 check_seen alpha
 check_links 0
 copy_body alpha 'Synthetic HTML Alpha plain alternative'
 open_html 150
-capture alpha-html
+capture_marker alpha-html 800 395 51,170,102
 # Only the private portal variant attempts browser handoff. The renderer-only
 # variant must not introduce an absent-portal error banner into its pixel fixture.
 if [[ -n "$portal" ]]; then click 650 552; fi
-capture link-request
 if [[ -n "$portal" ]]; then
   wait_links 1
+  capture_marker link-request 800 395 51,170,102
   # Kit owns menu focus, keyboard activation, arrow navigation and dismissal.
   click 845 296
   capture links-menu
@@ -227,23 +240,28 @@ if [[ -n "$portal" ]]; then
     stop; touch "$root/portal-stop"; wait "$portal"; portal=''
     printf 'Native link inspection passed: %s\n' "$root"; exit 0
   fi
+else
+  capture_marker link-request 800 395 51,170,102
 fi
 # Native page/end/home scrolling uses the standard ScrollHandle.
 click 1100 620
 wtype -s 150 -k End -s 600
-capture end
+capture_marker end 800 710 0,255,255
 wtype -s 150 -k Home -s 600
-capture home
+capture_marker home 800 395 51,170,102
 # Native logical resize changes the CSS media query; native scale keeps that query.
 swaymsg output HEADLESS-1 mode 960x840 > /dev/null
-sleep .8
-capture narrow
+capture_marker narrow 700 395 51,85,170 960 840
 swaymsg output HEADLESS-1 mode 2560x1680 scale 2 > /dev/null
-sleep 1
-capture hidpi
+# At 2x the software GPU uploads four times as many pixels. Wait for the
+# current Alpha frame, including its new scale, before clicking a link in it.
+# Sample below the text on the 80px-high marker, both with and without the
+# cancellation notice above it.
+capture_marker hidpi 1600 790 51,170,102 2560 1680
 if [[ -n "$portal" ]]; then
   # Sway input coordinates stay logical at 2x; exercise the actual HTML hit path.
-  click 650 552
+  # The portal cancellation notice adds 23 logical pixels above the message.
+  click 650 575
   wait_links 4
   expected_links=4
   capture hidpi-link
@@ -251,11 +269,11 @@ fi
 swaymsg output HEADLESS-1 mode 1280x840 scale 1 > /dev/null
 sleep .8
 wtype -s 150 -M ctrl -M shift d -m shift -m ctrl -s 700
-capture dark
+capture_marker dark 800 600 32,36,43
 check_seen alpha
 # Beta deliberately refers to the same CID without owning the image.
 open_html 270
-capture beta
+capture_marker beta 800 395 221,221,102
 if [[ -n "$portal" ]]; then
   click 845 296
   wtype -s 150 -k Escape
@@ -264,7 +282,7 @@ fi
 check_seen alpha beta
 copy_body beta 'Synthetic HTML Beta plain alternative'
 open_html 400
-capture bad-image
+capture_marker bad-image 800 395 204,136,170
 check_seen alpha beta bad-image
 copy_body bad-image 'Safe plain fallback for a broken local image.'
 click 350 520
@@ -274,19 +292,19 @@ capture plain
 # Rapid switching cannot repaint a retired source or resurrect its raster.
 for _ in {1..8}; do open_html 150; open_html 270; done
 sleep .5
-capture switched-beta
+capture_marker switched-beta 800 395 221,221,102
 # Hiding and page restoration do not create an open authorization.
 wtype -s 150 -M ctrl , -m ctrl -s 500
 capture hidden
 sleep 1
 wtype -s 150 -M ctrl 1 -m ctrl -s 600
-capture restored
+capture_marker restored 800 395 221,221,102
 check_seen alpha beta bad-image plain
 stop
 start offline
 check_seen alpha beta bad-image plain
 open_html 150
-capture offline
+capture_marker offline 800 395 51,170,102
 stop
 if [[ -n "$portal" ]]; then
   check_links "$expected_links"
@@ -318,7 +336,7 @@ def bands(image):
 for name,scale in [('alpha',1),('alpha-html',1),('link-request',1),('home',1),('hidpi',2),('dark',1),('offline',1)]:
  im=read(name)
  assert im[:2]==(1280*scale,840*scale),(name,im[:2])
- assert sample(im,800*scale,350*scale)==(51,170,102),name+' must paint its own wide Alpha marker'
+ assert sample(im,800*scale,395*scale)==(51,170,102),name+' must paint its own wide Alpha marker'
  observed=bands(im)
  for x,y,right,bottom,count in observed:
   # Upsampling the small PNG blends its band edges. Require a solid interior
@@ -329,7 +347,7 @@ for name,scale in [('alpha',1),('alpha-html',1),('link-request',1),('home',1),('
  assert len({b[1] for b in observed})==1
  print(name+': own Alpha marker; ordered 32-CSS-pixel RGB bands at scale '+str(scale))
 im=read('narrow')
-assert im[:2]==(960,840) and sample(im,700,350)==(51,85,170),'logical resize must trigger max-width media query'
+assert im[:2]==(960,840) and sample(im,700,395)==(51,85,170),'logical resize must trigger max-width media query'
 im=read('end')
 assert sample(im,800,710)==(0,255,255),'End must paint the document tail'
 assert all(b[4]==0 for b in bands(im)),'End must not reuse a top viewport'
