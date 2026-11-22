@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Called by credentials.sh on its private bus/keyring; only loopback synthetic mail.
 set -euo pipefail
+if [[ -n ${MAILSTRONAUT_GUI_OAUTH_FIXTURE:-} ]]; then
+  exec bash "$(dirname "${BASH_SOURCE[0]}")/oauth-gui.sh" "$@"
+fi
 binary=$(realpath "${1:?prebuilt application}")
 root=$(realpath "${2:?private profile}")
 [[ $DBUS_SESSION_BUS_ADDRESS == "unix:path=$root/runtime/bus" ]]

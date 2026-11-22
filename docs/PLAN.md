@@ -363,10 +363,11 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   keyboard submission, credential routing, export/restart and unchanged Seen.
   A private encrypted-keyring/Dovecot test verifies that saving a password wakes
   a stopped automatic-sync worker. [Evidence](evidence/P05-onboarding.md).
-- [ ] Verify native browser authorization, per-account refresh errors/cancellation
-  and reauthentication across provider changes and pending configuration reloads.
-  Existing backend mock tests remain valid; declarations/controls alone do not
-  establish successful native browser consent.
+- [x] Verify Wayland sign-in through the browser portal with a synthetic HTTPS
+  provider. Confirm encrypted grant persistence and refresh after restart.
+  [Private native OAuth walkthrough](evidence/P05.md#current-wayland-authorization).
+- [ ] Verify real browser consent, per-account refresh errors/cancellation and
+  reauthentication across provider changes and pending configuration reloads.
 - [ ] Ship an application-owned Google desktop OAuth registration and make normal
   Add Google account open browser sign-in without asking users for client IDs.
   Keep custom registrations in Advanced settings and clearly report unavailable

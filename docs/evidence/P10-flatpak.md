@@ -223,3 +223,12 @@ and the exported app commit was
 The private smoke exercised the CLI, Wayland, Secret, notification and FileChooser
 fixtures with synthetic data. Model folder grants through a user's own portal
 remain unverified.
+
+The local package checks also passed for `3284e3f`, which includes explicit
+sync and per-account Retry. The Flatpak app archive was
+`3d5067e4beeaeadd46730c4291c83d64717f9c0f5537225a7f7c3ab2222c7ff9`,
+and the exported app commit was
+`497b41c7c141cbde878a661ecdb041cebf15d00c4d1f84972666d6ff35f730bc`.
+The same run passed the x86_64 Nix release checks, installed version and
+configuration smoke tests. Both gates and the installed paths are recorded
+under `target/local-checks/manual-retry-package*`.
