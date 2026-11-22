@@ -47,7 +47,11 @@ bash flatpak/build-and-install.sh
 ```
 
 This acquires the shared package-gate lock, prepares/verifies the archives, checks
-the installed SDK pins and builds with downloads disabled. Its fresh numeric
+the installed SDK pins and builds with downloads disabled. It deploys the app
+from the local repository using the preinstalled runtime. On a host where the
+builder cannot mount `rofiles-fuse`, set
+`MAILSTRONAUT_FLATPAK_DISABLE_ROFILES_FUSE=1` to use the builder's copy-based cache.
+Its fresh numeric
 receipt is `target/p10-flatpak-build.status`; read the complete
 `target/p10-flatpak-build.log` as well. `0` proves build/install, not GUI or real
 desktop portal acceptance. Use the private native smoke/portal/attachment
@@ -59,7 +63,10 @@ nix develop .#gui-test --command bash flatpak/check.sh
 
 This tests the installed app's CLI/configuration, private Wayland window and
 synthetic portal/keyring/attachment flows with network unshared. It uses private
-profiles and the existing fixtures, with no real mail. It does not establish the
+profiles and the existing fixtures, with no real mail. Set
+`MAILSTRONAUT_PORTAL_FIXTURE`, `MAILSTRONAUT_SEED_FIXTURE` and
+`MAILSTRONAUT_CREDENTIAL_FIXTURE` to reuse compatible
+prebuilt workspace fixture binaries. It does not establish the
 desktop's own portals or document grants; see [the evidence](../docs/evidence/P10-flatpak.md).
 
 The manifest is native Wayland, with no X11 socket or broad home access. These

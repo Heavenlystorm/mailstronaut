@@ -6,6 +6,9 @@
   <summary>A local-first email client</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
+  <developer id="io.github.eduardz1">
+    <name>Mailstronaut contributors</name>
+  </developer>
   <description>
     <p>Mailstronaut reads and organizes your mail on this computer. Accounts come from a
     native Nix configuration, passwords stay in the system keyring, and mail is cached

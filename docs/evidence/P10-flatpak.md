@@ -183,3 +183,21 @@ the desktop's own Secret/FileChooser/document/Background portals or a real GPU p
 - Release signing, a published repository, aarch64, and the final release manifest.
 
 The P10 Flatpak row therefore stays unchecked.
+
+## Local SDK and installed runtime recheck
+
+The x86_64 source at `722472b` built offline under the four pinned Freedesktop
+26.08 refs, including the Candle and USearch dependency graph. Rust 1.98 compiled
+the release in 7m 25s. The first export failed after compilation because the
+local FUSE mount was denied. Flatpak Builder's `--disable-rofiles-fuse` reused
+the completed module, composed AppStream metadata, and exported app commit
+`7880db2efa359322f8109f65b69cb86b13da51cd594c594df1b983f58ace54fe`.
+
+The app installed from the local repository with the verified runtime already
+present. `flatpak/check.sh` passed against that installation (`flatpak-acceptance-exit=0`).
+The no-network runs validated `--version`, the example Nix declaration, a headless
+Wayland window, FileChooser and Notification portal reachability, and native
+Secret-backed credential lifecycle. The sandbox activated a synthetic account,
+saved a draft, and attached a synthetic file returned by the private FileChooser.
+The fixture screenshots are in `target/p02.tY1w5y`. No real portal, live provider,
+GPU acceleration, or store listing is verified by these runs.

@@ -151,15 +151,18 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
   Partial: the mailbox tree, row names, search field and keyboard focus through the
   list are read over AT-SPI in a private headless session ([P01 accessibility](evidence/P01-accessibility.md)).
-  Screen-reader speech, the reader, compose, dialogs and Settings remain open.
+  The reader's text control has a focused node; its body is unavailable via AT-SPI
+  Text. Screen-reader speech, compose, dialogs and Settings remain open.
 - [x] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering. Measured in
   a headless software-rendered session with the release binary: 100 switches with no
   wrong paint, long-original opens, a flat resident set after the fix, and zero idle
   CPU while hidden with background operation enabled. Scope and limits:
   [P01 performance](evidence/P01-performance.md).
-- [ ] Pass current-stack Nix packaging and an early offline Flatpak SDK/runtime
+- [x] Pass current-stack Nix packaging and an early offline Flatpak SDK/runtime
   check, preserving native Wayland and no dependency on a host Nix executable.
+  [Local installed Nix reader](evidence/P01-native-reader.md#local-installed-package-reader-recheck)
+  and [pinned SDK/Wayland Flatpak](evidence/P10-flatpak.md#local-sdk-and-installed-runtime-recheck).
 
 An upstream limitation leaves its row open. Investigate practical options within
 this stack; do not restore the previous architecture or fabricate a reader.
@@ -225,8 +228,9 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   pass; no-clobber private save publication is unit-tested and missing-portal
   feedback is exercised. [Evidence](evidence/P02-native-nix.md).
 - [ ] Accept successful/cancelled/denied FileChooser export through the native
-  desktop and Flatpak portals. The save hook and unavailable-portal path above
-  are implemented; they do not establish successful portal saving.
+  desktop and Flatpak portals. [Save, cancellation, refusal and no-clobber passed
+  on a private native session bus](evidence/P02-native-nix.md#local-native-filechooser-export).
+  Live desktop portals and Flatpak document grants remain open.
 - [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
@@ -266,7 +270,8 @@ new dependency graph before claiming current-package acceptance.
 - [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
   partial-cache states and bounded 100k-message behavior. See P06 for strong search.
   [Queries are measured at 100k and an over-limit account still lists its
-  mail](evidence/P03-scale.md); partial-cache states remain open.
+  mail](evidence/P03-scale.md); [scoped history coverage](evidence/P04-history.md#scoped-cache-coverage)
+  distinguishes interrupted and capped history.
   Rebuild progress uses `Spinner`, or `Progress` only with a known bounded total;
   [components present store state](INTERFACE.md#p03-store-and-p04-synchronization), not persistence logic.
 
@@ -298,7 +303,9 @@ new dependency graph before claiming current-package acceptance.
   The status bar now displays one active account/folder's actual reviewed count and
   measured or indeterminate Kit progress indicator. A synthetic Dovecot/Wayland run
   displayed 1024 of 2304 reviewed and passed restart, cap, UID reset and Seen checks;
-  multi-account progress presentation and partial-cache coverage remain open.
+  [Multi-account progress](evidence/P04-history.md) and [scoped history
+  coverage](evidence/P04-history.md#scoped-cache-coverage) have native evidence.
+  Cancellation and real-provider behavior remain open.
   [Automatic sync passes against a real Dovecot](evidence/P04-background-sync.md);
   live providers remain open.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,
@@ -504,11 +511,11 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   now versions model/projection policy and source hashes. Canonical ingestion,
   source-fenced presentation and configured-account/model/cap retirement are
   implemented; combined-scale recovery and secure account purge remain open.
-- [ ] Show partial-cache/index coverage and unavailable/disabled models. Local
+- [x] Show partial-cache/index coverage and unavailable/disabled models. Local
   lexical/fuzzy search remains usable, but this does not complete semantic acceptance.
   [Messages not yet indexed are counted in the status bar](evidence/P06-fuzzy-search.md);
-  model indexed/pending/excerpt and unavailable states are implemented; partial
-  server-cache coverage remains open.
+  model indexed/pending/excerpt and unavailable states are implemented. The same
+  footer reports [partial history in the viewer's scope](evidence/P04-history.md#scoped-cache-coverage).
 - [ ] Pass fixed and held-out relevance, filter/isolation/restart/deletion tests,
   the user's French example, and measured 10k/100k CPU/RAM/index/build budgets.
 
@@ -593,10 +600,10 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   restart/cancel checks pass. The picker uses its default 24-hour clock and
   `set_date_time` for the current reminder or tomorrow morning; avoid duplicating
   the external preset menu inside it.
-- [ ] Complete native GUI coverage for evening/tomorrow presets, invalid civil
-  times and timezone changes with a reminder already scheduled. [Presets and
-  timezone reload pass natively](evidence/P08-native-reminders.md#presets-and-time-zone-reload);
-  invalid DST civil times have backend coverage only.
+- [x] Complete native GUI coverage for evening/tomorrow presets, invalid civil
+  times and timezone changes with a reminder already scheduled. [Presets, a
+  rejected DST gap with correction, and timezone reload pass
+  natively](evidence/P08-native-reminders.md#presets-and-time-zone-reload).
 - [x] Use `TimeField` for configured morning/evening defaults and searchable
   `Combobox` for editable timezone; verify save/discard/restart through the native
   Settings workflow. [Evidence](evidence/P02-preferences.md).
@@ -776,8 +783,8 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   runs it in the Platform runtime, opens its window in the sandbox, and passes the sandboxed
   GUI, portal and attach walkthroughs on the CI host](evidence/P10-flatpak.md);
   real-session Wayland, the desktop's own portals, the graphics path and desktop metainfo
-  remain open. The semantic-backend source pins are prepared; SDK acceptance of
-  the new inference/vector dependency graph must be rerun.
+  remain open. [The inference/vector dependency graph passed the pinned x86_64
+  SDK and private runtime checks locally](evidence/P10-flatpak.md#local-sdk-and-installed-runtime-recheck).
 - [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
   portals, read-only managed configuration and packaged HTML resources.
   Reuse the P02 Settings/source/export and P05 import components; do not create a

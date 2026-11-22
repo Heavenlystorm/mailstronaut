@@ -5,6 +5,10 @@
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
+builder_options=()
+if [[ ${MAILSTRONAUT_FLATPAK_DISABLE_ROFILES_FUSE:-0} == 1 ]]; then
+  builder_options+=(--disable-rofiles-fuse)
+fi
 # Share the coordinated full-gate lock so this build never overlaps a Nix gate. Refuse to wait
 # behind a gate. Override MAILSTRONAUT_GATE_LOCK only on a host without the shared lock.
 gate_lock_path=${MAILSTRONAUT_GATE_LOCK:-/builds/.mailstronaut-nix-gate.lock}
@@ -19,10 +23,14 @@ result=0
 if { bash flatpak/prepare.sh &&
   bash experiments/p01-flatpak/isolated.sh bash experiments/p01-flatpak/preflight.sh;
 } > target/p10-flatpak-build.log 2>&1; then
-  bash experiments/p01-flatpak/isolated.sh flatpak-builder --force-clean --disable-download \
-    --state-dir=target/p10-flatpak/state --repo=target/p10-flatpak/repo --user --install \
-    target/p10-flatpak/build flatpak/io.github.eduardz1.Mailstronaut.json \
-    >> target/p10-flatpak-build.log 2>&1 || result=$?
+  {
+    bash experiments/p01-flatpak/isolated.sh flatpak-builder --force-clean --disable-download "${builder_options[@]}" \
+      --state-dir=target/p10-flatpak/state --repo=target/p10-flatpak/repo \
+      target/p10-flatpak/build flatpak/io.github.eduardz1.Mailstronaut.json &&
+    # Preflight verified the installed runtime. Deploy only the app from the local repo.
+    bash experiments/p01-flatpak/isolated.sh flatpak install --user --or-update --no-deps --no-related \
+      --noninteractive --app "$root/target/p10-flatpak/repo" io.github.eduardz1.Mailstronaut
+  } >> target/p10-flatpak-build.log 2>&1 || result=$?
 else
   result=$?
 fi
