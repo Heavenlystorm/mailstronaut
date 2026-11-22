@@ -34,18 +34,22 @@ MAIL
 }
 # Mail older than any 30-day cap, one of it already read, then recent mail.
 arrived ancient '400 days ago' "$mail_root/new/ancient.synthetic"
-arrived old-read '200 days ago' "$mail_root/cur/old-read.synthetic:2,S"
+read_flags=S
+if [[ ${MAILSTRONAUT_TEST_RETENTION:-0} == 1 ]]; then read_flags=FS; fi
+arrived old-read '200 days ago' "$mail_root/cur/old-read.synthetic:2,$read_flags"
 arrived old-unread '90 days ago' "$mail_root/new/old-unread.synthetic"
 arrived recent-one '2 days ago' "$mail_root/new/recent-one.synthetic"
 # A busy folder of 2300 messages, all within the cap, so that the history spans far more
 # windows than one cycle examines.
-python3 - "$mail_root/new" <<'PY'
+bulk=2300
+if [[ ${MAILSTRONAUT_TEST_RETENTION:-0} == 1 ]]; then bulk=0; fi
+python3 - "$mail_root/new" "$bulk" <<'PY'
 import os, sys, time
 directory = sys.argv[1]
 os.makedirs(directory, exist_ok=True)
 stamp = time.time() - 3 * 86400
 date = time.strftime('%a, %d %b %Y %H:%M:%S +0000', time.gmtime(stamp))
-for number in range(1, 2301):
+for number in range(1, int(sys.argv[2]) + 1):
     path = os.path.join(directory, f'bulk-{number:04d}.synthetic')
     with open(path, 'w', encoding='utf-8') as file:
         file.write(
@@ -56,7 +60,6 @@ for number in range(1, 2301):
         )
     os.utime(path, (stamp, stamp))
 PY
-bulk=2300
 total=$((bulk + 4))
 dovecot_start
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
@@ -117,6 +120,49 @@ inbox_pass="SELECT b.reviewed FROM backfill b JOIN folders f ON f.id=b.folder_id
 inbox_finished="SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.finished_at IS NOT NULL"
 old_subjects="SELECT count(*) FROM messages WHERE subject IN ('Synthetic ancient','Synthetic old-read','Synthetic old-unread')"
 inbox_validity="SELECT b.uidvalidity FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX'"
+
+if [[ ${MAILSTRONAUT_TEST_RETENTION:-0} == 1 ]]; then
+  start before-cap
+  await 'all four originals fetched before changing the limit' 4 'SELECT count(*) FROM messages'
+  await 'the uncapped history pass finished' 1 "$inbox_finished"
+  close_window
+  write_config 'sync.initialDays = 30; sync.automatic = false;'
+  original_config=$(sha256sum "$config")
+  removed_hash=$(query "SELECT blob_hash FROM messages WHERE subject='Synthetic ancient'")
+  [[ -f "$XDG_DATA_HOME/mailstronaut/blobs/$removed_hash" ]]
+  start retention
+  wtype -M ctrl , -m ctrl -s 500
+  click 300 203
+  capture retention-before
+  click 680 794
+  capture retention-confirm
+  click 653 225
+  [[ $(query "$old_subjects") == 3 ]]
+  click 680 794
+  click 758 225
+  await 'only old, unprotected mail was removed' 2 'SELECT count(*) FROM messages'
+  [[ $(query "SELECT count(*) FROM messages WHERE subject IN ('Synthetic old-read','Synthetic recent-one')") == 2 ]]
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1 AND starred=1') == 1 ]]
+  [[ $(query 'PRAGMA integrity_check') == ok ]]
+  for _ in {1..100}; do
+    [[ ! -e "$XDG_DATA_HOME/mailstronaut/blobs/$removed_hash" ]] && break
+    kill -0 "$app"; sleep .1
+  done
+  [[ ! -e "$XDG_DATA_HOME/mailstronaut/blobs/$removed_hash" ]]
+  [[ $(sha256sum "$config") == "$original_config" ]]
+  capture retention-completed
+  close_window
+  [[ $(server_flags INBOX 'marker-old-read') == *F*S* ]]
+  [[ $(find "$mail_root/cur" "$mail_root/new" -name 'ancient.synthetic*' -o -name 'old-unread.synthetic*' | wc -l) == 2 ]]
+  start after-eviction
+  wtype -M ctrl r -m ctrl -s 600
+  await 'capped Sync did not restore the removed copies' 1 \
+    "SELECT count(*) FROM backfill b JOIN folders f ON f.id=b.folder_id WHERE f.name='INBOX' AND b.cap_days=30 AND b.finished_at IS NOT NULL"
+  [[ $(query 'SELECT count(*) FROM messages') == 2 ]]
+  close_window
+  printf 'Native retention acceptance: %s\n' "$artifacts"
+  exit 0
+fi
 
 # Without a declared limit the complete history is fetched, however old.
 # The application is killed at three points of the same pass. Each time the process dies with

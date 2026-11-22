@@ -278,6 +278,13 @@ With automatic synchronization off, use **Sync mail** or **Ctrl+R** to fetch
 the configured accounts. An explicit pass can continue unfinished history in
 bounded batches. Once it finishes, polling and IMAP IDLE stay off.
 
+With a numeric `sync.initialDays` limit active, open the account in Settings
+and choose **Remove cached mail older than … days** to reclaim local disk space.
+Changing the limit alone leaves downloaded mail in place. Confirming cleanup
+removes eligible downloads and their search entries from that account while
+keeping the server copies, local drafts and attachments, starred mail, reminders
+and pending changes. Clear the history limit and sync to download older mail again.
+
 The source path, ownership and last reload are visible alongside persistent errors.
 Only an app-initialized or mutable-HM regular writable source with `managed = false`
 is editable. Managed sources, read-only files, other links and unadopted expressions

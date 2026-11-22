@@ -991,6 +991,17 @@ impl Workspace {
                     if revision == this.declaration.revision() {
                         match event {
                             crate::accounts::Event::CacheChanged => this.refresh_rows(window, cx),
+                            crate::accounts::Event::CacheEvicted => {
+                                if this
+                                    .selected
+                                    .as_ref()
+                                    .is_some_and(|item| item.account == account_id)
+                                {
+                                    this.retire_open(window, cx);
+                                }
+                                this.wake_cache_indexes();
+                                this.refresh_rows(window, cx);
+                            }
                             crate::accounts::Event::CredentialsChanged => {
                                 this.sync_session
                                     .read(cx)
@@ -1974,6 +1985,10 @@ impl Workspace {
         self.syncing.remove(account);
         self.sync_progress.remove(account);
         self.refresh_history(cx);
+        self.wake_cache_indexes();
+    }
+
+    fn wake_cache_indexes(&self) {
         if let Some(search) = &self.fuzzy {
             search.wake();
         }

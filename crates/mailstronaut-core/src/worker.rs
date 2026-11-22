@@ -9,6 +9,7 @@ use std::{
 };
 
 use tokio::sync::{mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     mime::{self, Projection},
@@ -120,6 +121,13 @@ enum Command {
         Reply<Vec<store::conversations::Summary>>,
     ),
     Folders(Vec<String>, Reply<Vec<Folder>>),
+    EvictCache(
+        String,
+        String,
+        i64,
+        CancellationToken,
+        Reply<store::retention::Evicted>,
+    ),
     FilteredPage(
         store::browse::FilteredPage,
         Reply<Vec<store::conversations::Summary>>,
@@ -673,6 +681,20 @@ impl Handle {
     /// Rejects excessive results and storage failures.
     pub async fn folders(&self, accounts: Vec<String>) -> Result<Vec<Folder>, Error> {
         self.request(|reply| Command::Folders(accounts, reply))
+            .await
+    }
+    /// Remove expired cached originals without contacting the mail server.
+    ///
+    /// # Errors
+    /// Rejects retired requests, stale mailbox contexts and storage failures.
+    pub async fn evict_cached_before(
+        &self,
+        account: String,
+        context: String,
+        cutoff: i64,
+        cancel: CancellationToken,
+    ) -> Result<store::retention::Evicted, Error> {
+        self.request(|reply| Command::EvictCache(account, context, cutoff, cancel, reply))
             .await
     }
     /// Unread messages per folder, by folder ID.
@@ -1387,6 +1409,14 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 });
             }
             Command::Folders(accounts, reply) => respond(reply, || store.folders(&accounts)),
+            Command::EvictCache(account, context, cutoff, cancel, reply) => {
+                respond(reply, || {
+                    if cancel.is_cancelled() {
+                        return Err(store::Error::OperationConflict);
+                    }
+                    store.evict_cached_before(&account, &context, cutoff)
+                });
+            }
             Command::FilteredPage(request, reply) => {
                 respond(reply, || store.filtered_conversation_page(&request));
             }

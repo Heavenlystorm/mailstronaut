@@ -650,6 +650,109 @@ fn clearing_the_cache_keeps_what_the_user_owns_and_restarts_every_history_pass()
 }
 
 #[test]
+fn explicit_age_eviction_keeps_local_state_and_queues_index_removals() {
+    use mailstronaut_core::store::{mailbox::FolderRole, retention::Evicted};
+
+    let root = tempfile::tempdir().expect("fixture");
+    let mut store = Store::open(root.path()).expect("open");
+    store.ensure_account("a").expect("account");
+    store
+        .bind_mailbox_context("a", CACHE_CONTEXT)
+        .expect("context");
+    let inbox = folder(&mut store, "a", "INBOX", true);
+    let drafts = folder(&mut store, "a", "Drafts", false);
+    folder(&mut store, "a", "Archive", false);
+    let other = folder(&mut store, "b", "INBOX", true);
+    store
+        .assign_folder_roles("a", &[("Drafts".into(), FolderRole::Drafts)])
+        .expect("roles");
+    let mut cache = |inbox: &Folder, uid, received, id, starred| {
+        let mut member = membership(inbox, uid, false);
+        member.flags.starred = starred;
+        store
+            .cache_message(&inbox.account, member, received, None, &original(id, id))
+            .expect("cached")
+    };
+    let old = cache(&inbox, 1, 100, "old", false);
+    let recent = cache(&inbox, 2, 200, "recent", false);
+    let reminded = cache(&inbox, 3, 100, "reminded", false);
+    let starred = cache(&inbox, 4, 100, "starred", true);
+    let server_draft = cache(&drafts, 1, 100, "draft", false);
+    let unrelated = cache(&other, 1, 100, "unrelated", false);
+    let pending = cache(&inbox, 5, 100, "pending", false);
+    store
+        .queue_move("a", pending, None, "Archive", CACHE_CONTEXT)
+        .expect("queued move");
+    store
+        .schedule_reminder(&Schedule {
+            account: "a".into(),
+            message: reminded,
+            due_at: 3_600,
+            time_zone: "UTC".into(),
+            now: 100,
+            expected: None,
+        })
+        .expect("reminder");
+    let on_disk = blobs_on_disk(root.path());
+    assert!(matches!(
+        store.evict_cached_before("a", "retired", 200),
+        Err(Error::StaleMailbox)
+    ));
+    assert!(store.message("a", old).is_ok());
+    assert_eq!(
+        store
+            .evict_cached_before("a", CACHE_CONTEXT, 200)
+            .expect("evict"),
+        Evicted {
+            messages: 1,
+            cleanup_pending: false
+        }
+    );
+    assert!(matches!(
+        store.message("a", old),
+        Err(Error::MissingMessage)
+    ));
+    for kept in [recent, reminded, starred, server_draft, pending] {
+        assert!(store.message("a", kept).is_ok());
+    }
+    assert!(store.message("b", unrelated).is_ok());
+    assert!(
+        store
+            .reminder_for("a", reminded)
+            .expect("query reminder")
+            .is_some()
+    );
+    assert_eq!(blobs_on_disk(root.path()), on_disk - 1);
+    assert!(
+        store
+            .begin_move("a", CACHE_CONTEXT)
+            .expect("claim")
+            .is_some()
+    );
+    let lexical = store.search_pending(32).expect("word index queue");
+    assert!(
+        lexical
+            .items
+            .iter()
+            .any(|item| item.id == old && item.text.is_none())
+    );
+    let semantic = store.semantic_pending(32).expect("meaning index queue");
+    assert!(
+        semantic
+            .items
+            .iter()
+            .any(|item| item.id == old && item.source.is_none())
+    );
+    assert_eq!(
+        store
+            .evict_cached_before("a", CACHE_CONTEXT, 200)
+            .expect("repeat")
+            .messages,
+        0
+    );
+}
+
+#[test]
 fn a_write_behind_another_handles_lock_is_refused_and_leaves_nothing_behind() {
     let root = tempfile::tempdir().expect("fixture");
     let mut first = Store::open(root.path()).expect("first handle");

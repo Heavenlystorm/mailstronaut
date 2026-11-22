@@ -9,8 +9,8 @@ age limit. The configuration's `sync.initialDays` decides only how far back a fe
 - absent or `null`: the complete history of every synchronized folder;
 - a number from 1 to 3650: the earlier cap, kept exactly for configurations that declared it.
 
-Declaring or changing a cap never deletes cached mail. Nothing is evicted, and drafts,
-outbox records, pending operations and locally owned attachments are never touched.
+Declaring or changing a cap leaves downloaded mail in place. The separate
+[local retention action](#explicit-local-retention) requires confirmation.
 
 Every cycle, for each folder in turn:
 
@@ -200,7 +200,30 @@ records the full passing activation and the skipped systemd reloads.
 
 ## Not established
 
-- Retention eviction. No cached mail is ever removed by this change, and the PLAN row stays open.
 - Cost of the six-hour rewalk on very large mailboxes, and any live provider.
 - Flags on old mail outside the newest windows refresh only while a pass walks past them; a
   finished pass refreshes them at the next rewalk.
+
+## Explicit local retention
+
+An account with a numeric history limit shows **Remove cached mail older
+than … days** in Settings. The confirmation uses the active limit. Cleanup
+removes eligible server-backed originals from the account's cache and queues
+deletion in both search indexes. Drafts, starred mail, reminders, pending
+operations and other local message state remain available. Blob collection
+keeps files still referenced by messages, draft attachments or the outbox.
+
+The store regression exercises a stale mailbox context, the cutoff boundary,
+account isolation, preserved reminder and pending-move state, preserved server
+drafts and starred mail, blob collection and both index queues.
+
+Run `experiments/p02-accounts/credentials.sh` in `nix develop .#gui-test`
+with the private fixture binaries, `MAILSTRONAUT_HISTORY_GUI_BINARY` and
+`MAILSTRONAUT_TEST_RETENTION=1`. On 2026-11-22 a private headless Wayland
+session downloaded four synthetic messages from Dovecot before introducing
+a 30-day cap. Cancel left the cache intact. Confirm removed the two eligible
+old originals and an unreferenced blob, left the starred and recent
+originals and server copies intact, and left the Nix file byte-for-byte
+unchanged. After restarting, Ctrl+R honored the cap and did not replace
+the removed copies. The screenshot is in the test profile under
+`history-gui/retention-confirm.png`.

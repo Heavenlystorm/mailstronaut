@@ -912,7 +912,7 @@ fn unix_seconds() -> i64 {
 
 /// The oldest arrival time that sync fetches. Without a declared age limit the complete
 /// history is wanted, so nothing is older than the floor.
-fn history_floor(config: &Config, now: i64) -> i64 {
+pub fn history_floor(config: &Config, now: i64) -> i64 {
     config.sync.initial_days.map_or(i64::MIN, |days| {
         now.saturating_sub(i64::from(days) * 86_400)
     })

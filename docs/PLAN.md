@@ -284,8 +284,9 @@ new dependency graph before claiming current-package acceptance.
 - [x] Expose the advanced history age limit in Settings and Home Manager. The private
   Wayland save-and-clear walkthrough and disposable Home Manager activation pass.
   [Age cap and configuration evidence](evidence/P04-history.md#home-manager-history-cap).
-- [ ] Offer explicit retention eviction, preserving drafts, pending operations,
+- [x] Offer explicit retention eviction, preserving drafts, pending operations,
   local attachment snapshots and other user-owned state.
+  [Store regression and private Wayland/Dovecot walkthrough](evidence/P04-history.md#explicit-local-retention).
 - [x] Show per-account and per-folder fetch progress with Kit `Progress`. Display the
   measured reviewed count and total when known. Use indeterminate progress during
   connection and fetch setup. The native two-account, cancellation and failure

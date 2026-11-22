@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use gpui::component::{
-    Disableable as _,
+    Disableable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     description_list::DescriptionList,
     input::{Input, InputState},
@@ -15,6 +15,7 @@ use gpui::{
 };
 use mailstronaut_config::{Account, Auth, Config};
 use mailstronaut_core::{
+    store::{flags, retention::Evicted},
     sync::{Page, Position},
     worker::Handle,
 };
@@ -25,6 +26,7 @@ use crate::account_actions::{self, Access};
 
 pub enum Event {
     CacheChanged,
+    CacheEvicted,
     CredentialsChanged,
 }
 
@@ -32,6 +34,7 @@ enum Outcome {
     Saved,
     SignedIn,
     Synced(Page),
+    Evicted(Evicted),
 }
 
 pub struct AccountPane {
@@ -192,6 +195,46 @@ impl AccountPane {
         Self::watch(job, true, cx);
     }
 
+    fn confirm_eviction(&self, days: u32, window: &mut Window, cx: &mut Context<Self>) {
+        let pane = cx.entity().downgrade();
+        let account = self.account.display_name.clone();
+        window.open_alert_dialog(cx, move |dialog, _, _| {
+            let pane = pane.clone();
+            dialog
+                .confirm()
+                .title("Remove old cached mail?")
+                .description(format!(
+                    "Remove downloaded mail older than {days} days for {account}. Server copies stay in place. The app keeps drafts, starred mail, reminders and pending changes."
+                ))
+                .ok_text("Remove local copies")
+                .on_ok(move |_, _, cx| {
+                    _ = pane.update(cx, Self::evict);
+                    true
+                })
+        });
+    }
+
+    fn evict(&mut self, cx: &mut Context<Self>) {
+        if self.config.sync.initial_days.is_none() || self.lifetime.is_cancelled() {
+            return;
+        }
+        let Some(cancel) = self.begin("Removing old cached mail…", cx) else {
+            return;
+        };
+        let cutoff = account_actions::history_floor(&self.config, chrono::Utc::now().timestamp());
+        let account = self.account.clone();
+        let store = self.store.clone();
+        let job = self.runtime.spawn(async move {
+            let context = flags::context(&account).map_err(|error| error.to_string())?;
+            store
+                .evict_cached_before(account.id, context, cutoff, cancel)
+                .await
+                .map(Outcome::Evicted)
+                .map_err(|error| error.to_string())
+        });
+        Self::watch(job, false, cx);
+    }
+
     fn watch(job: JoinHandle<Result<Outcome, String>>, cache_changed: bool, cx: &Context<Self>) {
         cx.spawn(async move |this, cx| {
             let result = job
@@ -209,6 +252,18 @@ impl AccountPane {
                             "Downloaded {} · refreshed {} · skipped {}. Cache coverage is partial.",
                             page.downloaded, page.refreshed, page.skipped
                         )
+                    }
+                    Ok(Outcome::Evicted(evicted)) => {
+                        if evicted.messages > 0 {
+                            this.before = None;
+                            cx.emit(Event::CacheEvicted);
+                        }
+                        let messages = evicted.messages;
+                        if evicted.cleanup_pending {
+                            format!("Removed {messages} cached messages. Run cleanup again to retry file removal.")
+                        } else {
+                            format!("Removed {messages} cached messages.")
+                        }
                     }
                     Err(error) => {
                         if cache_changed {
@@ -321,6 +376,8 @@ impl AccountPane {
                             "sync",
                             "older",
                             "cancel",
+                            "cache",
+                            "retention",
                             &account.address,
                         ]),
                     ),
@@ -398,6 +455,16 @@ impl Render for AccountPane {
                         ))
                     }),
             )
+            .when_some(self.config.sync.initial_days, |view, days| {
+                view.child(
+                    Button::new("evict-older-cache")
+                        .label(format!("Remove cached mail older than {days} days"))
+                        .disabled(self.busy)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.confirm_eviction(days, window, cx);
+                        })),
+                )
+            })
             .child(div().text_sm().child(self.status.clone()))
     }
 }

@@ -24,6 +24,7 @@ pub mod moves;
 /// Durable drafts and immutable, explicitly submitted outbox records.
 pub mod outbox;
 pub mod reminders;
+pub mod retention;
 pub mod search;
 pub mod semantic;
 
