@@ -389,7 +389,7 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
 
 ## P06 — GPUI mailbox workspace and strong local search
 
-- [ ] Replace Older/Newer/page controls with continuous virtualized browsing. Reuse
+- [x] Replace Older/Newer/page controls with continuous virtualized browsing. Reuse
   Kit `List`/`ListState` (already virtualized), `ListDelegate::has_more`,
   `load_more` and `load_more_threshold` with bounded backend query windows.
   Permit one in-flight batch per query generation; ignore stale completions. Keep
@@ -397,12 +397,10 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   Verify scrolling past 100 rows, search/folder changes, new-mail insertion and
   keyboard navigation without missed or duplicated rows. Keep implementation
   batches internal; there must be no user-facing pagination.
-  Work in progress: the main mailbox now loads additional cached metadata as the
-  user scrolls. A synthetic Wayland walkthrough crossed 100 rows with mouse and
-  keyboard and checked explicit-open-only Seen after a refresh and scope changes.
-  [Scoped evidence](evidence/P06-continuous-and-settings.md). The thread-original
-  list also loads bounded batches; a 108-original synthetic Wayland test crossed
-  the boundary without marking passive selections Seen. Wider regression remains open.
+  Native Wayland tests cross 100 rows by wheel and keyboard, preserve the visible
+  rows on refresh, and reset on folder and query changes. The 108-original thread
+  also loads across the same boundary; passive navigation leaves its Seen state
+  unchanged. [Native walkthroughs and arrival tests](evidence/P06-continuous-and-settings.md).
 - [x] Verify unread dots in both themes, readable 99+ sidebar counts, one app title,
   icon actions with accessible names/tooltips and a single Settings selection state.
   [Synthetic native walkthrough](evidence/P06-ui-feedback.md).
@@ -451,11 +449,12 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   and `DescriptionList` for From/To/Cc/date; do not adopt chat/tail-following behavior.
   [Selection and opening pass](evidence/P06-navigation.md); per-message actions
   arrive with P07.
-- [ ] Mark Seen only after an **explicit open action loads that original's content**.
+- [x] Mark Seen only after an **explicit open action loads that original's content**.
   Passive focus/selection/restoration/search/previews/refresh never mark read;
   opening one member does not mark its whole thread. Preserve explicit unread.
   Keep `ListDelegate::set_selected_index`/`ListEvent::Select` passive;
   `ListDelegate::confirm`/`ListEvent::Confirm` invokes the existing content-load gate.
+  [Native and worker evidence](evidence/P06-continuous-and-settings.md).
 - [ ] Display extracted two/three-line previews, safe HTML/CID and accessible text
   modes; verify actual Wayland keyboard/copy/link behavior.
 - [x] Research maintained fuzzy/hybrid libraries and local encoders, with exact

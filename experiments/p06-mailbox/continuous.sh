@@ -42,9 +42,17 @@ check_seen page-105
 wtype -M ctrl l -m ctrl -s 200
 capture continuous-before-refresh
 wtype -M ctrl r -m ctrl -s 700
+# Ctrl+R refreshes cached rows and requests actual sync. The fixture has two
+# accounts without credentials, so dismiss both warnings before comparing the
+# row viewport. Each warning takes vertical space above it.
+capture continuous-sync-alert
+click 460 128
+click 460 128
+swaymsg seat seat0 cursor set 565 780 > /dev/null
 capture continuous-after-refresh
-# Exclude Kit's transient scrollbar fade; compare the actual row content/position.
-[[ $(magick "$root/continuous-before-refresh.png" "$root/continuous-after-refresh.png" -compose difference -composite -crop 330x640+205+105 -format '%[fx:mean<0.00001]' info:) == 1 ]]
+# Exclude the clipped hovered row and the transient scrollbar. The rest of
+# the visible rows must retain their positions, including the selection.
+[[ $(magick "$root/continuous-before-refresh.png" "$root/continuous-after-refresh.png" -compose difference -composite -crop 330x590+205+155 -format '%[fx:mean<0.00001]' info:) == 1 ]]
 wtype -k Return -s 400
 copy_body continuous-refreshed 'Synthetic cached letter 105.'
 check_seen page-105

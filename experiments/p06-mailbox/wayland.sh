@@ -184,6 +184,7 @@ assert seen == [105], seen
 PYTHREAD
   capture long-thread-passive
   wtype -k Return -s 600
+  capture long-thread-just-opened
   copy_body long-thread-old 'Synthetic thread original'
   python3 - "$root" <<'PYTHREAD'
 import json, re, sqlite3, sys

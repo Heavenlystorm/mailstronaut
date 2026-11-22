@@ -38,3 +38,14 @@ the scroll window through refresh, and reset on search and folder changes. Only
 that original became Seen. The script now always seeds enough conversations for
 this case and allows the asynchronous batch to arrive before crossing the boundary.
 Full log and captures are under `target/p06.Ux398I`.
+
+On `ef32c38`, the local navigation walk repeated the explicit-open checks,
+including unread siblings, passive thread navigation, scoped search, account
+retirement and explicit unread after a message was opened. The continuous-list
+walk again crossed 100 rows by wheel and keyboard, reopened the selected
+original after a refresh and preserved the visible row positions. The fixture
+now dismisses both synthetic credential warnings before comparing the list
+viewport because Ctrl+R also requests a server sync. The 108-original walk
+captured the loaded older body before copying it and verified that only the two
+explicitly opened originals were Seen. Captures are under `target/p06.mJgze8`,
+`target/p06.ZEPAp5` and `target/p06.IC4ZKb`.
