@@ -131,3 +131,21 @@ workspace/vendor lock comparison passed before compilation.
 Full logs and private profiles remain under the project target on ci-py and in
 `target/remote`. Real provider authorization, CA/browser desktop and Flatpak
 portals, complete HM activation and user-session accessibility remain open.
+
+## Published institutional TLS route recheck
+
+On 2026-11-22, Python/OpenSSL with the NixOS CA bundle, hostname verification and
+default TLS policy verified the certificates on the [UPPA Partage IMAP and SMTP
+ports](https://formation.univ-pau.fr/fr/vie-etudiante/outils-numeriques-adresse-mail-etudiante/messagerie-partage.html)
+over TLS 1.3. The [PoliTO student SMTP port](https://it.polito.it/studenti-e-dottorandi/il-tuo-account/guida-alla-configurazione-della-posta-elettronica/parametri-per-la-configurazione-della-posta-elettronica)
+verified over TLS 1.2. PoliTO student IMAP still reported `DH_KEY_TOO_SMALL` before
+authentication. A second secure handshake offering ECDHE suites received a
+handshake-failure alert. No credentials or mail were sent. These are transport
+observations from this machine. Provider login and sending acceptance remain open.
+
+The local synthetic onboarding walkthrough saved the missing password through
+the app, woke the stopped account, and fetched the original without setting Seen
+on the client or server. A separate Settings run saved `short-login` and
+`smtp-login` independently and verified the native Nix export. Captures are in
+`target/p02.HAR9b9/onboarding-auth` and `target/p06.qmlDio`. These use private Dovecot
+and Secret Service instances.

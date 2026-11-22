@@ -169,3 +169,10 @@ The x86_64 pinned workspace checks and full Nix package gate passed on the
 hosted CI, installed Flatpak, and real-provider acceptance were not run.
 The gate passed again after rebasing onto `f277d89`, reusing the package and
 rerunning the changed flake checks.
+## Local background lifecycle recheck
+
+The `df73925` local build passed native headless startup, automatic sync,
+passive second launch, reopening through a notification action, stale reminder
+rejection and explicit Quit. All accounts, messages and notification actions
+were synthetic. The fixture ran in `target/p02.2L2iGW/background-gui`; log
+`target/local-checks/background-retry.log`. The live desktop remains a separate check.

@@ -74,9 +74,9 @@ fi
 wtype -M ctrl , -m ctrl -s 400
 click 300 203
 capture missing
-click 700 460
+click 700 712
 wtype -s 200 "$imap_password" -s 200
-click 1190 460
+click 1190 712
 for _ in {1..100}; do
   if python3 - "$database" <<'PYSYNC'
 import sqlite3,sys

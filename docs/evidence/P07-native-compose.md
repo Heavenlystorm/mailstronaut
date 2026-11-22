@@ -142,3 +142,15 @@ fixture, not a desktop file chooser. Provider-side Sent saving is not exercised.
 exercised by the navigation walkthrough, and backend tests cover several other states.
 A connection lost between the pre-flight and DATA is still reported as unknown, the safe
 direction.
+
+## Local compose and delivery recheck
+
+At `df73925`, private Wayland walkthroughs passed against local SMTP and Dovecot.
+Compose saved and reopened a draft with its signature and attachment. Temporary
+and preflight failures stayed retryable; a lost acknowledgment became uncertain
+and survived restart without resubmission. An explicit retry used identical
+frozen bytes and Message-ID. After an accepted send, private Dovecot recovered
+one matching Sent copy when IMAP came back, without a second SMTP submission.
+
+Receipts: `target/local-checks/compose-compose.log`, `compose-delivery.log` and
+`compose-sent_copy.log`. Only synthetic mail and private credentials were used.

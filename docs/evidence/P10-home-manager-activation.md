@@ -38,3 +38,10 @@ Home Manager installed the real package and skipped desktop-service activation. 
 [maintenance guide](../MAINTENANCE.md) for backup and redeclaration. This verifies the CLI
 export round trip. The GUI edit/portal export workflow and autostart on the live desktop
 have separate acceptance requirements.
+
+The later application revision `df73925` passed local x86_64 `nix flake check`,
+`nix build`, `nix run -- --version`, and installed native configuration validation.
+Before compilation the run compared the workspace and vendored lockfiles. Its
+receipt is `nix-gate-exit=0` in `target/local-checks/latest-packages.log`.
+The release gate exercised the flake's Home Manager module check. The disposable
+generation scenarios above used `722472b`.

@@ -233,11 +233,11 @@ if [[ ${MAILSTRONAUT_LOGIN_GUI:-0} == 1 ]]; then
   wtype -M ctrl , -m ctrl -s 500
   click 300 205
   capture account-logins
-  click 650 565
+  click 650 544
   wtype -M ctrl a -m ctrl 'short-login' -s 200
-  click 650 644
+  click 650 624
   wtype 'smtp-login' -s 200
-  click 850 688
+  click 850 669
   sleep 1
   "$binary" config export --path "$config" > "$root/login-saved.nix"
   grep -Fq 'userName = "short-login";' "$root/login-saved.nix"

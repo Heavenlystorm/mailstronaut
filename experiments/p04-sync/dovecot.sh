@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Sourced by native acceptance scripts: a disposable, unprivileged Dovecot serving
-# synthetic mail over TLS on loopback. Callers set `artifacts`, `imap_user` and
-# `imap_password`, and call `dovecot_cleanup` from their trap.
-: "${artifacts:?artifact directory}" "${imap_user:?synthetic user}" "${imap_password:?synthetic password}"
+# synthetic mail over TLS on loopback. Callers set the private profile `root`,
+# `artifacts`, `imap_user` and `imap_password`, and call `dovecot_cleanup` from their trap.
+: "${root:?private profile}" "${artifacts:?artifact directory}" "${imap_user:?synthetic user}" "${imap_password:?synthetic password}"
 # Callers may set `dovecot_extra` to append to the server configuration.
 dovecot_root="$artifacts/dovecot"
+# Keep Dovecot's Unix sockets out of the deeper screenshot/log directories.
+dovecot_run=$(mktemp -d "$root/imap.XXXXXX")
 mail_root="$dovecot_root/mail/$imap_user"
-mkdir -p "$dovecot_root/run" "$dovecot_root/state" "$mail_root/new" "$mail_root/cur" "$mail_root/tmp"
+mkdir -p "$dovecot_root/state" "$mail_root/new" "$mail_root/cur" "$mail_root/tmp"
 imap_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
 user_name=$(id -un)
 group_name=$(id -gn)
@@ -17,7 +19,7 @@ dovecot_config_version = 2.4.0
 dovecot_storage_version = 2.4.0
 protocols = imap
 listen = 127.0.0.1
-base_dir = $dovecot_root/run
+base_dir = $dovecot_run
 state_dir = $dovecot_root/state
 log_path = $dovecot_root/dovecot.log
 info_log_path = $dovecot_root/dovecot.log

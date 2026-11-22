@@ -137,3 +137,11 @@ import/runtime, live provider or real Home Manager activation acceptance is clai
 Headless background sync can queue semantic work; the model owner currently belongs
 to the visible workspace lifetime. Partial server-cache coverage is separate from
 semantic queue/excerpt counts. Better no-answer discrimination remains open.
+## Local English-to-French walkthrough recheck
+
+The `df73925` native build loaded the actual hash-pinned MiniLM linkFarm from
+`nix build .#semantic-model`. In `target/p02.G4xiQb/meaning-gui`, the English
+“reminder about doctoral school re-enrollment” query opened the synthetic French
+notice first in explicit Related mode. The exact-word, model-disable, missing-model
+and Seen checks passed in the same Wayland session. This repeats the concrete
+example with the current application. The frozen no-answer failures remain open.

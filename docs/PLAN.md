@@ -637,7 +637,7 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   backend ownership: failed attachment/retry, two distinct windows in one process,
   retained state and headless event-loop progress, released workspace entities and
   HTML workers. [Bounded native feasibility evidence](evidence/P08-headless.md).
-- [ ] Move backend ownership outside the window and implement `--background` and
+- [x] Move native backend ownership outside the window and implement `--background` and
   window reopening without a second DB writer. Prefer GPUI's existing
   `WindowingRequest::Headless`/`App::request_windowing` lifecycle proved above;
   no hidden GPU window or custom daemon. Explicit Quit stops work. Automatic
@@ -752,8 +752,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   prove dependency reuse after a source-only edit. Debug/test use Cranelift/Wild;
   release uses LLVM/thin LTO/one codegen unit. Retire obsolete native-browser hooks.
   [Local source-only reuse and hosted build evidence](evidence/P01-ci-cache.md).
-- [ ] Build/install through `nix develop`, `nix flake check`, `nix build`, `nix run`
+- [x] Build/install through `nix develop`, `nix flake check`, `nix build`, `nix run`
   and direct Home Manager package/config composition. No custom HM format adapter.
+  [Local x86_64 package and installed CLI](evidence/P10-home-manager-activation.md#local-nixos-recheck).
 - [x] Provide the direct native-file HM recipe and an optional thin
   `programs.mailstronaut` module with `enable`, `package`, native `settings` and
   `mutableSettings = false` by default. Share Rust evaluation/validation/serialization
