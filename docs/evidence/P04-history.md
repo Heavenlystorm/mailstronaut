@@ -188,9 +188,18 @@ Requested folders stay queued until their bounded pass completes, including
 after failures or cancellation. A finished folder no longer leaves a
 continuation timer solely because it needed more than one window.
 
+## Home Manager history cap
+
+Real activation in a disposable profile kept an app-set 30-day cap when the
+declaration omitted it, including after native export and reimport. An explicit
+`sync.initialDays = null` then restored complete-history fetching while keeping
+the existing poll interval. The installed `b9d96ff` Nix package validated the
+activated expression. The fixture used a private runtime directory and a
+nonexistent session bus. `target/local-checks/home-manager-history-cap.log`
+records the full passing activation and the skipped systemd reloads.
+
 ## Not established
 
-- The age cap through a combined Settings and Home Manager activation walkthrough.
 - Retention eviction. No cached mail is ever removed by this change, and the PLAN row stays open.
 - Cost of the six-hour rewalk on very large mailboxes, and any live provider.
 - Flags on old mail outside the newest windows refresh only while a pass walks past them; a

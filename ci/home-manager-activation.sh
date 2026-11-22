@@ -4,9 +4,10 @@
 # edits survive re-activation while declared values are reapplied; removing a declaration keeps the
 # current value; an explicit empty account list is honored; an invalid declaration fails without
 # changing the file; and a user-owned file is never replaced silently. Run from the repository root.
+# Pass a Git flake reference to verify an already-built revision instead of the working tree.
 set -euo pipefail
 root=$(pwd)
-flake_url=$(python3 -c 'from pathlib import Path; print("git+" + Path.cwd().as_uri())')
+flake_url=${1:-$(python3 -c 'from pathlib import Path; print("git+" + Path.cwd().as_uri())')}
 mkdir -p "$root/target"
 work=$(mktemp -d "$root/target/hm-activation.XXXXXX")
 # Keep the throwaway homes when a check fails, so their contents can be inspected.
@@ -82,8 +83,9 @@ printf '%s\n' 'OK: mutable activation creates a writable configuration on first 
 
 # A UI edit to a value the configuration does not declare: an attribute added right after the
 # top-level opening brace, whether the serializer wrote one line or many.
-sed -i '0,/{/s//{ sync.pollSeconds = 900;/' "$config"
+sed -i '0,/{/s//{ sync = { pollSeconds = 900; initialDays = 30; };/' "$config"
 [[ $(value 'c.sync.pollSeconds') == '900' ]]
+[[ $(value 'c.sync.initialDays') == '30' ]]
 
 # Mutable, repeated activation with a changed declaration: the declared value wins, and the UI edit
 # survives.
@@ -99,6 +101,7 @@ printf '%s\n' 'OK: activation refused a competing writer without changing the so
 activate "$activation"
 [[ $(value 'c.appearance') == '"light"' ]]
 [[ $(value 'c.sync.pollSeconds') == '900' ]]
+[[ $(value 'c.sync.initialDays') == '30' ]]
 printf '%s\n' 'OK: repeated mutable activation reapplies the declared value and keeps the UI edit'
 
 # Removing a declaration stops enforcing it but keeps the current value.
@@ -106,6 +109,7 @@ activation=$(build '"light"' true false null)
 activate "$activation"
 [[ $(value 'c.appearance') == '"light"' ]]
 [[ $(value 'c.sync.pollSeconds') == '900' ]]
+[[ $(value 'c.sync.initialDays') == '30' ]]
 printf '%s\n' 'OK: removing a declaration keeps the current value and the UI edit'
 
 # An explicit empty account list is honored: whole lists replace, so the account is removed.
@@ -131,9 +135,19 @@ activation=$(build '"dark"' true false '[ ]' "$work/exported.nix")
 activate "$activation"
 [[ $(value 'c.appearance') == '"light"' ]]
 [[ $(value 'c.sync.pollSeconds') == '900' ]]
+[[ $(value 'c.sync.initialDays') == '30' ]]
 [[ $(value 'map (a: a.id) c.accounts') == '["declared"]' ]]
 [[ $(value 'c.managed') == 'false' ]]
 printf '%s\n' 'OK: the installed client export became the next native Home Manager declaration'
+
+# An explicitly declared null restores complete history, preserving the poll interval.
+printf '%s\n' '{ sync.initialDays = null; }' > "$work/complete-history.nix"
+activation=$(build '"dark"' true false null "$work/complete-history.nix")
+activate "$activation"
+[[ $(value 'c.sync.initialDays') == 'null' ]]
+[[ $(value 'c.sync.pollSeconds') == '900' ]]
+"$activation/home-path/bin/mailstronaut" config check --path "$config"
+printf '%s\n' 'OK: Home Manager can keep an app-set cap and explicitly restore complete history'
 
 # Ownership, immutable: Home Manager does not replace a user-owned regular file.
 rm -rf "$fixture_home" && mkdir -p "$(dirname "$config")"

@@ -281,11 +281,11 @@ new dependency graph before claiming current-package acceptance.
   with durable per-folder cursors, restart after a kill, and backpressure. An optional
   native `sync.initialDays` cap keeps its meaning when declared; absent or null means the
   complete history. Nothing is deleted by either. [Evidence](evidence/P04-history.md).
-- [ ] Expose the advanced history age limit in Settings and Home Manager, and offer
-  retention eviction (separately, never silently deleting drafts, pending operations or
-  locally owned attachments). The app-owned Settings control passed a synthetic
-  Wayland save-and-clear walkthrough; Home Manager activation and eviction remain
-  open.
+- [x] Expose the advanced history age limit in Settings and Home Manager. The private
+  Wayland save-and-clear walkthrough and disposable Home Manager activation pass.
+  [Age cap and configuration evidence](evidence/P04-history.md#home-manager-history-cap).
+- [ ] Offer explicit retention eviction, preserving drafts, pending operations,
+  local attachment snapshots and other user-owned state.
 - [x] Show per-account and per-folder fetch progress with Kit `Progress`. Display the
   measured reviewed count and total when known. Use indeterminate progress during
   connection and fetch setup. The native two-account, cancellation and failure
