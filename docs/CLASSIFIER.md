@@ -75,6 +75,30 @@ fit the same typed result contract, local privacy rule, no custom Python, and CP
 budget, and beat the rule baseline on held-out email fixtures. Prefer reducing the
 number of NLI hypotheses/windows before increasing parameter count.
 
+### Follow-up compatibility screen
+
+`gliclass-multilang-edge` revision `d16c08ef70547514081952104e6fc3d190d9ee39`
+lists English, French and Italian and publishes 143 million BF16 parameters.
+Its ModernBERT uni-encoder uses `pooling_strategy = "pass"`. The published
+`gliclass-candle` 0.1.0 supports first-token pooling and requires Candle 0.11.1
+and tokenizers 0.23.2. That combination cannot load this model unchanged against
+the current workspace's inference stack. The small v3 model supported by the
+crate is a different model with separate language coverage.
+[Pinned multilingual configuration](https://huggingface.co/knowledgator/gliclass-multilang-edge/blob/d16c08ef70547514081952104e6fc3d190d9ee39/config.json)
+[Published crate](https://docs.rs/crate/gliclass-candle/0.1.0)
+[v3 model card](https://huggingface.co/knowledgator/gliclass-edge-v3.0).
+
+Horizon Labs' multilingual zero-shot small model specifies 22 ModernBERT layers,
+563 MB of F32 weights and a binary entailment head. The current Candle
+classification API expects flat rotary parameters and a different label mapping
+format. The model supplies nested `rope_parameters` and integer `label2id`
+values. A future adapter needs numerical parity and a separately calibrated
+abstention policy for its binary outputs. The quantized ONNX release needs a
+separate runtime. Neither candidate has been scored or added to the workspace.
+[Pinned Horizon configuration](https://huggingface.co/Horizon-Labs/multilingual-zeroshot-small/blob/28655c812783e97b1221970d037aea1d1addd980/config.json)
+[Pinned artifacts](https://huggingface.co/Horizon-Labs/multilingual-zeroshot-small/tree/28655c812783e97b1221970d037aea1d1addd980)
+[Candle implementation](https://docs.rs/crate/candle-transformers/0.11.0/source/src/models/modernbert.rs).
+
 ## 3. Input, output and contextual TTL
 
 Classifier input is decoded subject, sender/recipient metadata and normalized visible
