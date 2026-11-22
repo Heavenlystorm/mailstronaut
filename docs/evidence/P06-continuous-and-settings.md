@@ -31,3 +31,10 @@ These checks do not establish live-provider authentication or sending, full Home
 Manager activation, Flatpak acceptance, or multi-account progress coverage. The
 history cap limits fetching; it does not evict
 cached mail.
+
+On `15cd9a8`, the local private Wayland run crossed the 100-row boundary by wheel
+and keyboard. It opened the same final cached original in both cases, preserved
+the scroll window through refresh, and reset on search and folder changes. Only
+that original became Seen. The script now always seeds enough conversations for
+this case and allows the asynchronous batch to arrive before crossing the boundary.
+Full log and captures are under `target/p06.Ux398I`.

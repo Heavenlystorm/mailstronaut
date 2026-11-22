@@ -26,8 +26,13 @@ sleep .4
 # Kit owns arrow navigation and virtualization. Crossing the batch boundary is
 # passive, and must load the remaining rows without a page button or body open.
 keys=()
-for _ in {1..108}; do keys+=(-k Down -s 30); done
-wtype -M ctrl l -m ctrl -s 200 "${keys[@]}" -s 600
+for _ in {1..98}; do keys+=(-k Down -s 65); done
+wtype -M ctrl l -m ctrl -s 300 "${keys[@]}" -s 800
+# Give the in-flight continuation time to arrive before crossing the end of
+# the first batch, where Kit would otherwise wrap selection to the first item.
+keys=()
+for _ in {1..10}; do keys+=(-k Down -s 100); done
+wtype "${keys[@]}" -s 800
 check_seen page-105
 capture continuous-past-100
 assert_empty_reader continuous-past-100

@@ -14,9 +14,9 @@ unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET SWAYSOCK DBUS_SESSION_BUS_ADDRESS A
 export XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway
 export VK_DRIVER_FILES="${MAILSTRONAUT_TEST_VULKAN_ICD:?pinned software Vulkan driver}"
 export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
-app='' keyboard='' pointer='' compositor='' bus='' blocker=''
+app='' keyboard='' pointer='' compositor='' bus='' blocker='' export_portal=''
 cleanup() {
-  for pid in "$app" "$keyboard" "$pointer" "$compositor" "$bus" "$blocker"; do
+  for pid in "$app" "$keyboard" "$pointer" "$compositor" "$export_portal" "$bus" "$blocker"; do
     if [[ -n "$pid" ]]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   done
 }
@@ -75,7 +75,10 @@ if [[ ${MAILSTRONAUT_LOGIN_GUI:-0} == 1 ]]; then
   sed -i 's/displayName = identity.id;/displayName = "Synthetic Reader";/' "$config"
 fi
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
-"$fixture" seed_conversation_gui --ignored --exact --nocapture > "$root/seed.log" 2>&1
+navigation_seed=${MAILSTRONAUT_MAILBOX_NAVIGATION:-0}
+if [[ ${MAILSTRONAUT_CONTINUOUS_GUI:-0} == 1 ]]; then navigation_seed=1; fi
+MAILSTRONAUT_MAILBOX_NAVIGATION=$navigation_seed "$fixture" seed_conversation_gui \
+  --ignored --exact --nocapture > "$root/seed.log" 2>&1
 if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
   "${MAILSTRONAUT_LONG_THREAD_FIXTURE:?prebuilt long-thread fixture}" --ignored --exact seed_long_thread > "$root/long-seed.log" 2>&1
 fi

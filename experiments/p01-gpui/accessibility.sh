@@ -259,18 +259,40 @@ second_focus = focused_name(walk())
 checks["focus_follows_list_row_one"] = any("Performance 000" in name for name in first_focus)
 checks["focus_follows_list_row_two"] = any("Performance 001" in name for name in second_focus)
 checks["focus_moved_between_rows"] = first_focus != second_focus
+
+# Open the focused original and focus its read-only native text alternative.
+key("Return")
+time.sleep(1)
+subprocess.run(["wtype", "-M", "ctrl", "-M", "shift", "-k", "t", "-m", "shift", "-m", "ctrl"], check=True)
+time.sleep(0.6)
+reader = walk()
+(artifacts / "reader-tree.json").write_text(json.dumps(reader, indent=2))
+text_nodes = [node for node in reader
+              if node["name"] == "Message text" and node["states"] & focused_bit]
+checks["reader_text_focused"] = "Message text" in focused_name(reader)
+reader_exposes_exact_text = False
+if len(text_nodes) == 1:
+    try:
+        node = text_nodes[0]
+        body = literal(gdbus(node["bus"], node["path"], "org.a11y.atspi.Text.GetText", "--", "0", "-1"))[0]
+        reader_exposes_exact_text = body.strip() == "Synthetic performance original 001."
+    except subprocess.CalledProcessError as error:
+        (artifacts / "reader-text-error.log").write_text(error.stderr)
 summary = {
     "nodes_exposed": len(tree),
     "unreadable_nodes": walk_errors[:10],
     "row_names_sample": rows[:3],
     "focused_after_first_down": first_focus[:3],
     "focused_after_second_down": second_focus[:3],
+    "reader_exposes_exact_text": reader_exposes_exact_text,
     "checks": checks,
 }
 (artifacts / "accessibility.json").write_text(json.dumps(summary, indent=2))
 print(json.dumps(summary, indent=2))
 if not all(checks.values()):
     raise SystemExit("an accessibility check failed; see accessibility.json")
+if os.environ.get("MAILSTRONAUT_A11Y_REQUIRE_TEXT") == "1" and not reader_exposes_exact_text:
+    raise SystemExit("the reader does not expose its body through the AT-SPI Text interface")
 PYDRIVER
 python3 "$driver" > "$artifacts/driver.log" 2>&1 || {
   cat "$artifacts/driver.log" >&2

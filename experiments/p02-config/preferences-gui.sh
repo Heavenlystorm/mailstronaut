@@ -5,7 +5,7 @@ set -euo pipefail
 trap 'printf "Preferences failed at line %s; profile: %s\n" "$LINENO" "$root" >&2' ERR
 filter_preferences() {
   click 310 126
-  wtype -M ctrl a -m ctrl -k BackSpace "$1" -s 300
+  wtype -M ctrl a -m ctrl -k BackSpace -s 150 "$1" -s 350
 }
 edit_morning() {
   filter_preferences morning
@@ -30,6 +30,7 @@ choose_paris
 [[ $(sha256sum "$config") == "$original" ]]
 # Discard must restore both persistent toolkit fields without writing the source.
 click 430 783
+sleep .5
 filter_preferences morning
 capture preferences-discarded
 [[ $(magick "$root/preferences-before-time.png" -crop 64x20+1157+248 +repage -format '%#' info:) == $(magick "$root/preferences-discarded.png" -crop 64x20+1157+248 +repage -format '%#' info:) ]]

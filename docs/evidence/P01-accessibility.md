@@ -61,5 +61,12 @@ Settings item are named.
   walkthroughs, not in this harness.
 - One release run on one synthetic data set. Hosted CI and real desktop sessions are not covered.
 
-The P01 row "Verify keyboard behavior and the actual accessibility tree on Wayland" therefore stays
-open. The scope above is what this run establishes.
+## Local reader follow-up
+
+The installed x86_64 package built from `722472b` exposed the current message after keyboard
+selection and explicit Return. `Ctrl+Shift+T` focused the inner node named “Message text”.
+The node returned `UnknownInterface` for `org.a11y.atspi.Text.GetText`, so the current
+Kit text area has a focused label but lacks a verified screen-reader body-reading path.
+`MAILSTRONAUT_A11Y_REQUIRE_TEXT=1` makes that check mandatory in the private fixture.
+The [native clipboard and reader test](P01-native-reader.md#local-installed-package-reader-recheck)
+passes independently. The P01 keyboard/accessibility row remains open.

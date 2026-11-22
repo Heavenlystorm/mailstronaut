@@ -109,3 +109,14 @@ desktop FileChooser save/cancel/denial, real desktop accessibility, Flatpak runt
 and live provider authorization remain on PLAN.md. The toolbar appearance toggle
 still previews a window theme; it does not persist a preference. Native export is
 not evidence that these other settings are implemented.
+
+## Local native FileChooser export
+
+The current native app (`15cd9a8`) exercised the real Export to Nix dialog
+against the private FileChooser service. Four `SaveFile` receipts covered
+cancellation, refusal, successful save to a Unicode filename, and an existing
+destination. The successful file had mode `0600`, matched the CLI export byte
+for byte, and passed the application's evaluator. The pre-existing destination and
+active declaration stayed byte-identical, and Seen did not change. The evidence
+is in `target/p06.udWsOt`. This uses a synthetic portal on the private bus;
+the live desktop and Flatpak Documents-portal grant remain open.
