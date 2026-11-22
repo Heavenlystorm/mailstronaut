@@ -2227,7 +2227,7 @@ impl Workspace {
         );
     }
 
-    fn remind_open(&self, when: &When, window: &Window, cx: &mut Context<Self>) {
+    fn remind_open(&self, when: &When, window: &mut Window, cx: &mut Context<Self>) {
         let Some((account, id)) = self
             .selected
             .as_ref()

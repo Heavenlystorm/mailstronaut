@@ -30,9 +30,8 @@ Run on the CI server through `ci/remote.sh`.
 ## Not established
 
 Real desktop notification servers and their buttons, caller-token foreground focus,
-reminder-action reopening after window close and `--background`, suspend and resume,
-and invalid DST civil times through the GUI remain unverified
-(the policy has unit tests). Editable morning/evening/timezone settings now have their own
+reminder-action reopening after window close and `--background`, and suspend and resume
+remain separate checks. Editable morning/evening/timezone settings have their own
 [native preference acceptance](P02-preferences.md). Foreground single-instance
 ownership/passive routing has [separate bounded evidence](P08-instance.md).
 
@@ -43,8 +42,14 @@ on `722472b` in private profile `target/p06.d7HOM1`. The test opens the real men
 and reads the generated SQLite state. This evening refuses a past time on the current civil day,
 Tomorrow morning uses the next civil day and configured time, and reloading from Europe/Paris to
 UTC makes new reminders use UTC. The previously scheduled Paris reminder retains its original UTC
-instant and IANA zone. Only the two explicitly opened originals have Seen. Invalid DST times still
-have backend coverage only.
+instant and IANA zone. Only the two explicitly opened originals have Seen.
+
+The local native check with `MAILSTRONAUT_REMINDER_DST_GUI=1` selected `2027-03-28 02:30`
+in Europe/Paris, during the spring clock jump. The picker stayed open, displayed the exact
+validation error, and preserved the earlier reminder. Editing that same selection to 03:30
+saved the correct UTC instant. A subsequent timezone reload still preserved this scheduled
+Paris reminder. These checks and the error screenshot are under `target/p06.26cxyz`.
+The fall fold policy still has backend coverage only.
 
 ## Time details and rescheduling
 

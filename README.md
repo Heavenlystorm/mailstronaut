@@ -4,7 +4,7 @@ A local-first Rust email client built with **GPUI Kit + Blitz**, for **native
 Wayland**. The project is under development; it is not ready to replace a daily
 email client. The current roadmap is [docs/PLAN.md](docs/PLAN.md).
 
-The UI is being rebuilt with GPUI Kit's components, assets and light/dark themes.
+The UI uses GPUI Kit's components, assets and light/dark themes.
 Blitz lays out passive HTML and AnyRender/Vello CPU paints bounded images for the
 native window. HTML resource/privacy and accessibility acceptance are explicit
 P01 gates; previous toolkit screenshots are historical evidence.
@@ -46,11 +46,13 @@ content becomes read only through an explicit successful open, never list/search
 refresh or focus. Settings now exposes declared accounts, encrypted password
 storage, browser sign-in actions and explicit bounded inbox sync. Offline reading
 and last-valid configuration reload have synthetic native Wayland acceptance;
-live provider login, compose and notification workflows remain unfinished.
+live provider login and real desktop portal acceptance remain open. Drafts,
+submission and reminder delivery have synthetic end-to-end checks.
 
 Declare accounts in the native Nix source, open Settings with Ctrl+, and choose
-an account to save its password or start sign-in. Sync newest mail fetches one
-bounded page; Load older continues it. Ctrl+1 returns to the unified inbox and
+an account to save its password or start sign-in. Automatic sync fetches folder
+history in bounded, resumable batches. The status bar shows progress and coverage.
+Ctrl+1 returns to the unified inbox and
 Ctrl+Shift+R reloads the declaration. Saving credentials never rewrites the Nix
 source. Browser-provider and real desktop portal acceptance are still pending.
 
@@ -68,8 +70,8 @@ iCloud or manual accounts. Save the declaration, then use the account's encrypte
 password or browser sign-in controls. Home Manager users can export these values
 before adding them to their authoritative account declaration.
 
-The sidebar opens each account's cached mail and individual known folders without
-starting a sync. Newer/Older controls page through 100 conversations at a time.
+The sidebar opens each account's cached mail and individual known folders. Opening
+a folder also includes it in synchronization. Cached conversations load as you scroll.
 Expand a thread's message count to choose a cached original, including Sent
 ancestry; arrows select passively and Enter or a click opens only that original.
 Details shows parsed recipients and dates in the declared timezone, with UTC as
@@ -87,8 +89,7 @@ Click a web link to open it through the desktop browser portal, or use Links in
 the reader toolbar (Ctrl+Shift+L, Enter, arrow keys, Enter). The picker displays
 canonical web addresses; file, script and other non-HTTP(S) targets are excluded.
 Invalid local images are omitted, and unsupported HTML falls
-back to cached text. Full layout, accessibility, performance and Flatpak acceptance
-remain open P01 requirements.
+back to cached text. Some HTML layout and text accessibility cases remain open.
 
 Development uses pinned nightly Rust, Cranelift and Wild; release uses stable
 LLVM, thin LTO and one codegen unit. See [delivery](docs/DELIVERY.md) for native
@@ -97,7 +98,7 @@ inputs, checks and distribution limitations. All application code is Rust.
 Configuration is a directly evaluated `.nix` file, without a TOML conversion or
 requirement for a Home Manager adapter. Direct-file composition works today; an
 optional native `mutableSettings` module and export-to-Nix workflow use that same
-schema today. Full Home Manager generation activation remains a separate gate.
+schema. Real Home Manager activation and reimport have passed with a disposable home.
 See [configuration](docs/CONFIGURATION.md),
 [example](examples/config.nix) and [Home Manager composition](examples/home-manager.nix).
 Secrets belong in encrypted storage and must never be put in the Nix store.
@@ -107,9 +108,9 @@ Architecture and decisions: [architecture](docs/ARCHITECTURE.md),
 [interface/component reuse](docs/INTERFACE.md), [search](docs/SEARCH.md),
 [classifier](docs/CLASSIFIER.md).
 
-Nix and Flatpak are release targets. A new-stack Nix package and actual Flatpak
-runtime/portal/Wayland acceptance must pass before distribution is claimed.
-Historical evidence is indexed in [docs/evidence](docs/evidence/README.md).
+The x86_64 Nix package and pinned Flatpak SDK build have passed private Wayland
+checks. Live desktop portals, provider verification and publication remain open.
+Current and historical evidence is indexed in [docs/evidence](docs/evidence/README.md).
 
 Project-authored code is GPL-3.0-only; dependencies and bundled assets retain
 their respective licenses. See [LICENSE](LICENSE).

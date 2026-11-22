@@ -206,6 +206,71 @@ assert db.execute('SELECT due_at,time_zone,state FROM reminders WHERE message_id
 (root/'paris-reminder.json').write_text(json.dumps(expected))
 print('Tomorrow morning uses the next civil day and configured time.',flush=True)
 PYTOM
+  if [[ ${MAILSTRONAUT_REMINDER_DST_GUI:-0} == 1 ]]; then
+    # Exercise the real picker on the next Europe/Paris clock jump. The
+    # stored tomorrow reminder gives the picker a known starting month.
+    click 1039 244
+    wtype -s 200 -k Down -k Down -k Down -k Down -k Return -s 500
+    sleep .7
+    click 640 172
+    read -r months gap_x gap_y gap_hour gap_day < <(python3 - <<'PYGAP'
+import calendar, datetime as dt
+from zoneinfo import ZoneInfo
+tomorrow=dt.datetime.now(ZoneInfo('Europe/Paris')).date()+dt.timedelta(days=1)
+def last_sunday_of_march(year):
+    last=dt.date(year,3,31)
+    return last-dt.timedelta(days=(last.weekday()+1)%7)
+gap=last_sunday_of_march(tomorrow.year)
+if gap<=tomorrow: gap=last_sunday_of_march(tomorrow.year+1)
+months=(gap.year-tomorrow.year)*12+gap.month-tomorrow.month
+weekday,count=calendar.monthrange(gap.year,gap.month)
+offset=(weekday+1)%7
+cell=offset+gap.day-1
+rows=(offset+count+6)//7
+print(months,461+32*(cell%7),288+32*(cell//7),288+32*(rows-1)+57,gap.isoformat())
+PYGAP
+    )
+    for ((month=0; month<months; month++)); do click 653 222; done
+    click "$gap_x" "$gap_y"
+    click 618 "$gap_hour"
+    wtype -s 220 '0230' -s 350 -k Escape -s 300
+    capture reminder-dst-gap-selected
+    click 790 220
+    sleep .7
+    capture reminder-dst-gap-result
+    python3 - "$root" "$gap_day" <<'PYGAPRESULT'
+import datetime as dt, json, sqlite3, sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
+root=Path(sys.argv[1]); ids=json.loads((root/'conversation-ids.json').read_text())
+db=sqlite3.connect(root/'data/mailstronaut/mail.sqlite3')
+local=dt.datetime.combine(dt.date.fromisoformat(sys.argv[2]),dt.time(2,30))
+zone=ZoneInfo('Europe/Paris')
+assert all(local.replace(tzinfo=zone,fold=f).astimezone(dt.timezone.utc).astimezone(zone).replace(tzinfo=None)!=local for f in (0,1))
+row=db.execute('SELECT due_at,time_zone,state FROM reminders WHERE message_id=?',(ids['unrelated'],)).fetchone()
+assert list(row)==json.loads((root/'paris-reminder.json').read_text()),row
+print('The selected DST gap leaves the existing reminder unchanged.',flush=True)
+PYGAPRESULT
+    # The dialog stays open. Correct the invalid time without restarting it.
+    click 640 172
+    click 618 "$gap_hour"
+    wtype -s 220 '0330' -s 350 -k Escape -s 300
+    click 790 220
+    sleep .7
+    python3 - "$root" "$gap_day" <<'PYCORRECTED'
+import datetime as dt, json, sqlite3, sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
+root=Path(sys.argv[1]); mid=json.loads((root/'conversation-ids.json').read_text())['unrelated']
+db=sqlite3.connect(root/'data/mailstronaut/mail.sqlite3')
+zone=ZoneInfo('Europe/Paris')
+due=dt.datetime.combine(dt.date.fromisoformat(sys.argv[2]),dt.time(3,30),zone)
+row=db.execute('SELECT due_at,time_zone,state FROM reminders WHERE message_id=?',(mid,)).fetchone()
+assert row==(int(due.timestamp()),zone.key,'pending'),row
+(root/'paris-reminder.json').write_text(json.dumps(row))
+print('The same picker accepts a corrected time after the DST error.',flush=True)
+PYCORRECTED
+  fi
   sed -i 's/timeZone = "Europe\/Paris";/timeZone = "UTC";/' "$config"
   wtype -M ctrl -M shift r -m shift -m ctrl -s 1200
   click 350 274

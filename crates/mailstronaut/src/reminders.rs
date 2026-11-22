@@ -20,6 +20,7 @@ use gpui::component::{
     description_list::DescriptionList,
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle},
     label::Label,
+    notification::{Notification, NotificationDelivery},
     time_field::TimePrecision,
 };
 use gpui::{
@@ -348,11 +349,11 @@ impl Reminders {
         account: String,
         message: i64,
         when: &When,
-        window: &Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         let (Some(store), Some(config)) = (self.store.clone(), self.config.clone()) else {
-            return;
+            return false;
         };
         let zone = self.zone.clone();
         let at = reminders::resolve(
@@ -365,10 +366,15 @@ impl Reminders {
         let due_at = match at {
             Ok(at) => at,
             Err(error) => {
-                self.error = Some(error.to_string().into());
+                let error = SharedString::from(error.to_string());
+                self.error = Some(error.clone());
+                window.push_notification(
+                    Notification::error(error).delivery(NotificationDelivery::InApp),
+                    cx,
+                );
                 cx.emit(Event::Changed);
                 cx.notify();
-                return;
+                return false;
             }
         };
         let job = self.runtime.spawn(async move {
@@ -407,6 +413,7 @@ impl Reminders {
             });
         })
         .detach();
+        true
     }
 
     /// Ask for an exact local time; the persistent picker survives dialog rebuilds.
@@ -461,10 +468,10 @@ impl Reminders {
                     let DateTime::Single(Some(local)) = value else {
                         return false;
                     };
-                    _ = this.update(cx, |this, cx| {
-                        this.schedule(account.clone(), message, &When::Custom(local), window, cx);
-                    });
-                    true
+                    this.update(cx, |this, cx| {
+                        this.schedule(account.clone(), message, &When::Custom(local), window, cx)
+                    })
+                    .unwrap_or(false)
                 })
         });
     }
