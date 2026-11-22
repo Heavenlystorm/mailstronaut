@@ -53,20 +53,21 @@ nix build --no-update-lock-file
 
 ## Builds and concurrent threads
 
-Compile on the CI server, not the laptop. `ci/remote.sh` syncs the working tree to
-`ci-py` and runs a command there; each checkout needs its own
-`MAILSTRONAUT_REMOTE_DIR` (the main checkout uses the default, `mailstronaut-dev`):
+Build and run the pinned Nix checks locally or on the CI runner. For remote builds,
+`ci/remote.sh` syncs the working tree to `ci-py` and runs a command there. Use a
+distinct `MAILSTRONAUT_REMOTE_DIR` for each remote checkout. The main checkout
+uses the default, `mailstronaut-dev`.
 
 ```sh
 bash ci/remote.sh nix develop --command bash ci/check.sh
 bash ci/remote.sh --fetch 'target/p06.*/*.png' nix develop .#gui-test --command ...
 ```
 
-Agent threads may work at the same time, each in its own checkout with its own remote
-directory, after agreeing who owns which files. Land by rebasing on `origin/main`,
+Agent threads may work at the same time in separate checkouts after agreeing who
+owns which files. Land by rebasing on `origin/main`,
 checking again, then pushing as a fast-forward; never force-push `main`. Another thread's
-uncommitted changes are not yours to discard. Run one full Nix package gate at a time,
-under `flock /builds/.mailstronaut-nix-gate.lock`.
+uncommitted changes are not yours to discard. Run one full Nix package gate at a
+time per machine. On `ci-py`, use `flock /builds/.mailstronaut-nix-gate.lock`.
 
 The root disk on `ci-py` is small. A checkout's `target` can be a symlink into
 `/mnt/data/mailstronaut/`; leave everything else on that disk alone.
