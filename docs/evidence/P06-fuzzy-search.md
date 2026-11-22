@@ -82,3 +82,20 @@ only matches from the start of a run of characters. At most 1,000 hits are consi
 folder scope applies, so a very common word searched within one folder can miss older
 matches there; account scope is applied in the index and has no such limit. Expunged mail
 stays indexed, though it is never shown, because the store itself keeps those messages.
+## Literal body excerpts
+
+Unqualified word results use SQLite FTS5 to select a bounded excerpt from the
+canonical original the row opens. Tantivy's existing analyzer identifies actual
+literal words and supplies UTF-8 ranges for the native GPUI styling. The same
+metadata, rank, and open action stay in place. A row without a literal body match
+keeps its ordinary preview. Related mode, quoted phrases and field-restricted
+queries keep their existing presentation.
+
+The pinned local workspace checks passed, including tests for the canonical
+original, body text outside the ordinary preview, accent-folded UTF-8 offsets,
+and excluded query syntax. The native Wayland walkthrough searched for
+`eligibilite` and showed the actual accented word in the body excerpt.
+The result list kept Seen unchanged. The same run passed scoped typo search
+with 1,005 newer Sent distractors, late delivery and index rebuild. See
+`target/p02.GQLD8s/search-gui/literal-body.png` and
+`target/local-checks/literal-excerpt-native.log`.

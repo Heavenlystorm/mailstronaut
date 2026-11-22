@@ -182,7 +182,7 @@ the desktop's own Secret/FileChooser/document/Background portals or a real GPU p
 - The developer element in the metainfo file, and a screenshot entry for the store listing.
 - Release signing, a published repository, aarch64, and the final release manifest.
 
-The P10 Flatpak row therefore stays unchecked.
+The live desktop and publication rows stay open.
 
 ## Local SDK and installed runtime recheck
 
@@ -201,3 +201,14 @@ Secret-backed credential lifecycle. The sandbox activated a synthetic account,
 saved a draft, and attached a synthetic file returned by the private FileChooser.
 The fixture screenshots are in `target/p02.tY1w5y`. No real portal, live provider,
 GPU acceleration, or store listing is verified by these runs.
+
+The full workflow passed locally again for `df73925` with app archive
+`ad4a3f4df47ac7301389ac99f4e8b961cdf21f0835472bda7fe6be12b5c068d0`, unchanged
+vendor archive and the corrected AppStream developer metadata. The exported
+local OSTree app commit was
+`24cf23e5ec3d200f1a3411717d7eacd4c873b9c68b76421aa667506246e6e2cb`.
+The installer deployed only the app from the local repository. Build/install
+status was 0, and the private runtime suite returned `flatpak-runtime-exit=0`
+in `target/local-checks/latest-packages.log`. The isolated install emitted a
+nonfatal hicolor `index.theme` copy warning. Native icon integration still needs
+a real desktop check. The AppStream validator accepted the metadata locally.

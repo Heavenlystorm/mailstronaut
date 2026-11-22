@@ -50,6 +50,7 @@ use mailstronaut_core::{
     worker::{Handle, Worker},
 };
 use mailstronaut_mail::imap::FlagChange;
+use mailstronaut_search::excerpt::BodyExcerpt;
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
@@ -410,8 +411,9 @@ async fn conversation_rows(
         _ => None,
     };
     let ranked = hits.is_some();
-    if !filter.is_empty() {
-        return store
+    let excerpt = BodyExcerpt::for_words(&query);
+    let mut rows = if !filter.is_empty() {
+        store
             .filtered_conversation_page(FilteredPage {
                 accounts,
                 scope,
@@ -422,23 +424,20 @@ async fn conversation_rows(
                 limit: 100,
             })
             .await
-            .map(|rows| (rows, ranked))
-            .map_err(|error| error.to_string());
+    } else if let Some(hits) = hits {
+        store
+            .ranked_conversation_page(accounts, scope, hits, after, 100)
+            .await
+    } else {
+        store
+            .conversation_page(accounts, scope, query, after, 100)
+            .await
     }
-    match hits {
-        Some(hits) => {
-            store
-                .ranked_conversation_page(accounts, scope, hits, after, 100)
-                .await
-        }
-        None => {
-            store
-                .conversation_page(accounts, scope, query, after, 100)
-                .await
-        }
+    .map_err(|error| error.to_string())?;
+    if let Some(excerpt) = excerpt {
+        crate::mail_search::attach_body_excerpts(store, &mut rows, excerpt.words()).await;
     }
-    .map(|rows| (rows, ranked))
-    .map_err(|error| error.to_string())
+    Ok((rows, ranked))
 }
 
 /// Refresh the already-loaded metadata prefix in bounded store batches.
@@ -1303,8 +1302,12 @@ impl Workspace {
         });
         self.browse.loaded = count;
         let rows = rows.into_iter().map(Row::from).collect();
+        let excerpt = (self.search_mode == SearchMode::Words)
+            .then(|| BodyExcerpt::for_words(&self.query))
+            .flatten();
         self.list.update(cx, |list, cx| {
             crate::mailbox::replace_with_priority(list, rows, group, window, cx);
+            list.delegate_mut().body_excerpt = excerpt;
             list.delegate_mut().more = self.browse.more;
         });
         self.status = if self.accounts.is_empty() {

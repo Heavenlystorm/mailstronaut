@@ -143,6 +143,11 @@ enum Command {
         store::browse::Scope,
         Reply<std::collections::BTreeSet<i64>>,
     ),
+    BodyExcerpts(
+        Vec<i64>,
+        Vec<String>,
+        Reply<std::collections::BTreeMap<i64, String>>,
+    ),
     SearchPending(u32, Reply<store::search::SearchBatch>),
     SearchIndexed(i64, Reply<()>),
     RequeueSearch(Reply<()>),
@@ -467,6 +472,17 @@ impl Handle {
         scope: store::browse::Scope,
     ) -> Result<std::collections::BTreeSet<i64>, Error> {
         self.request(|reply| Command::SearchScope(accounts, scope, reply))
+            .await
+    }
+    /// Read excerpts for the exact originals this search page opens.
+    /// # Errors
+    /// Rejects oversized pages/terms and reports storage failures.
+    pub async fn body_excerpts(
+        &self,
+        originals: Vec<i64>,
+        words: Vec<String>,
+    ) -> Result<std::collections::BTreeMap<i64, String>, Error> {
+        self.request(|reply| Command::BodyExcerpts(originals, words, reply))
             .await
     }
     /// Read the oldest changes waiting for the search index.
@@ -1389,6 +1405,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::SearchScope(accounts, scope, reply) => {
                 respond(reply, || store.search_scope(&accounts, &scope));
+            }
+            Command::BodyExcerpts(originals, words, reply) => {
+                respond(reply, || store.body_excerpts(&originals, &words));
             }
             Command::SearchPending(limit, reply) => {
                 respond(reply, || store.search_pending(limit));

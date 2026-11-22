@@ -13,9 +13,11 @@ use gpui::component::{
     tag::Tag,
 };
 use gpui::{
-    App, Context, Hsla, IntoElement, ParentElement as _, Pixels, Role,
-    StatefulInteractiveElement as _, Styled as _, Window, div, prelude::FluentBuilder as _, px,
+    App, Context, HighlightStyle, Hsla, IntoElement, ParentElement as _, Pixels, Role,
+    StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
+    prelude::FluentBuilder as _, px, rems,
 };
+use mailstronaut_search::excerpt::BodyExcerpt;
 
 const ROW_HEIGHT: Pixels = px(124.);
 const SECTION_HEIGHT: Pixels = px(28.);
@@ -170,6 +172,8 @@ pub struct Rows {
     /// Kit calls this near the end of the virtualized list.
     pub on_load_more: Option<ShowAll>,
     pub more: bool,
+    /// The current unqualified word query, used for exact offsets in visible previews.
+    pub body_excerpt: Option<BodyExcerpt>,
     /// The row that keyboard selection is on. Kit keeps focus on the list, so assistive
     /// technology is told about this row through the active-descendant relationship.
     pub selected: Option<IndexPath>,
@@ -463,20 +467,12 @@ impl ListDelegate for Rows {
                                 .truncate()
                                 .map(|label| if unread { label.font_semibold() } else { label }),
                         )
-                        .child(
-                            Label::new(row.preview.clone())
-                                .text_sm()
-                                .text_color(muted)
-                                .map(|label| {
-                                    // Every row has the same height, so the deadline takes
-                                    // the place of the preview's second line.
-                                    if due.is_some() {
-                                        label.truncate()
-                                    } else {
-                                        label.line_clamp(2)
-                                    }
-                                }),
-                        )
+                        .child(row_preview(
+                            row,
+                            self.body_excerpt.as_ref(),
+                            due.is_some(),
+                            cx,
+                        ))
                         .when_some(due, |view, due| {
                             view.child(div().flex().child(Tag::warning().small().child(due)))
                         })
@@ -533,6 +529,35 @@ impl ListDelegate for Rows {
                 })),
         )
     }
+}
+
+fn row_preview(
+    row: &Row,
+    excerpt: Option<&BodyExcerpt>,
+    deadline: bool,
+    cx: &App,
+) -> impl IntoElement {
+    let style = HighlightStyle {
+        color: Some(cx.theme().blue),
+        ..Default::default()
+    };
+    let matches = excerpt.map_or_else(Vec::new, |excerpt| excerpt.highlights(&row.preview));
+    div()
+        .line_height(rems(1.25))
+        .text_sm()
+        .text_color(cx.theme().muted_foreground)
+        // The deadline takes the place of the preview's second line.
+        .map(|view| {
+            if deadline {
+                view.truncate()
+            } else {
+                view.line_clamp(2)
+            }
+        })
+        .child(
+            StyledText::new(row.preview.clone())
+                .with_highlights(matches.into_iter().map(|range| (range, style))),
+        )
 }
 
 fn row_footer(row: &Row, zone: &str, muted: Hsla) -> impl IntoElement {

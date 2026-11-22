@@ -484,6 +484,10 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   Use standard Kit `Button`, `Alert`, status and `SettingField` controls from the
   [component mapping](INTERFACE.md#p06-mailbox-threads-and-search).
   [Real-model worker and native Dovecot/Wayland evidence](evidence/P06-native-meaning.md).
+- [x] Select an explicitly installed search model with the native folder chooser
+  in editable Settings. Cancel or deny leaves the Nix source intact, and a
+  successful selection is staged until Save.
+  [Private Wayland and FileChooser checks](evidence/P06-native-meaning.md#local-model-folder-chooser).
 - [x] Keep queries/text/embeddings/inference local. Models are small CPU encoders,
   pinned/hashed/licensed and explicitly installed; no startup downloads or remote
   fallback. Semantic search is independent of enabling the priority classifier.
@@ -500,10 +504,11 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   limit pass](evidence/P06-search-filters.md). Canonical folder IDs now also
   restrict Tantivy's collector before the hit cap, including fuzzy-tier choice;
   [large-folder native and ranked-refresh evidence](evidence/P06-search-scope.md).
-- [ ] Display honest match snippets and highlights. Use `Label::highlights` for
-  actual literal matches or GPUI `StyledText::with_highlights` for backend-provided
-  UTF-8 ranges. Do not fabricate literal matches for semantic results or highlight
-  a different original from the one the result opens.
+- [x] Display actual body matches in unqualified word searches from the original
+  that opens. Reuse SQLite FTS5 excerpts, Tantivy's analyzer and GPUI
+  `StyledText::with_highlights` with original UTF-8 offsets. Suggestions by meaning,
+  field restrictions and quoted queries retain their ordinary previews.
+  [Native and backend checks](evidence/P06-fuzzy-search.md#literal-body-excerpts).
 - [ ] Maintain a private rebuildable index keyed by canonical original/source/model
   revision; bounded incremental indexing, restart/model change, deletion/purge and
   disabled accounts must not retain stale results or touch user-owned state.
@@ -777,15 +782,12 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   by default and expose an explicit maintainer refresh. Keep only compressed inputs
   after preparation and reuse the optional `nix develop .#flatpak` tool environment.
   [Workflow](../flatpak/README.md); reproducible hashes and worker-count checks pass.
-- [ ] Build a pinned offline Flatpak with matching SDK/Rust inputs and native
+- [x] Build a pinned offline x86_64 Flatpak with matching SDK/Rust inputs and native
   Wayland access. No X11/XWayland requirement, broad home access, host Nix daemon,
   plaintext secrets or uncontrolled model downloads.
-  [The production manifest with reproducible pinned archives builds the recorded baseline offline,
-  runs it in the Platform runtime, opens its window in the sandbox, and passes the sandboxed
-  GUI, portal and attach walkthroughs on the CI host](evidence/P10-flatpak.md);
-  real-session Wayland, the desktop's own portals, the graphics path and desktop metainfo
-  remain open. [The inference/vector dependency graph passed the pinned x86_64
-  SDK and private runtime checks locally](evidence/P10-flatpak.md#local-sdk-and-installed-runtime-recheck).
+  [The production manifest builds offline and passes the private Wayland, portal
+  and attachment checks on the local machine](evidence/P10-flatpak.md#local-sdk-and-installed-runtime-recheck).
+  Real desktop portals, accelerated graphics and store listing remain release checks.
 - [ ] Verify Flatpak config-file/model import, keyring/file/notification/Background
   portals, read-only managed configuration and packaged HTML resources.
   Reuse the P02 Settings/source/export and P05 import components; do not create a

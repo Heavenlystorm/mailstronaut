@@ -16,7 +16,8 @@ use gpui::component::{
 };
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, IntoElement as _, ParentElement as _,
-    SharedString, Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
+    PathPromptOptions, SharedString, Styled as _, Subscription, Window, div,
+    prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Account, Appearance, Config, native, persistence, source::Ownership};
 use serde_json::{Value, json};
@@ -200,6 +201,7 @@ enum Operation {
     Saving,
     AddingAccount,
     Initializing,
+    ChoosingSearchModel,
 }
 
 enum Destination {
@@ -676,19 +678,77 @@ impl Preferences {
             |v| v.meaning_directory.clone().into(),
             |v, value| v.meaning_directory = value.to_string(),
         );
+        let chooser = view.clone();
         SettingGroup::new().title("Search")
             .item(SettingItem::new("Search by meaning", SettingField::switch(enabled,set_enabled))
                 .description("Enable the Related search button for cross-language suggestions. Results may include unrelated mail. Runs on this device; quotes keep searches literal.")
                 .keywords(["semantic", "meaning", "search", "model"]).disabled(disabled))
             .item(SettingItem::new("Search model directory", SettingField::input(directory,set_directory))
                 .description("Explicitly install the pinned semantic-model Nix package and use its directory. No automatic downloads; independent of priority mail.")
-                .keywords(["semantic", "meaning", "search", "model"]).disabled(disabled))            .item(SettingItem::render(move |_,_,_| {
+                .keywords(["semantic", "meaning", "search", "model"]).disabled(disabled))
+            .item(SettingItem::new("Installed search model", SettingField::render(move |options, _, _| {
+                let chooser = chooser.clone();
+                Button::new("choose-search-model").label("Choose folder…").disabled(options.is_disabled())
+                    .on_click(move |_, window, cx| chooser.update(cx, |this, cx| this.choose_search_model(window, cx)))
+            })).keywords(["semantic", "meaning", "search", "model"]).disabled(disabled))
+            .item(SettingItem::render(move |_,_,_| {
                 match &state {
                     Some(state) if matches!(state, crate::mail_semantic::State::Unavailable(_)) => Alert::warning("meaning-model-state",state.label()),
                     Some(state) => Alert::info("meaning-model-state",state.label()),
                     None => Alert::info("meaning-model-state","Meaning search is disabled. Save preferences to apply changes."),
                 }
             }).keywords(["meaning", "semantic", "search", "model"]))
+    }
+
+    fn choose_search_model(&mut self, window: &Window, cx: &mut Context<Self>) {
+        if !self.editable() || self.busy() {
+            return;
+        }
+        self.operation = Operation::ChoosingSearchModel;
+        let generation = self.generation;
+        let paths = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Choose the installed search model folder".into()),
+        });
+        cx.emit(Event::Changed);
+        cx.spawn_in(window, async move |this, cx| {
+            let chosen = paths.await;
+            _ = this.update_in(cx, |this, _, cx| {
+                if this.generation != generation || this.operation != Operation::ChoosingSearchModel
+                {
+                    return;
+                }
+                this.operation = Operation::Idle;
+                match chosen {
+                    Ok(Ok(None)) => {}
+                    Ok(Ok(Some(paths))) => {
+                        let path = match paths.as_slice() {
+                            [path] if path.is_absolute() => path.to_str(),
+                            _ => None,
+                        };
+                        if let Some(path) = path {
+                            if let Some(draft) = &mut this.draft {
+                                path.clone_into(&mut draft.meaning_directory);
+                                this.error = None;
+                            }
+                        } else {
+                            this.error =
+                                Some("Choose one folder with an absolute UTF-8 path.".into());
+                        }
+                    }
+                    _ => {
+                        this.error = Some(
+                            "Unable to choose a model folder. The current setting was preserved."
+                                .into(),
+                        );
+                    }
+                }
+                cx.emit(Event::Changed);
+            });
+        })
+        .detach();
     }
 
     pub fn priority(view: &Entity<Self>, cx: &App) -> SettingGroup {

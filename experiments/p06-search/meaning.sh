@@ -65,9 +65,11 @@ printf '%s' "$imap_password" | secret-tool store --label='Synthetic search fixtu
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
+portal=''
 cleanup() {
   session_cleanup
   dovecot_cleanup
+  if [[ -n $portal ]]; then kill "$portal" 2>/dev/null || true; wait "$portal" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
 
@@ -143,6 +145,48 @@ type_query 'reminder about doctoral school re-enrollment'
 click 350 150
 [[ $(seen) == 2 ]]
 capture meaning-disabled
+# The folder can also be declared before enabling inference. Keeping inference
+# disabled here lets the restart below exercise a fresh model load.
+if [[ -n ${MAILSTRONAUT_MODEL_PORTAL_FIXTURE:-} ]]; then
+  wtype -M ctrl , -m ctrl -s 500
+  click 310 126
+  wtype 'meaning' -s 500
+  chosen="$artifacts/model-via-chooser"
+  ln -s "$model" "$chosen"
+  MAILSTRONAUT_PORTAL_ROOT="$artifacts" "$(realpath "$MAILSTRONAUT_MODEL_PORTAL_FIXTURE")" \
+    portal_fixture::serve_portals --ignored --exact > "$artifacts/chooser.log" 2>&1 & portal=$!
+  for _ in {1..100}; do
+    [[ -f "$artifacts/portal-ready" ]] && break
+    kill -0 "$portal"; sleep .05
+  done
+  [[ -f "$artifacts/portal-ready" ]]
+  original=$(sha256sum "$config")
+  for response in cancel deny "$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).as_uri())' "$chosen")"; do
+    printf '%s\n' "$response" > "$artifacts/chooser-answer"
+    click 1190 436
+    sleep .7
+    [[ $(sha256sum "$config") == "$original" ]]
+  done
+  python3 - "$artifacts/chooser-requests.jsonl" <<'PYCHOOSER'
+import json,sys
+with open(sys.argv[1]) as receipts:
+    requests=[json.loads(line) for line in receipts]
+assert len(requests)==3 and all(request['method']=='OpenFile' for request in requests),requests
+PYCHOOSER
+  capture model-folder-staged
+  click 275 783
+  for _ in {1..100}; do
+    grep -Fq "$chosen" "$config" && break
+    kill -0 "$app"; sleep .1
+  done
+  grep -Fq "$chosen" "$config"
+  model=$chosen
+  "$binary" config check --path "$config"
+  [[ $(seen) == 2 ]]
+  sleep 1
+  capture model-folder-saved
+  printf '%s\n' 'OK: model folder choice staged native Nix and persisted only on Save'
+fi
 # Restart with a missing model. Cached semantic vectors must not fake availability;
 # lexical search and normal mail remain usable.
 close_window

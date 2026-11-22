@@ -26,7 +26,11 @@ Content-Type: text/plain; charset=utf-8
 $4
 MAIL
 }
-message french 'École doctorale' 'Réinscription en école doctorale' 'Votre dossier de réinscription doit être déposé avant le 15 novembre.'
+french_body='Votre dossier de réinscription doit être déposé avant le 15 novembre.'
+if [[ ${MAILSTRONAUT_LITERAL_SNIPPET:-0} == 1 ]]; then
+  french_body+=" $(printf 'Texte du préambule. %.0s' {1..80}) Votre certificat d’éligibilité est disponible."
+fi
+message french 'École doctorale' 'Réinscription en école doctorale' "$french_body"
 message italian 'Dipartimento' 'Riunione del dipartimento' 'La riunione è confermata per giovedì a Torino.'
 message english 'Finance Office' 'Quarterly budget review' 'Please review the attached budget before Friday.'
 message other 'Library' 'Book return' 'Your books are due back next week.'
@@ -119,6 +123,19 @@ start initial
 await 'the configured folders were cached' "$expected_messages" 'SELECT count(*) FROM messages'
 await 'everything was indexed' 0 'SELECT count(*) FROM search_pending'
 sleep 1
+
+if [[ ${MAILSTRONAUT_LITERAL_SNIPPET:-0} == 1 ]]; then
+  type_query 'eligibilite'
+  capture literal-body
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 0 ]]
+  # The query has no match in the subject or ordinary preview. In the first
+  # row, require the theme-colored lettering in the actual native body excerpt.
+  magick "$artifacts/literal-body.png" -crop 330x36+216+148 -depth 8 RGB:- | python3 -c '
+import sys
+pixels = sys.stdin.buffer.read()
+assert sum(b > r + 35 and b > g + 10 for r, g, b in zip(pixels[0::3], pixels[1::3], pixels[2::3])) >= 8
+'
+fi
 
 type_query 'reinscripton'
 capture typo

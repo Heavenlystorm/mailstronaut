@@ -137,6 +137,7 @@ import/runtime, live provider or real Home Manager activation acceptance is clai
 Headless background sync can queue semantic work; the model owner currently belongs
 to the visible workspace lifetime. Partial server-cache coverage is separate from
 semantic queue/excerpt counts. Better no-answer discrimination remains open.
+
 ## Local English-to-French walkthrough recheck
 
 The `df73925` native build loaded the actual hash-pinned MiniLM linkFarm from
@@ -145,3 +146,13 @@ The `df73925` native build loaded the actual hash-pinned MiniLM linkFarm from
 notice first in explicit Related mode. The exact-word, model-disable, missing-model
 and Seen checks passed in the same Wayland session. This repeats the concrete
 example with the current application. The frozen no-answer failures remain open.
+
+## Local model folder chooser
+
+The native Settings walkthrough drove the directory action against a private
+FileChooser service. It returned cancellation, denial and a directory URI for
+an explicitly installed MiniLM fixture. All three left the Nix file unchanged
+until Save. The successful selection then persisted the directory and passed
+`mailstronaut config check`. Mail remained unread unless explicitly opened.
+This establishes native staging and persistence with a test portal. Flatpak
+document grants and host desktop portal behavior remain open.

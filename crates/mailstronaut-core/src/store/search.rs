@@ -3,6 +3,8 @@
 
 use super::{Error, Store};
 
+mod excerpts;
+
 // Both query paths use the same parsed From metadata. Do not include To/Cc here:
 // a sender restriction must not match a recipient, nor lose named senders' addresses.
 pub(super) const SENDER_TEXT: &str = "m.sender || ' ' || COALESCE((

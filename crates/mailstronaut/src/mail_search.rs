@@ -12,7 +12,10 @@ use std::{
     time::Duration,
 };
 
-use mailstronaut_core::{store::search::SearchBatch, worker::Handle};
+use mailstronaut_core::{
+    store::{conversations::Summary, search::SearchBatch},
+    worker::Handle,
+};
 use mailstronaut_search::{Change, Document, Index};
 use tokio::{runtime::Runtime, sync::Notify};
 use tokio_util::sync::CancellationToken;
@@ -23,6 +26,19 @@ const BETWEEN_BATCHES: Duration = Duration::from_millis(20);
 const AFTER_FAILURE: Duration = Duration::from_mins(1);
 /// Matching messages considered for one search, in every page of its results.
 pub const MAX_HITS: usize = 1000;
+
+/// Replace only the displayed search-page preview, using the same original that opens.
+pub async fn attach_body_excerpts(store: &Handle, rows: &mut [Summary], words: &[String]) {
+    let ids = rows.iter().map(|row| row.latest.id).collect();
+    let Ok(mut excerpts) = store.body_excerpts(ids, words.to_vec()).await else {
+        return;
+    };
+    for row in rows {
+        if let Some(text) = excerpts.remove(&row.latest.id) {
+            row.latest.preview = text;
+        }
+    }
+}
 
 #[derive(Default)]
 struct Shared {
