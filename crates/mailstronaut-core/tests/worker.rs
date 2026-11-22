@@ -175,7 +175,7 @@ fn performance_messages() -> Vec<GuiMessage> {
     use std::fmt::Write as _;
     (0..=100_u32)
         .map(|index| {
-            let (key, paragraphs, text) = if index == 0 {
+            let (key, paragraphs, mut text) = if index == 0 {
                 (
                     "perf-long".to_owned(),
                     1_500,
@@ -188,6 +188,9 @@ fn performance_messages() -> Vec<GuiMessage> {
                     format!("Synthetic performance original {index:03}."),
                 )
             };
+            if index == 1 {
+                text.push_str("\r\nRéinscription au doctorat.\r\nScadenza di domani.");
+            }
             let red = 16 + (index % 16) * 12;
             let green = 16 + ((index / 16) % 16) * 12;
             let blue = 16 + (index / 256) * 100;

@@ -82,7 +82,7 @@
           };
           # fetchCargoVendor hashes its staging output. Keep its source limited
           # to Cargo.lock so application edits do not change dependency inputs.
-          cargoHash = "sha256-1Hlmuyj2k5FjGt06TIp7Tf1u5eQj6t1gEtLgYzZPEBo=";
+          cargoHash = "sha256-AHpa8tFGnbcLFI8lvwH15SOBqkF+t90W4dclKYQkZ0E=";
           cargoDeps =
             (pkgs.rustPlatform.fetchCargoVendor {
               inherit pname version;

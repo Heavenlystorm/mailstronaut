@@ -10,7 +10,7 @@ let
     }
   );
   evaluate =
-    settings: mutableSettings:
+    settings: mutableSettings: startOnLogin:
     (hmLib.evalModules {
       specialArgs = { inherit pkgs; };
       modules = [
@@ -21,6 +21,10 @@ let
             home.activation = lib.mkOption { type = lib.types.attrsOf lib.types.anything; };
             xdg.configHome = lib.mkOption { type = lib.types.str; };
             xdg.configFile = lib.mkOption { type = lib.types.attrsOf lib.types.anything; };
+            systemd.user.services = lib.mkOption {
+              type = lib.types.attrsOf lib.types.anything;
+              default = { };
+            };
           };
           config = {
             xdg.configHome = "/mailstronaut-test-home/.config";
@@ -28,7 +32,12 @@ let
             xdg.configFile = { };
             programs.mailstronaut = {
               enable = true;
-              inherit package settings mutableSettings;
+              inherit
+                package
+                settings
+                mutableSettings
+                startOnLogin
+                ;
             };
           };
         }
@@ -59,12 +68,13 @@ let
     appearance = "dark";
     accounts = [ (account "declared") ];
   };
-  managed = evaluate declared false;
-  first = evaluate declared true;
+  managed = evaluate declared false false;
+  first = evaluate declared true false;
+  login = evaluate (declared // { background.enabled = true; }) false true;
   second = evaluate {
     appearance = "light";
     accounts = [ ];
-  } true;
+  } true false;
   # Substitute only the fixture home argument; production paths are shell-escaped.
   activate =
     hm:
@@ -73,6 +83,8 @@ let
       [ ''"$HOME/.config/mailstronaut/config.nix"'' ]
       hm.home.activation.mailstronautSettings.data;
 in
+assert !(managed.systemd.user.services ? mailstronaut);
+assert login.systemd.user.services.mailstronaut.Install.WantedBy == [ "graphical-session.target" ];
 pkgs.runCommand "mailstronaut-home-manager-module" { } ''
   export HOME="$PWD/home"
   mkdir -p "$HOME"

@@ -16,6 +16,7 @@
   declareAppearance ? true,
   accounts ? null,
   settings ? null,
+  startOnLogin ? false,
 }:
 let
   homeManagerSource = builtins.fetchTarball {
@@ -60,6 +61,7 @@ let
         };
         programs.mailstronaut = {
           enable = true;
+          inherit startOnLogin;
           settings =
             if settings != null then
               settings

@@ -17,7 +17,7 @@ readme = "../../README.md"
 # Add third-party dependencies here, when their implementation milestone begins.
 # The researched dependency list is in docs/DEPENDENCIES.md.
 [workspace.dependencies]
-gpui-kit = "=0.8.1"
+gpui-kit = "=0.10.0"
 ashpd = { version = "=0.13.13", default-features = false, features = ["async-io"] }
 blitz-dom = { version = "=0.3.0-beta.2", default-features = false, features = ["system-fonts", "floats", "complex-scripts"] }
 blitz-html = { version = "=0.3.0-beta.2", default-features = false }

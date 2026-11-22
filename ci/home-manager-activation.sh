@@ -16,7 +16,7 @@ fixture_home="$work/home"
 mkdir -p "$fixture_home"
 config="$fixture_home/.config/mailstronaut/config.nix"
 
-# build APPEARANCE_EXPR MUTABLE DECLARE_APPEARANCE ACCOUNTS_EXPR [EXPORTED_FILE]
+# build APPEARANCE_EXPR MUTABLE DECLARE_APPEARANCE ACCOUNTS_EXPR [EXPORTED_FILE] [START_ON_LOGIN]
 build() {
   MAILSTRONAUT_HM_HOME="$fixture_home" MAILSTRONAUT_HM_FLAKE="$flake_url" MAILSTRONAUT_HM_EXPORT="${5:-}" \
     nix build --impure --no-link --print-out-paths \
@@ -32,6 +32,7 @@ build() {
         mutable = $2;
         declareAppearance = $3;
         accounts = $4;
+        startOnLogin = ${6:-false};
         settings = if exportPath == \"\" then null else import (builtins.toPath exportPath);
       }"
 }
@@ -166,5 +167,27 @@ activation=$(build '"dark"' true true null)
 expect_refusal 'a mutable configuration over a user-owned file' "$activation"
 [[ $(checksum) == "$before" ]]
 printf '%s\n' 'OK: a mutable activation does not silently overwrite a user-owned file'
+
+# Install and remove the real unit with ordinary Home Manager generations.
+rm -rf "$fixture_home" && mkdir -p "$fixture_home"
+printf '%s\n' '{ background.enabled = true; }' > "$work/background.nix"
+activation=$(build '"dark"' false true null "$work/background.nix" true)
+activate "$activation"
+unit="$fixture_home/.config/systemd/user/mailstronaut.service"
+wanted="$fixture_home/.config/systemd/user/graphical-session.target.wants/mailstronaut.service"
+[[ -L $unit && -L $wanted && $(readlink -f "$wanted") == "$(readlink -f "$unit")" ]]
+grep -Fxq "ExecStart=$(readlink -f "$activation/home-path/bin/mailstronaut") --background --config \"$config\"" "$unit"
+grep -Fxq 'ConditionEnvironment=WAYLAND_DISPLAY' "$unit"
+grep -Fxq 'PartOf=graphical-session.target' "$unit"
+[[ $(value 'c.background.enabled') == true ]]
+# The disposable fixture disables GC registration. Supply the previous-generation
+# pointer that Home Manager normally records so its standard link cleanup runs.
+mkdir -p "$fixture_home/.local/state/home-manager/gcroots"
+ln -s "$activation" "$fixture_home/.local/state/home-manager/gcroots/current-home"
+activation=$(build '"dark"' false true null "$work/background.nix")
+activate "$activation"
+[[ ! -e $unit && ! -e $wanted ]]
+[[ $(value 'c.background.enabled') == true ]]
+printf '%s\n' 'OK: startup opt-in adds the Wayland session service and opt-out removes it without disabling close-to-background'
 
 printf '%s\n' 'Home Manager activation: passed'

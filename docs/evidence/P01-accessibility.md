@@ -65,8 +65,26 @@ Settings item are named.
 
 The installed x86_64 package built from `722472b` exposed the current message after keyboard
 selection and explicit Return. `Ctrl+Shift+T` focused the inner node named “Message text”.
-The node returned `UnknownInterface` for `org.a11y.atspi.Text.GetText`, so the current
-Kit text area has a focused label but lacks a verified screen-reader body-reading path.
+The node returned `UnknownInterface` for `org.a11y.atspi.Text.GetText` with GPUI Kit
+0.8.1, which exposed the focused label without the body text.
 `MAILSTRONAUT_A11Y_REQUIRE_TEXT=1` makes that check mandatory in the private fixture.
 The [native clipboard and reader test](P01-native-reader.md#local-installed-package-reader-recheck)
 passes independently. The P01 keyboard/accessibility row remains open.
+
+## Multiline text with GPUI Kit 0.10.0
+
+GPUI Kit now exposes multiline input via its standard Textarea, including read-only
+fields. The implementation uses the Toolkit's native AccessKit text runs.
+[Upstream change](https://github.com/longbridge/gpui-kit/pull/3894).
+
+The pinned local build passed the mandatory `MAILSTRONAUT_A11Y_REQUIRE_TEXT=1`
+fixture in a private Wayland session. After an explicit keyboard open and
+`Ctrl+Shift+T`, `org.a11y.atspi.Text.GetText` returned the whole synthetic body:
+three lines containing English, French and Italian text. The same Text node
+returned identical content after a typing attempt. Focus still followed mailbox
+rows and moved to the node named “Message text”. The driver reported 63 accessible
+nodes and no unreadable nodes. The local screenshot and report are in
+`target/p01-a11y.fkXvdj/accessibility/`.
+
+This establishes the native text interface and focus. Screen-reader speech
+and the composition, Settings and dialog flows remain open.

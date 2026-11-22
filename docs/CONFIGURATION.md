@@ -356,41 +356,26 @@ ModelDirectory and CA paths also need to be visible in the sandbox: install/impo
 those files there or use a document portal. Do not promise access to host secret
 file paths through Flatpak.
 
-The P08 target for native login startup uses standard Home Manager service
-composition. The current binary still rejects `--background`; enable this service
-only after PLAN.md's background-lifetime row is accepted:
+For native Wayland login startup, enable the optional Home Manager user service
+and background operation in the native settings:
 
 ```nix
-{ inputs, pkgs, ... }:
-let
-  mailstronaut = inputs.mailstronaut.packages.${pkgs.stdenv.hostPlatform.system}.default;
-in
 {
-  systemd.user.services.mailstronaut = {
-    Unit = {
-      Description = "Mailstronaut background mail and reminders";
-      After = [ "graphical-session.target" ];
-      PartOf = [ "graphical-session.target" ];
-      ConditionEnvironment = "DBUS_SESSION_BUS_ADDRESS";
-    };
-    Service = {
-      ExecStart = "${mailstronaut}/bin/mailstronaut --background";
-      Restart = "on-failure";
-      RestartSec = 5;
-    };
-    Install.WantedBy = [ "graphical-session.target" ];
+  programs.mailstronaut = {
+    enable = true;
+    startOnLogin = true;
+    settings.background.enabled = true;
   };
 }
 ```
 
-The service is installed only when the user's configuration chooses it. Desktop
-environment variables must be imported into the user manager; document/debug that
-with native Wayland, do not set fake WAYLAND_DISPLAY values. Native service-managed startup
-and portal autostart are mutually exclusive to avoid duplicate launches. The
-`autostart` field expresses intent for app-managed portal startup; in HM-managed
-native service mode show “managed by Home Manager” and do not write an autostart
-entry or toggle systemd from the app. Stopping/disabling/restarting that user service
-is a Home Manager/user decision. Explicit Quit exits successfully and is not restarted.
+The service uses the same native file as Home Manager, including a custom
+`xdg.configHome`. It starts with `graphical-session.target` if the compositor has
+imported `WAYLAND_DISPLAY` into the user manager, and stops with that session.
+It restarts after abnormal termination. Explicit Quit exits successfully and stays
+closed until the next launch. Manage login startup with Home Manager. Removing
+`startOnLogin` leaves the app's close-to-background preference available.
+`background.autostart` is reserved for sandbox portal startup.
 
 ## GPUI Settings and source ownership
 

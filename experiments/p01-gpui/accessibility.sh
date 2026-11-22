@@ -274,8 +274,14 @@ reader_exposes_exact_text = False
 if len(text_nodes) == 1:
     try:
         node = text_nodes[0]
-        body = literal(gdbus(node["bus"], node["path"], "org.a11y.atspi.Text.GetText", "--", "0", "-1"))[0]
-        reader_exposes_exact_text = body.strip() == "Synthetic performance original 001."
+        get_text = lambda: literal(gdbus(node["bus"], node["path"],
+                                       "org.a11y.atspi.Text.GetText", "--", "0", "-1"))[0]
+        expected = "Synthetic performance original 001.\nRéinscription au doctorat.\nScadenza di domani."
+        reader_exposes_exact_text = get_text().strip() == expected
+        if reader_exposes_exact_text:
+            subprocess.run(["wtype", "attempted edit"], check=True)
+            time.sleep(0.5)
+            checks["reader_rejects_typed_edits"] = get_text().strip() == expected
     except subprocess.CalledProcessError as error:
         (artifacts / "reader-text-error.log").write_text(error.stderr)
 summary = {
@@ -300,4 +306,5 @@ python3 "$driver" > "$artifacts/driver.log" 2>&1 || {
   exit 1
 }
 cat "$artifacts/driver.log"
+capture accessibility-reader
 printf 'Native accessibility-tree check: %s\n' "$artifacts"

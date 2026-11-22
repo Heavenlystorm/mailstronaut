@@ -45,3 +45,16 @@ Before compilation the run compared the workspace and vendored lockfiles. Its
 receipt is `nix-gate-exit=0` in `target/local-checks/latest-packages.log`.
 The release gate exercised the flake's Home Manager module check. The disposable
 generation scenarios above used `722472b`.
+
+## Opt-in native login startup
+
+A local disposable activation on 2026-11-22 enabled
+`programs.mailstronaut.startOnLogin`. The pinned Home Manager installed the
+generated user unit and its `graphical-session.target.wants` link. The service
+invokes the packaged binary with `--background --config` and the exact native
+file path, and is conditional on `WAYLAND_DISPLAY`. `systemd-analyze --user
+verify` accepted the generated unit. A subsequent generation removed both
+service links while keeping `background.enabled = true` in the native file.
+The activation used the known local Nix package from `395c52b`; the fixture
+isolated the user service manager from the actual desktop. Live login/logout,
+suspend and Flatpak Background portal acceptance remain open.

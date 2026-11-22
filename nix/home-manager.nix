@@ -10,6 +10,10 @@ self:
 }:
 let
   cfg = config.programs.mailstronaut;
+  configPath = "${config.xdg.configHome}/mailstronaut/config.nix";
+  systemdConfigPath = lib.replaceStrings [ "%" "$" ] [ "%%" "$$" ] (
+    lib.escape [ "\\" "\"" ] configPath
+  );
   native =
     managed:
     pkgs.writeText "mailstronaut-config.nix" (
@@ -63,6 +67,10 @@ in
         enforcing it without changing the current value.
       '';
     };
+    startOnLogin = lib.mkEnableOption ''
+      starting Mailstronaut without a window in the native graphical session.
+      The native configuration must also enable background operation
+    '';
   };
 
   config = lib.mkIf cfg.enable (
@@ -75,8 +83,25 @@ in
         home.activation.mailstronautSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           run ${lib.getExe cfg.package} config reconcile \
             --declared ${native false} \
-            --path ${lib.escapeShellArg "${config.xdg.configHome}/mailstronaut/config.nix"}
+            --path ${lib.escapeShellArg configPath}
         '';
+      })
+      (lib.mkIf cfg.startOnLogin {
+        systemd.user.services.mailstronaut = {
+          Unit = {
+            Description = "Mailstronaut background mail and reminders";
+            After = [ "graphical-session-pre.target" ];
+            PartOf = [ "graphical-session.target" ];
+            ConditionEnvironment = "WAYLAND_DISPLAY";
+          };
+          Service = {
+            Type = "exec";
+            ExecStart = ''${lib.getExe cfg.package} --background --config "${systemdConfigPath}"'';
+            Restart = "on-abnormal";
+            RestartSec = 5;
+          };
+          Install.WantedBy = [ "graphical-session.target" ];
+        };
       })
     ]
   );

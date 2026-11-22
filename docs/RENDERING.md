@@ -196,7 +196,7 @@ public-API, lifecycle and user-session acceptance before claiming support.
 
 ## Selected API sources
 
-- [GPUI Kit facade](https://docs.rs/gpui-kit/0.8.1/gpui_kit/) and
+- [GPUI Kit facade](https://docs.rs/gpui-kit/0.10.0/gpui_kit/) and
   [getting started](https://gpui-kit.com/docs/getting-started/).
 - [Blitz source](https://github.com/DioxusLabs/blitz) and the published 0.3.0-beta.2
   DOM/HTML/paint/traits crates. Keep the four versions aligned.

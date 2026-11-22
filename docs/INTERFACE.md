@@ -13,8 +13,9 @@ interaction behavior. Do not wrap every component in an application abstraction
 or rebuild one to reproduce a screenshot. A small amount of layout/composition
 code is expected; replacing an existing component requires a concrete limitation.
 
-The following APIs were checked against the project's GPUI Kit/component 0.8.1
-source and the matching official documentation on 2026-10-31:
+The component mapping was audited with GPUI Kit 0.8.1. The project now pins
+0.10.0, which exposes multiline text through the standard Textarea's accessibility
+interface. [Native reader evidence](evidence/P01-accessibility.md#multiline-text-with-gpui-kit-0100).
 
 Use the published `gpui_kit` facade/reexports already selected by the workspace;
 do not introduce a second framework or component version.
@@ -159,7 +160,7 @@ acceptance.
   `IntoElement`. Render the Settings footer item through that trait to reuse one
   selection treatment; do not nest selected Footer and Button surfaces.
   `SidebarFooter::child(SidebarMenu)` does not compile.
-- [`Link` source](https://docs.rs/crate/gpui-component/0.8.1/source/src/link.rs)
+- [`Link` source](https://docs.rs/crate/gpui-component/0.10.0/source/src/link.rs)
   calls `cx.open_url(href)` before `on_click`; `disabled` is historically inert.
   Use validated portal callbacks on `Button` or a `Link` with no `href`.
 - `PopupMenuItem::link` also uses the framework's default URL opener. Use a normal
@@ -171,11 +172,11 @@ acceptance.
 - ASHPD's `Uri` is a minimally checked string wrapper, not a URL validator. Email
   actions accept only the renderer's sealed web-link value, normalized with the
   existing URL parser and checked for scheme/host/credentials/size first.
-- [`List` source](https://docs.rs/crate/gpui-component/0.8.1/source/src/list/list.rs)
+- [`List` source](https://docs.rs/crate/gpui-component/0.10.0/source/src/list/list.rs)
   defaults `searchable` to false. `SearchableListItem` defaults to case-insensitive
   substring matching, and `SearchableVec` filters an in-memory vector. They suit
   small option menus, not mailbox fuzzy/multilingual retrieval.
-- [`Notification` source](https://docs.rs/crate/gpui-component/0.8.1/source/src/notification.rs)
+- [`Notification` source](https://docs.rs/crate/gpui-component/0.10.0/source/src/notification.rs)
   submits system notifications with `actions: Vec::new()` and window-bound dispatch.
   Its tag uses a process/binary type identity, and Linux retraction is documented
   unsupported. Do not substitute it for durable reminder IDs/actions/background work.

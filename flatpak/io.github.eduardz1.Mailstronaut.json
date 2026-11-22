@@ -38,13 +38,13 @@
         {
           "type": "archive",
           "path": "../target/p10-flatpak/app-source.tar.xz",
-          "sha256": "ef548d2ca2958d00235bab04d363c5c3c616ea54c624c50c0ca09549c37603c1",
+          "sha256": "b94976889bacb7f5c99386be13a111d81f4610e735d53511b2b66bf39b1a8ea9",
           "strip-components": 0
         },
         {
           "type": "archive",
           "path": "../target/p10-flatpak/vendor.tar.xz",
-          "sha256": "0ebeac1d2d97ce07166583e4321061eb935ca4b1b19f6700edaee0b24d416009",
+          "sha256": "d77893cae25f7c974b10becb3837c66d9966ae0a5768dfe58fef86984130130a",
           "strip-components": 0
         },
         {

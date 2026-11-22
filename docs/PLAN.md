@@ -151,8 +151,9 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
 - [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
   Partial: the mailbox tree, row names, search field and keyboard focus through the
   list are read over AT-SPI in a private headless session ([P01 accessibility](evidence/P01-accessibility.md)).
-  The reader's text control has a focused node; its body is unavailable via AT-SPI
-  Text. Screen-reader speech, compose, dialogs and Settings remain open.
+  With GPUI Kit 0.10.0, the focused native reader exposes the complete multiline
+  Unicode body through AT-SPI Text and stays read-only. Screen-reader speech,
+  compose, dialogs and Settings remain open.
 - [x] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering. Measured in
   a headless software-rendered session with the release binary: 100 switches with no
@@ -676,10 +677,13 @@ Use the [reminder component mapping](INTERFACE.md#p08-reminders-and-background).
   Reuse `SettingField::switch` and ownership/disabled-state text for each setting;
   a toggle cannot grant portal permission or mutate HM-managed systemd services.
   The native Nix-backed background switch passes save/restart/export tests;
-  sandbox permission and autostart remain unavailable.
+  `programs.mailstronaut.startOnLogin` independently installs and removes the
+  native graphical-session user service. Sandbox permission and startup remain open.
 - [ ] Use the standard Background portal for Flatpak permission/revocation and
   Home Manager-managed native service semantics, without host-unit installation
-  from the sandbox. Test close, suspend, login/restart and missing display.
+  from the sandbox. The generated native unit passes [disposable Home Manager
+  activation](evidence/P10-home-manager-activation.md#opt-in-native-login-startup).
+  Test close, suspend, login/restart and missing display.
 
 No delivery guarantee is made while powered off or logged out.
 
