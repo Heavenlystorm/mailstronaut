@@ -174,6 +174,20 @@ with 1,024 of 2,304 reviewed. The reference comparison confirmed that ongoing
 sync leaves the account rail, search and reader available. The local mailbox
 count and account fetch count remain labeled separately.
 
+## Explicit-only sync
+
+With `sync.automatic = false`, the native two-account walkthrough opened a fresh
+profile without caching any messages. Ctrl+R fetched 2,400 messages across both
+accounts, finished both INBOX passes, and left Seen unchanged. A new server
+delivery stayed uncached for 35 seconds, exceeding the ordinary history
+continuation interval. A second Ctrl+R fetched it for both accounts. The fixture
+and captures are in `target/p02.RX5Xbl/progress`, with output in
+`target/local-checks/manual-sync-native.log`.
+
+Requested folders stay queued until their bounded pass completes, including
+after failures or cancellation. A finished folder no longer leaves a
+continuation timer solely because it needed more than one window.
+
 ## Not established
 
 - The age cap through a combined Settings and Home Manager activation walkthrough.

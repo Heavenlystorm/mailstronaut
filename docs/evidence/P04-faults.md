@@ -50,6 +50,22 @@ cycles and the backoff ran past the wait. That run is the reason the retry exist
 
 Unit test: `account_actions::tests::only_a_lost_connection_is_repeated_and_cancellation_never_is`.
 
+## Account-specific Retry
+
+The current Wayland fixture kept cached mail visible while two accounts failed
+independently. Dismissing the network warning exposed the second warning without
+clearing it. With automatic sync off, clicking Retry made exactly one new TCP
+connection for the refused account and no new connection for the healthy one.
+The original six injected connection resets recovered, authentication refusal
+stopped automatic retry, and neither operation changed Seen. The active-fetch
+shutdown check took 114 ms in this run.
+
+The captures and server receipts are in `target/p02.3b8RP7/faults-gui`, with
+output in `target/local-checks/account-retry-final-native.log`.
+The same account-specific action passed after updating the warning text to use
+the active theme's foreground color. See `target/p02.85ngYR/faults-gui` and
+`target/local-checks/retry-contrast-native.log`.
+
 ## Not established
 
 - A wrong password is measured by connection count: a third account with a wrong keyring secret is

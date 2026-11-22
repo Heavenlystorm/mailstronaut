@@ -244,7 +244,7 @@ pub struct Workspace {
     syncing: BTreeSet<String>,
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
     cancelled_fetches: BTreeSet<String>,
-    sync_errors: BTreeMap<String, String>,
+    sync_errors: BTreeMap<String, crate::mail_sync::Failure>,
     history: Option<Vec<FolderCoverage>>,
     history_task: Task<()>,
     last_sync: String,
@@ -1351,8 +1351,10 @@ impl Workspace {
             && filter.is_empty();
         let show_all = self.list.read(cx).delegate().show_all_priority;
         self.list.update(cx, |list, cx| {
-            list.delegate_mut().loading = true;
-            list.delegate_mut().searching = !query.is_empty() || !filter.is_empty();
+            let rows = list.delegate_mut();
+            rows.loading = true;
+            rows.searching = !query.is_empty() || !filter.is_empty();
+            rows.has_accounts = !accounts.is_empty();
             cx.notify();
         });
         self.status = "Searching local cache…".into();
@@ -1883,7 +1885,10 @@ impl Workspace {
             Some(error) => {
                 self.sync_errors.insert(
                     account.to_owned(),
-                    format!("A message could not be moved, and will be tried again: {error}."),
+                    crate::mail_sync::Failure {
+                        message: format!("A message could not be moved. {error}."),
+                        retry_after: None,
+                    },
                 );
             }
             None => {
@@ -1892,8 +1897,7 @@ impl Workspace {
         }
     }
 
-    /// Restart per-account polling for the active configuration. Explicit sync in
-    /// Settings still works when `sync.automatic` is off.
+    /// Restart per-account workers for the active configuration.
     fn restart_sync(&mut self, config: &Arc<Config>, window: &Window, cx: &mut Context<Self>) {
         self.start_meaning(config, window, cx);
         self.start_priority(config, window, cx);
@@ -1984,7 +1988,7 @@ impl Workspace {
     fn sync_now(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.refresh(window, cx);
         self.refresh_history(cx);
-        self.sync_session.read(cx).wake_all();
+        self.sync_session.read(cx).sync_all();
     }
 
     fn sync_status(&self) -> String {
@@ -2087,27 +2091,51 @@ impl Workspace {
 
     fn sync_alert(&self, cx: &Context<Self>) -> impl IntoElement {
         div().when_some(self.sync_errors.iter().next(), |view, (account, error)| {
-            let more = self.sync_errors.len().saturating_sub(1);
             let name = self
                 .declaration
                 .active()
                 .and_then(|config| config.accounts.iter().find(|item| &item.id == account))
-                .map_or_else(|| account.clone(), |item| item.display_name.clone());
-            view.p_2().child(
-                Alert::warning(
-                    "sync-error",
-                    if more > 0 {
-                        format!("{name}: {error}. {more} more accounts also need attention.")
-                    } else {
-                        format!("{name}: {error}. Cached mail is still available.")
-                    },
+                .map_or_else(|| account.clone(), |item| self.account_label(item));
+            let mut message = error.retry_after.map_or_else(
+                || error.message.clone(),
+                |delay| {
+                    format!(
+                        "{}. Retrying after a {}s delay.",
+                        error.message.trim_end_matches('.'),
+                        delay.as_secs()
+                    )
+                },
+            );
+            if self.sync_errors.len() > 1 {
+                message.push_str(" More accounts need attention.");
+            }
+            let dismiss = account.clone();
+            let retry = account.clone();
+            view.p_2()
+                .flex()
+                .items_center()
+                .gap_2()
+                .child(
+                    Alert::warning(format!("sync-error-{account}"), message)
+                        .title(name.clone())
+                        .text_color(cx.theme().foreground)
+                        .w_0()
+                        .min_w_0()
+                        .flex_1()
+                        .on_close(cx.listener(move |this, _, _, cx| {
+                            this.sync_errors.remove(&dismiss);
+                            cx.notify();
+                        })),
                 )
-                .on_close(cx.listener(|this, _, _, cx| {
-                    // Dismissal hides this report; each account keeps its own retry state.
-                    this.sync_errors.clear();
-                    cx.notify();
-                })),
-            )
+                .child(
+                    Button::new(format!("retry-sync-{account}"))
+                        .label("Retry")
+                        .accessibility_label(format!("Retry sync for {name}"))
+                        .disabled(self.syncing.contains(account))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.sync_session.read(cx).retry(&retry);
+                        })),
+                )
         })
     }
 }

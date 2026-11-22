@@ -38,7 +38,7 @@
         {
           "type": "archive",
           "path": "../target/p10-flatpak/app-source.tar.xz",
-          "sha256": "a7c4b92852888ae3c01f3a6c167c4eff7210c6659a0f332fcaa19d36fbb0a2b1",
+          "sha256": "3d5067e4beeaeadd46730c4291c83d64717f9c0f5537225a7f7c3ab2222c7ff9",
           "strip-components": 0
         },
         {

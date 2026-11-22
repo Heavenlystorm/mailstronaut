@@ -1,5 +1,5 @@
-//! One bounded polling loop per configured account while the application runs, plus
-//! one IDLE connection that wakes it as soon as the inbox changes.
+//! One bounded sync loop per account. Automatic sync also maintains an IDLE
+//! connection that wakes it as soon as the inbox changes.
 //!
 //! IDLE only says "look now": every change still goes through the ordinary cycle, and
 //! polling still covers the other folders and any server that does not offer IDLE.
@@ -8,7 +8,7 @@
 //! that account's retries, so a wrong password cannot lock it at the server.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     sync::{Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
@@ -50,9 +50,15 @@ pub struct Fetch {
 }
 
 #[derive(Clone)]
+pub struct Failure {
+    pub message: String,
+    pub retry_after: Option<Duration>,
+}
+
+#[derive(Clone)]
 pub enum Update {
     Started(String),
-    Finished(String, Result<Cycle, String>),
+    Finished(String, Result<Cycle, Failure>),
     Cancelled(String),
     /// Fetch progress for one folder of an account, while its cycle runs.
     Progress(String, Fetch),
@@ -141,7 +147,7 @@ impl Session {
             })
             .detach();
         }
-        let Some(store) = store.filter(|_| config.sync.automatic) else {
+        let Some(store) = store else {
             return;
         };
         let (engine, mut updates) = Engine::start(
@@ -177,17 +183,41 @@ impl Session {
         .detach();
     }
 
-    /// Request a pass for all configured accounts.
+    fn automatic(&self) -> bool {
+        self.config
+            .as_ref()
+            .is_some_and(|config| config.sync.automatic)
+    }
+
+    /// Wake automatic workers for application events.
     pub fn wake_all(&self) {
+        if self.automatic() {
+            self.sync_all();
+        }
+    }
+
+    /// Explicitly request a pass even if automatic synchronization is off.
+    pub fn sync_all(&self) {
         if let Some(engine) = &self.engine {
             engine.wake_all();
+        }
+    }
+
+    /// Retry one account on explicit request without waking its siblings.
+    pub fn retry(&self, id: &str) {
+        if let Some(account) = self
+            .engine
+            .as_ref()
+            .and_then(|engine| engine.accounts.get(id))
+        {
+            account.wake.notify_one();
         }
     }
 
     /// Include a requested folder in the next account pass.
     pub fn include_folder(&self, account: &str, folder: String) {
         if let Some(engine) = &self.engine {
-            engine.include_folder(account, folder);
+            engine.include_folder(account, folder, self.automatic());
         }
     }
 
@@ -274,17 +304,17 @@ impl Drop for Session {
 }
 
 /// How long until the next cycle: history continues quickly, everything else at the poll.
-fn next_wait(poll: Duration, backfill_pending: bool) -> Duration {
+fn next_wait(poll: Duration, backfill_pending: bool, automatic: bool) -> Option<Duration> {
     if backfill_pending {
-        poll.min(BACKFILL_PAUSE)
+        Some(poll.min(BACKFILL_PAUSE))
     } else {
-        poll
+        automatic.then_some(poll)
     }
 }
 
 struct Entry {
     wake: Arc<Notify>,
-    extra: Arc<Mutex<Vec<String>>>,
+    extra: Arc<Mutex<BTreeSet<String>>>,
 }
 
 /// Dropping the engine stops every account loop.
@@ -339,15 +369,17 @@ impl Engine {
         }
     }
 
-    /// Also fetch this folder on the account's next cycle, and start that cycle now.
-    pub fn include_folder(&self, account: &str, folder: String) {
+    /// Queue this folder and advance the next pass when automatic sync is active.
+    fn include_folder(&self, account: &str, folder: String, automatic: bool) {
         if let Some(account) = self.accounts.get(account) {
             account
                 .extra
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
-                .push(folder);
-            account.wake.notify_one();
+                .insert(folder);
+            if automatic {
+                account.wake.notify_one();
+            }
         }
     }
 }
@@ -358,13 +390,14 @@ struct Loop {
     config: Arc<Config>,
     account: Account,
     wake: Arc<Notify>,
-    extra: Arc<Mutex<Vec<String>>>,
+    extra: Arc<Mutex<BTreeSet<String>>>,
     updates: mpsc::Sender<Update>,
 }
 
 async fn run(work: Loop, cancel: CancellationToken) {
     let poll = Duration::from_secs(u64::from(work.config.sync.poll_seconds));
-    let mut wait = Some(Duration::ZERO);
+    let automatic = work.config.sync.automatic;
+    let mut wait = automatic.then_some(Duration::ZERO);
     let mut retry = FIRST_RETRY;
     let mut watcher: Option<JoinHandle<()>> = None;
     loop {
@@ -378,8 +411,10 @@ async fn run(work: Loop, cancel: CancellationToken) {
         {
             return;
         }
-        let extra =
-            core::mem::take(&mut *work.extra.lock().unwrap_or_else(PoisonError::into_inner));
+        let extra: Vec<_> =
+            core::mem::take(&mut *work.extra.lock().unwrap_or_else(PoisonError::into_inner))
+                .into_iter()
+                .collect();
         let updates = work.updates.clone();
         let progress_account = id.clone();
         let cycle = cancel.child_token();
@@ -410,10 +445,10 @@ async fn run(work: Loop, cancel: CancellationToken) {
         let report = match result {
             Ok(cycle) => {
                 retry = FIRST_RETRY;
-                wait = Some(next_wait(poll, cycle.backfill_pending));
+                wait = next_wait(poll, cycle.backfill_pending, automatic);
                 // Only after a good cycle: the credentials are known to work, and a
                 // watcher stopped on refused ones comes back once they are fixed.
-                if watcher.as_ref().is_none_or(JoinHandle::is_finished) {
+                if automatic && watcher.as_ref().is_none_or(JoinHandle::is_finished) {
                     watcher = Some(tokio::spawn(watch(
                         work.access.clone(),
                         work.account.clone(),
@@ -423,26 +458,41 @@ async fn run(work: Loop, cancel: CancellationToken) {
                 }
                 Update::Finished(id, Ok(cycle))
             }
-            Err(SyncFailure::Retry(error)) => {
-                wait = Some(retry);
+            Err(SyncFailure::Retry(message)) => {
+                wait = automatic.then_some(retry);
                 retry = next_retry(retry);
-                Update::Finished(id, Err(error))
+                Update::Finished(
+                    id,
+                    Err(Failure {
+                        message,
+                        retry_after: wait,
+                    }),
+                )
             }
-            Err(SyncFailure::Stop(error)) => {
+            Err(SyncFailure::Stop(message)) => {
                 wait = None;
-                Update::Finished(id, Err(error))
+                Update::Finished(
+                    id,
+                    Err(Failure {
+                        message,
+                        retry_after: None,
+                    }),
+                )
             }
             Err(SyncFailure::Cancelled) => {
-                // Retain requested folders and avoid resuming on the fast
-                // backfill timer. Explicit sync or a new arrival can wake us.
-                work.extra
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .extend(extra);
-                wait = Some(poll);
+                // Avoid resuming on the fast backfill timer after cancellation.
+                wait = automatic.then_some(poll);
                 Update::Cancelled(id)
             }
         };
+        if matches!(&report, Update::Cancelled(_) | Update::Finished(_, Err(_)))
+            || matches!(&report, Update::Finished(_, Ok(cycle)) if cycle.backfill_pending)
+        {
+            work.extra
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .extend(extra);
+        }
         if !crate::cancellable_send::send(&work.updates, report, &cancel).await {
             return;
         }
@@ -536,13 +586,20 @@ mod tests {
     #[test]
     fn history_continues_quickly_and_everything_else_waits_for_the_poll() {
         let poll = Duration::from_secs(300);
-        assert_eq!(next_wait(poll, true), BACKFILL_PAUSE);
-        assert_eq!(next_wait(poll, false), poll);
+        assert_eq!(next_wait(poll, true, true), Some(BACKFILL_PAUSE));
+        assert_eq!(next_wait(poll, false, true), Some(poll));
         // A poll shorter than the pause is never lengthened.
         assert_eq!(
-            next_wait(Duration::from_secs(10), true),
-            Duration::from_secs(10)
+            next_wait(Duration::from_secs(10), true, true),
+            Some(Duration::from_secs(10))
         );
+    }
+
+    #[test]
+    fn a_manual_pass_continues_its_history_without_scheduling_a_poll() {
+        let poll = Duration::from_secs(300);
+        assert_eq!(next_wait(poll, true, false), Some(BACKFILL_PAUSE));
+        assert_eq!(next_wait(poll, false, false), None);
     }
 
     #[test]

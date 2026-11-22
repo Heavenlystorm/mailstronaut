@@ -622,11 +622,10 @@ impl Access {
         let folders: Vec<(&str, bool)> = core::iter::once((inbox, true))
             .chain(others.map(|name| (name, false)))
             .collect();
-        // Queued actions have settled. The remaining server work can be cancelled.
-        progress(inbox, FETCH_STARTED);
         // Arrivals and flags of every folder come before any history, so a long backfill
-        // never delays new mail.
+        // never delays new mail. The remaining server work can be cancelled.
         for &(folder, is_inbox) in &folders {
+            progress(folder, FETCH_STARTED);
             let request = folder_request(&account.id, &context, folder, is_inbox, earliest);
             connection = Self::recent_pages(
                 &opened, account, store, connection, request, &mut cycle, cancel,
@@ -744,13 +743,13 @@ impl Access {
             cycle.downloaded += step.downloaded;
             (pass.progress)(pass.request.folder, step.progress);
             if step.finished {
-                break;
+                return Ok(connection);
             }
-            cycle.backfill_pending = true;
             if step.downloaded > 0 {
                 connection = Self::connect(opened, account, cancel).await?;
             }
         }
+        cycle.backfill_pending = true;
         Ok(connection)
     }
 

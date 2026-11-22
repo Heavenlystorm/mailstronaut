@@ -164,6 +164,7 @@ pub struct Rows {
     pub show_all_priority: bool,
     pub loading: bool,
     pub searching: bool,
+    pub has_accounts: bool,
     pub time_zone: String,
     /// Called with a row's message when the user dismisses it from the priority group.
     pub on_dismiss: Option<Dismiss>,
@@ -524,6 +525,8 @@ impl ListDelegate for Rows {
                 }))
                 .description(EmptyDescription::new().child(if self.searching {
                     "Try a different query. Only locally cached text is searched."
+                } else if self.has_accounts {
+                    "Use Sync mail to check for messages."
                 } else {
                     "Open Settings to connect an account and sync its inbox."
                 })),

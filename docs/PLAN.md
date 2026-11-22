@@ -286,15 +286,20 @@ new dependency graph before claiming current-package acceptance.
   locally owned attachments). The app-owned Settings control passed a synthetic
   Wayland save-and-clear walkthrough; Home Manager activation and eviction remain
   open.
-- [ ] Show actual fetch progress in the status bar with Kit `Progress`: account/folder,
-  completed and known total. Use indeterminate progress while the total is unknown;
-  distinguish fetching, offline, retry and finished. Test cancellation and errors. The
-  status bar shows each active account and its current folder using the backend's
-  measured counts. Retry and error acceptance remain open. A private
-  two-account walkthrough and focused progress-state test cover the presentation.
+- [x] Show per-account and per-folder fetch progress with Kit `Progress`. Display the
+  measured reviewed count and total when known. Use indeterminate progress during
+  connection and fetch setup. The native two-account, cancellation and failure
+  walkthroughs cover the status presentation.
 - [x] Cancel a running account fetch from the status bar after queued server writes
   settle. Keep cached originals and the committed cursor, and support resuming on
   an explicit sync. [Private Dovecot and Wayland evidence](evidence/P04-history.md#native-fetch-cancellation).
+- [x] Fetch configured accounts on Sync mail or Ctrl+R with automatic sync disabled.
+  Continue that request's unfinished history and leave polling and IDLE off after
+  completion. [Native two-account check](evidence/P04-history.md#explicit-only-sync).
+- [x] Keep account errors independently dismissible and retry only the account named
+  in the warning. Show scheduled retry delays for transient failures and keep cached
+  mail available during server or authentication failures.
+  [Native failure recovery](evidence/P04-faults.md#account-specific-retry).
 
 - [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
   expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.

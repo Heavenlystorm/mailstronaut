@@ -169,6 +169,9 @@ MiniLM model was ready, after independently observing the writer lock. It exited
 within the shared ten-second shutdown limit and released the lock.
 Capture and log are in `target/p02.wUEJBO/meaning-gui` and
 `target/local-checks/model-verification-quit.log`.
+The separate, full native search rerun passed with the same loader and actual
+pinned model. Its evidence is in `target/p02.f7lrhG/meaning-gui` and
+`target/local-checks/current-meaning-native.log`.
 
 The x86_64 local Nix release checks passed for the preceding search/chooser
 commit `b9d96ff`, including strict release Clippy, workspace tests, Home Manager

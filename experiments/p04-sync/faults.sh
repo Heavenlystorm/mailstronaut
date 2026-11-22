@@ -156,6 +156,36 @@ awk -v value="$idle" 'BEGIN { exit !(value < 5) }'
 printf 'OK: the idle application used %s%% of a processor over ten seconds\n' "$idle"
 close_window
 
+if [[ ${MAILSTRONAUT_TEST_ACCOUNT_RETRY:-0} == 1 ]]; then
+  # No polling or IDLE in this phase, so observed connections came from
+  # an explicit UI action. Both failed accounts should still report errors.
+  sed -i '/sync.pollSeconds/a\  sync.automatic = false;' "$config"
+  before=$(grep -c '^accept' "$artifacts/attempts.log")
+  start retry
+  wtype -M ctrl r -m ctrl -s 700
+  for _ in {1..100}; do
+    [[ $(grep -c '^accept' "$artifacts/attempts.log") -gt $before ]] && break
+    kill -0 "$app"; sleep .1
+  done
+  [[ $(grep -c '^accept' "$artifacts/attempts.log") == $((before + 1)) ]]
+  sleep 2
+  capture retry-first-error
+  click 463 120
+  capture retry-second-error
+  healthy=$(grep -c '^accept' "$artifacts/resets.log")
+  click 523 166
+  for _ in {1..100}; do
+    [[ $(grep -c '^accept' "$artifacts/attempts.log") -gt $((before + 1)) ]] && break
+    kill -0 "$app"; sleep .1
+  done
+  [[ $(grep -c '^accept' "$artifacts/attempts.log") == $((before + 2)) ]]
+  [[ $(grep -c '^accept' "$artifacts/resets.log") == "$healthy" ]]
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 0 ]]
+  printf '%s\n' 'OK: dismissing one error exposed the second, and Retry reached only its account'
+  close_window
+  sed -i '/sync.automatic = false;/d' "$config"
+fi
+
 # Closing while the first sync is still running: the window closes and the sync stops at once.
 rm -rf "$XDG_DATA_HOME/mailstronaut"
 start closing

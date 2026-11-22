@@ -274,6 +274,10 @@ the loaded values. The actions stay visible while filtering Settings. A saved
 candidate reloads through the same validated account/runtime adoption path as an
 explicit reload. The toolbar theme toggle remains a temporary preview.
 
+With automatic synchronization off, use **Sync mail** or **Ctrl+R** to fetch
+the configured accounts. An explicit pass can continue unfinished history in
+bounded batches. Once it finishes, polling and IMAP IDLE stay off.
+
 The source path, ownership and last reload are visible alongside persistent errors.
 Only an app-initialized or mutable-HM regular writable source with `managed = false`
 is editable. Managed sources, read-only files, other links and unadopted expressions

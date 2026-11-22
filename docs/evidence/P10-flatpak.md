@@ -212,3 +212,14 @@ status was 0, and the private runtime suite returned `flatpak-runtime-exit=0`
 in `target/local-checks/latest-packages.log`. The isolated install emitted a
 nonfatal hicolor `index.theme` copy warning. Native icon integration still needs
 a real desktop check. The AppStream validator accepted the metadata locally.
+
+The same offline build and installed private-session checks passed for
+`7358abe`, including the search excerpts, model chooser, fetch cancellation,
+and cancellable model verification in its sources. The app archive was
+`a7c4b92852888ae3c01f3a6c167c4eff7210c6659a0f332fcaa19d36fbb0a2b1`
+and the exported app commit was
+`b9f0157735ce4a208d8aa5cd4872de19a6cb6e343ed22d8078efbc20d07e896f`.
+`target/local-checks/cancel-model-packages.log` records `flatpak-runtime-exit=0`.
+The private smoke exercised the CLI, Wayland, Secret, notification and FileChooser
+fixtures with synthetic data. Model folder grants through a user's own portal
+remain unverified.
