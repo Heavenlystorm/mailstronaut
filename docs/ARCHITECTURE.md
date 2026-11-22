@@ -391,12 +391,10 @@ visible overdue entry in the app.
 
 Three separate controls: `background.enabled` (continue after window closes),
 `background.autostart` (start at login), and `notifications.enabled`. Native Nix
-uses an ordinary Home Manager `systemd.user.services` definition running the same
-binary. Other native users can use the Background portal if available. Flatpak
-uses ASHPD's Background portal and honors permission denial/revocation; no host
-systemd installation or `flatpak-spawn --host`. Explicit Quit terminates this
-process and suspends work until a subsequent activation/login. A user service
-uses `Restart=on-failure`, not `always`, so intentional Quit stays quit.
+uses the opt-in Home Manager `systemd.user.services` definition to run the same
+binary with the native configuration. The Flatpak target uses ASHPD's Background
+portal for permission and revocation. Explicit Quit stops work until a subsequent
+launch or login. The native user service restarts after abnormal termination.
 
 When headless, release Blitz, its surfaces/windows, and classifier weights after
 an idle timeout; synchronization/reminders do not require a browser. Do not keep

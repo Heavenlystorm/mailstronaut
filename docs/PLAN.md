@@ -456,8 +456,10 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   Keep `ListDelegate::set_selected_index`/`ListEvent::Select` passive;
   `ListDelegate::confirm`/`ListEvent::Confirm` invokes the existing content-load gate.
   [Native and worker evidence](evidence/P06-continuous-and-settings.md).
-- [ ] Display extracted two/three-line previews, safe HTML/CID and accessible text
+- [x] Display extracted two/three-line previews, safe HTML/CID and accessible text
   modes; verify actual Wayland keyboard/copy/link behavior.
+  [Wayland renderer and portal checks](evidence/P01-cached-html.md#gpui-kit-0100-recheck)
+  and [native multiline AT-SPI text](evidence/P01-accessibility.md#multiline-text-with-gpui-kit-0100).
 - [x] Research maintained fuzzy/hybrid libraries and local encoders, with exact
   source/API and isolated engine/resource probes. [Research](SEARCH.md).
 - [ ] Finish model/library adoption gates and choose the smallest maintained
@@ -761,8 +763,9 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   unsupported languages, stale read races, malicious prompts and missing models.
   [Evidence](evidence/P09-priority-rules.md). No model exists yet, so these establish
   the rules alone, which is also what a missing model falls back to.
-- [ ] Keep previews extracted with source/body revision; support a future generated
+- [x] Keep previews extracted with source/body revision; support a future generated
   summary type without implementing or implying summarization now.
+  [MIME provenance and cache behavior](evidence/P09-priority-rules.md#extracted-preview-provenance).
 
 ## P10 — Nix/Home Manager, Flatpak and CI
 

@@ -56,5 +56,8 @@ file path, and is conditional on `WAYLAND_DISPLAY`. `systemd-analyze --user
 verify` accepted the generated unit. A subsequent generation removed both
 service links while keeping `background.enabled = true` in the native file.
 The activation used the known local Nix package from `395c52b`; the fixture
-isolated the user service manager from the actual desktop. Live login/logout,
-suspend and Flatpak Background portal acceptance remain open.
+isolated the user service manager from the actual desktop. The upgraded
+application also passed the private Wayland/Dovecot walkthrough with the
+service's windowless launch arguments, background sync, launcher reopening
+and explicit Quit. Captures are under `target/p02.6lqcBa/background-gui`.
+Live login/logout, suspend and the Flatpak Background portal remain open.

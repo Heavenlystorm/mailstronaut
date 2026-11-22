@@ -208,9 +208,12 @@ if [[ ${MAILSTRONAUT_HTML_CAPTURE_ONLY:-0} == 1 ]]; then
   printf 'Inspection only: %s\n' "$root"; exit 0
 fi
 check_seen
-wtype -s 150 -M ctrl l -m ctrl -k Down -s 200 -M ctrl r -m ctrl -s 500
+# Reload the unchanged configuration to refresh the cached rows without
+# requesting an explicit server connection (Ctrl+R).
+wtype -s 150 -M ctrl l -m ctrl -k Down -s 200 -M ctrl -M shift r -m shift -m ctrl -s 500
 check_seen
-wtype -s 150 -k Return -s 800
+# Reload retires the old selection. Focus a fresh row before opening it.
+wtype -s 150 -M ctrl l -m ctrl -k Down -k Return -s 800
 # Wait for the real painted original and its Seen callback on busy software Vulkan.
 capture_marker alpha 800 395 51,170,102
 check_seen alpha

@@ -166,3 +166,14 @@ layout corpus, fuzzing, screen-reader/AT-SPI proof, HTML selection, explicit por
 links, hardware-GPU or performance/memory/idle acceptance. Flatpak, aarch64 and
 live-account acceptance remain separate. The isolated renderer API's broader
 DNS/scheme/file matrix is recorded in [P01-passive-viewport.md](P01-passive-viewport.md).
+
+## GPUI Kit 0.10.0 recheck
+
+On local Wayland the cached HTML fixture again verified inline CID isolation,
+retirement during rapid message switches, light/dark, resize, HiDPI, keyboard
+navigation, clipboard bytes and four explicit web-link portal actions. The
+independent HTTP and file observers detected their positive controls and no
+message-initiated I/O. Before explicitly opening the first original, the driver
+reloaded the unchanged configuration and verified that passive selection left
+every original unread. This uses the local reload path because Ctrl+R also
+requests a server sync. The trace and frames are under `target/p01.SKu1SY`.

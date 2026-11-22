@@ -86,3 +86,16 @@ Any model, and therefore semantic judgment: the rules only see stated cues. Real
 Correcting a date. The Settings switch: the feature is off unless
 `priority.enabled = true` is declared. Time zones beyond
 the configured or system zone. Phrasings outside the tables simply are not recognized.
+
+## Extracted preview provenance
+
+The MIME projection produces a bounded preview with `PreviewSource::Extracted`
+and the complete original's SHA-256 revision. SQLite updates preview text and
+the original's blob hash together. The mailbox uses that extracted text, with
+literal search excerpts supplied separately by the word search. The existing
+`PreviewSource::Generated { model_revision }` variant leaves room for
+model-derived previews.
+
+The MIME regression checks the exact source and matching revision, and the
+encrypted-message fixture verifies that protected content yields no preview.
+Both passed in the workspace checks with GPUI Kit 0.10.0.

@@ -183,21 +183,29 @@ seen = [n for n, mid in enumerate(ids, 1) if c.execute('SELECT min(seen) FROM ef
 assert seen == [105], seen
 PYTHREAD
   capture long-thread-passive
-  wtype -k Return -s 600
-  capture long-thread-just-opened
-  copy_body long-thread-old 'Synthetic thread original'
-  python3 - "$root" <<'PYTHREAD'
-import json, re, sqlite3, sys
+  wtype -k Return
+  # Waiting for clipboard output alone can miss the focus request while
+  # the asynchronous reader is still opening the selected original.
+  number=$(python3 - "$root" <<'PYTHREAD'
+import json, sqlite3, sys, time
 from pathlib import Path
 root = Path(sys.argv[1])
 ids = json.loads((root / 'long-thread-ids.json').read_text())
-c = sqlite3.connect(root / 'data/mailstronaut/mail.sqlite3')
-seen = [n for n, mid in enumerate(ids, 1) if c.execute('SELECT min(seen) FROM effective_memberships WHERE message_id=?', (mid,)).fetchone()[0]]
-body = (root / 'long-thread-old-body.txt').read_text()
-number = int(re.search(r'Synthetic thread original (\d{3})\.', body).group(1))
-assert 1 <= number < 105, number
-assert seen == sorted([number, 105]), seen
+db = sqlite3.connect(root / 'data/mailstronaut/mail.sqlite3')
+for _ in range(100):
+    seen = [n for n, mid in enumerate(ids, 1)
+            if db.execute('SELECT min(seen) FROM effective_memberships WHERE message_id=?', (mid,)).fetchone()[0]]
+    if seen != [105]:
+        assert len(seen) == 2 and seen[-1] == 105, seen
+        print(f'{seen[0]:03}')
+        break
+    time.sleep(0.1)
+else:
+    raise SystemExit('the confirmed thread original never became Seen')
 PYTHREAD
+)
+  capture long-thread-just-opened
+  copy_body long-thread-old "Synthetic thread original $number."
   capture long-thread-confirmed
   printf 'LONG_THREAD_GUI_OK: %s\n' "$root"
   exit 0
