@@ -290,8 +290,11 @@ new dependency graph before claiming current-package acceptance.
   completed and known total. Use indeterminate progress while the total is unknown;
   distinguish fetching, offline, retry and finished. Test cancellation and errors. The
   status bar shows each active account and its current folder using the backend's
-  measured counts; cancellation and error acceptance remain open. A private
+  measured counts. Retry and error acceptance remain open. A private
   two-account walkthrough and focused progress-state test cover the presentation.
+- [x] Cancel a running account fetch from the status bar after queued server writes
+  settle. Keep cached originals and the committed cursor, and support resuming on
+  an explicit sync. [Private Dovecot and Wayland evidence](evidence/P04-history.md#native-fetch-cancellation).
 
 - [x] Retain validated TLS/required STARTTLS, bounded UID pages, PEEK retrieval,
   expunge/flag reconciliation, UIDVALIDITY fencing and transactional cache backend.
@@ -305,7 +308,7 @@ new dependency graph before claiming current-package acceptance.
   displayed 1024 of 2304 reviewed and passed restart, cap, UID reset and Seen checks;
   [Multi-account progress](evidence/P04-history.md) and [scoped history
   coverage](evidence/P04-history.md#scoped-cache-coverage) have native evidence.
-  Cancellation and real-provider behavior remain open.
+  Real-provider behavior remains open.
   [Automatic sync passes against a real Dovecot](evidence/P04-background-sync.md);
   live providers remain open.
 - [ ] Complete native/extra-CA trust tests, missing STARTTLS/invalid cert failures,

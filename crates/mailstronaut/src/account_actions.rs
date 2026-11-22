@@ -22,6 +22,10 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 const CANCELLED: &str = "Account operation cancelled.";
+const FETCH_STARTED: sync::Progress = sync::Progress {
+    completed: 0,
+    total: None,
+};
 /// Four active accounts at one connection each, per the architecture's initial target.
 const MAX_CONNECTIONS: usize = 4;
 /// A cycle examines at most this many newest UID windows per folder, while new mail keeps
@@ -82,6 +86,7 @@ pub struct Older {
 pub enum SyncFailure {
     Retry(String),
     Stop(String),
+    Cancelled,
 }
 impl SyncFailure {
     /// Refused or unusable credentials and invalid trust must not be retried
@@ -89,6 +94,7 @@ impl SyncFailure {
     pub fn from_imap(error: imap::Error) -> Self {
         let text = error.to_string();
         match error {
+            imap::Error::Cancelled => Self::Cancelled,
             imap::Error::Authentication
             | imap::Error::AuthenticationUnavailable
             | imap::Error::Configuration
@@ -408,6 +414,7 @@ impl Access {
     ) -> Result<Older, String> {
         let failed = |failure| match failure {
             SyncFailure::Retry(error) | SyncFailure::Stop(error) => error,
+            SyncFailure::Cancelled => CANCELLED.into(),
         };
         let opened = self.foreground(cancel).await?;
         let _permit = cancel
@@ -615,6 +622,8 @@ impl Access {
         let folders: Vec<(&str, bool)> = core::iter::once((inbox, true))
             .chain(others.map(|name| (name, false)))
             .collect();
+        // Queued actions have settled. The remaining server work can be cancelled.
+        progress(inbox, FETCH_STARTED);
         // Arrivals and flags of every folder come before any history, so a long backfill
         // never delays new mail.
         for &(folder, is_inbox) in &folders {

@@ -89,11 +89,25 @@ type_query() {
 }
 seen() { query 'SELECT count(*) FROM memberships WHERE seen=1'; }
 start initial
+if [[ ${MAILSTRONAUT_TEST_MODEL_LOAD_QUIT:-0} == 1 ]]; then
+  # Observe the existing meaning writer lock in a fresh profile before closing.
+  writer="$XDG_DATA_HOME/mailstronaut/meaning/writer.lock"
+  for _ in {1..100}; do
+    if [[ -f $writer ]] && ! flock -n "$writer" true; then break; fi
+    kill -0 "$app"; sleep .05
+  done
+  [[ -f $writer ]] && ! flock -n "$writer" true
+  capture model-load-quit
+  close_window
+  flock -n "$writer" true
+  printf '%s\n' 'OK: closing during model verification exited and released the meaning writer'
+  exit 0
+fi
 await 'all synthetic mail fetched' 4 'SELECT count(*) FROM messages'
 await 'word index ready' 0 'SELECT count(*) FROM search_pending'
 await 'meaning queue committed' 0 'SELECT count(*) FROM semantic_pending'
 [[ $(seen) == 0 ]]
-type_query 'reminder about doctoral school re-enrollment'
+type_query 'reminder about doctoral school re-enrollment' 5000
 click 350 150
 [[ $(seen) == 0 ]]
 capture word-results
@@ -132,13 +146,18 @@ wtype -M ctrl , -m ctrl -s 500
 click 310 126
 wtype 'meaning' -s 500
 capture meaning-settings
-click 1250 286
+click 1245 285
+capture meaning-disable-staged
 click 275 783
 for _ in {1..150}; do
   grep -q 'semantic = false' "$config" && break
   kill -0 "$app"; sleep .2
 done
-grep -q 'semantic = false' "$config"
+if ! grep -q 'semantic = false' "$config"; then
+  capture meaning-disable-failed
+  printf '%s\n' 'Disabling meaning search did not persist the native setting.' >&2
+  exit 1
+fi
 capture meaning-disabled-settings
 wtype -M ctrl 1 -m ctrl -s 400
 type_query 'reminder about doctoral school re-enrollment'

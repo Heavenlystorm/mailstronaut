@@ -154,5 +154,24 @@ FileChooser service. It returned cancellation, denial and a directory URI for
 an explicitly installed MiniLM fixture. All three left the Nix file unchanged
 until Save. The successful selection then persisted the directory and passed
 `mailstronaut config check`. Mail remained unread unless explicitly opened.
+The complete rerun passed the English-to-French, exact-intent, disabled and
+missing-model cases in `target/p02.JN68Su/meaning-gui`.
 This establishes native staging and persistence with a test portal. Flatpak
 document grants and host desktop portal behavior remain open.
+
+## Closing during model verification
+
+The local loader checks cancellation between 1 MiB verification chunks and
+before model initialization. It still checks the full embedded hashes on every
+successful load. A unit test cancels during the second chunk of a synthetic
+artifact. The focused Wayland run closed the application before the pinned
+MiniLM model was ready, after independently observing the writer lock. It exited
+within the shared ten-second shutdown limit and released the lock.
+Capture and log are in `target/p02.wUEJBO/meaning-gui` and
+`target/local-checks/model-verification-quit.log`.
+
+The x86_64 local Nix release checks passed for the preceding search/chooser
+commit `b9d96ff`, including strict release Clippy, workspace tests, Home Manager
+module checks, installed version and example configuration validation.
+`target/local-checks/search-nix-package.log` records the exact revision and
+`nix-gate-exit=0`. This receipt predates cancellable model verification.

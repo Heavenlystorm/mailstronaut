@@ -61,6 +61,8 @@ total=$((bulk + 4))
 dovecot_start
 ca=$(realpath crates/mailstronaut-mail/tests/certs/ca.pem)
 config="$artifacts/config.nix"
+sync_port=$imap_port
+proxy=''
 # The optional line declares a history cap; without it the complete history is fetched.
 write_config() {
   cat > "$config" <<NIX
@@ -76,7 +78,7 @@ write_config() {
     address = "reader@example.test";
     displayName = "Synthetic reader";
     userName = "$imap_user";
-    imap = { host = "localhost"; port = $imap_port; security = "tls"; };
+    imap = { host = "localhost"; port = $sync_port; security = "tls"; };
     smtp = { host = "localhost"; port = $imap_port; security = "tls"; };
     tls.caFiles = [ "$ca" ];
     auth = { kind = "password"; secretRef = "dovecot-password"; };
@@ -92,6 +94,11 @@ printf '%s' "$imap_password" | secret-tool store --label='Synthetic history fixt
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
 cleanup() {
   session_cleanup
+  if [[ -n $proxy ]]; then
+    kill -TERM "$proxy" 2>/dev/null || true
+    kill -CONT "$proxy" 2>/dev/null || true
+    wait "$proxy" 2>/dev/null || true
+  fi
   dovecot_cleanup
 }
 trap cleanup EXIT
@@ -190,6 +197,45 @@ printf '%s\n' 'OK: a UIDVALIDITY reset re-attached every message once, none dupl
 sleep 2
 capture reset
 close_window
+
+if [[ ${MAILSTRONAUT_TEST_FETCH_CANCEL:-0} == 1 ]]; then
+  # Start a fresh profile through a loopback-only proxy. Pausing only this
+  # fixture's proxy keeps a fetch in flight while the pointer clicks Cancel.
+  mv "$XDG_DATA_HOME/mailstronaut" "$artifacts/profile-after-reset"
+  sync_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+  python3 -I "$(dirname "${BASH_SOURCE[0]}")/drop-proxy.py" "$sync_port" "$imap_port" "$artifacts/cancel-proxy.log" 0 0 &
+  proxy=$!
+  for _ in {1..100}; do
+    grep -qx ready "$artifacts/cancel-proxy.log" 2>/dev/null && break
+    kill -0 "$proxy"; sleep .05
+  done
+  grep -qx ready "$artifacts/cancel-proxy.log"
+  write_config ''
+  start cancel
+  await 'a history window committed before cancellation' 1 \
+    "SELECT EXISTS(SELECT 1 FROM backfill WHERE reviewed>=256 AND finished_at IS NULL)"
+  kill -STOP "$proxy"
+  capture cancel-before
+  click 880 817
+  capture cancel-after
+  cancelled_at=$(query "$inbox_pass")
+  cached=$(query 'SELECT count(*) FROM messages')
+  kill -CONT "$proxy"
+  sleep 5
+  [[ $(query "$inbox_pass") == "$cancelled_at" ]]
+  [[ $(query 'SELECT count(*) FROM messages') == "$cached" ]]
+  [[ $(query 'PRAGMA integrity_check') == ok ]]
+  printf '%s\n' 'OK: Cancel stopped history at a committed cursor and left cached mail intact'
+  wtype -M ctrl r -m ctrl -s 500
+  await 'explicit sync resumed the cancelled pass' 1 \
+    "SELECT EXISTS(SELECT 1 FROM backfill WHERE reviewed>$cancelled_at)"
+  await 'resumed history is complete' 1 "$inbox_finished"
+  [[ $(query "$inbox_pass") == "$total" ]]
+  [[ $(query 'SELECT count(*) FROM messages') == "$total" ]]
+  [[ $(query 'SELECT count(*) FROM memberships WHERE seen=1') == 1 ]]
+  capture cancel-resumed
+  close_window
+fi
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf '%s\n' 'Synthetic credential appeared in an application log' >&2; exit 1

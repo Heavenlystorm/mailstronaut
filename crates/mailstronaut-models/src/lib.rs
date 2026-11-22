@@ -24,6 +24,7 @@ pub const DIMENSIONS: usize = 384;
 pub const MAX_WINDOWS: usize = 8;
 const DOCUMENT_BYTES: usize = 32 * 1024;
 const QUERY_BYTES: usize = 1024;
+const VERIFY_CHUNK_BYTES: usize = 1024 * 1024;
 
 /// A redacted inference or installation failure. Contains no input or file paths.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,7 +33,7 @@ pub enum Error {
     Installation,
     /// The pinned model cannot be initialized or evaluated.
     Inference,
-    /// The caller retired a bounded document projection before its next window.
+    /// The caller retired model verification or a bounded document projection.
     Cancelled,
     /// A query exceeds the limit, contains controls, or has no readable text.
     Input,
@@ -61,7 +62,14 @@ struct Manifest {
     files: Vec<Artifact>,
 }
 
-fn verified(root: &Path, artifact: &Artifact) -> Result<Vec<u8>, Error> {
+fn verified(
+    root: &Path,
+    artifact: &Artifact,
+    cancelled: &impl Fn() -> bool,
+) -> Result<Vec<u8>, Error> {
+    if cancelled() {
+        return Err(Error::Cancelled);
+    }
     // Artifact paths come only from the embedded manifest, never configuration/mail.
     let path = root.join(&artifact.name);
     // Nix model packages may link immutable artifacts. Follow the link only to a
@@ -72,16 +80,21 @@ fn verified(root: &Path, artifact: &Artifact) -> Result<Vec<u8>, Error> {
     {
         return Err(Error::Installation);
     }
-    let file = fs::File::open(path).map_err(|_| Error::Installation)?;
+    let mut file = fs::File::open(path).map_err(|_| Error::Installation)?;
     if file.metadata().map_err(|_| Error::Installation)?.len() != artifact.size_bytes {
         return Err(Error::Installation);
     }
-    let mut bytes = Vec::new();
-    file.take(artifact.size_bytes + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| Error::Installation)?;
-    if u64::try_from(bytes.len()).map_err(|_| Error::Installation)? != artifact.size_bytes
-        || format!("{:x}", Sha256::digest(&bytes)) != artifact.sha256
+    let mut bytes = vec![0; usize::try_from(artifact.size_bytes).map_err(|_| Error::Installation)?];
+    let mut digest = Sha256::new();
+    for chunk in bytes.chunks_mut(VERIFY_CHUNK_BYTES) {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
+        file.read_exact(chunk).map_err(|_| Error::Installation)?;
+        digest.update(chunk);
+    }
+    if file.read(&mut [0]).map_err(|_| Error::Installation)? != 0
+        || format!("{:x}", digest.finalize()) != artifact.sha256
     {
         return Err(Error::Installation);
     }
@@ -107,13 +120,21 @@ impl Encoder {
     /// # Errors
     /// Reports only redacted installation/inference failures. No implicit fetching.
     pub fn load(directory: &Path) -> Result<Self, Error> {
+        Self::load_cancellable(directory, || false)
+    }
+
+    /// Initialize the pinned model, checking retirement between verification
+    /// chunks and before building the CPU encoder.
+    /// # Errors
+    /// Returns a cancellation error when retired, or a redacted model error.
+    pub fn load_cancellable(directory: &Path, cancelled: impl Fn() -> bool) -> Result<Self, Error> {
         let manifest: Manifest =
             serde_json::from_str(MODEL_MANIFEST).map_err(|_| Error::Installation)?;
         let mut weights = None;
         let mut config = None;
         let mut tokenizer = None;
         for artifact in &manifest.files {
-            let bytes = verified(directory, artifact)?;
+            let bytes = verified(directory, artifact, &cancelled)?;
             match artifact.name.as_str() {
                 "model.safetensors" => weights = Some(bytes),
                 "config.json" => {
@@ -128,6 +149,9 @@ impl Encoder {
                 }
                 _ => (),
             }
+        }
+        if cancelled() {
+            return Err(Error::Cancelled);
         }
         let config = config.ok_or(Error::Installation)?;
         let builder = VarBuilder::from_buffered_safetensors(
@@ -278,15 +302,38 @@ mod tests {
             sha256: format!("{:x}", Sha256::digest(bytes)),
         };
         assert_eq!(
-            verified(directory.path(), &artifact).expect("verified link"),
+            verified(directory.path(), &artifact, &|| false).expect("verified link"),
             bytes
         );
         fs::write(directory.path().join("target"), vec![b'x'; bytes.len()])
             .expect("corrupt target");
         assert_eq!(
-            verified(directory.path(), &artifact),
+            verified(directory.path(), &artifact, &|| false),
             Err(Error::Installation)
         );
+    }
+
+    #[test]
+    fn a_retired_load_stops_before_the_next_verification_chunk() {
+        let directory = tempfile::tempdir().expect("private model");
+        assert!(matches!(
+            Encoder::load_cancellable(directory.path(), || true),
+            Err(Error::Cancelled)
+        ));
+        let name = "model";
+        let bytes = vec![0; 2 * VERIFY_CHUNK_BYTES];
+        fs::write(directory.path().join(name), &bytes).expect("two chunks");
+        let artifact = Artifact {
+            name: name.into(),
+            size_bytes: u64::try_from(bytes.len()).expect("length"),
+            sha256: format!("{:x}", Sha256::digest(&bytes)),
+        };
+        let checks = std::cell::Cell::new(0);
+        let result = verified(directory.path(), &artifact, &|| {
+            checks.set(checks.get() + 1);
+            checks.get() == 3
+        });
+        assert_eq!(result, Err(Error::Cancelled));
     }
 
     #[test]

@@ -243,6 +243,7 @@ pub struct Workspace {
     announcer: Option<Arc<crate::mail_notify::Announcer>>,
     syncing: BTreeSet<String>,
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
+    cancelled_fetches: BTreeSet<String>,
     sync_errors: BTreeMap<String, String>,
     history: Option<Vec<FolderCoverage>>,
     history_task: Task<()>,
@@ -762,6 +763,7 @@ impl Workspace {
             announcer: None,
             syncing: BTreeSet::new(),
             sync_progress: BTreeMap::new(),
+            cancelled_fetches: BTreeSet::new(),
             sync_errors: BTreeMap::new(),
             history: None,
             history_task: Task::ready(()),
@@ -1898,6 +1900,7 @@ impl Workspace {
         self.sync_errors.clear();
         self.syncing.clear();
         self.sync_progress.clear();
+        self.cancelled_fetches.clear();
         self.history = None;
         self.refresh_history(cx);
         let handle = self.handle();
@@ -1917,26 +1920,29 @@ impl Workspace {
         match update {
             crate::mail_sync::Update::Started(account) => {
                 self.sync_progress.remove(&account);
+                self.cancelled_fetches.remove(&account);
                 self.syncing.insert(account);
             }
             crate::mail_sync::Update::Progress(account, progress) => {
                 if self.syncing.contains(&account) {
+                    let first_window = progress.completed > 0
+                        && self
+                            .sync_progress
+                            .get(&account)
+                            .is_none_or(|previous| previous.completed == 0);
                     self.sync_progress.insert(account, progress);
+                    if first_window && self.browse.loaded == 0 && self.query.is_empty() {
+                        self.refresh_rows(window, cx);
+                    }
                 }
             }
+            crate::mail_sync::Update::Cancelled(account) => {
+                self.finish_sync(&account, cx);
+                self.cancelled_fetches.insert(account);
+                self.refresh_rows(window, cx);
+            }
             crate::mail_sync::Update::Finished(account, result) => {
-                self.syncing.remove(&account);
-                self.sync_progress.remove(&account);
-                self.refresh_history(cx);
-                if let Some(search) = &self.fuzzy {
-                    search.wake();
-                }
-                if let Some(meaning) = &self.meaning {
-                    meaning.wake();
-                }
-                if let Some(priority) = &self.priority {
-                    priority.wake();
-                }
+                self.finish_sync(&account, cx);
                 match result {
                     Ok(cycle) => {
                         self.report_move_failure(&account, cycle.move_failure, window, cx);
@@ -1958,6 +1964,21 @@ impl Workspace {
             }
         }
         cx.notify();
+    }
+
+    fn finish_sync(&mut self, account: &str, cx: &Context<Self>) {
+        self.syncing.remove(account);
+        self.sync_progress.remove(account);
+        self.refresh_history(cx);
+        if let Some(search) = &self.fuzzy {
+            search.wake();
+        }
+        if let Some(meaning) = &self.meaning {
+            meaning.wake();
+        }
+        if let Some(priority) = &self.priority {
+            priority.wake();
+        }
     }
 
     fn sync_now(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1988,29 +2009,58 @@ impl Workspace {
         status
     }
 
-    fn fetch_progress(&self) -> Vec<(String, Option<f32>)> {
-        Self::progress_rows(&self.syncing, &self.sync_progress)
-    }
-
-    fn progress_rows(
-        syncing: &BTreeSet<String>,
-        progress: &BTreeMap<String, crate::mail_sync::Fetch>,
-    ) -> Vec<(String, Option<f32>)> {
-        syncing
+    fn fetch_progress(&self, cx: &Context<Self>) -> Vec<gpui::Div> {
+        self.syncing
             .iter()
-            .map(|account| {
-                progress.get(account).map_or_else(
-                    || (format!("{account} · connecting…"), None),
-                    |progress| Self::format_fetch_progress(account, progress),
-                )
+            .enumerate()
+            .map(|(index, account)| {
+                let fetch = self.sync_progress.get(account);
+                let (label, percent) = Self::format_fetch_progress(account, fetch);
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(div().child(label.clone()))
+                    .child(
+                        Progress::new(("sync-progress", index))
+                            .w(px(120.))
+                            .accessibility_label(label)
+                            .loading(percent.is_none())
+                            .value(percent.unwrap_or_default()),
+                    )
+                    .when_some(fetch, |row, fetch| {
+                        let cancel = fetch.cancel.clone();
+                        row.child(
+                            Button::new(format!("cancel-fetch-{account}"))
+                                .ghost()
+                                .label(if cancel.is_cancelled() {
+                                    "Stopping…"
+                                } else {
+                                    "Cancel"
+                                })
+                                .disabled(cancel.is_cancelled())
+                                .accessibility_label(format!("Cancel fetch for {account}"))
+                                .tooltip(format!("Cancel fetch for {account}"))
+                                .on_click(cx.listener(move |_, _, _, cx| {
+                                    cancel.cancel();
+                                    cx.notify();
+                                })),
+                        )
+                    })
             })
             .collect()
     }
 
     fn format_fetch_progress(
         account: &str,
-        progress: &crate::mail_sync::Fetch,
+        progress: Option<&crate::mail_sync::Fetch>,
     ) -> (String, Option<f32>) {
+        let Some(progress) = progress else {
+            return (format!("{account} · connecting…"), None);
+        };
+        if progress.total.is_none() && progress.completed == 0 {
+            return (format!("{account} · {}: fetching…", progress.folder), None);
+        }
         let label = progress.total.map_or_else(
             || {
                 format!(
@@ -3677,7 +3727,9 @@ impl Render for Workspace {
             )
             // The composer reports its own draft state; mailbox counts would mislead there.
             .when(
-                self.view != View::Compose || !self.syncing.is_empty(),
+                self.view != View::Compose
+                    || !self.syncing.is_empty()
+                    || !self.cancelled_fetches.is_empty(),
                 |view| {
                     view.child(
                         StatusBar::new().px_4().py_2().child(
@@ -3687,27 +3739,13 @@ impl Render for Workspace {
                                 .flex_wrap()
                                 .items_center()
                                 .gap_3()
-                                .child(if self.view == View::Compose {
-                                    "Syncing…".to_owned()
-                                } else {
-                                    self.sync_status()
+                                .when(self.view != View::Compose, |row| {
+                                    row.child(self.sync_status())
                                 })
-                                .children(self.fetch_progress().into_iter().enumerate().map(
-                                    |(index, (label, percent))| {
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .gap_2()
-                                            .child(div().child(label.clone()))
-                                            .child(
-                                                Progress::new(("sync-progress", index))
-                                                    .w(px(120.))
-                                                    .accessibility_label(label)
-                                                    .loading(percent.is_none())
-                                                    .value(percent.unwrap_or_default()),
-                                            )
-                                    },
-                                )),
+                                .children(self.fetch_progress(cx))
+                                .children(self.cancelled_fetches.iter().map(|account| {
+                                    div().child(format!("{account} · fetch cancelled"))
+                                })),
                         ),
                     )
                 },
@@ -3722,43 +3760,31 @@ mod browse_tests {
     use std::num::NonZeroU32;
 
     #[test]
-    fn progress_lists_each_active_account_and_keeps_unknown_totals_indeterminate() {
-        let syncing = ["a".to_owned(), "b".to_owned(), "c".to_owned()]
-            .into_iter()
-            .collect();
-        let progress = [
-            (
-                "a".to_owned(),
-                crate::mail_sync::Fetch {
-                    folder: "INBOX".into(),
-                    completed: 7,
-                    total: Some(10),
-                },
-            ),
-            (
-                "b".to_owned(),
-                crate::mail_sync::Fetch {
-                    folder: "Sent".into(),
-                    completed: 3,
-                    total: None,
-                },
-            ),
-            (
-                "retired".to_owned(),
-                crate::mail_sync::Fetch {
-                    folder: "Old".into(),
-                    completed: 1,
-                    total: Some(1),
-                },
-            ),
-        ]
-        .into_iter()
-        .collect();
-        let rows = Workspace::progress_rows(&syncing, &progress);
-        assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0], ("a · INBOX: 7 / 10 reviewed".into(), Some(70.)));
-        assert_eq!(rows[1], ("b · Sent: 3 reviewed".into(), None));
-        assert_eq!(rows[2], ("c · connecting…".into(), None));
+    fn fetch_status_distinguishes_connecting_unknown_and_measured_progress() {
+        let mut fetch = crate::mail_sync::Fetch {
+            folder: "INBOX".into(),
+            completed: 0,
+            total: None,
+            cancel: CancellationToken::new(),
+        };
+        assert_eq!(
+            Workspace::format_fetch_progress("account", None),
+            ("account · connecting…".into(), None)
+        );
+        assert_eq!(
+            Workspace::format_fetch_progress("account", Some(&fetch)),
+            ("account · INBOX: fetching…".into(), None)
+        );
+        fetch.completed = 7;
+        assert_eq!(
+            Workspace::format_fetch_progress("account", Some(&fetch)),
+            ("account · INBOX: 7 reviewed".into(), None)
+        );
+        fetch.total = Some(10);
+        assert_eq!(
+            Workspace::format_fetch_progress("account", Some(&fetch)),
+            ("account · INBOX: 7 / 10 reviewed".into(), Some(70.))
+        );
     }
 
     #[tokio::test]

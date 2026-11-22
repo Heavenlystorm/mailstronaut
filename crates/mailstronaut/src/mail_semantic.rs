@@ -238,8 +238,9 @@ fn load_owner(shared: &Shared, directory: &std::path::Path) -> Result<Owner, &'s
             }
         }
     };
-    let encoder = Encoder::load(std::path::Path::new(path))
-        .map_err(|_| "Local meaning-search model is unavailable or fails verification.")?;
+    let encoder =
+        Encoder::load_cancellable(std::path::Path::new(path), || shared.cancel.is_cancelled())
+            .map_err(|_| "Local meaning-search model is unavailable or fails verification.")?;
     Ok::<_, &'static str>(Owner {
         encoder,
         index,
@@ -254,7 +255,8 @@ async fn run_inner(shared: Arc<Shared>, directory: PathBuf, store: Handle) {
     let loading = shared.clone();
     let opened = tokio::task::spawn_blocking(move || load_owner(&loading, &directory)).await;
     let owner = match opened {
-        Ok(Ok(owner)) if !shared.cancel.is_cancelled() => owner,
+        _ if shared.cancel.is_cancelled() => return,
+        Ok(Ok(owner)) => owner,
         Ok(Err(message)) => {
             shared.status.send_replace(State::Unavailable(message));
             return;

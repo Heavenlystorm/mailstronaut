@@ -45,12 +45,15 @@ pub struct Fetch {
     pub folder: String,
     pub completed: u32,
     pub total: Option<u32>,
+    /// Cancels this exact cycle. Exposed only after queued server actions settle.
+    pub cancel: CancellationToken,
 }
 
 #[derive(Clone)]
 pub enum Update {
     Started(String),
     Finished(String, Result<Cycle, String>),
+    Cancelled(String),
     /// Fetch progress for one folder of an account, while its cycle runs.
     Progress(String, Fetch),
 }
@@ -379,6 +382,8 @@ async fn run(work: Loop, cancel: CancellationToken) {
             core::mem::take(&mut *work.extra.lock().unwrap_or_else(PoisonError::into_inner));
         let updates = work.updates.clone();
         let progress_account = id.clone();
+        let cycle = cancel.child_token();
+        let fetch_cancel = cycle.clone();
         let emit = move |folder: &str, progress: Progress| {
             // A full channel drops this report; the next window reports again.
             _ = updates.try_send(Update::Progress(
@@ -387,6 +392,7 @@ async fn run(work: Loop, cancel: CancellationToken) {
                     folder: folder.to_owned(),
                     completed: progress.completed,
                     total: progress.total,
+                    cancel: fetch_cancel.clone(),
                 },
             ));
         };
@@ -398,7 +404,7 @@ async fn run(work: Loop, cancel: CancellationToken) {
                 &work.account,
                 &extra,
                 &emit,
-                &cancel,
+                &cycle,
             )
             .await;
         let report = match result {
@@ -415,21 +421,29 @@ async fn run(work: Loop, cancel: CancellationToken) {
                         cancel.clone(),
                     )));
                 }
-                Ok(cycle)
+                Update::Finished(id, Ok(cycle))
             }
             Err(SyncFailure::Retry(error)) => {
                 wait = Some(retry);
                 retry = next_retry(retry);
-                Err(error)
+                Update::Finished(id, Err(error))
             }
             Err(SyncFailure::Stop(error)) => {
                 wait = None;
-                Err(error)
+                Update::Finished(id, Err(error))
+            }
+            Err(SyncFailure::Cancelled) => {
+                // Retain requested folders and avoid resuming on the fast
+                // backfill timer. Explicit sync or a new arrival can wake us.
+                work.extra
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .extend(extra);
+                wait = Some(poll);
+                Update::Cancelled(id)
             }
         };
-        if !crate::cancellable_send::send(&work.updates, Update::Finished(id, report), &cancel)
-            .await
-        {
+        if !crate::cancellable_send::send(&work.updates, report, &cancel).await {
             return;
         }
     }
@@ -449,7 +463,7 @@ async fn watch(access: Access, account: Account, wake: Arc<Notify>, cancel: Canc
                 cancel.cancelled().await;
                 return;
             }
-            Err(SyncFailure::Stop(_)) => return,
+            Err(SyncFailure::Stop(_) | SyncFailure::Cancelled) => return,
             Err(SyncFailure::Retry(_)) => {}
         }
         if began.elapsed() >= MAX_RETRY {

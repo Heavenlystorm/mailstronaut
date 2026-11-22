@@ -154,13 +154,30 @@ after the complete history, with the status bar reading "100 cached conversation
 Existing walkthroughs: `older.sh` pins `sync.initialDays = 30` and therefore exercises the
 compatibility path. See the regression record below.
 
+## Native fetch cancellation
+
+The account status row offers Cancel once queued flag, move and Sent-copy work
+has settled. Each action can stop only the pass displayed beside it. A cancelled
+pass keeps its committed originals and durable cursor. A later explicit sync,
+ordinary poll, or IDLE wake can resume it.
+
+The local private Dovecot walkthrough paused a loopback forwarding process after
+a committed INBOX window and clicked Cancel on Wayland. After reopening the
+network path, message count and cursor stayed fixed for five seconds, and SQLite
+integrity passed. Ctrl+R resumed the pass and all 2,304 originals were cached once.
+The fixture's existing Seen state remained unchanged. Captures and output are
+in `target/p02.fwFu6f/history-gui` and `target/local-checks/cancel-fetch-wayland.log`.
+
+The rerun after showing the first committed batch also passed. Its
+`target/p02.8mufCz/history-gui/syncing-1024.png` shows mail in the inbox
+with 1,024 of 2,304 reviewed. The reference comparison confirmed that ongoing
+sync leaves the account rail, search and reader available. The local mailbox
+count and account fetch count remain labeled separately.
+
 ## Not established
 
-- The Settings and Home Manager controls for the age limit, and the status-bar `Progress`
-  that consumes `Update::Progress`. The backend contract exists; the UI is not wired.
+- The age cap through a combined Settings and Home Manager activation walkthrough.
 - Retention eviction. No cached mail is ever removed by this change, and the PLAN row stays open.
-- An explicit Cancel control for a running pass. Cancellation is the cycle's token, and
-  the native walkthrough tests an abrupt kill instead.
 - Cost of the six-hour rewalk on very large mailboxes, and any live provider.
 - Flags on old mail outside the newest windows refresh only while a pass walks past them; a
   finished pass refreshes them at the next rewalk.
