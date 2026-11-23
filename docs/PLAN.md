@@ -425,7 +425,7 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   folder scale requires it, without maintaining two navigation models.
   [Routes, active states and nesting](evidence/P06-navigation.md); [unread counts on a
   real server](evidence/P04-background-sync.md).
-- [ ] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
+- [x] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
   `List`/`ListState`/`ListDelegate`/`ListItem` virtualized rows. Disable the list's
   extra query field with `ListState::searchable(false)`. Use `v_virtual_list` only
   when measured variable-height rows require it; do not implement virtualization.
@@ -433,6 +433,8 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   for account, sender/subject/date/two-or-three-line preview hierarchy,
   distinct focus/selection/unread/priority states and keyboard commands. Keep search,
   compose and essential actions discoverable without crowding the reading area.
+  [Native pane and accessible row checks](evidence/P06-gpui-mailbox.md#resizable-panes-and-accessible-rows)
+  cover both dividers, keyboard selection, dates, previews and priority actions.
 - [ ] Verify useful empty/loading/offline/error/partial-cache states, long subjects,
   Unicode names, narrow/wide windows and light/dark appearance using synthetic data.
   Reuse list empty/loading hooks, `Empty`, `Skeleton`, `Alert` and `StatusBar`;
