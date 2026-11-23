@@ -5,21 +5,24 @@ impl Workspace {
     pub(super) fn attachment_actions(
         index: usize,
         remote: bool,
+        name: &str,
         cx: &Context<Self>,
     ) -> AttachmentActions {
-        let namespace = if remote {
-            "open-remote-attachment"
+        let (open_id, save_id) = if remote {
+            ("open-remote-attachment", "save-remote-attachment")
         } else {
-            "open-cached-attachment"
+            ("open-cached-attachment", "save-cached-attachment")
         };
-        AttachmentActions::new().child(
-            Button::new((namespace, index))
-                .ghost()
-                .label("Openâ€¦")
-                .on_click(cx.listener(move |this, _, window, cx| {
+        AttachmentActions::new()
+            .child(Button::new((save_id, index)).ghost().label("Save…")
+                .accessibility_label(format!("Save {name}")).on_click(cx.listener(move |this, _, window, cx| {
+                    if remote { this.save_remote_attachment(index, window, cx); }
+                    else { this.save_attachment(index, window, cx); }
+                })))
+            .child(Button::new((open_id, index)).ghost().label("Open…")
+                .accessibility_label(format!("Open {name}")).on_click(cx.listener(move |this, _, window, cx| {
                     this.open_attachment(index, remote, window, cx);
-                })),
-        )
+                })))
     }
 
     fn open_attachment(

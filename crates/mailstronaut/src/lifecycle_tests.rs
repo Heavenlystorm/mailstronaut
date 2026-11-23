@@ -162,7 +162,7 @@ async fn scenario(cx: &mut AsyncApp, root: PathBuf, environment: GraphicalEnviro
         reminders: reminders.clone(),
         sync,
         store: shared_store.clone(),
-        previews: Default::default(),
+        previews: crate::attachment_portal::Previews::default(),
     };
     cx.update(|cx| {
         cx.on_window_closed(move |cx, _| {

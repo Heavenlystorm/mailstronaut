@@ -209,7 +209,7 @@ fn main() -> ExitCode {
                 reminders: cx.new(|_| reminders::Session::new(ui_runtime.clone())),
                 sync: cx.new(|_| mail_sync::Session::new(ui_runtime.clone())),
                 store: Arc::new(tokio::sync::OnceCell::new()),
-                previews: Default::default(),
+                previews: crate::attachment_portal::Previews::default(),
             };
             if let Some((declaration, owner)) = &startup {
                 assert!(services.store.set(owner.clone()).is_ok(), "new store owner");

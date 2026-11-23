@@ -90,6 +90,7 @@ impl Previews {
         if let Some(path) = staged {
             previews.push(Preview { digest, path, size });
         }
+        drop(previews);
         Ok(())
     }
 }

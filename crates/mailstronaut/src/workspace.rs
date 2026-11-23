@@ -3119,7 +3119,7 @@ impl Workspace {
                             .media(AttachmentMedia::new().child(AssetIcon::FileText))
                             .id(("received-attachment", index))
                             .w_full()
-                            .actions(Self::attachment_actions(index, false, cx))
+                            .actions(Self::attachment_actions(index, false, &name, cx))
                             .tooltip("Save a copy")
                             .content(
                                 AttachmentContent::new()
@@ -3189,7 +3189,7 @@ impl Workspace {
                             .media(AttachmentMedia::new().child(AssetIcon::FileText))
                                 .id(("remote-attachment", index))
                                 .w_full()
-                                .actions(Self::attachment_actions(index, true, cx))
+                                .actions(Self::attachment_actions(index, true, &name, cx))
                                 .tooltip("Download and save a copy")
                                 .content(
                                     AttachmentContent::new()
