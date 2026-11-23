@@ -185,18 +185,20 @@ open_html() { click 350 "$1"; click 684 296; sleep .5; }
 drag_line() {
   swaymsg seat seat0 cursor set "$1" "$3" > /dev/null
   swaymsg seat seat0 cursor press button1 > /dev/null
-  swaymsg seat seat0 cursor set "$2" "$3" > /dev/null
+  # A Sway cursor warp during a button grab reaches the client after release.
+  # Send actual relative motion through the private seat's virtual pointer.
+  wlrctl pointer move "$(($2 - $1))" 0
   swaymsg seat seat0 cursor release button1 > /dev/null
 }
 check_html_selection() {
-  local name=$1 color=$2 scale=$3 x y expected='Synthetic HTML Alpha · Bonjour · 世界'
+  local name=$1 color=$2 scale=$3 x y width expected='Synthetic HTML Alpha · Bonjour · 世界'
   # Locate the header in the actual frame. Portal notices, pane widths and scale
   # move the text, while Sway always accepts logical coordinates.
-  read -r x y < <(magick "$root/$name.png" -alpha off -fill black +opaque "$color" \
-    -fill white -opaque "$color" -trim -format '%X %Y\n' info:)
-  x=$((x / scale + 1)); y=$((y / scale + 9))
+  read -r x y width < <(magick "$root/$name.png" -alpha off -fill black +opaque "$color" \
+    -fill white -opaque "$color" -trim -format '%X %Y %w\n' info:)
+  x=$((x / scale + 1)); y=$((y / scale + 9)); width=$((width / scale - 4))
   printf 'HTML selection observer' | wl-copy
-  drag_line "$x" "$((x + 340))" "$y"
+  drag_line "$x" "$((x + (width < 340 ? width : 340)))" "$y"
   [[ $(timeout 5 wl-paste --no-newline) == 'HTML selection observer' ]]
   wtype -M ctrl -k c -m ctrl
   for _ in {1..30}; do
