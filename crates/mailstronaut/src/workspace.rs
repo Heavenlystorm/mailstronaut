@@ -1884,7 +1884,13 @@ impl Workspace {
 
     /// Hide the open conversation now and report it with Undo. The server is told on
     /// the account's next cycle, and only copies in the current folder move.
-    fn move_open(&mut self, destination: String, label: String, window: &Window, cx: &Context<Self>) {
+    fn move_open(
+        &mut self,
+        destination: String,
+        label: String,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
         if self.move_picker.take().is_none() {
             return;
         }
@@ -1939,11 +1945,14 @@ impl Workspace {
                 let current = generation == this.reading_generation;
                 match result {
                     Ok(Ok(_)) => {
-                        if current && this.selected.as_ref().is_some_and(|open| {
-                            open.account == undo.0
-                                && (open.id == undo.1
-                                    || conversation.is_some() && open.conversation == conversation)
-                        }) {
+                        if current
+                            && this.selected.as_ref().is_some_and(|open| {
+                                open.account == undo.0
+                                    && (open.id == undo.1
+                                        || conversation.is_some()
+                                            && open.conversation == conversation)
+                            })
+                        {
                             this.retire_open(window, cx);
                         }
                         this.after_move(undo, &label, window, cx);
