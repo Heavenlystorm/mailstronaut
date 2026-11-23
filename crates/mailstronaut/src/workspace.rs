@@ -1276,18 +1276,29 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             while progress.changed().await.is_ok() {
                 // Coalesce small batches into occasional status updates during a long rebuild.
-                cx.background_executor().timer(Duration::from_millis(150)).await;
+                cx.background_executor()
+                    .timer(Duration::from_millis(150))
+                    .await;
                 let ready = *progress.borrow_and_update() == Some(0);
-                if this.update_in(cx, |this, window, cx| {
-                    if ready && this.view == View::Inbox && this.search_mode == SearchMode::Words
-                        && (!this.query.trim().is_empty() || !this.filter.is_empty()) {
-                        this.refresh_rows(window, cx);
-                    } else {
-                        cx.notify();
-                    }
-                }).is_err() { break; }
+                if this
+                    .update_in(cx, |this, window, cx| {
+                        if ready
+                            && this.view == View::Inbox
+                            && this.search_mode == SearchMode::Words
+                            && (!this.query.trim().is_empty() || !this.filter.is_empty())
+                        {
+                            this.refresh_rows(window, cx);
+                        } else {
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
             }
-        }).detach();
+        })
+        .detach();
     }
 
     fn page_status(&self, count: usize) -> String {
@@ -3795,10 +3806,17 @@ impl Render for Workspace {
                                 .when(self.view != View::Compose, |row| {
                                     row.child(self.sync_status())
                                 })
-                                .when_some(self.fuzzy.as_ref().map(crate::mail_search::MailSearch::queued)
-                                    .filter(|count| *count > 0 && self.view == View::Inbox), |row, count| {
-                                    row.child(Spinner::new()).child(format!("Updating search index · {count} pending"))
-                                })
+                                .when_some(
+                                    self.fuzzy
+                                        .as_ref()
+                                        .map(crate::mail_search::MailSearch::queued)
+                                        .filter(|count| *count > 0 && self.view == View::Inbox),
+                                    |row, count| {
+                                        row.child(Spinner::new()).child(format!(
+                                            "Updating search index · {count} pending"
+                                        ))
+                                    },
+                                )
                                 .children(self.fetch_progress(cx))
                                 .children(self.cancelled_fetches.iter().map(|account| {
                                     div().child(format!("{account} · fetch cancelled"))

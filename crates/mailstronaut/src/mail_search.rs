@@ -14,7 +14,10 @@ use mailstronaut_core::{
     worker::Handle,
 };
 use mailstronaut_search::{Change, Document, Index};
-use tokio::{runtime::Runtime, sync::{Notify, watch}};
+use tokio::{
+    runtime::Runtime,
+    sync::{Notify, watch},
+};
 use tokio_util::sync::CancellationToken;
 
 /// Small enough not to hold up the store's owner, and to keep indexing in the background.
@@ -125,7 +128,9 @@ async fn run(shared: Arc<Shared>, directory: PathBuf, store: Handle, cancel: Can
 /// interruption repeats it, which is harmless.
 async fn index_batch(shared: &Arc<Shared>, store: &Handle) -> Result<bool, ()> {
     let batch = store.search_pending(BATCH).await.map_err(|_| ())?;
-    shared.queued.send_if_modified(|last| last.replace(batch.queued) != Some(batch.queued));
+    shared
+        .queued
+        .send_if_modified(|last| last.replace(batch.queued) != Some(batch.queued));
     let Some(through) = batch.through else {
         return Ok(false);
     };
