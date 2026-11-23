@@ -1165,7 +1165,7 @@ impl Workspace {
             &self.runtime,
             store,
             config,
-            self.lifetime.child_token(),
+            self.account_lifetime.child_token(),
         );
         self.priority = Some(engine);
         let revision = self.declaration.revision();
