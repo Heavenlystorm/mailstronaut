@@ -13,7 +13,7 @@ use gpui::component::{
     tag::Tag,
 };
 use gpui::{
-    App, Context, HighlightStyle, Hsla, IntoElement, ParentElement as _, Pixels, Role,
+    App, Context, HighlightStyle, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Role,
     StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
     prelude::FluentBuilder as _, px, rems,
 };
@@ -388,6 +388,7 @@ impl ListDelegate for Rows {
         };
         Some(
             div()
+                .id(("mailbox-section", section))
                 .h(SECTION_HEIGHT)
                 .flex()
                 .items_center()
@@ -471,7 +472,10 @@ impl ListDelegate for Rows {
                                             .ghost()
                                             .xsmall()
                                             .icon(IconName::Close)
-                                            .accessibility_label(format!("Dismiss priority for {}", row.subject))
+                                            .accessibility_label(format!(
+                                                "Dismiss priority for {}",
+                                                row.subject
+                                            ))
                                             .tooltip("Does not need attention")
                                             .on_click(move |_, window, cx| {
                                                 // The row underneath must not also open,
@@ -600,12 +604,7 @@ fn row_footer(row: &Row, received: String, muted: Hsla) -> impl IntoElement {
             .min_w_0()
             .truncate(),
         )
-        .child(
-            Label::new(received)
-                .text_xs()
-                .text_color(muted)
-                .flex_none(),
-        )
+        .child(Label::new(received).text_xs().text_color(muted).flex_none())
 }
 
 fn mailbox_today(zone: &str) -> chrono::NaiveDate {
