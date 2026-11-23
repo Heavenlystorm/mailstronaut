@@ -138,6 +138,42 @@ capture synced
 [[ $(server_flags INBOX marker-charlie) != *S* ]]
 printf '%s\n' 'OK: PEEK left the server copy unread'
 
+if [[ ${MAILSTRONAUT_MERGE_SELECTION_GUI:-0} == 1 ]]; then
+  await 'initial groups projected' 4 'SELECT count(*) FROM conversation_members'
+  members='FROM conversation_members c JOIN messages m ON m.id=c.message_id'
+  loser=$(query "SELECT max(c.conversation_id) $members WHERE m.subject IN ('Synthetic bravo','Synthetic alpha')")
+  subject=$(query "SELECT m.subject $members WHERE c.conversation_id=$loser")
+  keys=(-k Down -k Down)
+  case "$subject" in
+    'Synthetic alpha') keys+=(-k Down);;
+    'Synthetic bravo') ;;
+    *) exit 1;;
+  esac
+  wtype -M ctrl l -m ctrl "${keys[@]}" -s 500
+  capture merge-selected
+  seed_message bridge <<MAIL
+From: Correspondent bridge <bridge@example.test>
+To: reader@example.test
+Subject: Joined conversation
+Message-ID: <bridge@example.test>
+References: <alpha@example.test> <bravo@example.test>
+Date: $(date -R)
+
+Synthetic body marker-bridge.
+MAIL
+  wtype -M ctrl r -m ctrl
+  await 'late IMAP arrival merged the selected group' 1 "SELECT count(*) FROM conversations WHERE id=$loser AND merged_into IS NOT NULL"
+  sleep 1
+  capture merge-refreshed
+  await 'passive merge left all five messages unread' 0 'SELECT count(*) FROM effective_memberships WHERE seen'
+  wtype -k Return -s 500
+  await_server 'Enter opened the new representative' INBOX marker-bridge S
+  await 'only the explicitly opened original became read' 1 'SELECT count(*) FROM effective_memberships WHERE seen'
+  capture merge-opened
+  printf 'MERGE_SELECTION_GUI_OK: %s\n' "$artifacts"
+  exit 0
+fi
+
 # The oldest row carries a file: it is listed, and saving would go through the portal.
 click 350 500
 sleep .9

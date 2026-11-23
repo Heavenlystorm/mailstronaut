@@ -1,7 +1,7 @@
 //! GPUI Kit mailbox workspace. Mail and storage remain toolkit-independent.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
     sync::Arc,
@@ -273,12 +273,13 @@ fn related_intent(query: &str) -> bool {
 }
 /// Identifies the progress notification, so that the result replaces it.
 struct AttachmentDownload;
-/// What one list refresh loads: folders, unread counts, the page and the priority group.
+/// Folders, unread counts, a new page, priority rows and aliases for retired row identities.
 type ListPage = (
     Vec<Folder>,
     Vec<(i64, u32)>,
     Vec<mailstronaut_core::store::conversations::Summary>,
     Priority,
+    HashMap<i64, i64>,
 );
 /// More than this much needing attention at once is not a useful group until Show all.
 const MAX_PRIORITY_ROWS: usize = 20;
@@ -439,6 +440,36 @@ async fn conversation_rows(
         crate::mail_search::attach_body_excerpts(store, &mut rows, excerpt.words()).await;
     }
     Ok((rows, ranked))
+}
+
+/// Resolve only groups that vanished from the loaded prefix. Any displayed row can
+/// become the selection or scroll anchor while the background refresh is running.
+async fn merged_row_aliases(
+    store: &Handle,
+    accounts: &[String],
+    mut previous: HashSet<i64>,
+    rows: &[mailstronaut_core::store::conversations::Summary],
+    group: &Priority,
+    cancel: &CancellationToken,
+) -> Result<HashMap<i64, i64>, String> {
+    for id in rows
+        .iter()
+        .filter_map(|row| row.conversation)
+        .chain(group.rows.iter().filter_map(|row| row.conversation))
+    {
+        previous.remove(&id);
+    }
+    let mut aliases = HashMap::new();
+    let missing: Vec<_> = previous.into_iter().collect();
+    for batch in missing.chunks(100) {
+        let merged = tokio::select! {
+            biased;
+            () = cancel.cancelled() => return Err("Local query cancelled.".into()),
+            result = store.merged_conversations(accounts.to_vec(), batch.to_vec()) => result.map_err(|error| error.to_string())?,
+        };
+        aliases.extend(merged);
+    }
+    Ok(aliases)
 }
 
 /// Refresh the already-loaded metadata prefix in bounded store batches.
@@ -1300,7 +1331,7 @@ impl Workspace {
     }
 
     fn show_page(&mut self, page: ListPage, window: &mut Window, cx: &mut Context<Self>) {
-        let (folders, unread, rows, group) = page;
+        let (folders, unread, rows, group, aliases) = page;
         self.watch_priority_expiry(&group.rows, window, cx);
         self.folders = folders;
         self.unread = unread
@@ -1319,7 +1350,7 @@ impl Workspace {
             .then(|| BodyExcerpt::for_words(&self.query))
             .flatten();
         self.list.update(cx, |list, cx| {
-            crate::mailbox::replace_with_priority(list, rows, group, window, cx);
+            crate::mailbox::replace_with_priority(list, rows, group, &aliases, window, cx);
             list.delegate_mut().body_excerpt = excerpt;
             list.delegate_mut().more = self.browse.more;
         });
@@ -1361,6 +1392,13 @@ impl Workspace {
             && query.trim().is_empty()
             && filter.is_empty();
         let show_all = self.list.read(cx).delegate().show_all_priority;
+        let displayed = self.list.read(cx).delegate();
+        let previous = displayed
+            .items
+            .iter()
+            .chain(&displayed.priority.rows)
+            .filter_map(|row| row.conversation)
+            .collect();
         self.list.update(cx, |list, cx| {
             let rows = list.delegate_mut();
             rows.loading = true;
@@ -1413,7 +1451,7 @@ impl Workspace {
                 &handle,
                 fuzzy.as_ref(),
                 meaning.as_ref(),
-                accounts,
+                accounts.clone(),
                 scope,
                 query,
                 boundary,
@@ -1421,7 +1459,9 @@ impl Workspace {
                 filter,
             )
             .await?;
-            Ok((folders, unread, rows, group))
+            let aliases =
+                merged_row_aliases(&handle, &accounts, previous, &rows, &group, &cancel).await?;
+            Ok((folders, unread, rows, group, aliases))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;

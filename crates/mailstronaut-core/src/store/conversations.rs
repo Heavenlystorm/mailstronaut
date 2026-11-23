@@ -292,6 +292,36 @@ impl Store {
             .optional()?
             .ok_or(Error::MissingMessage)
     }
+
+    /// Return only merged identities from a bounded set of previously displayed groups.
+    ///
+    /// # Errors
+    /// Rejects oversized account or identity batches and storage failures.
+    pub fn merged_conversations(
+        &self,
+        accounts: &[String],
+        ids: &[i64],
+    ) -> Result<Vec<(i64, i64)>, Error> {
+        if accounts.len() > 256 || ids.len() > 100 {
+            return Err(Error::InvalidInput);
+        }
+        let mut query = self.connection.prepare_cached(
+            "SELECT id, merged_into FROM conversations
+             WHERE id IN (SELECT value FROM json_each(?1))
+             AND account_id IN (SELECT value FROM json_each(?2))
+             AND merged_into IS NOT NULL",
+        )?;
+        query
+            .query_map(
+                params![
+                    serde_json::to_string(ids)?,
+                    serde_json::to_string(accounts)?
+                ],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?
+            .collect::<Result<_, _>>()
+            .map_err(Error::from)
+    }
 }
 
 /// One account-local inbox conversation with a concrete latest-message identity.
@@ -656,6 +686,21 @@ mod tests {
                 ids[0]
             );
         }
+        let mut aliases = store
+            .merged_conversations(&["a".into()], &ids)
+            .expect("merged identities only");
+        aliases.sort_unstable();
+        assert_eq!(aliases, [(ids[1], ids[0]), (ids[2], ids[0])]);
+        assert!(
+            store
+                .merged_conversations(&["b".into()], &ids)
+                .expect("other account")
+                .is_empty()
+        );
+        assert!(matches!(
+            store.merged_conversations(&["a".into()], &[1; 101]),
+            Err(Error::InvalidInput)
+        ));
         assert!(matches!(
             store.resolve_conversation("b", ids[0]),
             Err(Error::MissingMessage)
