@@ -119,6 +119,16 @@ expect_opened() {
   printf 'OK: %s\n' "$2"
 }
 
+index="$XDG_DATA_HOME/mailstronaut/search"
+# Capture a valid empty index exactly as a separate application process creates it.
+cp "$config" "$artifacts/account.nix"
+printf '{ schemaVersion = 1; accounts = []; }\n' > "$config"
+start empty
+for _ in {1..100}; do [[ -f "$index/meta.json" ]] && break; kill -0 "$app"; sleep .1; done
+[[ -f "$index/meta.json" ]]
+close_window
+cp -a "$index" "$artifacts/empty-index"
+cp "$artifacts/account.nix" "$config"
 start initial
 await 'the configured folders were cached' "$expected_messages" 'SELECT count(*) FROM messages'
 await 'everything was indexed' 0 'SELECT count(*) FROM search_pending'
@@ -190,14 +200,30 @@ expect_opened 'xylophone' 'a delivery that arrived while running is searchable'
 close_window
 
 # The index is only derived data: with it gone, it fills itself again from the store.
-rm -rf "$XDG_DATA_HOME/mailstronaut/search"
+mv "$index" "$artifacts/original-index"
 start rebuilt
 await 'the index rebuilt itself' 0 'SELECT count(*) FROM search_pending'
 sleep 1
-type_query 'bugdet'
+type_query 'subject:returm'
+[[ $(seen_subjects) != *'Book return'* ]]
 capture rebuilt
 open_first_row
-expect_opened 'Quarterly budget review' 'search works from the rebuilt index'
+expect_opened 'Book return' 'a misspelled word found a previously unread original after rebuild'
+wtype -M alt -k u -m alt
+book_seen="SELECT count(*) FROM effective_memberships s JOIN messages m ON m.id=s.message_id WHERE m.subject='Book return' AND s.seen=1"
+await 'the reader marked the original unread again' 0 "$book_seen"
+close_window
+
+# Model interruption between creating Tantivy's metadata and requeuing SQLite.
+mv "$index" "$artifacts/rebuilt-index"
+cp -a "$artifacts/empty-index" "$index"
+[[ $(query 'SELECT count(*) FROM search_pending') == 0 ]]
+start interrupted
+type_query 'subject:returm'
+capture interrupted-rebuild
+[[ $(query "$book_seen") == 0 ]]
+open_first_row
+await 'an existing empty index refilled and opened the exact original' 1 "$book_seen"
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
