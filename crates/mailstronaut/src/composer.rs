@@ -22,9 +22,9 @@ use gpui::component::{
     toolbar::{Toolbar, ToolbarGroup},
 };
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, InteractiveElement as _, IntoElement,
-    KeyBinding, ParentElement as _, PathPromptOptions, Render, SharedString, Styled as _,
-    Subscription, Window, div, prelude::FluentBuilder as _, px,
+    AppContext as _, Context, Entity, EventEmitter, Focusable as _, InteractiveElement as _,
+    IntoElement, KeyBinding, ParentElement as _, PathPromptOptions, Render, SharedString,
+    Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
@@ -890,6 +890,21 @@ impl Composer {
         .detach();
     }
 
+    fn toggle_copies(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.draft.is_none() || self.busy() {
+            return;
+        }
+        self.copies_open = !self.copies_open;
+        if self.copies_open {
+            self.cc.update(cx, |cc, cx| cc.focus(window, cx));
+        } else if self.cc.focus_handle(cx).is_focused(window)
+            || self.bcc.focus_handle(cx).is_focused(window)
+        {
+            self.to.update(cx, |to, cx| to.focus(window, cx));
+        }
+        cx.notify();
+    }
+
     fn actions(&self, cx: &Context<Self>) -> impl IntoElement {
         let busy = self.busy();
         Toolbar::new("composer-actions")
@@ -932,9 +947,9 @@ impl Composer {
                             .icon(IconName::Users)
                             .accessibility_label("Show or hide Cc and Bcc")
                             .tooltip("Cc/Bcc · Ctrl+Shift+B")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.copies_open = !this.copies_open;
-                                cx.notify();
+                            .disabled(busy)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.toggle_copies(window, cx);
                             })),
                     )
                     .child(
@@ -963,26 +978,32 @@ impl Composer {
                 ),
             )
             .child(
-                Field::new()
-                    .label("To")
-                    .child(Input::new(&self.to).disabled(busy)),
+                Field::new().label("To").child(
+                    Input::new(&self.to)
+                        .aria_label("To recipients")
+                        .disabled(busy),
+                ),
             )
             .child(
-                Field::new()
-                    .label("Cc")
-                    .visible(self.copies_open)
-                    .child(Input::new(&self.cc).disabled(busy)),
+                Field::new().label("Cc").visible(self.copies_open).child(
+                    Input::new(&self.cc)
+                        .aria_label("Cc recipients")
+                        .disabled(busy),
+                ),
             )
             .child(
-                Field::new()
-                    .label("Bcc")
-                    .visible(self.copies_open)
-                    .child(Input::new(&self.bcc).disabled(busy)),
+                Field::new().label("Bcc").visible(self.copies_open).child(
+                    Input::new(&self.bcc)
+                        .aria_label("Bcc recipients")
+                        .disabled(busy),
+                ),
             )
             .child(
-                Field::new()
-                    .label("Subject")
-                    .child(Input::new(&self.subject).disabled(busy)),
+                Field::new().label("Subject").child(
+                    Input::new(&self.subject)
+                        .aria_label("Subject")
+                        .disabled(busy),
+                ),
             )
     }
 
@@ -1068,11 +1089,7 @@ impl Render for Composer {
             .size_full()
             .key_context("Composer")
             .on_action(cx.listener(|this, _: &ToggleCopies, window, cx| {
-                this.copies_open = !this.copies_open;
-                if this.copies_open {
-                    this.cc.update(cx, |cc, cx| cc.focus(window, cx));
-                }
-                cx.notify();
+                this.toggle_copies(window, cx);
             }))
             .flex()
             .flex_col()
