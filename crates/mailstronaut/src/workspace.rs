@@ -2794,16 +2794,18 @@ impl Workspace {
                         .title(EmptyTitle::new().child("Local mail unavailable"))
                         .description(EmptyDescription::new().child(error.clone())),
                 )
-                .content(EmptyContent::new().child(
-                    Button::new("retry-mail-store")
-                        .label("Retry")
-                        .accessibility_label("Retry opening local mail")
-                        .loading(self.loading_config)
-                        .disabled(self.loading_config || self.preferences.read(cx).busy())
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.load_configuration(window, cx);
-                        })),
-                ))
+                .content(
+                    EmptyContent::new().child(
+                        Button::new("retry-mail-store")
+                            .label("Retry")
+                            .accessibility_label("Retry opening local mail")
+                            .loading(self.loading_config)
+                            .disabled(self.loading_config || self.preferences.read(cx).busy())
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.load_configuration(window, cx);
+                            })),
+                    ),
+                )
                 .into_any_element();
         }
         h_resizable("mail-panes")

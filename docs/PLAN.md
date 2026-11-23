@@ -252,10 +252,11 @@ Reuse `mailstronaut-core`, rusqlite/migrations, mail-parser and mail-threading.
 Existing synthetic backend tests/evidence remain relevant; rerun them with the
 new dependency graph before claiming current-package acceptance.
 
-- [ ] Verify private XDG paths, one blocking store owner/profile lock, bounded
+- [x] Verify private XDG paths, one blocking store owner/profile lock, bounded
   commands, WAL/foreign keys/busy timeout and migration backup/rollback. Present
   unavailable/corrupt stores with `Empty`/`Alert` and a real Retry action; use
   `AlertDialog` only for explicitly destructive purge/reset decisions.
+  [Store, worker and native Wayland recovery checks](evidence/P03-store-retry.md).
 - [x] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
   [Named checks for each clause, including real kills at three points of one pass](evidence/P03-durability.md).
