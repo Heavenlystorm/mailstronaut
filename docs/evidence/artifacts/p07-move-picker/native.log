@@ -1,0 +1,17 @@
+OK: full server: UIDPLUS MOVE
+OK: the inbox was cached
+OK: SPECIAL-USE gave the Archive role
+OK: the searchable destination was discovered
+OK: the searched label queued its exact IMAP wire name
+OK: Undo cancelled the searched move
+OK: Undo restored the original membership
+OK: dismissing, reloading and undoing the picker left the server message in its inbox
+OK: Archive hid the message at once
+OK: Undo brought it back
+OK: past the grace period, the server never heard of the undone move
+OK: Archive hid it again
+OK: UID MOVE reached the server
+OK: the other messages stayed in the inbox
+OK: Trash hid the next message
+OK: it reached the Trash folder
+Native actions acceptance (full): /sources/p07-move-picker-7ccd7272795e/target/p02.XtlBvp/actions-full

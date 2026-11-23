@@ -598,6 +598,8 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   in-app `Notification::action` for Undo. Keep durable errors beyond toast lifetime.
   [Read, star, archive, trash and move with Undo](evidence/P04-background-sync.md);
   [Undo and servers without MOVE or UIDPLUS pass natively](evidence/P07-native-actions.md).
+  [Searchable folder selection, cancellation and Undo](evidence/P07-native-actions.md#searchable-move-destinations)
+  have native coverage. Row context menus remain open.
 - [ ] Recover interrupted operations and reconcile real server state, retaining
   local reminder/analysis identity and visible permanent failure/undo behavior.
   Use `AlertDialog`/`Dialog` for discard, destructive purge or ambiguous-delivery
