@@ -1,7 +1,6 @@
 //! Read-only file handoff through the desktop application chooser.
 use std::{fs::File, io::Write as _, os::unix::fs::PermissionsExt as _, path::Path, sync::Arc, time::Duration};
 
-use sha2::{Digest as _, Sha256};
 use tempfile::TempPath;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -36,7 +35,7 @@ impl Previews {
     async fn choose(&self, bytes: Vec<u8>) -> Result<(), &'static str> {
         let size = bytes.len();
         let (digest, bytes) = tokio::task::spawn_blocking(move || {
-            let digest: [u8; 32] = Sha256::digest(&bytes).into();
+            let digest = mailstronaut_core::mime::content_digest(&bytes);
             (digest, bytes)
         }).await.map_err(|_| INTERRUPTED)?;
         let mut previews = self.0.lock().await;
@@ -75,8 +74,8 @@ mod tests {
     fn stages_only_the_bytes_and_unlinks_on_drop() {
         let directory = tempfile::tempdir().expect("runtime directory");
         let path = stage(directory.path(), b"synthetic attachment").expect("stage");
-        assert_eq!(std::fs::read(&path).unwrap(), b"synthetic attachment");
-        assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o400);
+        assert_eq!(std::fs::read(&path).expect("private fixture"), b"synthetic attachment");
+        assert_eq!(std::fs::metadata(&path).expect("private fixture").permissions().mode() & 0o777, 0o400);
         let copy = path.to_path_buf();
         drop(path);
         assert!(!copy.exists());
