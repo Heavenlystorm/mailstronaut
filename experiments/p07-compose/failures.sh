@@ -128,6 +128,38 @@ printf '%s\n' 'OK: the unverifiable certificate sent no data'
 sleep 1
 capture untrusted
 stop_server
+
+# Hold the store's recovery transaction in flight until the old account has
+# been removed. The user's explicit recovery can finish, but its contents must
+# not reappear in the editor of the replacement account.
+python3 - "$database" "$artifacts" <<'PY' &
+import pathlib, sqlite3, sys, time
+artifacts = pathlib.Path(sys.argv[2])
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("BEGIN IMMEDIATE")
+    (artifacts / "recovery-held").touch()
+    for _ in range(80):
+        if (artifacts / "release-recovery").exists():
+            break
+        time.sleep(.05)
+    else:
+        raise SystemExit("Configuration was not replaced during the recovery")
+PY
+holder=$!
+for _ in {1..30}; do [[ -f $artifacts/recovery-held ]] && break; sleep .05; done
+[[ -f $artifacts/recovery-held ]]
+click 351 "$retry_y"
+replace_account
+touch "$artifacts/release-recovery"
+wait "$holder"
+await_state 'selected draft recovery committed for its original account' cancelled:0
+sleep .5
+printf 'replacement clipboard' | wl-copy
+wtype -M ctrl a c -m ctrl -s 200
+[[ $(wl-paste --no-newline) == 'replacement clipboard' ]]
+check_replacement_draft
+capture reload-recovered-draft
+printf '%s\n' 'OK: the recovered draft stayed out of the replacement editor'
 close_window
 
 # A refused sign-in stops the send before any data. Once the server accepts the sign-in,
