@@ -232,11 +232,13 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   desktop and Flatpak portals. [Save, cancellation, refusal and no-clobber passed
   on a private native session bus](evidence/P02-native-nix.md#local-native-filechooser-export).
   Live desktop portals and Flatpak document grants remain open.
-- [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
+- [x] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
-  Basic preference round trips, conflicts and invalid reloads pass the private
-  native workflow above; full HM generation ownership transitions remain open.
+  The [same-home generation fixture](evidence/P02-preferences.md#home-manager-ownership-transitions)
+  passed the native Settings round trip, declared precedence and safe ownership
+  changes. The configuration integration tests also passed writer conflicts,
+  string escaping and last-valid reload retention.
 - [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
   configuration cannot replace the last valid account state or expose secrets.
 - [ ] Verify the same `.nix` source through disposable Home Manager integration,
