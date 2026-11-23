@@ -532,7 +532,7 @@ mod tests {
             .expect("retired batch");
         assert_eq!(pending(&f, 1), ids);
         f.store.store_analysis(&results).expect("replacement batch");
-        assert!(pending(&f, 1).is_empty());
+        assert_eq!(pending(&f, 1), [] as [i64; 0]);
     }
 
     fn group(fixture: &Fixture, now: i64) -> Vec<i64> {
