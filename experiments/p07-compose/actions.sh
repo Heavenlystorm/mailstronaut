@@ -129,6 +129,12 @@ await_server() {
 }
 in_inbox="SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.is_inbox=1"
 open_newest() { click 350 150; sleep 1; }
+row_menu() {
+  swaymsg seat seat0 cursor set 350 270 > /dev/null
+  swaymsg seat seat0 cursor press button3 > /dev/null
+  swaymsg seat seat0 cursor release button3 > /dev/null
+  sleep .4
+}
 
 start initial
 await 'the inbox was cached' 4 'SELECT count(*) FROM messages'
@@ -196,6 +202,47 @@ else
     printf '%s\n' 'The server received an undone picker move' >&2; exit 1
   fi
   printf '%s\n' 'OK: dismissing, reloading and undoing the picker left the server message in its inbox'
+  # Keep delta open while using the menu on the next unread row, charlie.
+  open_newest
+  seen="SELECT count(*) FROM effective_memberships WHERE seen=1"
+  starred="SELECT m.subject FROM effective_memberships e JOIN messages m ON e.message_id=m.id WHERE e.starred=1"
+  await 'only the explicitly opened delta is seen' 1 "$seen"
+  row_menu
+  capture row-context
+  wtype -k Escape -s 300
+  [[ $(query "$seen") == 1 ]]
+  row_menu
+  wtype -k Down -k Down -k Down -k Return -s 400
+  await 'row-menu Star targets charlie' 'Synthetic charlie' "$starred"
+  [[ $(query "$seen") == 1 ]]
+  # The menu restored focus to its row. Click Select text in the existing reader.
+  click 763 297
+  wtype -s 200 -M ctrl a -m ctrl -s 100 -M ctrl c -m ctrl -s 200
+  for _ in {1..25}; do
+    wl-paste --no-newline > "$artifacts/open-body.txt" 2>/dev/null || true
+    grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt" && break
+    sleep .2
+  done
+  grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt"
+  row_menu
+  click 388 316
+  await 'explicit row-menu Mark read updates charlie' 2 "$seen"
+  sleep 1
+  row_menu
+  capture row-context-read
+  click 388 316
+  await 'explicit row-menu Mark unread restores charlie' 1 "$seen"
+  row_menu
+  click 387 371
+  await 'the row menu archived charlie, leaving delta in view' 'Synthetic charlie' 'SELECT m.subject FROM pending_moves p JOIN messages m ON p.message_id=m.id'
+  sleep .8
+  capture row-context-undo
+  click 1205 76
+  await 'Undo restored the context-menu move' 4 "$in_inbox"
+  [[ $(query "$seen") == 1 ]]
+  for _ in {1..50}; do [[ $(server_flags INBOX marker-charlie) != *S* ]] && break; sleep .2; done
+  [[ $(server_flags INBOX marker-charlie) != *S* ]]
+  printf '%s\n' 'OK: opening, dismissing and acting on the row menu kept charlie unread and delta open'
   # Undo within the grace period: back at once, and the server never hears of it.
   open_newest
   wtype -s 300 -M alt e -m alt -s 600
