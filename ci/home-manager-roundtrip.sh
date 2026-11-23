@@ -63,10 +63,10 @@ private_session() {
 # The marker is generated at runtime. Only the reference belongs in Nix.
 marker=$(python3 -c 'import uuid; print(uuid.uuid4())')
 keyring_check() {
-  private_session bash -euo pipefail -c '
+  private_session bash -euo pipefail -s -- "$1" "$marker" "$(cat "$root/assets/app-id")" <<'KEYRING'
     printf %s "synthetic keyring unlock" | gnome-keyring-daemon --foreground --unlock --components=secrets \
       --control-directory="$XDG_RUNTIME_DIR/keyring-control" >"$XDG_RUNTIME_DIR/keyring.log" 2>&1 & daemon=$!
-    trap '\''kill "$daemon" 2>/dev/null || true; wait "$daemon" 2>/dev/null || true'\'' EXIT
+    trap 'kill "$daemon" 2>/dev/null || true; wait "$daemon" 2>/dev/null || true' EXIT
     for _ in {1..100}; do
       if dbus-send --session --dest=org.freedesktop.secrets --type=method_call --print-reply \
           /org/freedesktop/secrets org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1; then break; fi
@@ -77,7 +77,7 @@ keyring_check() {
       printf %s "$2" | secret-tool store --label="Synthetic HM ownership test" "${fields[@]}"
     fi
     [[ $(secret-tool lookup "${fields[@]}") == "$2" ]]
-  ' bash "$1" "$marker" "$(cat "$root/assets/app-id")"
+KEYRING
 }
 keyring_check seed
 private_session bash "$root/experiments/p02-config/ownership-gui.sh" \
