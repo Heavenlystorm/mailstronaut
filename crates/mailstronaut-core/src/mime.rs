@@ -253,8 +253,7 @@ impl Projection {
     /// descriptor and invalid transfer encoding.
     pub fn attachment_bytes(&self, index: usize) -> Result<Vec<u8>, Error> {
         let descriptor = self.attachments.get(index).ok_or(Error::InlineResources)?;
-        if self.original.len() > MAX_INPUT_BYTES
-            || content_digest(&self.original) != self.revision
+        if self.original.len() > MAX_INPUT_BYTES || content_digest(&self.original) != self.revision
         {
             return Err(Error::InlineResources);
         }

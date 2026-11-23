@@ -15,8 +15,8 @@ use gpui::component::{
     WindowExt as _,
     alert::Alert,
     attachment::{
-        Attachment, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia,
-        AttachmentTitle,
+        Attachment, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup,
+        AttachmentMedia, AttachmentTitle,
     },
     badge::Badge,
     button::{Button, ButtonVariants as _},
