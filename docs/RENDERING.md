@@ -153,7 +153,10 @@ Sizes, scroll positions, scale, themes and message changes retire the selection.
 Use the Text tab or Select text for keyboard selection and copying across
 viewports. Focused renderer and worker tests cover selection direction, Unicode,
 highlighted pixels, stale geometry, source replacement and dragging across a
-link. Wayland clipboard and assistive-technology acceptance are separate checks.
+link. [Native clipboard checks](evidence/P01-cached-html.md#selecting-text-in-the-html-viewport)
+exercise pointer selection independently from assistive-technology acceptance.
+
+## Native viewport and text alternative
 
 GPUI Kit's segmented `TabBar` and `Toolbar` select HTML or native text. Standard
 `ScrollHandle` and Kit horizontal/vertical scrollbars own scrolling; a small GPUI
@@ -189,10 +192,10 @@ It accepts no edits; selection/copy, wrapping and keyboard scrolling remain the
 component's responsibility. Focus and appearance changes never reopen mail or
 authorize Seen. The demo includes a synthetic long text alternative alongside
 the actual Blitz preview. The Blitz image alone is not an accessibility tree.
-Verify Unicode copy,
-keyboard navigation/scrolling, focus and actual Wayland/AT-SPI exposure. HTML hit
-handling/selection and a possible accessibility subtree bridge need explicit
-public-API, lifecycle and user-session acceptance before claiming support.
+The native clipboard checks cover Unicode copy, keyboard navigation/scrolling and
+focus. [Accessibility evidence](evidence/P01-accessibility.md) records what the
+text component exposes through Wayland/AT-SPI. An accessibility subtree for the
+HTML raster remains open.
 
 ## Required proof
 
