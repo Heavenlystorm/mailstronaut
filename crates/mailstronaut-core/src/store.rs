@@ -685,6 +685,16 @@ mod tests {
         assert_eq!(version, i64::from(super::SCHEMA_VERSION));
         drop(store);
         let reopened = Store::open(dir.path()).unwrap();
+        let mode: String = reopened
+            .connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        let busy_ms: u32 = reopened
+            .connection
+            .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+        assert_eq!(busy_ms, 5000);
         let reopened_version: i64 = reopened
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))

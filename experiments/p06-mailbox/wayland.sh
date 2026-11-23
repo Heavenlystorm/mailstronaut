@@ -158,6 +158,65 @@ copy_body() {
   done
   return 1
 }
+if [[ ${MAILSTRONAUT_STORE_RETRY_GUI:-0} == 1 ]]; then
+  # Use the seeded store and retain the open window across each retry.
+  profile="$XDG_DATA_HOME/mailstronaut"
+  lock="$profile/profile.lock"
+  retry_store() {
+    click 740 488
+    for _ in {1..50}; do
+      if ! flock -n "$lock" true; then return 0; fi
+      sleep .1
+    done
+    echo "Retry did not reacquire the profile lock" >&2
+    return 1
+  }
+  exec 9<>"$lock"
+  flock -x 9
+  start locked 9>&-
+  capture store-in-use
+  check_seen
+  flock -u 9
+  exec 9>&-
+  retry_store
+  capture store-recovered
+  check_seen
+  [[ $(stat -c '%a' "$profile" "$profile/blobs") == $'700\n700' ]]
+  [[ $(stat -c '%a' "$profile/mail.sqlite3" "$lock") == $'600\n600' ]]
+  [[ -z $(find "$profile/blobs" -type f ! -perm 0600 -print -quit) ]]
+  wl-copy --clear
+  click 280 125
+  copy_body store-reopened 'Synthetic unrelated same-subject message.'
+  check_seen unrelated
+  stop
+
+  # Preserve the entire seeded profile, including SQLite sidecars. Damage only
+  # a second synthetic profile; the app cannot find the healthy copy itself.
+  mv "$profile" "$root/healthy-store"
+  mkdir -m 700 "$profile"
+  printf '%s\n' 'Synthetic damaged SQLite file' > "$profile/mail.sqlite3"
+  checksum=$(sha256sum "$profile/mail.sqlite3")
+  start damaged
+  capture store-damaged
+  click 740 488
+  sleep 1
+  [[ $(sha256sum "$profile/mail.sqlite3") == "$checksum" ]]
+  flock -n "$lock" true
+
+  # Simulate the user's external restoration without deleting either profile.
+  mv "$profile" "$root/damaged-store"
+  mv "$root/healthy-store" "$profile"
+  retry_store
+  capture damaged-store-recovered
+  check_seen unrelated
+  wl-copy --clear
+  click 280 125
+  copy_body restored 'Synthetic unrelated same-subject message.'
+  check_seen unrelated
+  stop
+  printf 'Recovered the seeded mailbox in the same window: %s\n' "$root"
+  exit 0
+fi
 start initial
 sleep 1
 capture initial
