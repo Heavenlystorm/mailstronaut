@@ -158,6 +158,33 @@ copy_body() {
   done
   return 1
 }
+if [[ ${MAILSTRONAUT_STORE_RETRY_GUI:-0} == 1 ]]; then
+  # Use the seeded store and retain the open window across each retry.
+  lock="$XDG_DATA_HOME/mailstronaut/profile.lock"
+  exec 9<>"$lock"
+  flock -x 9
+  start locked 9>&-
+  capture store-in-use
+  check_seen
+  flock -u 9
+  exec 9>&-
+  click 740 488
+  for _ in {1..50}; do
+    if ! flock -n "$lock" true; then break; fi
+    sleep .1
+  done
+  if flock -n "$lock" true; then
+    echo "Retry did not reacquire the profile lock" >&2
+    exit 1
+  fi
+  capture store-recovered
+  check_seen
+  click 280 125
+  copy_body store-reopened 'Synthetic other-account reply.'
+  stop
+  printf 'Recovered the seeded mailbox in the same window: %s\n' "$root"
+  exit 0
+fi
 start initial
 sleep 1
 capture initial

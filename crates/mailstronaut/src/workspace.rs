@@ -21,6 +21,7 @@ use gpui::component::{
     badge::Badge,
     button::{Button, ButtonVariants as _},
     description_list::DescriptionList,
+    empty::{Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle},
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
     label::Label,
     list::{List, ListEvent, ListState},
@@ -177,6 +178,7 @@ pub struct Workspace {
     onboarding: Entity<crate::onboarding::Onboarding>,
     _preference_events: Subscription,
     loading_config: bool,
+    startup_error: Option<String>,
     pending_open: Option<PendingOpen>,
     view: View,
     account_access: crate::account_actions::Access,
@@ -701,6 +703,7 @@ impl Workspace {
             onboarding,
             _preference_events: preference_events,
             loading_config: false,
+            startup_error: None,
             pending_open: None,
             view: View::Inbox,
             account_access,
@@ -865,8 +868,9 @@ impl Workspace {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
                 this.loading_config = false;
-                match result {
+                let error = match result {
                     Ok(Ok((owner, config, ownership))) => {
+                        this.startup_error = None;
                         this.owner = owner;
                         this.start_search();
                         if this.declaration.apply(config) {
@@ -934,12 +938,16 @@ impl Workspace {
                         } else if let Some(target) = this.pending_open.take() {
                             this.open_notification(target, window, cx);
                         }
+                        None
                     }
-                    Ok(Err(error)) => this.status = error,
-                    Err(_) => this.status = "Unable to open local mail.".into(),
-                }
-                if this.preferences.read(cx).busy() {
-                    let error = this.status.clone();
+                    Ok(Err(error)) => Some(error),
+                    Err(_) => Some("Unable to open local mail.".into()),
+                };
+                if let Some(error) = error {
+                    this.status.clone_from(&error);
+                    if this.owner.is_none() {
+                        this.startup_error = Some(error.clone());
+                    }
                     this.preferences
                         .update(cx, |preferences, cx| preferences.failed(error, cx));
                 }
@@ -2778,6 +2786,26 @@ impl Workspace {
     }
 
     fn mailbox(&self, cx: &Context<Self>) -> impl IntoElement {
+        if let Some(error) = &self.startup_error {
+            return Empty::new()
+                .size_full()
+                .header(
+                    EmptyHeader::new()
+                        .title(EmptyTitle::new().child("Local mail unavailable"))
+                        .description(EmptyDescription::new().child(error.clone())),
+                )
+                .content(EmptyContent::new().child(
+                    Button::new("retry-mail-store")
+                        .label("Retry")
+                        .accessibility_label("Retry opening local mail")
+                        .loading(self.loading_config)
+                        .disabled(self.loading_config || self.preferences.read(cx).busy())
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.load_configuration(window, cx);
+                        })),
+                ))
+                .into_any_element();
+        }
         h_resizable("mail-panes")
             .child(
                 resizable_panel()
@@ -2786,6 +2814,7 @@ impl Workspace {
                     .child(self.message_list(cx)),
             )
             .child(resizable_panel().child(self.reader(cx)))
+            .into_any_element()
     }
 
     fn top_bar(&self, cx: &Context<Self>) -> impl IntoElement {
