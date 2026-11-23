@@ -17,6 +17,7 @@
   accounts ? null,
   settings ? null,
   startOnLogin ? false,
+  trackGenerations ? false,
 }:
 let
   homeManagerSource = builtins.fetchTarball {
@@ -53,7 +54,7 @@ let
         nix.assumeXdg = true;
         home = {
           # This disposable activation owns no legacy roots under /nix/var/nix.
-          activationGenerateGcRoot = false;
+          activationGenerateGcRoot = trackGenerations;
           # Home Manager refuses activation unless this matches the running user.
           username = builtins.getEnv "USER";
           homeDirectory = builtins.getEnv "MAILSTRONAUT_HM_HOME";

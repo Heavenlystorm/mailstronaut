@@ -1,5 +1,6 @@
 ci/check.sh
 ci/home-manager-activation.sh
+ci/home-manager-roundtrip.sh
 ci/nix-check.sh
 ci/remote.sh
 flatpak/prepare.sh
@@ -15,6 +16,7 @@ experiments/p02-accounts/credentials.sh
 experiments/p02-accounts/gui.sh
 experiments/p02-config/export-gui.sh
 experiments/p02-config/preferences-gui.sh
+experiments/p02-config/ownership-gui.sh
 experiments/p05-onboarding/gui.sh
 experiments/p05-onboarding/auth-gui.sh
 experiments/p05-onboarding/oauth-gui.sh
