@@ -1889,7 +1889,7 @@ impl Workspace {
         destination: String,
         label: String,
         window: &Window,
-        cx: &Context<Self>,
+        cx: &mut Context<Self>,
     ) {
         if self.move_picker.take().is_none() {
             return;
