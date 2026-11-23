@@ -3,7 +3,8 @@
 set -euo pipefail
 binary=${1:?HM-installed binary} config=${2:?HM config} artifacts=${3:?private artifacts}
 trap 'session_cleanup' EXIT
-# shellcheck source=experiments/wayland-session.sh
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=../wayland-session.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
 filter() {
   click 310 126

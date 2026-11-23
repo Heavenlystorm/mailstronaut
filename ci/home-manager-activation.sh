@@ -69,7 +69,8 @@ expect_refusal() {
 }
 
 if [[ $mode == --gui-roundtrip ]]; then
-  # shellcheck source=ci/home-manager-roundtrip.sh
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=home-manager-roundtrip.sh
   source "$root/ci/home-manager-roundtrip.sh"
   exit
 elif [[ -n $mode ]]; then
