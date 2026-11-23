@@ -148,7 +148,7 @@ PY
 holder=$!
 for _ in {1..30}; do [[ -f $artifacts/recovery-held ]] && break; sleep .05; done
 [[ -f $artifacts/recovery-held ]]
-click 351 "$retry_y"
+click 342 423
 replace_account
 touch "$artifacts/release-recovery"
 wait "$holder"
