@@ -54,6 +54,20 @@ again while being indexed. `store::browse` covers order, grouping, scope and pag
 
 ## Measurements
 
+### Restart during index creation
+
+A process can stop after Tantivy creates its directory but before SQLite queues
+the existing mail for indexing. On the next launch, an index with zero committed
+documents requests a refill. A nonempty index continues from the durable queue.
+
+On 2026-11-23 the pinned native build at `0db848c` used a disposable Dovecot
+and a private Wayland profile. With an empty SQLite indexing queue, the fixture
+substituted a valid empty index created by a second application launch and
+restarted. Searching `subject:returm` found the cached “Book return” message.
+It stayed unread through the query and became read on explicit open. A separate
+restart covered a missing index. The index persistence, corruption and busy
+writer regression also passed.
+
 `scale_measurement` in a release build on the 16-CPU CI server. The corpus is synthetic: 300
 words per message from a small multilingual vocabulary, with one word in seven made unique
 to grow the term dictionary. Real mail will index larger, since this vocabulary compresses
