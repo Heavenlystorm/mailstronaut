@@ -44,6 +44,9 @@ With **neither**:
 - The move is not tried again.
 - New mail still arrives afterwards.
 
+The [persistent move warning](P07-move-warnings.md) records the unsupported
+operation on its account and supports dismissal after restart.
+
 `crates/mailstronaut-core/tests/moves.rs` covers the stored hold and giving up on a move.
 
 ## Not established

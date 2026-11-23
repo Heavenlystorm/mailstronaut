@@ -1,0 +1,13 @@
+OK: neither server:
+OK: the inbox was cached
+OK: SPECIAL-USE gave the Archive role
+OK: the message left the list at once
+OK: a server that cannot move safely gets the message back
+OK: nothing changed on the server, and the message is back
+OK: a move that can never work is not tried again
+OK: new mail still arrives after the refusal
+OK: the permanent warning survived a successful sync
+OK: the refusal survived restart
+OK: the user acknowledged the stored warning
+OK: dismissal survived a second restart and all five messages remained in the inbox
+Native actions acceptance (neither): /sources/p07-move-warning-be9ded881993/target/p02.0zTVWx/actions-neither
