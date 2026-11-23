@@ -105,5 +105,10 @@ composer and export-dialog trees and screenshots beside the reader artifacts.
 
 Run `experiments/p01-gpui/accessibility.sh APP_BINARY WORKER_TEST_EXECUTABLE`
 inside `nix develop .#gui-test` with `MAILSTRONAUT_A11Y_REQUIRE_TEXT=1`.
-The expanded workflow awaits native execution. Earlier recordings above
-cover the mailbox and reader.
+On 2026-11-23 the pinned Nix development build of `940f16a` passed all 19
+checks on private native Wayland with synthetic mail. Three transient AT-SPI
+object reads failed during the tree walks. Each required control and focused
+text value was observed. See the [driver report](artifacts/p01-accessibility/composer-export.json)
+and [keyboard-focused Bcc field](artifacts/p01-accessibility/composer.png).
+Screen-reader speech, additional dialogs and other Settings pages need their
+own acceptance.
