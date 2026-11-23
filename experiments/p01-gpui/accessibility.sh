@@ -67,6 +67,8 @@ cat > "$config" <<'NIX'
   managed = true;
   appearance = "light";
   sync.automatic = false;
+  priority.enabled = true;
+  timeZone = "UTC";
   accounts = map (identity: {
     id = identity.id;
     provider = "manual";
@@ -83,7 +85,7 @@ cat > "$config" <<'NIX'
 }
 NIX
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
-MAILSTRONAUT_PERFORMANCE_MAILBOX=1 "$fixture" seed_conversation_gui --ignored --exact --nocapture \
+MAILSTRONAUT_ACCESSIBLE_ROWS=1 MAILSTRONAUT_PERFORMANCE_MAILBOX=1 "$fixture" seed_conversation_gui --ignored --exact --nocapture \
   > "$root/seed.log" 2>&1
 [[ -s $root/data/mailstronaut/mail.sqlite3 ]]
 # shellcheck source-path=SCRIPTDIR
@@ -108,6 +110,7 @@ driver="$artifacts/driver.py"
 cat > "$driver" <<'PYDRIVER'
 """Read the application's AT-SPI tree over D-Bus and follow keyboard focus through it."""
 import ast
+import datetime
 import json
 import os
 import re
@@ -259,6 +262,45 @@ second_focus = focused_name(walk())
 checks["focus_follows_list_row_one"] = any("Performance 000" in name for name in first_focus)
 checks["focus_follows_list_row_two"] = any("Performance 001" in name for name in second_focus)
 checks["focus_moved_between_rows"] = first_focus != second_focus
+
+subject = "Performance 000 · Réinscription et suivi de la demande de remboursement avant le prochain conseil"
+checks["priority_row_and_dismiss_button_named"] = (
+    any("Zoë" in name and subject in name and "Needs attention" in name for name in first_focus)
+    and any(node["role"] == 43 and node["name"] == "Dismiss priority for " + subject for node in tree)
+)
+received = datetime.datetime.fromtimestamp(1793309999, datetime.timezone.utc).strftime("%d %b %Y · %H:%M %Z")
+preview = "Synthetic performance original 001. Réinscription au doctorat. Scadenza di domani."
+checks["focused_row_exposes_visible_date_and_preview"] = any(
+    received in name and preview in name and "unread" in name for name in second_focus
+)
+
+def row_bounds():
+    nodes = walk()
+    row = next(n for n in nodes if n["role"] == 91 and "Performance 001" in n["name"])
+    return literal(gdbus(row["bus"], row["path"], "org.a11y.atspi.Component.GetExtents", "1"))[0]
+
+def sway(*args):
+    subprocess.run(["swaymsg", *map(str, args)], stdout=subprocess.DEVNULL, check=True)
+
+def drag(x, y, target):
+    sway("seat", "seat0", "cursor", "set", x, y)
+    sway("seat", "seat0", "cursor", "press", "button1")
+    sway("seat", "seat0", "cursor", "set", target, y)
+    sway("seat", "seat0", "cursor", "release", "button1")
+    time.sleep(.3)
+
+x, y, width, height = row_bounds()
+drag(x + width, y + height // 2, x + width + 70)
+wider = row_bounds()
+checks["drag_resizes_message_list"] = wider[2] >= width + 40
+drag(wider[0], y + height // 2, wider[0] + 50)
+checks["drag_resizes_sidebar"] = row_bounds()[0] >= wider[0] + 30
+for mode in ["960x720", "1280x840"]:
+    sway("output", "HEADLESS-1", "mode", mode)
+    time.sleep(.5)
+    nodes = walk()
+    checks["focused_row_survives_" + mode] = focused_name(nodes) == second_focus
+    subprocess.run(["grim", str(artifacts / ("mailbox-panes-" + mode + ".png"))], check=True)
 
 # Open the focused original and focus its read-only native text alternative.
 key("Return")
