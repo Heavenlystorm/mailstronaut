@@ -52,9 +52,7 @@ named fields, account isolation, replacement and removal, hostile queries, persi
 damaged index and a busy one. `store::search` covers the queue, including a message queued
 again while being indexed. `store::browse` covers order, grouping, scope and paging.
 
-## Measurements
-
-### Restart during index creation
+## Restart during index creation
 
 A process can stop after Tantivy creates its directory but before SQLite queues
 the existing mail for indexing. On the next launch, an index with zero committed
@@ -67,6 +65,8 @@ restarted. Searching `subject:returm` found the cached “Book return” message
 It stayed unread through the query and became read on explicit open. A separate
 restart covered a missing index. The index persistence, corruption and busy
 writer regression also passed.
+
+## Measurements
 
 `scale_measurement` in a release build on the 16-CPU CI server. The corpus is synthetic: 300
 words per message from a small multilingual vocabulary, with one word in seven made unique
