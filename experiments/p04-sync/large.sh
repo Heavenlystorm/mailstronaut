@@ -186,6 +186,8 @@ preview_count() { find "$XDG_RUNTIME_DIR" -maxdepth 1 -type f -name 'mailstronau
 choose "file://$saved" 1200 412
 await_file 'Open handed the exact on-demand part to the application chooser' "$artifacts/opened-bytes" "$large_digest"
 [[ $(preview_count) == 1 ]]
+swaymsg seat seat0 cursor set 562 650 > /dev/null
+sleep 1
 capture opened-remote-attachment
 
 # The middle row keeps its attachment on this device, listed the ordinary way.
