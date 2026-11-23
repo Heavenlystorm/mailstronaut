@@ -301,13 +301,29 @@ checks["drag_resizes_message_list"] = wider[2] >= width + 40
 drag(wider[0], y + height // 2, wider[0] + 50)
 shifted = row_bounds()
 checks["drag_resizes_sidebar"] = shifted[0] >= wider[0] + 30
-(artifacts / "pane-bounds.json").write_text(json.dumps([list((x, y, width, height)), wider, shifted]))
+(artifacts / "pane-bounds.json").write_text(json.dumps({"initial": [x, y, width, height], "list_drag": wider, "sidebar_drag": shifted}))
 for mode in ["960x720", "1280x840"]:
     sway("output", "HEADLESS-1", "mode", mode)
     time.sleep(.5)
     nodes = walk()
     checks["focused_row_survives_" + mode] = focused_name(nodes) == second_focus
     subprocess.run(["grim", str(artifacts / ("mailbox-panes-" + mode + ".png"))], check=True)
+
+# Open the priority row and read both notes that come from its real analysis.
+# They used to share an accessibility ID, so opening this message lost the tree.
+key("Up")
+key("Return")
+for _ in range(8):
+    notes = [n["name"] for n in walk() if n["role"] == 29]
+    if any(n.startswith("Deadline:") for n in notes):
+        break
+    time.sleep(.15)
+checks["priority_reader_exposes_reason_and_deadline"] = (
+    any(n.startswith("Needs attention:") for n in notes)
+    and any(n.startswith("Deadline:") for n in notes)
+)
+subprocess.run(["wtype", "-M", "ctrl", "-k", "l", "-m", "ctrl"], check=True)
+key("Down")
 
 # Open the focused original and focus its read-only native text alternative.
 key("Return")
