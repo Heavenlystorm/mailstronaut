@@ -471,16 +471,56 @@ mod tests {
         let limit = i64::try_from(crate::threads::MAX_MESSAGES).expect("account budget");
         super::super::scale_tests::seed(root.path(), "a", 1, limit - 9);
         let parent = "missing@ancestry.test";
-        let first = add(&mut store, "a", inbox, 90_001, "one@ancestry.test", &[parent], 101);
-        let second = add(&mut store, "a", inbox, 90_002, "two@ancestry.test", &[parent], 102);
+        let first = add(
+            &mut store,
+            "a",
+            inbox,
+            90_001,
+            "one@ancestry.test",
+            &[parent],
+            101,
+        );
+        let second = add(
+            &mut store,
+            "a",
+            inbox,
+            90_002,
+            "two@ancestry.test",
+            &[parent],
+            102,
+        );
         let root_id = "root@ancestry.test";
         let root_message = add(&mut store, "a", inbox, 90_003, root_id, &[], 103);
         let duplicate = "duplicate@ancestry.test";
         let original = add(&mut store, "a", inbox, 90_004, duplicate, &[], 104);
         let copy = add(&mut store, "a", inbox, 90_005, duplicate, &[], 105);
-        let reply = add(&mut store, "a", inbox, 90_006, "reply@ancestry.test", &[duplicate], 106);
-        let cycle = add(&mut store, "a", inbox, 90_007, "a@cycle.test", &["b@cycle.test"], 107);
-        let cycle_reply = add(&mut store, "a", inbox, 90_008, "b@cycle.test", &["a@cycle.test"], 108);
+        let reply = add(
+            &mut store,
+            "a",
+            inbox,
+            90_006,
+            "reply@ancestry.test",
+            &[duplicate],
+            106,
+        );
+        let cycle = add(
+            &mut store,
+            "a",
+            inbox,
+            90_007,
+            "a@cycle.test",
+            &["b@cycle.test"],
+            107,
+        );
+        let cycle_reply = add(
+            &mut store,
+            "a",
+            inbox,
+            90_008,
+            "b@cycle.test",
+            &["a@cycle.test"],
+            108,
+        );
 
         let started = std::time::Instant::now();
         group(&mut store, "a");
@@ -490,8 +530,14 @@ mod tests {
         assert_eq!(identity(&store, "a", second), siblings);
         assert_ne!(separate, siblings);
         assert_ne!(identity(&store, "a", original), identity(&store, "a", copy));
-        assert_eq!(identity(&store, "a", original), identity(&store, "a", reply));
-        assert_eq!(identity(&store, "a", cycle), identity(&store, "a", cycle_reply));
+        assert_eq!(
+            identity(&store, "a", original),
+            identity(&store, "a", reply)
+        );
+        assert_eq!(
+            identity(&store, "a", cycle),
+            identity(&store, "a", cycle_reply)
+        );
 
         // A UID from Sent can equal one from INBOX. Both originals must survive.
         let late = add(&mut store, "a", sent, 90_001, parent, &[root_id], 99);
@@ -505,10 +551,20 @@ mod tests {
         for id in [first, second, root_message, late] {
             assert_eq!(identity(&store, "a", id), winner);
         }
-        assert_eq!(store.resolve_conversation("a", siblings.max(separate)).expect("alias"), winner);
-        let count: i64 = store.connection.query_row(
-            "SELECT COUNT(*) FROM conversation_members WHERE account_id='a'", [], |row| row.get(0),
-        ).expect("exact local coverage");
+        assert_eq!(
+            store
+                .resolve_conversation("a", siblings.max(separate))
+                .expect("alias"),
+            winner
+        );
+        let count: i64 = store
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM conversation_members WHERE account_id='a'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("exact local coverage");
         assert_eq!(count, limit);
         println!("{limit} originals: initial grouping {initial:?}, late Sent merge {merged:?}");
     }
