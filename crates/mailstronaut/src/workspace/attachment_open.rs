@@ -18,6 +18,7 @@ impl Workspace {
                 Button::new((save_id, index))
                     .ghost()
                     .label("Save…")
+                    .tooltip("Save a copy")
                     .accessibility_label(format!("Save {name}"))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         if remote {
@@ -31,6 +32,7 @@ impl Workspace {
                 Button::new((open_id, index))
                     .ghost()
                     .label("Open…")
+                    .tooltip("Choose an application")
                     .accessibility_label(format!("Open {name}"))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.open_attachment(index, remote, window, cx);

@@ -3356,7 +3356,6 @@ impl Workspace {
                             .id(("received-attachment", index))
                             .w_full()
                             .actions(Self::attachment_actions(index, false, &name, cx))
-                            .tooltip("Save a copy")
                             .content(
                                 AttachmentContent::new()
                                     .title(AttachmentTitle::new(name))
@@ -3428,7 +3427,6 @@ impl Workspace {
                                 .id(("remote-attachment", index))
                                 .w_full()
                                 .actions(Self::attachment_actions(index, true, &name, cx))
-                                .tooltip("Download and save a copy")
                                 .content(
                                     AttachmentContent::new()
                                         .title(AttachmentTitle::new(name))
