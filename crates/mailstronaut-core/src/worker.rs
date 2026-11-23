@@ -175,7 +175,7 @@ enum Command {
         u32,
         Reply<Vec<store::analysis::AnalysisInput>>,
     ),
-    StoreAnalysis(Vec<store::analysis::AnalysisResult>, Reply<()>),
+    StoreAnalysis(Vec<store::analysis::AnalysisResult>, CancellationToken, Reply<()>),
     CorrectDeadline(
         store::analysis::CorrectDeadline,
         Reply<store::analysis::DeadlineCorrection>,
@@ -565,8 +565,18 @@ impl Handle {
         &self,
         results: Vec<store::analysis::AnalysisResult>,
     ) -> Result<(), Error> {
-        self.request(|reply| Command::StoreAnalysis(results, reply))
+        self.store_analysis_while_active(results, CancellationToken::new())
             .await
+    }
+    /// Store a background analysis batch only while its configuration remains active.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn store_analysis_while_active(
+        &self,
+        results: Vec<store::analysis::AnalysisResult>,
+        active: CancellationToken,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::StoreAnalysis(results, active, reply)).await
     }
     /// Persist an explicit deadline correction on the store owner.
     /// # Errors
@@ -1461,8 +1471,8 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                     store.analysis_pending(&accounts, policy, since, limit)
                 });
             }
-            Command::StoreAnalysis(results, reply) => {
-                commit(reply, || store.store_analysis(&results));
+            Command::StoreAnalysis(results, active, reply) => {
+                commit(reply, || store.store_analysis_if(&results, || !active.is_cancelled()));
             }
             Command::CorrectDeadline(edit, reply) => {
                 commit(reply, || store.correct_deadline(&edit));

@@ -279,6 +279,17 @@ impl Store {
     /// # Errors
     /// Reports storage failures, leaving none of the batch stored.
     pub fn store_analysis(&mut self, results: &[AnalysisResult]) -> Result<(), Error> {
+        self.store_analysis_if(results, || true)
+    }
+
+    pub(crate) fn store_analysis_if(
+        &mut self,
+        results: &[AnalysisResult],
+        active: impl Fn() -> bool,
+    ) -> Result<(), Error> {
+        if !active() {
+            return Ok(());
+        }
         let tx = self.connection.transaction()?;
         for result in results {
             tx.execute(
@@ -288,7 +299,10 @@ impl Store {
                 params![result.id, result.data, result.policy, result.expires_at, result.due],
             )?;
         }
-        tx.commit()?;
+        // A write may have waited for SQLite while the account was reconfigured.
+        if active() {
+            tx.commit()?;
+        }
         Ok(())
     }
 
@@ -495,6 +509,21 @@ mod tests {
                 data: "{}".into(),
             }])
             .expect("result");
+    }
+
+    #[test]
+    fn retiring_rules_before_commit_rolls_back_the_entire_analysis_batch() {
+        let mut f = fixture();
+        let inbox = f.inbox;
+        let ids = [cache(&mut f, inbox, 1, false, 100), cache(&mut f, inbox, 2, false, 100)];
+        let results = ids.map(|id| AnalysisResult {
+            id, policy: 1, expires_at: Some(500), due: None, data: "{}".into(),
+        });
+        let active = std::cell::Cell::new(true);
+        f.store.store_analysis_if(&results, || active.replace(false)).expect("retired batch");
+        assert_eq!(pending(&f, 1), ids);
+        f.store.store_analysis(&results).expect("replacement batch");
+        assert!(pending(&f, 1).is_empty());
     }
 
     fn group(fixture: &Fixture, now: i64) -> Vec<i64> {
