@@ -52,3 +52,20 @@ The reader toolbar adds Reply, Reply all, Forward, Mark read/unread (Alt+U) and 
 it unread and replies. SQLite shows it unread and starred, with an unsent local draft
 carrying `In-Reply-To`, the sender as recipient and a quotation. Later refreshes do not
 mark it read again, because the read gate is spent by the explicit open.
+
+## Acting on an older original
+
+The private Wayland fixture at `eec2fcc` expanded a three-message conversation,
+selected the older reply, and displayed its actual From, To, Cc, Sent and Received
+fields. [Header details for the selected sibling](artifacts/p06-original-actions/headers.png).
+It starred the older reply, marked it unread and replied. SQLite confirmed that
+only the selected original was starred. The newer sibling stayed read. The draft
+was addressed to the older sender, quoted only the older body and contained its
+exact `In-Reply-To`. The outbox remained empty.
+
+Run the standard private mailbox walkthrough with `MAILSTRONAUT_MAILBOX_NAVIGATION=1`
+and `MAILSTRONAUT_ORIGINAL_ACTIONS_GUI=1`. The unmodified navigation walkthrough
+and the long-thread walkthrough also passed on the same pinned build. They covered
+the cached Sent parent, a matching original in another account, an offline restart,
+passive keyboard traversal over a page boundary and explicit opening in a thread
+of 105 originals. [Unsent reply to the older message](artifacts/p06-original-actions/reply.png).
