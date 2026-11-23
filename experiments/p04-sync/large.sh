@@ -148,6 +148,7 @@ await_file() {
 click 350 380
 sleep 1.5
 capture large-opened
+[[ ! -e $artifacts/opened-bytes ]]
 await 'opening it marked it read' 1 "SELECT count(*) FROM effective_memberships s JOIN messages m ON m.id=s.message_id WHERE s.seen=1 AND m.subject='Rapport énorme'"
 
 # Saving it with the real button: the attachment comes from the server only now.
@@ -174,6 +175,15 @@ PY
 sleep 1
 capture saved
 
+# Open uses a read-only descriptor on the application chooser. It must never
+# hand off the sender's path or implicitly open a file when it is merely listed.
+preview_count() { find "$XDG_RUNTIME_DIR" -maxdepth 1 -type f -name 'mailstronaut-attachment-*' | wc -l; }
+[[ $(preview_count) == 0 ]]
+choose "file://$saved" 1200 412
+await_file 'Open handed the exact on-demand part to the application chooser' "$artifacts/opened-bytes" "$large_digest"
+[[ $(preview_count) == 1 ]]
+capture opened-remote-attachment
+
 # The middle row keeps its attachment on this device, listed the ordinary way.
 click 350 260
 sleep 1.5
@@ -181,7 +191,20 @@ capture medium-opened
 kept="$artifacts/saved-medium.pdf"
 choose "file://$kept" 708 365
 await_file 'saving the kept attachment wrote it byte for byte' "$kept" "$medium_digest"
+choose deny 1200 365
+await_file 'the refused chooser received only the selected local content' "$artifacts/opened-bytes" "$medium_digest"
+for _ in {1..50}; do [[ $(preview_count) == 1 ]] && break; sleep .1; done
+[[ $(preview_count) == 1 ]]
+choose "file://$kept" 1200 365
+sleep .4
+[[ $(preview_count) == 2 ]]
+choose "file://$kept" 1200 365
+sleep .4
+[[ $(preview_count) == 2 ]]
+capture opened-cached-attachment
 close_window
+[[ $(preview_count) == 0 ]]
+printf '%s\n' 'OK: refusal released its preview, repeated Open reused the file and quitting removed the previews' 
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf '%s\n' 'Synthetic credential appeared in an application log' >&2; exit 1
