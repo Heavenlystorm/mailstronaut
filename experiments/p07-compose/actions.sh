@@ -203,6 +203,8 @@ else
   row_menu
   click 387 371
   await 'the row menu archived charlie, leaving delta in view' 'Synthetic charlie' 'SELECT m.subject FROM pending_moves p JOIN messages m ON p.message_id=m.id'
+  sleep .8
+  capture row-context-undo
   click 1205 76
   await 'Undo restored the context-menu move' 4 "$in_inbox"
   [[ $(query "$seen") == 1 ]]
