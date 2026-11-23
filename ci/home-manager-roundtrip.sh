@@ -35,16 +35,27 @@ activate "$immutable"
 original_target=$(readlink -f "$config")
 original_hash=$(checksum)
 
-mutable=$(generation true "$declared")
+printf '%s\n' 'builtins.removeAttrs (import ./declared.nix) [ "accounts" ]' > "$work/mutable.nix"
+mutable=$(generation true "$work/mutable.nix")
 activate "$mutable"
 [[ $(readlink -f "$current") == "$mutable" && -f $config && ! -L $config && $(stat -c %a "$config") == 600 ]]
 [[ $(value 'c.managed') == false && $(sha256sum "$original_target" | cut -d' ' -f1) == "$original_hash" ]]
+[[ $(value 'map (a: a.id) (c.accounts or [])') == '["ownership"]' ]] || {
+  printf '%s\n' 'Changing ownership dropped the now-undeclared account from the original configuration.' >&2
+  exit 1
+}
 printf '%s\n' 'OK: managed link became private writable source in the same Home Manager profile'
 
 mkdir -p "$work/wayland"
+cat > "$work/bus.conf" <<'BUS'
+<busconfig>
+  <type>session</type><listen>unix:tmpdir=/tmp</listen><auth>EXTERNAL</auth>
+  <policy context="default"><allow own="*"/><allow send_destination="*"/><allow receive_sender="*"/></policy>
+</busconfig>
+BUS
 env HOME="$fixture_home" XDG_CONFIG_HOME="$fixture_home/.config" XDG_STATE_HOME="$fixture_home/.local/state" \
     XDG_DATA_HOME="$fixture_home/.local/share" XDG_CACHE_HOME="$fixture_home/.cache" XDG_RUNTIME_DIR="$fixture_home/runtime" \
-    dbus-run-session -- bash "$root/experiments/p02-config/ownership-gui.sh" \
+    dbus-run-session --config-file="$work/bus.conf" -- bash "$root/experiments/p02-config/ownership-gui.sh" \
     "$mutable/home-path/bin/mailstronaut" "$config" "$work/wayland"
 [[ $(value 'c.sync.pollSeconds') == 120 && $(value 'c.notifications.showPreview') == true ]]
 [[ $(value 'c.sync ? initialDays') == false && $(value 'c.sync ? maxBodyBytes') == false ]]
