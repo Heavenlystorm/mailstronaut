@@ -1935,7 +1935,7 @@ impl Workspace {
     fn sync_update(
         &mut self,
         update: crate::mail_sync::Update,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) {
         match update {
