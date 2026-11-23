@@ -386,7 +386,9 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   Sign in/Unlock/Reauthenticate/Cancel buttons with `Spinner`/`Alert`, not a new wizard.
 - [ ] Test locked/unavailable keyring, denied/cancelled browser, invalid callback,
   refresh races and logout/purge. Complete native Wayland and Flatpak portal flows.
-- [ ] Keep live-provider outcomes separate from local mock/compile evidence.
+- [x] Keep live-provider outcomes separate from local mock/compile evidence.
+  The [per-provider acceptance record](evidence/P05.md#required-provider-acceptance)
+  lists all five live outcomes alongside their synthetic coverage.
 
 ## P06 — GPUI mailbox workspace and strong local search
 
