@@ -567,9 +567,10 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   component is presentation, not a downloader or upload service. Never pass an
   email-supplied URL/path to its image source; use generic icons or validated owned
   raster previews. Verify keyboard actions, long names, failures and narrow layouts.
-- [ ] Verify autosave, draft switching, source-file access loss, close/restart and
+- [x] Verify autosave, draft switching, source-file access loss, close/restart and
   failure recovery on Wayland. A selected file becomes a private owned snapshot.
   Expose draft/save/outbox state in `StatusBar`, with persistent `Alert` failures.
+  [Draft recovery across the file chooser, draft switches and restart](evidence/P07-native-compose.md#draft-recovery-during-attachment-selection).
 - [x] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
   Preserve fixed frozen bytes and Message-ID; no automatic ambiguous-delivery retry.
   [Accepted, unreachable, rejected, unknown, untrusted-certificate, refused sign-in, retry,
