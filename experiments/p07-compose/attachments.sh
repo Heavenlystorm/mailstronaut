@@ -125,20 +125,20 @@ await 'a distinct second draft exists' 2 "$open_drafts"
 click 750 440
 wtype 'Independent second draft.'
 await 'the second body belongs to a different draft' 1 "SELECT count(*) FROM drafts WHERE json_extract(content,'$.body')='Independent second draft.'"
+capture before-switch
 click 350 240
 sleep .5
+capture switched-editor
 click 750 440
-wtype -M ctrl a -m ctrl -M ctrl c -m ctrl -s 150
-[[ $(wl-paste --no-newline) == *'Pending before chooser.'* ]]
 wtype -k End ' Saved at close.'
 close_window
 
 start attach-restarted
 sleep 3
 [[ $(query "$attachments") == 0 && $(query "$open_drafts") == 2 ]]
-[[ $(query "SELECT count(*) FROM drafts WHERE instr(json_extract(content,'$.body'),'Saved at close.')>0") == 1 ]]
+[[ $(query "SELECT count(*) FROM drafts WHERE instr(json_extract(content,'$.body'),'Pending before chooser. Saved at close.')>0") == 1 ]]
 [[ $(query 'SELECT count(*) FROM outbox') == 0 ]]
-printf '%s\n' 'OK: both drafts survived restart, the last edit was saved, and the removed attachment stayed removed' 
+printf '%s\n' 'OK: both drafts survived restart, the last edit was saved, and the removed attachment stayed removed'
 capture attach-restarted
 close_window
 
