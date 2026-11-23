@@ -112,3 +112,32 @@ text value was observed. See the [driver report](artifacts/p01-accessibility/com
 and [keyboard-focused Bcc field](artifacts/p01-accessibility/composer.png).
 Screen-reader speech, additional dialogs and other Settings pages need their
 own acceptance.
+
+## Orca reading the native text view
+
+On 2026-11-23 the private Wayland session ran Orca with Speech Dispatcher and
+eSpeak NG. The fixture focused search, switched to the native text reader, moved
+to the beginning, and invoked Orca's Say All command. Orca announced “Search
+cached mail” and “Message text”, then read the synthetic English, French and
+Italian lines. The speech log contained all five expected utterances. The
+private audio sink captured 871,024 bytes of PCM including nonzero samples.
+This tests speech generation and reading order. Human listening quality was
+outside the fixture. See the [speech report](artifacts/p01-accessibility/screen-reader.json).
+
+To reproduce, use `nix develop .#a11y-test` and run the accessibility command
+above. This shell supplies the optional screen reader and speech synthesizer.
+
+## Account editing and discard confirmation
+
+The private Wayland build at `5d4b5e2` passed all 28 AT-SPI checks and the
+Orca speech test together. The fixture entered the editable account's incoming
+and outgoing login fields and edited the outgoing login. In Add account, Tab
+moved from “Your name” to “Email address”. In the composer, Shift+Tab and Return
+opened the discard confirmation, which exposed both choices. Escape returned
+focus to the invoking button and preserved the draft's exact recipient.
+
+GPUI's accessibility objects can disappear during a tree walk. The
+[driver report](artifacts/p01-accessibility/account-dialogs.json) records those
+reads and the result of each required check. This completes the P01 foundation
+fixture. Desktop assistive-technology user evaluation and the complete daily-mail
+walkthrough remain release-level work.

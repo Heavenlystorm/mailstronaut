@@ -148,14 +148,11 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   cancellation/refusal, 2x hit and no-fetch observations pass in private fixtures.
   [Bounded installed-package evidence](evidence/P01-web-links.md). Real desktop/
   Flatpak portal activation remains P10/P11 acceptance.
-- [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
-  Partial: the mailbox tree, row names, search field and keyboard focus through the
-  list are read over AT-SPI in a private headless session ([P01 accessibility](evidence/P01-accessibility.md)).
-  With GPUI Kit 0.10.0, the focused native reader exposes the complete multiline
-  Unicode body through AT-SPI Text and stays read-only. Screen-reader speech,
-  additional dialogs and Settings pages remain open. Named composer fields,
-  keyboard focus through Cc/Bcc and the Settings export dialog's text and
-  dismissal passed the [private AT-SPI fixture](evidence/P01-accessibility.md#composition-and-settings-export-fixture).
+- [x] Verify keyboard behavior and the actual accessibility tree on Wayland.
+  The native fixture checks the mailbox, reader, composer, editable accounts,
+  Settings export and discard confirmation. Orca Say All reads the multilingual
+  message through the native Text view. [28 AT-SPI checks and synthesized speech](evidence/P01-accessibility.md#account-editing-and-discard-confirmation).
+  Full daily-workflow and release accessibility remain P11 checks.
 - [x] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering. Measured in
   a headless software-rendered session with the release binary: 100 switches with no
