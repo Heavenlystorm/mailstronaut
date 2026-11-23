@@ -463,6 +463,55 @@ mod tests {
     fn identity(store: &Store, account: &str, message: i64) -> i64 {
         store.connection.query_row("SELECT conversation_id FROM conversation_members WHERE account_id=?1 AND message_id=?2",params![account,message],|row|row.get(0)).expect("conversation identity")
     }
+
+    #[test]
+    #[ignore = "explicit 50,000-original conversation identity measurement"]
+    fn a_late_sent_ancestor_merges_the_right_threads_at_the_account_limit() {
+        let (root, mut store, inbox, sent, _) = setup();
+        let limit = i64::try_from(crate::threads::MAX_MESSAGES).expect("account budget");
+        super::super::scale_tests::seed(root.path(), "a", 1, limit - 9);
+        let parent = "missing@ancestry.test";
+        let first = add(&mut store, "a", inbox, 90_001, "one@ancestry.test", &[parent], 101);
+        let second = add(&mut store, "a", inbox, 90_002, "two@ancestry.test", &[parent], 102);
+        let root_id = "root@ancestry.test";
+        let root_message = add(&mut store, "a", inbox, 90_003, root_id, &[], 103);
+        let duplicate = "duplicate@ancestry.test";
+        let original = add(&mut store, "a", inbox, 90_004, duplicate, &[], 104);
+        let copy = add(&mut store, "a", inbox, 90_005, duplicate, &[], 105);
+        let reply = add(&mut store, "a", inbox, 90_006, "reply@ancestry.test", &[duplicate], 106);
+        let cycle = add(&mut store, "a", inbox, 90_007, "a@cycle.test", &["b@cycle.test"], 107);
+        let cycle_reply = add(&mut store, "a", inbox, 90_008, "b@cycle.test", &["a@cycle.test"], 108);
+
+        let started = std::time::Instant::now();
+        group(&mut store, "a");
+        let initial = started.elapsed();
+        let siblings = identity(&store, "a", first);
+        let separate = identity(&store, "a", root_message);
+        assert_eq!(identity(&store, "a", second), siblings);
+        assert_ne!(separate, siblings);
+        assert_ne!(identity(&store, "a", original), identity(&store, "a", copy));
+        assert_eq!(identity(&store, "a", original), identity(&store, "a", reply));
+        assert_eq!(identity(&store, "a", cycle), identity(&store, "a", cycle_reply));
+
+        // A UID from Sent can equal one from INBOX. Both originals must survive.
+        let late = add(&mut store, "a", sent, 90_001, parent, &[root_id], 99);
+        assert_ne!(late, first);
+        let started = std::time::Instant::now();
+        group(&mut store, "a");
+        let merged = started.elapsed();
+        drop(store);
+        let store = Store::open(root.path()).expect("reopen");
+        let winner = siblings.min(separate);
+        for id in [first, second, root_message, late] {
+            assert_eq!(identity(&store, "a", id), winner);
+        }
+        assert_eq!(store.resolve_conversation("a", siblings.max(separate)).expect("alias"), winner);
+        let count: i64 = store.connection.query_row(
+            "SELECT COUNT(*) FROM conversation_members WHERE account_id='a'", [], |row| row.get(0),
+        ).expect("exact local coverage");
+        assert_eq!(count, limit);
+        println!("{limit} originals: initial grouping {initial:?}, late Sent merge {merged:?}");
+    }
     #[test]
     fn original_pages_reach_every_member_with_tied_dates_and_isolate_accounts() {
         let (_root, mut store, inbox, sent, other) = setup();

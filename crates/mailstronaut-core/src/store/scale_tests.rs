@@ -17,7 +17,7 @@ fn nonzero(value: u32) -> NonZeroU32 {
 }
 
 /// Insert messages into one account; returns its inbox and archive folder IDs.
-fn seed(root: &Path, account: &str, first: i64, count: i64) -> (i64, i64) {
+pub(super) fn seed(root: &Path, account: &str, first: i64, count: i64) -> (i64, i64) {
     let mut store = Store::open(root).expect("open");
     store.ensure_account(account).expect("account");
     let inbox = store
