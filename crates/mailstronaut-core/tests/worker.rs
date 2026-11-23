@@ -169,6 +169,8 @@ struct GuiMessage {
     order: i64,
 }
 
+const GUI_RECEIVED_AT: i64 = 1_793_310_000;
+
 /// One long HTML original followed by 100 short ones. Each HTML original starts with a block
 /// of its own colour, so a native capture identifies exactly which original is painted.
 fn performance_messages() -> Vec<GuiMessage> {
@@ -295,6 +297,14 @@ async fn seed_conversation_gui() {
     if std::env::var("MAILSTRONAUT_PERFORMANCE_MAILBOX").is_ok_and(|value| value == "1") {
         assert!(!html, "separate synthetic performance fixture");
         messages = performance_messages();
+        if std::env::var_os("MAILSTRONAUT_ACCESSIBLE_ROWS").is_some() {
+            let first = &mut messages[0];
+            first.from = "Zoë <zoe@example.test>".into();
+            first.subject = Some("Performance 000 · Réinscription et suivi de la demande de remboursement avant le prochain conseil".into());
+            first.body = "Could you send me your expense report by tomorrow?".into();
+            first.mime = None;
+            first.order = chrono::Utc::now().timestamp() - GUI_RECEIVED_AT;
+        }
     }
     if html {
         let port: u16 = std::env::var("MAILSTRONAUT_HTML_HTTP_PORT")
@@ -399,7 +409,7 @@ async fn seed_conversation_gui() {
                             starred: false,
                         },
                     },
-                    1_793_310_000 + *offset,
+                    GUI_RECEIVED_AT + *offset,
                     None,
                     raw.into_bytes(),
                 )
