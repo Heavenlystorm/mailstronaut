@@ -850,9 +850,11 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   original, read a thread, reply/attach/save/send, set a reminder and recover from
   offline/auth errors. Compare usability and code complexity, not visual similarity;
   add no unrelated features from the references. Show current app screenshots in chat.
-- [ ] Verify the HM-first settings round trip: declare, activate, change an allowed
+- [x] Verify the HM-first settings round trip: declare, activate, change an allowed
   mutable preference, restart, export to Nix, import into HM and activate again.
   Managed configuration and secrets must retain their stated ownership.
+  The [installed release and private keyring](evidence/P02-preferences.md#home-manager-ownership-transitions)
+  passed all four generations and the byte-for-byte GUI export comparison.
 - [ ] Ordinary HTML emails render reliably within documented Blitz limitations,
   remain network-silent by default and cannot execute active/native content or
   access local resources/other messages/credentials.

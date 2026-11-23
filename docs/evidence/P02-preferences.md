@@ -132,10 +132,19 @@ also passed with the pinned toolchain. They covered native escaping, cooperating
 and uncooperative writers, source ownership, omitted defaults, stale saves and
 last-valid behavior after an invalid reload.
 
-The module's `package` option installed the pinned development build of
-Mailstronaut `b5078a9` in the disposable Home Manager profile. The walkthrough
-used a private Wayland compositor and session bus. To repeat with the default
-release package, run the following under a disposable Unix account.
+The initial run used the pinned development build of Mailstronaut `b5078a9`.
+A second run at fixture revision `dca1bfd` used the normal stable LLVM release
+from `7f646b0`. All four generations installed
+`/nix/store/713zqza5r9npcpr49midlfg1723kj3zn-mailstronaut-0.1.0` through
+the module's package option. The restarted native GUI exported the same hash.
+A private GNOME Keyring stored a newly generated synthetic password under the
+account's configured reference. After reactivation a fresh keyring process
+retrieved the original value. Its bytes were absent from the old store target,
+final managed declaration, mutable backup and GUI export.
+
+The walkthrough used a private Wayland compositor, session bus and encrypted
+keyring. To repeat with the default release package, run the following under a
+disposable Unix account.
 
 ```sh
 nix develop .#gui-test --command bash ci/home-manager-activation.sh "" --gui-roundtrip
