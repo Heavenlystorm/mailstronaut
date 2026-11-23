@@ -312,11 +312,9 @@ fn a_move_given_up_on_shows_the_message_and_is_never_tried_again() {
         .expect("dismiss");
     drop(reopened);
     let store = Store::open(f.root.path()).expect("reopen after dismissal");
-    assert!(
-        store
-            .move_warnings(&accounts)
-            .expect("acknowledged")
-            .is_empty()
+    assert_eq!(
+        store.move_warnings(&accounts).expect("acknowledged"),
+        Vec::<(String, String)>::new()
     );
 }
 
@@ -335,11 +333,9 @@ fn a_transient_move_failure_leaves_no_permanent_warning_and_rebind_retires_it() 
         .expect("attempt");
     f.store.finish_move(&attempt, false).expect("transient");
     let accounts = ["a".to_owned()];
-    assert!(
-        f.store
-            .move_warnings(&accounts)
-            .expect("no warning")
-            .is_empty()
+    assert_eq!(
+        f.store.move_warnings(&accounts).expect("no warning"),
+        Vec::<(String, String)>::new()
     );
     f.store.retry_moves("a").expect("retry");
     let retry = f
@@ -351,11 +347,9 @@ fn a_transient_move_failure_leaves_no_permanent_warning_and_rebind_retires_it() 
     f.store
         .bind_mailbox_context("a", OTHER)
         .expect("new authenticated context");
-    assert!(
-        f.store
-            .move_warnings(&accounts)
-            .expect("retired")
-            .is_empty()
+    assert_eq!(
+        f.store.move_warnings(&accounts).expect("retired"),
+        Vec::<(String, String)>::new()
     );
 }
 

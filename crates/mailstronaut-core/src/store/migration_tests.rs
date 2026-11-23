@@ -18,11 +18,11 @@ fn upgrading_schema_sixteen_starts_existing_accounts_without_move_warnings() {
         .expect("schema sixteen");
     drop(database);
     let upgraded = Store::open(root.path()).expect("upgrade");
-    assert!(
+    assert_eq!(
         upgraded
             .move_warnings(&["existing".into()])
-            .expect("warnings")
-            .is_empty()
+            .expect("warnings"),
+        Vec::<(String, String)>::new()
     );
     let accounts: i64 = upgraded
         .connection
