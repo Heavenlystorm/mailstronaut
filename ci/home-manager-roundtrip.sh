@@ -34,13 +34,14 @@ activate "$immutable"
 [[ $(readlink -f "$current") == "$immutable" && -L $config && $(value 'c.managed') == true ]]
 original_target=$(readlink -f "$config")
 original_hash=$(checksum)
+original_accounts=$(value 'c.accounts')
 
 printf '%s\n' 'builtins.removeAttrs (import ./declared.nix) [ "accounts" ]' > "$work/mutable.nix"
 mutable=$(generation true "$work/mutable.nix")
 activate "$mutable"
 [[ $(readlink -f "$current") == "$mutable" && -f $config && ! -L $config && $(stat -c %a "$config") == 600 ]]
 [[ $(value 'c.managed') == false && $(sha256sum "$original_target" | cut -d' ' -f1) == "$original_hash" ]]
-[[ $(value 'map (a: a.id) (c.accounts or [])') == '["ownership"]' ]] || {
+[[ $(value 'c.accounts or []') == "$original_accounts" ]] || {
   printf '%s\n' 'Changing ownership dropped the now-undeclared account from the original configuration.' >&2
   exit 1
 }
@@ -75,6 +76,7 @@ expect_refusal 'replacing the edited mutable source' "$restored"
 HOME_MANAGER_BACKUP_EXT=before-managed activate "$restored"
 [[ $(readlink -f "$current") == "$restored" && -L $config && $(value 'c.managed') == true ]]
 [[ $(sha256sum "$config.before-managed" | cut -d' ' -f1) == "$before" ]]
+[[ $(value 'c.accounts') == "$original_accounts" ]]
 "$restored/home-path/bin/mailstronaut" config export --path "$config" > "$work/reimported.nix"
 cmp "$work/wayland/copied-export.nix" "$work/reimported.nix"
 printf 'OK: imported GUI export equals the managed generation, with a byte-identical backup of the previous source\nHome Manager GUI round trip: %s\n' "$work"
