@@ -59,6 +59,8 @@ GSETTINGS_BACKEND=memory AT_SPI_BUS_ADDRESS="$a11y" "$MAILSTRONAUT_ATSPI_LIBEXEC
 sleep .5
 kill -0 "$registry"
 export A11Y_ADDRESS=$a11y ARTIFACTS=$artifacts
+export MAILSTRONAUT_SCREEN_READER_FIXTURE
+MAILSTRONAUT_SCREEN_READER_FIXTURE=$(realpath "$(dirname "${BASH_SOURCE[0]}")/screen-reader.sh")
 
 config="$root/config.nix"
 cat > "$config" <<'NIX'
@@ -319,6 +321,8 @@ def capture(name):
 
 
 capture("accessibility-reader")
+if os.environ.get("MAILSTRONAUT_ORCA"):
+    subprocess.run(["bash", os.environ["MAILSTRONAUT_SCREEN_READER_FIXTURE"]], check=True, timeout=60)
 shortcut("ctrl", "n")
 checks["new_draft_focuses_named_recipient"] = has_focus("To recipients")
 shortcut("ctrl", "shift", "b")
