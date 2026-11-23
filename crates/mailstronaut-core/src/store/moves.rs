@@ -7,6 +7,8 @@ use rusqlite::{OptionalExtension as _, Row, TransactionBehavior, params};
 
 use super::{Error, Store};
 
+pub(super) const WARNING_SCHEMA: &str = "ALTER TABLE accounts ADD COLUMN move_unavailable INTEGER NOT NULL DEFAULT 0 CHECK(move_unavailable IN (0,1));";
+
 /// Hide a message as soon as its move is queued, and show it again if the move fails.
 pub(super) const SCHEMA: &str = "
 CREATE TABLE pending_moves (
@@ -283,15 +285,45 @@ impl Store {
     /// # Errors
     /// Rejects a stale attempt token and storage failures.
     pub fn abandon_move(&mut self, attempt: &MoveAttempt) -> Result<(), Error> {
-        let changed = self.connection.execute(
-            "DELETE FROM pending_moves WHERE id=?1 AND attempt_id=?2 AND state='submitted'",
-            params![attempt.id, attempt.token],
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (account, context): (String, String) = tx.query_row(
+            "DELETE FROM pending_moves WHERE id=?1 AND attempt_id=?2 AND state='submitted' RETURNING account_id,context",
+            params![attempt.id, attempt.token], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).optional()?.ok_or(Error::OperationConflict)?;
+        tx.execute(
+            "UPDATE accounts SET move_unavailable=1 WHERE id=?1 AND imap_context=?2",
+            params![account, context],
         )?;
-        if changed == 1 {
-            Ok(())
-        } else {
-            Err(Error::OperationConflict)
-        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Permanent single-message move refusals for the requested accounts.
+    ///
+    /// # Errors
+    /// Returns storage or serialization failures.
+    pub fn move_warnings(&self, accounts: &[String]) -> Result<Vec<(String, String)>, Error> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT id,imap_context FROM accounts WHERE move_unavailable=1 AND id IN (SELECT value FROM json_each(?1)) ORDER BY id"
+        )?;
+        let rows = statement.query_map([serde_json::to_string(accounts)?], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Acknowledge a refusal for the same authenticated mailbox only.
+    ///
+    /// # Errors
+    /// Returns storage failures.
+    pub fn dismiss_move_warning(&mut self, account: &str, context: &str) -> Result<(), Error> {
+        self.connection.execute(
+            "UPDATE accounts SET move_unavailable=0 WHERE id=?1 AND imap_context=?2",
+            params![account, context],
+        )?;
+        Ok(())
     }
 
     /// Explicitly requeue failed moves for this unchanged account.

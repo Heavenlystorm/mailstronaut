@@ -28,7 +28,7 @@ pub mod retention;
 pub mod search;
 pub mod semantic;
 
-const SCHEMA_VERSION: u32 = 16;
+const SCHEMA_VERSION: u32 = 17;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -192,6 +192,7 @@ impl Store {
             M::up(backfill::SCHEMA).foreign_key_check(),
             M::up(semantic::SCHEMA).foreign_key_check(),
             M::up(analysis::DEADLINE_CORRECTIONS_SCHEMA).foreign_key_check(),
+            M::up(moves::WARNING_SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
