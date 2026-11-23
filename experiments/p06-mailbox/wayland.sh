@@ -82,6 +82,16 @@ MAILSTRONAUT_MAILBOX_NAVIGATION=$navigation_seed "$fixture" seed_conversation_gu
 if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
   "${MAILSTRONAUT_LONG_THREAD_FIXTURE:?prebuilt long-thread fixture}" --ignored --exact seed_long_thread > "$root/long-seed.log" 2>&1
 fi
+if [[ ${MAILSTRONAUT_INDEX_PROGRESS_GUI:-0} == 1 ]]; then
+  # A backlog of canonical deletion records puts a real fuzzy match in the final
+  # batch. The app observes the same queue when rebuilding a previously purged index.
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYQUEUE'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.executemany("INSERT INTO search_pending(message_id) VALUES (?)",
+                   ((number,) for number in range(100000, 132768)))
+PYQUEUE
+fi
 if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
   mv "$config" "$root/seeded-config.nix"
 fi
@@ -158,16 +168,6 @@ copy_body() {
   done
   return 1
 }
-if [[ ${MAILSTRONAUT_INDEX_PROGRESS_GUI:-0} == 1 ]]; then
-  # A backlog of canonical deletion records puts a real fuzzy match in the final
-  # batch. The app observes the same queue when rebuilding a previously purged index.
-  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYQUEUE'
-import sqlite3, sys
-with sqlite3.connect(sys.argv[1]) as db:
-    db.executemany("INSERT INTO search_pending(message_id) VALUES (?)",
-                   ((number,) for number in range(100000, 132768)))
-PYQUEUE
-fi
 start initial
 sleep 1
 capture initial
