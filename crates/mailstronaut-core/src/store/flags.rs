@@ -108,7 +108,7 @@ impl Store {
                 [account],
             )?;
             tx.execute(
-                "UPDATE accounts SET imap_context=?2 WHERE id=?1",
+                "UPDATE accounts SET imap_context=?2,move_unavailable=0 WHERE id=?1",
                 params![account, context],
             )?;
         }

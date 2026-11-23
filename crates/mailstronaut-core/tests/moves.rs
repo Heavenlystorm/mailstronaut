@@ -17,7 +17,7 @@ const fn nz(value: u32) -> NonZeroU32 {
 }
 
 struct Fixture {
-    _root: tempfile::TempDir,
+    root: tempfile::TempDir,
     store: Store,
     inbox: i64,
     archive: i64,
@@ -40,7 +40,7 @@ fn fixture() -> Fixture {
         folder("Sent", false, 44),
     );
     Fixture {
-        _root: root,
+        root,
         store,
         inbox,
         archive,
@@ -289,6 +289,73 @@ fn a_move_given_up_on_shows_the_message_and_is_never_tried_again() {
     assert!(
         f.store.abandon_move(&attempt).is_err(),
         "a stale attempt changes nothing"
+    );
+    drop(f.store);
+    let mut reopened = Store::open(f.root.path()).expect("reopen");
+    let accounts = ["a".to_owned()];
+    let expected = [("a".to_owned(), CONTEXT.to_owned())];
+    assert_eq!(
+        reopened.move_warnings(&accounts).expect("warning"),
+        expected
+    );
+    reopened
+        .dismiss_move_warning("a", OTHER)
+        .expect("stale dismissal");
+    assert_eq!(
+        reopened
+            .move_warnings(&accounts)
+            .expect("still belongs to original"),
+        expected
+    );
+    reopened
+        .dismiss_move_warning("a", CONTEXT)
+        .expect("dismiss");
+    drop(reopened);
+    let store = Store::open(f.root.path()).expect("reopen after dismissal");
+    assert!(
+        store
+            .move_warnings(&accounts)
+            .expect("acknowledged")
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_transient_move_failure_leaves_no_permanent_warning_and_rebind_retires_it() {
+    let mut f = fixture();
+    let inbox = f.inbox;
+    let message = add(&mut f, inbox, 42, 1, "temporary@example.test");
+    f.store
+        .queue_move("a", message, None, "Archive", CONTEXT)
+        .expect("queue");
+    let attempt = f
+        .store
+        .begin_move("a", CONTEXT)
+        .expect("claim")
+        .expect("attempt");
+    f.store.finish_move(&attempt, false).expect("transient");
+    let accounts = ["a".to_owned()];
+    assert!(
+        f.store
+            .move_warnings(&accounts)
+            .expect("no warning")
+            .is_empty()
+    );
+    f.store.retry_moves("a").expect("retry");
+    let retry = f
+        .store
+        .begin_move("a", CONTEXT)
+        .expect("claim")
+        .expect("retry");
+    f.store.abandon_move(&retry).expect("unsupported");
+    f.store
+        .bind_mailbox_context("a", OTHER)
+        .expect("new authenticated context");
+    assert!(
+        f.store
+            .move_warnings(&accounts)
+            .expect("retired")
+            .is_empty()
     );
 }
 

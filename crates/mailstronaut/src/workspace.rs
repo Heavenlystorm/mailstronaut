@@ -245,6 +245,7 @@ pub struct Workspace {
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
     cancelled_fetches: BTreeSet<String>,
     sync_errors: BTreeMap<String, crate::mail_sync::Failure>,
+    move_warnings: BTreeMap<String, String>,
     history: Option<Vec<FolderCoverage>>,
     history_task: Task<()>,
     last_sync: String,
@@ -277,6 +278,7 @@ struct AttachmentDownload;
 type ListPage = (
     Vec<Folder>,
     Vec<(i64, u32)>,
+    Vec<(String, String)>,
     Vec<mailstronaut_core::store::conversations::Summary>,
     Priority,
 );
@@ -765,6 +767,7 @@ impl Workspace {
             sync_progress: BTreeMap::new(),
             cancelled_fetches: BTreeSet::new(),
             sync_errors: BTreeMap::new(),
+            move_warnings: BTreeMap::new(),
             history: None,
             history_task: Task::ready(()),
             last_sync: String::new(),
@@ -958,6 +961,7 @@ impl Workspace {
     ) {
         self.account_lifetime.cancel();
         self.account_lifetime = self.lifetime.child_token();
+        self.move_warnings.clear();
         self.account_events.clear();
         self.account_views.clear();
         let Some(handle) = self.handle() else {
@@ -1300,7 +1304,18 @@ impl Workspace {
     }
 
     fn show_page(&mut self, page: ListPage, window: &mut Window, cx: &mut Context<Self>) {
-        let (folders, unread, rows, group) = page;
+        let (folders, unread, warnings, rows, group) = page;
+        self.move_warnings = warnings
+            .into_iter()
+            .filter(|(id, context)| {
+                self.declaration
+                    .active()
+                    .and_then(|config| config.accounts.iter().find(|account| &account.id == id))
+                    .and_then(|account| mailstronaut_core::store::flags::context(account).ok())
+                    .as_ref()
+                    == Some(context)
+            })
+            .collect();
         self.watch_priority_expiry(&group.rows, window, cx);
         self.folders = folders;
         self.unread = unread
@@ -1402,6 +1417,10 @@ impl Workspace {
                 .unread_counts(accounts.clone())
                 .await
                 .map_err(|error| error.to_string())?;
+            let warnings = handle
+                .move_warnings(accounts.clone())
+                .await
+                .map_err(|error| error.to_string())?;
             let group = if show_priority {
                 priority_rows(&handle, accounts.clone(), show_all)
                     .await
@@ -1421,7 +1440,7 @@ impl Workspace {
                 filter,
             )
             .await?;
-            Ok((folders, unread, rows, group))
+            Ok((folders, unread, warnings, rows, group))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
@@ -1877,21 +1896,11 @@ impl Workspace {
         &mut self,
         account: &str,
         failure: Option<mailstronaut_mail::imap::Error>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
     ) {
         use mailstronaut_mail::imap::Error;
         match failure {
-            Some(Error::MoveUnavailable) => {
+            None | Some(Error::MoveUnavailable) => {
                 self.sync_errors.remove(account);
-                window.push_notification(
-                    Notification::warning(
-                        "This mail server cannot safely move a single message, so it stayed where it was.",
-                    )
-                    .delivery(NotificationDelivery::InApp)
-                    .autohide(false),
-                    cx,
-                );
             }
             Some(error) => {
                 self.sync_errors.insert(
@@ -1901,9 +1910,6 @@ impl Workspace {
                         retry_after: None,
                     },
                 );
-            }
-            None => {
-                self.sync_errors.remove(account);
             }
         }
     }
@@ -1960,7 +1966,7 @@ impl Workspace {
                 self.finish_sync(&account, cx);
                 match result {
                     Ok(cycle) => {
-                        self.report_move_failure(&account, cycle.move_failure, window, cx);
+                        self.report_move_failure(&account, cycle.move_failure);
                         self.last_sync = chrono::Local::now().format("%H:%M").to_string();
                         if cycle.downloaded > 0
                             || cycle.refreshed > 0
@@ -2152,6 +2158,48 @@ impl Workspace {
                         })),
                 )
         })
+    }
+
+    fn permanent_move_alert(&self, cx: &Context<Self>) -> impl IntoElement {
+        div().when_some(self.move_warnings.iter().next(), |view, (account, context)| {
+            let (id, context) = (account.clone(), context.clone());
+            let name = self.declaration.active().and_then(|config| config.accounts.iter().find(|item| &item.id == account))
+                .map_or(account.as_str(), |item| item.display_name.as_str());
+            view.child(Alert::warning(format!("move-refused-{account}"),
+                "This mail server cannot safely move a single message. The message stayed in its original folder.")
+                .title(name.to_owned())
+                .on_close(cx.listener(move |this, _, window, cx| {
+                    this.dismiss_move_warning(id.clone(), context.clone(), window, cx);
+                })))
+        })
+    }
+
+    fn dismiss_move_warning(
+        &self,
+        account: String,
+        context: String,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
+        let Some(handle) = self.handle() else { return };
+        let revision = self.declaration.revision();
+        let job = self
+            .runtime
+            .spawn(async move { handle.dismiss_move_warning(account, context).await });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = job.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if revision == this.declaration.revision() {
+                    if matches!(result, Ok(Ok(()))) {
+                        this.refresh_rows(window, cx);
+                    } else {
+                        this.status = "Unable to dismiss the move warning.".into();
+                        cx.notify();
+                    }
+                }
+            });
+        })
+        .detach();
     }
 }
 
@@ -2871,6 +2919,7 @@ impl Workspace {
             .flex()
             .flex_col()
             .child(self.sync_alert(cx))
+            .child(self.permanent_move_alert(cx))
             .when(
                 self.search_mode == SearchMode::Related && related_intent(&self.query),
                 |view| {

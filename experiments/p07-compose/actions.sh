@@ -149,6 +149,23 @@ if [[ $variant == neither ]]; then
   await 'new mail still arrives after the refusal' 5 'SELECT count(*) FROM messages'
   sleep 2
   capture still-syncing
+  warning="SELECT move_unavailable FROM accounts WHERE id='actions-neither'"
+  await 'the permanent warning survived a successful sync' 1 "$warning"
+  close_window
+  start warning-restart
+  await 'the refusal survived restart' 1 "$warning"
+  sleep 1
+  capture warning-restarted
+  click 542 117
+  await 'the user acknowledged the stored warning' 0 "$warning"
+  close_window
+  start warning-dismissed
+  sleep 1
+  [[ $(query "$warning") == 0 && $(query 'SELECT count(*) FROM pending_moves') == 0 ]]
+  [[ $(query "$in_inbox") == 5 ]]
+  server_flags INBOX marker-delta > /dev/null
+  capture warning-dismissed
+  printf '%s\n' 'OK: dismissal survived a second restart and all five messages remained in the inbox'
 elif [[ $variant == no-move ]]; then
   # Another client has marked a message for deletion. A plain EXPUNGE would destroy it.
   other_client delete-without-expunge marker-alpha
