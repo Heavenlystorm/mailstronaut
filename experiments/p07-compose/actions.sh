@@ -193,17 +193,20 @@ else
   done
   grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt"
   row_menu
-  wtype -k Down -k Down -k Return -s 400
+  click 388 316
   await 'explicit row-menu Mark read updates charlie' 2 "$seen"
+  sleep 1
   row_menu
-  wtype -k Down -k Down -k Return -s 400
+  capture row-context-read
+  click 388 316
   await 'explicit row-menu Mark unread restores charlie' 1 "$seen"
   row_menu
-  wtype -k Down -k Down -k Down -k Down -k Return -s 400
+  click 387 371
   await 'the row menu archived charlie, leaving delta in view' 'Synthetic charlie' 'SELECT m.subject FROM pending_moves p JOIN messages m ON p.message_id=m.id'
   click 1205 76
   await 'Undo restored the context-menu move' 4 "$in_inbox"
   [[ $(query "$seen") == 1 ]]
+  for _ in {1..50}; do [[ $(server_flags INBOX marker-charlie) != *S* ]] && break; sleep .2; done
   [[ $(server_flags INBOX marker-charlie) != *S* ]]
   printf '%s\n' 'OK: opening, dismissing and acting on the row menu kept charlie unread and delta open'
   # Undo within the grace period: back at once, and the server never hears of it.
