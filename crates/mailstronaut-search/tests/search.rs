@@ -329,7 +329,10 @@ fn the_index_persists_and_a_damaged_one_is_rebuilt_while_a_busy_one_is_left_alon
     drop(Index::open(&path).expect("create before queuing documents"));
     {
         let opened = Index::open(&path).expect("open");
-        assert!(opened.fresh, "an empty committed index still needs the canonical originals");
+        assert!(
+            opened.fresh,
+            "an empty committed index still needs the canonical originals"
+        );
         opened.index.apply(corpus()).expect("apply");
         // A second process must not be able to take over, or discard, an index in use.
         assert_eq!(Index::open(&path).err(), Some(Error::Busy));
