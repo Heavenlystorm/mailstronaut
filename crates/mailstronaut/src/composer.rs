@@ -779,7 +779,8 @@ impl Composer {
         // chooser is open and order the attachment transaction after that write.
         let pending = self.unsaved().map(|draft| {
             let store = store.clone();
-            self.runtime.spawn(async move { save_snapshot(&store, draft).await })
+            self.runtime
+                .spawn(async move { save_snapshot(&store, draft).await })
         });
         self.activity = Activity::Attaching;
         self.error = None;
@@ -794,13 +795,17 @@ impl Composer {
             let selection = paths.await;
             let job = runtime.spawn(async move {
                 if let Some(pending) = pending {
-                    pending.await.map_err(|_| "Saving the draft was interrupted.")?
+                    pending
+                        .await
+                        .map_err(|_| "Saving the draft was interrupted.")?
                         .map_err(|error| error.to_string())?;
                 }
                 let paths = match selection {
                     Ok(Ok(Some(paths))) => paths,
                     Ok(Ok(None)) => return Ok(draft),
-                    _ => return Err("The file chooser is unavailable. Nothing was attached.".into()),
+                    _ => {
+                        return Err("The file chooser is unavailable. Nothing was attached.".into());
+                    }
                 };
                 let files = tokio::task::spawn_blocking(move || read_files(paths, remaining))
                     .await
