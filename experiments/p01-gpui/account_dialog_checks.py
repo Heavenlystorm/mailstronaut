@@ -52,13 +52,26 @@ def check_workflows(walk, wait_tree, key, shortcut, focused_name, capture, gdbus
     checks["new_account_email_keyboard_focus"] = focused("Email address")
 
     shortcut("ctrl", "n")
-    click_named("Discard draft", 43)
+    assert focused("To recipients")
+    recipient = "draft-cancel@example.invalid"
+    subprocess.run(["wtype", recipient], check=True)
+    # Walk back through the composer toolbar, keeping keyboard focus on the
+    # actual trigger so the modal has a meaningful focus restoration target.
+    for _ in range(8):
+        shortcut("shift", "Tab")
+        if "Discard draft" in focused_name(walk()):
+            break
+    checks["discard_trigger_keyboard_focus"] = focused("Discard draft")
+    assert checks["discard_trigger_keyboard_focus"], "Discard draft is unreachable from the editor"
+    key("Return")
     dialog = wait_tree(lambda tree: any(n["name"] == "Discard" for n in tree))
     (artifacts / "discard-dialog-tree.json").write_text(json.dumps(dialog, indent=2))
     checks["discard_dialog_exposes_choices"] = {"Cancel", "Discard"} <= {n["name"] for n in dialog}
     capture("discard-dialog")
     key("Escape")
     returned = wait_tree(lambda tree: not any(n["name"] == "Discard" for n in tree))
-    checks["discard_escape_retains_draft"] = "To recipients" in {n["name"] for n in returned}
-    checks["discard_escape_restores_focus"] = "Discard draft" in focused_name(returned)
+    node = next(n for n in returned if n["name"] == "To recipients" and n["role"] == 79)
+    address = literal(gdbus(node["bus"], node["path"], "org.a11y.atspi.Text.GetText", "--", "0", "-1"))[0]
+    checks["discard_escape_retains_draft"] = address == recipient
+    checks["discard_escape_restores_focus"] = focused("Discard draft")
     return checks
