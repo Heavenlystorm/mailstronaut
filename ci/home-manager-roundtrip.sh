@@ -35,6 +35,7 @@ activate "$immutable"
 original_target=$(readlink -f "$config")
 original_hash=$(checksum)
 original_accounts=$(value 'c.accounts')
+"$immutable/home-path/bin/mailstronaut" config export --path "$config" > "$work/original-export.nix"
 
 printf '%s\n' 'builtins.removeAttrs (import ./declared.nix) [ "accounts" ]' > "$work/mutable.nix"
 mutable=$(generation true "$work/mutable.nix")
@@ -76,7 +77,7 @@ expect_refusal 'replacing the edited mutable source' "$restored"
 HOME_MANAGER_BACKUP_EXT=before-managed activate "$restored"
 [[ $(readlink -f "$current") == "$restored" && -L $config && $(value 'c.managed') == true ]]
 [[ $(sha256sum "$config.before-managed" | cut -d' ' -f1) == "$before" ]]
-[[ $(value 'c.accounts') == "$original_accounts" ]]
+[[ $(value 'c.accounts') == "$(nix eval --json --impure --expr "(import \"$work/original-export.nix\").accounts")" ]]
 "$restored/home-path/bin/mailstronaut" config export --path "$config" > "$work/reimported.nix"
 cmp "$work/wayland/copied-export.nix" "$work/reimported.nix"
 printf 'OK: imported GUI export equals the managed generation, with a byte-identical backup of the previous source\nHome Manager GUI round trip: %s\n' "$work"
