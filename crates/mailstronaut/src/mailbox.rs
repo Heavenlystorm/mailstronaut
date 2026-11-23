@@ -164,6 +164,7 @@ pub struct Rows {
     pub show_all_priority: bool,
     pub loading: bool,
     pub searching: bool,
+    pub indexing_words: bool,
     pub has_accounts: bool,
     pub time_zone: String,
     /// Called with a row's message when the user dismisses it from the priority group.
@@ -516,14 +517,19 @@ impl ListDelegate for Rows {
         _: &mut Window,
         _: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
+        let incomplete = self.searching && self.indexing_words;
         Empty::new().header(
             EmptyHeader::new()
-                .title(EmptyTitle::new().child(if self.searching {
+                .title(EmptyTitle::new().child(if incomplete {
+                    "Searching indexed mail"
+                } else if self.searching {
                     "No cached matches"
                 } else {
                     "No cached mail"
                 }))
-                .description(EmptyDescription::new().child(if self.searching {
+                .description(EmptyDescription::new().child(if incomplete {
+                    "Results will update when the search index is ready."
+                } else if self.searching {
                     "Try a different query. Only locally cached text is searched."
                 } else if self.has_accounts {
                     "Use Sync mail to check for messages."

@@ -32,6 +32,7 @@ use gpui::component::{
     resizable::{h_resizable, resizable_panel},
     setting::{SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarGroup, SidebarItem as _, SidebarMenu, SidebarMenuItem},
+    spinner::Spinner,
     status_bar::StatusBar,
     tab::{Tab, TabBar},
     toolbar::{Toolbar, ToolbarGroup},
@@ -875,7 +876,7 @@ impl Workspace {
                     Ok(Ok((owner, config, ownership))) => {
                         this.startup_error = None;
                         this.owner = owner;
-                        this.start_search();
+                        this.start_search(window, cx);
                         if this.declaration.apply(config) {
                             this.retire_open(window, cx);
                             this.list.update(cx, |list, cx| {
@@ -1267,7 +1268,7 @@ impl Workspace {
         .detach();
     }
 
-    fn start_search(&mut self) {
+    fn start_search(&mut self, window: &Window, cx: &Context<Self>) {
         if self.fuzzy.is_some() {
             return;
         }
@@ -1279,12 +1280,47 @@ impl Workspace {
             .data_local_dir()
             .join("mailstronaut")
             .join("search");
-        self.fuzzy = Some(crate::mail_search::MailSearch::start(
+        let index = crate::mail_search::MailSearch::start(
             &self.runtime,
             directory,
             store,
             self.lifetime.child_token(),
-        ));
+        );
+        let mut progress = index.progress();
+        self.fuzzy = Some(index);
+        cx.spawn_in(window, async move |this, cx| {
+            while progress.changed().await.is_ok() {
+                // Coalesce small batches into occasional status updates during a long rebuild.
+                cx.background_executor()
+                    .timer(Duration::from_millis(150))
+                    .await;
+                let ready = *progress.borrow_and_update() == Some(0);
+                if this
+                    .update_in(cx, |this, window, cx| {
+                        let partial = !ready && this.search_mode == SearchMode::Words;
+                        this.list.update(cx, |list, cx| {
+                            if list.delegate().indexing_words != partial {
+                                list.delegate_mut().indexing_words = partial;
+                                cx.notify();
+                            }
+                        });
+                        if ready
+                            && this.view == View::Inbox
+                            && this.search_mode == SearchMode::Words
+                            && (!this.query.trim().is_empty() || !this.filter.is_empty())
+                        {
+                            this.refresh_rows(window, cx);
+                        } else {
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
     }
 
     fn page_status(&self, count: usize) -> String {
@@ -1296,21 +1332,13 @@ impl Workspace {
     }
 
     fn lexical_page_status(&self, count: usize) -> String {
-        let waiting = self
-            .fuzzy
-            .as_ref()
-            .map_or(0, crate::mail_search::MailSearch::queued);
         if self.search_mode == SearchMode::Related && related_intent(&self.query) {
             format!("{count} related conversations · suggested by meaning")
         } else if self.query.trim().is_empty() && self.filter.is_empty() {
             format!("{count} cached conversations · local cache")
         } else {
             let matches = if count == 1 { "match" } else { "matches" };
-            if waiting > 0 {
-                format!("{count} {matches} · {waiting} messages not searchable yet")
-            } else {
-                format!("{count} {matches} · searched local cache")
-            }
+            format!("{count} {matches} · searched local cache")
         }
     }
 
@@ -1385,6 +1413,8 @@ impl Workspace {
             let rows = list.delegate_mut();
             rows.loading = true;
             rows.searching = !query.is_empty() || !filter.is_empty();
+            rows.indexing_words = self.search_mode == SearchMode::Words
+                && self.fuzzy.as_ref().is_some_and(|index| index.queued() > 0);
             rows.has_accounts = !accounts.is_empty();
             cx.notify();
         });
@@ -3843,6 +3873,17 @@ impl Render for Workspace {
                                 .when(self.view != View::Compose, |row| {
                                     row.child(self.sync_status())
                                 })
+                                .when_some(
+                                    self.fuzzy
+                                        .as_ref()
+                                        .map(crate::mail_search::MailSearch::queued)
+                                        .filter(|count| *count > 0 && self.view == View::Inbox),
+                                    |row, count| {
+                                        row.child(Spinner::new()).child(format!(
+                                            "Updating search index · {count} pending"
+                                        ))
+                                    },
+                                )
                                 .children(self.fetch_progress(cx))
                                 .children(self.cancelled_fetches.iter().map(|account| {
                                     div().child(format!("{account} · fetch cancelled"))

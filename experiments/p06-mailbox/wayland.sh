@@ -82,6 +82,16 @@ MAILSTRONAUT_MAILBOX_NAVIGATION=$navigation_seed "$fixture" seed_conversation_gu
 if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
   "${MAILSTRONAUT_LONG_THREAD_FIXTURE:?prebuilt long-thread fixture}" --ignored --exact seed_long_thread > "$root/long-seed.log" 2>&1
 fi
+if [[ ${MAILSTRONAUT_INDEX_PROGRESS_GUI:-0} == 1 ]]; then
+  # A backlog of canonical deletion records puts a real fuzzy match in the final
+  # batch. The app observes the same queue when rebuilding a previously purged index.
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYQUEUE'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.executemany("INSERT INTO search_pending(message_id) VALUES (?)",
+                   ((number,) for number in range(100000, 132768)))
+PYQUEUE
+fi
 if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
   mv "$config" "$root/seeded-config.nix"
 fi
@@ -222,6 +232,24 @@ sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_INDEX_PROGRESS_GUI:-0} == 1 ]]; then
+  database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
+  remaining() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute("SELECT COUNT(*) FROM search_pending").fetchone()[0])' "$database"; }
+  wtype -M ctrl k -m ctrl -s 120 'unrelatd' -s 400
+  [[ $(remaining) -gt 64 ]]
+  capture indexing-active
+  for _ in {1..1200}; do [[ $(remaining) == 0 ]] && break; kill -0 "$app"; sleep .1; done
+  [[ $(remaining) == 0 ]]
+  sleep 1
+  capture indexing-complete
+  check_seen
+  click 350 150
+  sleep .5
+  copy_body indexed 'Synthetic unrelated same-subject message.'
+  check_seen unrelated
+  printf 'Active search refreshed without typing again: %s\n' "$root"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
   click 280 120
   sleep 1

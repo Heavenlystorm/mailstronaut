@@ -276,11 +276,12 @@ new dependency graph before claiming current-package acceptance.
   revision-fenced stable conversations and the 37-case upstream conformance corpus.
 - [x] Complete [missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior](evidence/P03-scale.md#late-sent-ancestry-at-the-account-limit)
   at measured mailbox scale; sequence numbers never become persistent identity.
-- [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
+- [x] Verify paginated unified/search projections, derived-index purge/rebuild,
   partial-cache states and bounded 100k-message behavior. See P06 for strong search.
   [Queries are measured at 100k and an over-limit account still lists its
   mail](evidence/P03-scale.md); [scoped history coverage](evidence/P04-history.md#scoped-cache-coverage)
   distinguishes interrupted and capped history.
+  [Live indexing, query refresh and 100,000-message measurements](evidence/P03-index-progress.md).
   Rebuild progress uses `Spinner`, or `Progress` only with a known bounded total;
   [components present store state](INTERFACE.md#p03-store-and-p04-synchronization), not persistence logic.
 
