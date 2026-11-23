@@ -27,6 +27,9 @@ server really advertises, using Dovecot's own `imap_capability` setting.
 
 With **MOVE and UIDPLUS**:
 
+The [message row context actions](P07-row-actions.md) also run in this private
+session with a different message open in the reader.
+
 - Archive hides the message at once, right after opening it, which is the case that used to fail.
 - Undo brings it back, and past the grace period the server still has it in the inbox.
 - Without Undo, UID MOVE reaches the server and the other messages stay where they were.
