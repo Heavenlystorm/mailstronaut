@@ -22,6 +22,36 @@ click 912 528
 check_seen first second
 capture navigation-details
 click 912 528
+if [[ ${MAILSTRONAUT_ORIGINAL_ACTIONS_GUI:-0} == 1 ]]; then
+  # The first reply is open, though the list originally opened its newer sibling.
+  wtype -M alt s -m alt -s 450 -M alt u -m alt -s 500
+  check_seen second
+  wtype -M alt r -m alt -s 750
+  capture reply-to-older-original
+  python3 - "$root" <<'PYORIGINAL'
+import json, sqlite3, sys, time
+from pathlib import Path
+root = Path(sys.argv[1])
+ids = json.loads((root / 'conversation-ids.json').read_text())
+db = sqlite3.connect(root / 'data/mailstronaut/mail.sqlite3')
+for _ in range(100):
+    row = db.execute('SELECT content,closed FROM drafts').fetchone()
+    if row:
+        break
+    time.sleep(.1)
+assert row and not row[1], row
+draft = json.loads(row[0])
+assert draft['in_reply_to'] == 'first@example.test', draft['in_reply_to']
+assert 'alice@example.test' in draft['to'] and 'bob@example.test' not in draft['to']
+assert '> Synthetic first reply.' in draft['body'] and 'Synthetic second reply.' not in draft['body']
+starred = {row[0] for row in db.execute('SELECT message_id FROM effective_memberships WHERE starred=1')}
+assert starred == {ids['first']}, starred
+assert db.execute('SELECT count(*) FROM outbox').fetchone()[0] == 0
+print('Star, unread and an unsent reply all targeted the explicitly opened older original.')
+PYORIGINAL
+  printf 'Per-original acceptance: %s\n' "$root"
+  exit 0
+fi
 wtype -M ctrl -M shift d -m shift -m ctrl -s 400
 capture navigation-dark
 swaymsg output HEADLESS-1 mode 960x720 > /dev/null
