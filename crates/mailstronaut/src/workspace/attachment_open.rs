@@ -14,12 +14,12 @@ impl Workspace {
             ("open-cached-attachment", "save-cached-attachment")
         };
         AttachmentActions::new()
-            .child(Button::new((save_id, index)).ghost().label("Save…")
+            .child(Button::new((save_id, index)).ghost().label("Saveâ€¦")
                 .accessibility_label(format!("Save {name}")).on_click(cx.listener(move |this, _, window, cx| {
                     if remote { this.save_remote_attachment(index, window, cx); }
                     else { this.save_attachment(index, window, cx); }
                 })))
-            .child(Button::new((open_id, index)).ghost().label("Open…")
+            .child(Button::new((open_id, index)).ghost().label("Openâ€¦")
                 .accessibility_label(format!("Open {name}")).on_click(cx.listener(move |this, _, window, cx| {
                     this.open_attachment(index, remote, window, cx);
                 })))
