@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn pointer_selection_uses_painted_layout_and_original_unicode_in_either_direction() {
-        let html = "<style>body,p{margin:0}p{font:14px monospace;line-height:24px}</style><div style='height:200px'></div><p>Café</p><p>世界</p>";
+        let html = "<style>body,p { margin: 0; } p { font: 14px monospace; line-height: 24px; }</style><div style='height:200px'></div><p>Café</p><p>世界</p>";
         let mut doc = Document::new(html, &[]).expect("bounded synthetic mail");
         let view = View {
             width: 200,
