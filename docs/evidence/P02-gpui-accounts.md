@@ -39,6 +39,9 @@ Ctrl+K from Settings returns to the inbox and focuses its visible search field,
 rather than leaving focus in a hidden entity; this is covered by the native
 clipboard/query walkthrough without authorizing Seen.
 
+The [composer reload fixture](P02-composer-reload.md) covers account changes
+during submission, outbox retry and local draft recovery.
+
 Only an explicit successful original-content open can authorize Seen. List, sync,
 search, configuration reload, settings visibility and focus do not do so. Missing
 readable content does not consume the authorization as a successful read. The

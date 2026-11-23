@@ -1,0 +1,50 @@
+   Compiling mailstronaut-config v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-config)
+   Compiling mailstronaut-models v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-models)
+   Compiling mailstronaut-render v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-render)
+   Compiling mailstronaut-priority v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-priority)
+   Compiling mailstronaut-search v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-search)
+   Compiling mailstronaut-mail v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-mail)
+   Compiling mailstronaut-core v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-core)
+   Compiling mailstronaut v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.61s
+   Compiling mailstronaut-config v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-config)
+   Compiling mailstronaut-mail v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-mail)
+   Compiling mailstronaut-core v0.1.0 (/sources/p02-composer-lifetime-e133a5f1ef07/crates/mailstronaut-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.67s
+OK: an unverifiable certificate stops the send before any data (failed:0)
+OK: the unverifiable certificate sent no data
+OK: selected draft recovery committed for its original account (cancelled:0)
+OK: the recovered draft stayed out of the replacement editor
+OK: a refused sign-in stops the send before any data (failed:0)
+OK: the refused sign-in sent no data
+OK: retrying after the sign-in is accepted (accepted:0)
+OK: cancelling an in-flight send leaves it cancelled (cancelled:0)
+OK: the cancelled send submitted nothing
+OK: old account send is waiting for SMTP (pending:0)
+OK: account replacement cancels the original send (cancelled:0)
+OK: original login is refused before Retry (failed:0)
+OK: Retry reaches a pending SMTP attempt (pending:0)
+OK: account replacement cancels the outbox retry (cancelled:0)
+OK: a send stopped before submission is still queued after a crash
+OK: restarting neither sent the queued message nor contacted the server
+OK: cancelling the restarted queued message leaves it cancelled (cancelled:0)
+OK: the cancelled queued message submitted nothing
+Send failure acceptance: /sources/p02-composer-lifetime-e133a5f1ef07/target/p02.mJpN8E/failures-gui
+wl_display_dispatch: Broken pipe
+
+running 1 test
+Quiet native lookup created no collections; default alias before/after session: ///org/freedesktop/secrets/collection/login.
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.21s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /sources/p02-composer-lifetime-e133a5f1ef07/target/p02.mJpN8E
