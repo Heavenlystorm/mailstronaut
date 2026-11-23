@@ -117,7 +117,8 @@ await 'the text of the large message is searchable' 1 "SELECT count(*) FROM mess
 sleep 2
 capture listed
 
-requests() { wc -l < "$artifacts/chooser-requests.jsonl" 2> /dev/null || echo 0; }
+touch "$artifacts/chooser-requests.jsonl"
+requests() { wc -l < "$artifacts/chooser-requests.jsonl"; }
 # Answer the next dialog, click, and wait until the dialog has been asked.
 choose() {
   local answer=$1 x=$2 y=$3 before
@@ -152,11 +153,13 @@ capture large-opened
 await 'opening it marked it read' 1 "SELECT count(*) FROM effective_memberships s JOIN messages m ON m.id=s.message_id WHERE s.seen=1 AND m.subject='Rapport énorme'"
 
 # Saving it with the real button: the attachment comes from the server only now.
-sessions=$(grep -c 'Logged in' "$dovecot_root/dovecot.log" || true)
-(( sessions > 0 ))
+# Count transfers of the large part. The background Seen/IDLE sessions can
+# legitimately sign in while the application chooser is open.
+large_transfers() { grep -Ec 'body_bytes=[1-9][0-9]{7,}' "$dovecot_root/dovecot.log" || true; }
+[[ $(large_transfers) == 0 ]]
 choose cancel 708 412
 sleep 2
-[[ $(grep -c 'Logged in' "$dovecot_root/dovecot.log" || true) == "$sessions" ]]
+[[ $(large_transfers) == 0 ]]
 printf '%s\n' 'OK: a cancelled save asked the server for nothing'
 choose deny 708 412
 sleep 2
@@ -173,6 +176,7 @@ assert last == {"method": "SaveFile", "suggested": "rapport-huge.pdf"}, last
 print("OK: the dialog suggested the decoded file name")
 PY
 sleep 1
+[[ $(large_transfers) == 1 ]]
 capture saved
 
 # Open uses a read-only descriptor on the application chooser. It must never
@@ -204,7 +208,7 @@ sleep .4
 capture opened-cached-attachment
 close_window
 [[ $(preview_count) == 0 ]]
-printf '%s\n' 'OK: refusal released its preview, repeated Open reused the file and quitting removed the previews' 
+printf '%s\n' 'OK: refusal released its preview, repeated Open reused the file and quitting removed the previews'
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then
   printf '%s\n' 'Synthetic credential appeared in an application log' >&2; exit 1
