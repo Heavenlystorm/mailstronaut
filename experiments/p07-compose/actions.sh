@@ -122,6 +122,12 @@ await_server() {
 }
 in_inbox="SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.is_inbox=1"
 open_newest() { click 350 150; sleep 1; }
+row_menu() {
+  swaymsg seat seat0 cursor set 350 270 > /dev/null
+  swaymsg seat seat0 cursor press button3 > /dev/null
+  swaymsg seat seat0 cursor release button3 > /dev/null
+  sleep .4
+}
 
 start initial
 await 'the inbox was cached' 4 'SELECT count(*) FROM messages'
@@ -164,6 +170,29 @@ elif [[ $variant == no-move ]]; then
   sleep 1
   capture moved
 else
+  # Keep delta open while using the menu on the next unread row, charlie.
+  open_newest
+  seen="SELECT count(*) FROM effective_memberships WHERE seen=1"
+  starred="SELECT m.subject FROM effective_memberships e JOIN messages m ON e.message_id=m.id WHERE e.starred=1"
+  await 'only the explicitly opened delta is seen' 1 "$seen"
+  row_menu
+  capture row-context
+  wtype -k Escape -s 300
+  [[ $(query "$seen") == 1 ]]
+  row_menu
+  wtype -k Down -k Down -k Down -k Return -s 400
+  await 'row-menu Star targets charlie' 'Synthetic charlie' "$starred"
+  [[ $(query "$seen") == 1 ]]
+  wtype -M ctrl -M shift t -m shift -m ctrl -s 200 -M ctrl a c -m ctrl -s 200
+  [[ $(wl-paste --no-newline) == *'Synthetic body marker-delta.'* ]]
+  row_menu
+  wtype -k Down -k Down -k Down -k Down -k Return -s 400
+  await 'the row menu archived charlie, leaving delta in view' 'Synthetic charlie' 'SELECT m.subject FROM pending_moves p JOIN messages m ON p.message_id=m.id'
+  click 1205 76
+  await 'Undo restored the context-menu move' 4 "$in_inbox"
+  [[ $(query "$seen") == 1 ]]
+  [[ $(server_flags INBOX marker-charlie) != *S* ]]
+  printf '%s\n' 'OK: opening, dismissing and acting on the row menu kept charlie unread and delta open'
   # Undo within the grace period: back at once, and the server never hears of it.
   open_newest
   wtype -s 300 -M alt e -m alt -s 600
