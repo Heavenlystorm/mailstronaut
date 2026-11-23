@@ -284,7 +284,8 @@ fn upgrading_schema_six_preserves_editable_drafts_and_creates_backup() {
         rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("database");
     connection
         .execute_batch(
-            "DROP TABLE deadline_corrections;
+            "ALTER TABLE accounts DROP COLUMN move_unavailable;
+             DROP TABLE deadline_corrections;
              DROP TRIGGER semantic_queued;
              DROP TABLE semantic_pending;
              DROP TABLE backfill;
