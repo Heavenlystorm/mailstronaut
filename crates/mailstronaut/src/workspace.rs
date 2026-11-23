@@ -58,6 +58,7 @@ use crate::mailbox::{Priority, Row, Rows};
 
 mod deadlines;
 mod history;
+mod move_picker;
 
 /// How long a queued move can be undone before the server is told about it.
 const UNDO_GRACE: Duration = Duration::from_secs(8);
@@ -195,6 +196,7 @@ pub struct Workspace {
     thread_reader: Entity<crate::thread_reader::ThreadReader>,
     _thread_events: Subscription,
     selected: Option<Row>,
+    move_picker: Option<move_picker::Picker>,
     body: String,
     text_reader: Entity<TextareaState>,
     reader_mode: ReaderMode,
@@ -719,6 +721,7 @@ impl Workspace {
             thread_reader,
             _thread_events: thread_events,
             selected: None,
+            move_picker: None,
             body: String::new(),
             text_reader,
             reader_mode: if demo {
@@ -1065,6 +1068,7 @@ impl Workspace {
     }
 
     fn retire_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_picker = None;
         self.text_reader
             .update(cx, |reader, cx| reader.set_value("", window, cx));
         self.thread_reader
@@ -1302,7 +1306,12 @@ impl Workspace {
     fn show_page(&mut self, page: ListPage, window: &mut Window, cx: &mut Context<Self>) {
         let (folders, unread, rows, group) = page;
         self.watch_priority_expiry(&group.rows, window, cx);
-        self.folders = folders;
+        if self.folders != folders {
+            self.folders = folders;
+            if self.move_picker.is_some() {
+                self.reset_move_picker(window, cx);
+            }
+        }
         self.unread = unread
             .into_iter()
             .map(|(folder, count)| (folder, count as usize))
@@ -1459,6 +1468,7 @@ impl Workspace {
         let revision = self.declaration.revision();
         self.read_gate.clicked(revision, generation);
         self.selected = Some(row.clone());
+        self.reset_move_picker(window, cx);
         self.opened_message = None;
         self.reader_notice.clear();
         self.html_reader
@@ -1767,7 +1777,13 @@ impl Workspace {
 
     /// Hide the open conversation now and report it with Undo. The server is told on
     /// the account's next cycle, and only copies in the current folder move.
-    fn move_open(&self, destination: String, label: String, window: &Window, cx: &Context<Self>) {
+    fn move_open(
+        &mut self,
+        destination: String,
+        label: String,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
         let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
             return;
         };
@@ -1782,6 +1798,11 @@ impl Workspace {
             _ => None,
         };
         let revision = self.declaration.revision();
+        let generation = self.reading_generation;
+        if self.move_picker.take().is_none() {
+            return;
+        }
+        cx.notify();
         let (account, id) = (row.account.clone(), row.id);
         // The hold is stored with the move: IDLE can start a sync pass at any moment, and
         // opening a message is usually what makes it happen.
@@ -1800,10 +1821,22 @@ impl Workspace {
                 if revision != this.declaration.revision() {
                     return;
                 }
+                let current = generation == this.reading_generation;
                 match result {
-                    Ok(Ok(_)) => this.after_move(undo, &label, window, cx),
-                    Ok(Err(error)) => this.reader_notice = error.to_string(),
-                    Err(_) => this.reader_notice = "Unable to move this message.".into(),
+                    Ok(Ok(_)) => {
+                        if current {
+                            this.retire_open(window, cx);
+                        }
+                        this.after_move(undo, &label, window, cx);
+                    }
+                    error if current => {
+                        this.reader_notice = match error {
+                            Ok(Err(error)) => error.to_string(),
+                            _ => "Unable to move this message.".into(),
+                        };
+                        this.reset_move_picker(window, cx);
+                    }
+                    _ => {}
                 }
                 cx.notify();
             });
@@ -1818,7 +1851,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.retire_open(window, cx);
         self.refresh_rows(window, cx);
         // Waking the account at once would claim the move before Undo could be pressed.
         let grace = cx.background_executor().timer(UNDO_GRACE);
@@ -3489,15 +3521,6 @@ impl Workspace {
     }
 
     fn move_controls(&self, cx: &Context<Self>) -> impl IntoElement {
-        let targets: Vec<(String, String)> = self
-            .selected
-            .as_ref()
-            .into_iter()
-            .flat_map(|row| self.account_folders(&row.account))
-            .filter(|folder| !folder.inbox)
-            .map(|folder| (folder.name.clone(), folder.label()))
-            .collect();
-        let workspace = cx.entity().downgrade();
         ToolbarGroup::new("message-move")
             .label("Move")
             .child(
@@ -3520,26 +3543,7 @@ impl Workspace {
                         this.move_to_role(FolderRole::Trash, window, cx);
                     })),
             )
-            .content(
-                Button::new("move-to")
-                    .ghost()
-                    .label("Move to")
-                    .disabled(self.demo || targets.is_empty())
-                    .dropdown_menu(move |mut menu, _, _| {
-                        for (name, label) in &targets {
-                            let (workspace, name, title) =
-                                (workspace.clone(), name.clone(), label.clone());
-                            menu = menu.item(PopupMenuItem::new(label.clone()).on_click(
-                                move |_, window, cx| {
-                                    _ = workspace.update(cx, |this, cx| {
-                                        this.move_open(name.clone(), title.clone(), window, cx);
-                                    });
-                                },
-                            ));
-                        }
-                        menu
-                    }),
-            )
+            .content(self.move_picker_control())
     }
 
     fn reader_tools(&self, cx: &Context<Self>) -> impl IntoElement {
