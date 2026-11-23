@@ -82,11 +82,12 @@ in
       (lib.mkIf cfg.mutableSettings {
         # Reconcile against the previous managed source before HM unlinks it.
         home.activation.mailstronautSettings =
-          lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
-            run ${lib.getExe cfg.package} config reconcile \
-              --declared ${native false} \
-              --path ${lib.escapeShellArg configPath}
-          '';
+          lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
+            ''
+              run ${lib.getExe cfg.package} config reconcile \
+                --declared ${native false} \
+                --path ${lib.escapeShellArg configPath}
+            '';
       })
       (lib.mkIf cfg.startOnLogin {
         systemd.user.services.mailstronaut = {
