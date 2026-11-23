@@ -97,6 +97,7 @@ click "$attach_x" "$attach_y"
 sleep .7
 [[ $(query "$pending") == 1 && $(query "$attachments") == 0 ]]
 capture unreadable-file
+click 1241 132 # Dismiss the persistent alert before retrying Attach.
 python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).as_uri())' "$attachment" > "$artifacts/chooser-answer"
 click "$attach_x" "$attach_y"
 await 'the file chooser attached one file' 1 "$attachments"
@@ -116,12 +117,28 @@ sleep 3
 [[ $(query "$attachments") == 0 ]]
 printf '%s\n' 'OK: no late autosave restored the removed attachment'
 capture removed
+
+# Switch away and back using two independently saved drafts. The last change to
+# the first body also has to survive closing before the normal debounce expires.
+wtype -M ctrl n -m ctrl -s 600
+await 'a distinct second draft exists' 2 "$open_drafts"
+click 750 440
+wtype 'Independent second draft.'
+await 'the second body belongs to a different draft' 1 "SELECT count(*) FROM drafts WHERE json_extract(content,'$.body')='Independent second draft.'"
+click 350 240
+sleep .5
+click 750 440
+wtype -M ctrl a -m ctrl -M ctrl c -m ctrl -s 150
+[[ $(wl-paste --no-newline) == *'Pending before chooser.'* ]]
+wtype -k End ' Saved at close.'
 close_window
 
 start attach-restarted
 sleep 3
-[[ $(query "$attachments") == 0 ]]
-printf '%s\n' 'OK: a removed attachment stays removed after a restart'
+[[ $(query "$attachments") == 0 && $(query "$open_drafts") == 2 ]]
+[[ $(query "SELECT count(*) FROM drafts WHERE instr(json_extract(content,'$.body'),'Saved at close.')>0") == 1 ]]
+[[ $(query 'SELECT count(*) FROM outbox') == 0 ]]
+printf '%s\n' 'OK: both drafts survived restart, the last edit was saved, and the removed attachment stayed removed' 
 capture attach-restarted
 close_window
 
