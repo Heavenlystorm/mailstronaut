@@ -107,6 +107,7 @@ enum Command {
     WithdrewReminder(store::reminders::Reminder, Reply<()>),
 
     ConversationSnapshot(String, Reply<Option<store::conversations::Snapshot>>),
+    MergedConversations(Vec<String>, Vec<i64>, Reply<Vec<(i64, i64)>>),
     CommitConversations(
         store::conversations::Snapshot,
         crate::threads::Groups,
@@ -408,6 +409,17 @@ impl Handle {
         groups: crate::threads::Groups,
     ) -> Result<(), Error> {
         self.request(|reply| Command::CommitConversations(snapshot, groups, reply))
+            .await
+    }
+    /// Resolve merged groups among at most 100 previous row identities.
+    /// # Errors
+    /// Rejects excessive batch sizes and unavailable storage.
+    pub async fn merged_conversations(
+        &self,
+        accounts: Vec<String>,
+        ids: Vec<i64>,
+    ) -> Result<Vec<(i64, i64)>, Error> {
+        self.request(|reply| Command::MergedConversations(accounts, ids, reply))
             .await
     }
     /// Read at most 100 account-local conversation rows with unread/star aggregates.
@@ -1442,6 +1454,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::CommitConversations(snapshot, groups, reply) => {
                 commit(reply, || store.commit_conversations(&snapshot, &groups));
+            }
+            Command::MergedConversations(accounts, ids, reply) => {
+                respond(reply, || store.merged_conversations(&accounts, &ids));
             }
             Command::ConversationPage(accounts, scope, query, after, limit, reply) => {
                 respond(reply, || {

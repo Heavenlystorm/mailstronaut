@@ -455,6 +455,7 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   open. The bounded same-scope path is implemented above; complete account/folder,
   conversation-merge, paging, removal and large-list acceptance before this row
   is complete. Preserve unread siblings through every state change.
+  [Late IMAP arrivals now preserve the selected group and its scroll anchor](evidence/P06-conversation-merges.md).
 - [x] Display each account-local thread once, include cached Sent ancestry, open
   the matching original and allow per-message selection/actions.
   Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)
