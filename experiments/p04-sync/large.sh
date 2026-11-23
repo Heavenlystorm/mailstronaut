@@ -86,7 +86,11 @@ chooser=''
 cleanup() {
   session_cleanup
   dovecot_cleanup
-  if [[ -n "$chooser" ]]; then kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
+  if [[ -n "$chooser" ]]; then
+    kill -CONT "$chooser" 2>/dev/null || true
+    kill "$chooser" 2>/dev/null || true
+    wait "$chooser" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 # A protocol-accurate file chooser on this private bus, answering from a file.
@@ -181,6 +185,33 @@ capture medium-opened
 kept="$artifacts/saved-medium.pdf"
 choose "file://$kept" 708 365
 await_file 'saving the kept attachment wrote it byte for byte' "$kept" "$medium_digest"
+
+# Hold the private chooser before it can answer Save. Remove the account and
+# observe the new theme before releasing the old chooser's successful response.
+click 350 380
+sleep 1
+before=$(requests)
+stale="$artifacts/retired-save.pdf"
+printf '%s\n' sentinel > "$stale"
+printf 'file://%s\n' "$stale" > "$artifacts/chooser-answer"
+kill -STOP "$chooser"
+click 708 412
+printf '%s\n' '{ schemaVersion = 1; appearance = "dark"; accounts = []; }' > "$config"
+wtype -M ctrl -M shift r -m shift -m ctrl
+for _ in {1..60}; do
+  capture retired-account
+  [[ $(magick "$artifacts/retired-account.png" -format '%[fx:p{400,10}.r < 0.5]' info:) == 1 ]] && break
+  sleep .2
+done
+[[ $(magick "$artifacts/retired-account.png" -format '%[fx:p{400,10}.r < 0.5]' info:) == 1 ]]
+sessions=$(grep -c 'Logged in' "$dovecot_root/dovecot.log")
+kill -CONT "$chooser"
+for _ in {1..50}; do (( $(requests) > before )) && break; sleep .1; done
+(( $(requests) > before ))
+sleep 2
+[[ $(cat "$stale") == sentinel ]]
+[[ $(grep -c 'Logged in' "$dovecot_root/dovecot.log") == "$sessions" ]]
+printf '%s\n' 'OK: a retired attachment save neither signed in nor overwrote its destination'
 close_window
 
 if grep -l "$imap_password" "$artifacts"/*-app.log > /dev/null; then

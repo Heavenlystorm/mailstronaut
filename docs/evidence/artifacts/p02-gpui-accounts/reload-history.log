@@ -1,0 +1,25 @@
+OK: automatic sync took only the recent mail
+OK: asking fetched the older mail, whatever its UIDs
+OK: fetching left it unread
+OK: with the beginning reached, there is nothing more to fetch
+OK: the folder fetched its own older mail
+OK: reloading permits another history fetch for the same folder
+OK: fetching again after a restart duplicated nothing
+Native older mail acceptance: /sources/p02-reload-a2512ab93a43/target/p02.vnP0gE/older-gui
+
+running 1 test
+Quiet native lookup created no collections; default alias before/after session: ///org/freedesktop/secrets/collection/login.
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.28s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /sources/p02-reload-a2512ab93a43/target/p02.vnP0gE

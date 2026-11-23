@@ -141,3 +141,30 @@ open. The mailbox list/reader still needs the P06 component/interaction work.
 Unread indicators currently repaint on the next cache query/refresh/restart;
 immediate thread-count repaint and independent query/body generations remain P06.
 No complete milestone, release, live-account or hosted-CI acceptance is claimed.
+
+## Explicit fetches during configuration reload
+
+A successful reload clears the older-mail cursors, cancels work using the old
+declaration and releases the older-mail button for the new declaration. A late
+history result cannot reinstate an exhausted cursor or finish a newer request.
+An invalid reload preserves the last valid workers and their progress.
+
+Server attachment saves watch the same account lifetime while the chooser and
+network request are outstanding. Retiring the account dismisses its progress
+notification. A reply from a retired chooser cannot start a transfer. A file
+write already authorized after a completed download can finish normally.
+
+`experiments/p04-sync/older.sh` imports old synthetic mail after a valid reload
+with automatic sync off and fetches it from a previously exhausted folder.
+`experiments/p04-sync/large.sh` holds a synthetic Save chooser open, removes
+the account and releases the chooser with a valid destination. It checks that
+the existing file and the Dovecot sign-in count are unchanged. Both run under
+the existing private Wayland, Secret Service and Dovecot harness.
+
+Both workflows passed on 2026-11-23 with the pinned x86_64 Nix development
+build at `a2512ab`. The [history run](artifacts/p02-gpui-accounts/reload-history.log)
+read the imported archive message after reload and preserved the message count
+across restart. The [attachment run](artifacts/p02-gpui-accounts/reload-attachment.log)
+saved a 30 MiB remote part with its expected digest, then confirmed that a
+delayed save for a removed account left the destination sentinel intact and
+opened no new IMAP session. The chooser used a private portal fixture.
