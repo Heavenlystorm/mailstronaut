@@ -250,12 +250,12 @@ impl Document {
         self.dom.set_text_selection(a, start, b, end);
         // CSS-generated text need not fit the original message's byte length.
         // Check Blitz's ranges (including its joining spaces) before copying them.
-        let size = self
-            .dom
-            .get_text_selection_ranges()
+        let ranges = self.dom.get_text_selection_ranges();
+        let separators = ranges.len().saturating_sub(1);
+        let size = ranges
             .iter()
-            .try_fold(0_usize, |total, (_, start, end)| {
-                total.checked_add(end.checked_sub(*start)?.checked_add(1)?)
+            .try_fold(separators, |total, (_, start, end)| {
+                total.checked_add(end.checked_sub(*start)?)
             });
         if size.is_none_or(|size| size > MAX_HTML_BYTES) {
             self.clear_selection();
