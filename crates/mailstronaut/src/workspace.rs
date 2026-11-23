@@ -238,8 +238,8 @@ pub struct Workspace {
     /// How far back older mail has been fetched, by account and folder wire name. Absent
     /// means not yet asked for, and `None` means the beginning of the folder was reached.
     older_reached: HashMap<(String, String), Option<mailstronaut_core::sync::Position>>,
-    /// Present while older mail is being fetched.
-    older_fetch: Option<CancellationToken>,
+    /// The accepted configuration revision that owns the current history request.
+    older_fetch: Option<u64>,
     announcer: Option<Arc<crate::mail_notify::Announcer>>,
     syncing: BTreeSet<String>,
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
@@ -958,6 +958,9 @@ impl Workspace {
     ) {
         self.account_lifetime.cancel();
         self.account_lifetime = self.lifetime.child_token();
+        self.older_fetch = None;
+        self.older_reached.clear();
+        window.remove_notification::<AttachmentDownload>(cx);
         self.account_events.clear();
         self.account_views.clear();
         let Some(handle) = self.handle() else {
@@ -2957,8 +2960,9 @@ impl Workspace {
         if self.older_fetch.is_some() {
             return;
         }
-        let cancel = self.lifetime.child_token();
-        self.older_fetch = Some(cancel.clone());
+        let revision = self.declaration.revision();
+        self.older_fetch = Some(revision);
+        let cancel = self.account_lifetime.child_token();
         let targets = self.older_targets();
         let reached = self.older_reached.clone();
         let access = self.account_access.clone();
@@ -2984,6 +2988,9 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
+                if this.older_fetch != Some(revision) {
+                    return;
+                }
                 this.older_fetch = None;
                 let notice = match result {
                     Ok((progress, downloaded, failure)) => {
@@ -3232,10 +3239,13 @@ impl Workspace {
         let (runtime, access, cancel) = (
             self.runtime.clone(),
             self.account_access.clone(),
-            self.lifetime.child_token(),
+            self.account_lifetime.child_token(),
         );
         cx.spawn_in(window, async move |this, cx| {
-            let notice = match chosen.await {
+            let Some(choice) = cancel.run_until_cancelled(chosen).await else {
+                return;
+            };
+            let notice = match choice {
                 Ok(Ok(Some(path))) => {
                     _ = this.update_in(cx, |_, window, cx| {
                         window.push_notification(
@@ -3247,11 +3257,22 @@ impl Workspace {
                             cx,
                         );
                     });
+                    let download = cancel.clone();
                     let saved = runtime
                         .spawn(async move {
                             let bytes = access
-                                .fetch_attachment(&store, &account, row.id, &part.section, &cancel)
+                                .fetch_attachment(
+                                    &store,
+                                    &account,
+                                    row.id,
+                                    &part.section,
+                                    &download,
+                                )
                                 .await?;
+                            // Decoding already-fetched bytes can finish after the account retired.
+                            if download.is_cancelled() {
+                                return Err("Attachment download cancelled.".to_owned());
+                            }
                             tokio::fs::write(path, bytes).await.map_err(|_| {
                                 "The attachment could not be written there.".to_owned()
                             })
@@ -3266,7 +3287,9 @@ impl Workspace {
                 Ok(Ok(None)) => None,
                 _ => Some("The file chooser is unavailable. Nothing was saved.".to_owned()),
             };
-            if let Some(notice) = notice {
+            if !cancel.is_cancelled()
+                && let Some(notice) = notice
+            {
                 _ = this.update_in(cx, |_, window, cx| {
                     window.push_notification(
                         Notification::new()
