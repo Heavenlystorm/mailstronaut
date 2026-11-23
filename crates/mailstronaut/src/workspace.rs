@@ -1795,7 +1795,7 @@ impl Workspace {
         match action {
             RowAction::Open => self.open(row, window, cx),
             RowAction::Flag(flag, desired) => {
-                self.apply_row_flag(row.account, row.id, flag, desired, window, cx)
+                self.apply_row_flag(row.account, row.id, flag, desired, window, cx);
             }
             RowAction::Move(role) => self.move_row_to_role(row, role, window, cx),
         }

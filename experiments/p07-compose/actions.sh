@@ -183,8 +183,21 @@ else
   wtype -k Down -k Down -k Down -k Return -s 400
   await 'row-menu Star targets charlie' 'Synthetic charlie' "$starred"
   [[ $(query "$seen") == 1 ]]
-  wtype -M ctrl -M shift t -m shift -m ctrl -s 200 -M ctrl a c -m ctrl -s 200
-  [[ $(wl-paste --no-newline) == *'Synthetic body marker-delta.'* ]]
+  # The menu restored focus to its row. Click Select text in the existing reader.
+  click 763 297
+  wtype -s 200 -M ctrl a -m ctrl -s 100 -M ctrl c -m ctrl -s 200
+  for _ in {1..25}; do
+    wl-paste --no-newline > "$artifacts/open-body.txt" 2>/dev/null || true
+    grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt" && break
+    sleep .2
+  done
+  grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt"
+  row_menu
+  wtype -k Down -k Down -k Return -s 400
+  await 'explicit row-menu Mark read updates charlie' 2 "$seen"
+  row_menu
+  wtype -k Down -k Down -k Return -s 400
+  await 'explicit row-menu Mark unread restores charlie' 1 "$seen"
   row_menu
   wtype -k Down -k Down -k Down -k Down -k Return -s 400
   await 'the row menu archived charlie, leaving delta in view' 'Synthetic charlie' 'SELECT m.subject FROM pending_moves p JOIN messages m ON p.message_id=m.id'
