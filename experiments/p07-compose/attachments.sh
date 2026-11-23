@@ -79,6 +79,7 @@ await 'the draft is saved before attaching' 1 "$open_drafts"
 # Stop the private chooser before it can answer. The pending keystroke lands
 # within the autosave delay, and must reach the database while the dialog is open.
 printf '%s\n' cancel > "$artifacts/chooser-answer"
+click 750 440
 kill -STOP "$chooser"
 wtype ' Pending before chooser.'
 click "$attach_x" "$attach_y"
