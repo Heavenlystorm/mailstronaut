@@ -13,8 +13,8 @@ use gpui::component::{
     tag::Tag,
 };
 use gpui::{
-    App, Context, HighlightStyle, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Role,
-    StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
+    App, Context, HighlightStyle, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
+    Pixels, Role, StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
     prelude::FluentBuilder as _, px, rems,
 };
 use mailstronaut_search::excerpt::BodyExcerpt;

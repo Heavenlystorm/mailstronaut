@@ -276,7 +276,7 @@ checks["focused_row_exposes_visible_date_and_preview"] = any(
 
 def row_bounds():
     nodes = walk()
-    row = next(n for n in nodes if n["role"] == 91 and "Performance 001" in n["name"])
+    row = next(n for n in nodes if n["role"] == 32 and "Performance 001" in n["name"])
     return literal(gdbus(row["bus"], row["path"], "org.a11y.atspi.Component.GetExtents", "1"))[0]
 
 def sway(*args):
