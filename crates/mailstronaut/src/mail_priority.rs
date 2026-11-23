@@ -196,7 +196,10 @@ async fn run(
     cancel: CancellationToken,
 ) {
     loop {
-        let Some(result) = cancel.run_until_cancelled(batch(&rules, &store, &cancel)).await else {
+        let Some(result) = cancel
+            .run_until_cancelled(batch(&rules, &store, &cancel))
+            .await
+        else {
             return;
         };
         let wait = match result {
@@ -219,7 +222,11 @@ async fn run(
 }
 
 /// None means the queue is empty. An ordinary-only batch still advances the queue.
-async fn batch(rules: &Rules, store: &Handle, cancel: &CancellationToken) -> Result<Option<bool>, ()> {
+async fn batch(
+    rules: &Rules,
+    store: &Handle,
+    cancel: &CancellationToken,
+) -> Result<Option<bool>, ()> {
     let now = i64::try_from(
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -247,7 +254,10 @@ async fn batch(rules: &Rules, store: &Handle, cancel: &CancellationToken) -> Res
         return Err(());
     }
     let has_priority = results.iter().any(|result| result.expires_at.is_some());
-    store.store_analysis_while_active(results, cancel.clone()).await.map_err(|_| ())?;
+    store
+        .store_analysis_while_active(results, cancel.clone())
+        .await
+        .map_err(|_| ())?;
     Ok(Some(has_priority))
 }
 
@@ -262,11 +272,20 @@ mod tests {
         let runtime = Runtime::new().expect("runtime");
         runtime.block_on(async {
             let root = tempfile::tempdir().expect("profile");
-            let store = mailstronaut_core::worker::Worker::open(root.path().to_owned()).await.expect("store");
-            let config: Config = serde_json::from_str(r#"{"schemaVersion":1}"#).expect("configuration");
-            let (engine, mut changed) = PriorityEngine::start(&runtime, store.handle(), &config, CancellationToken::new());
+            let store = mailstronaut_core::worker::Worker::open(root.path().to_owned())
+                .await
+                .expect("store");
+            let config: Config =
+                serde_json::from_str(r#"{"schemaVersion":1}"#).expect("configuration");
+            let (engine, mut changed) =
+                PriorityEngine::start(&runtime, store.handle(), &config, CancellationToken::new());
             drop(engine);
-            assert_eq!(tokio::time::timeout(Duration::from_secs(3), changed.recv()).await.expect("worker stopped"), None);
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(3), changed.recv())
+                    .await
+                    .expect("worker stopped"),
+                None
+            );
             store.shutdown().await.expect("shutdown");
         });
     }

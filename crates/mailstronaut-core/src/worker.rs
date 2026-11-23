@@ -175,7 +175,11 @@ enum Command {
         u32,
         Reply<Vec<store::analysis::AnalysisInput>>,
     ),
-    StoreAnalysis(Vec<store::analysis::AnalysisResult>, CancellationToken, Reply<()>),
+    StoreAnalysis(
+        Vec<store::analysis::AnalysisResult>,
+        CancellationToken,
+        Reply<()>,
+    ),
     CorrectDeadline(
         store::analysis::CorrectDeadline,
         Reply<store::analysis::DeadlineCorrection>,
@@ -576,7 +580,8 @@ impl Handle {
         results: Vec<store::analysis::AnalysisResult>,
         active: CancellationToken,
     ) -> Result<(), Error> {
-        self.request(|reply| Command::StoreAnalysis(results, active, reply)).await
+        self.request(|reply| Command::StoreAnalysis(results, active, reply))
+            .await
     }
     /// Persist an explicit deadline correction on the store owner.
     /// # Errors
@@ -1472,7 +1477,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                 });
             }
             Command::StoreAnalysis(results, active, reply) => {
-                commit(reply, || store.store_analysis_if(&results, || !active.is_cancelled()));
+                commit(reply, || {
+                    store.store_analysis_if(&results, || !active.is_cancelled())
+                });
             }
             Command::CorrectDeadline(edit, reply) => {
                 commit(reply, || store.correct_deadline(&edit));
