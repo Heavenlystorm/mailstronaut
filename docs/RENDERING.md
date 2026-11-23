@@ -139,6 +139,22 @@ or hiding retire the prior DOM/resource table. BGRA conversion runs on that same
 owner thread. GPUI's normal image paint API presents the result; there is no
 custom GPU interop or forwarded HTML input event.
 
+## HTML text selection
+
+A left-button drag within a painted HTML viewport selects visible text. Ctrl+C
+copies the selection while the viewport has focus. The worker maps the anchor
+and focus through Blitz's public `find_text_position` and `set_text_selection`
+APIs. Blitz paints the highlight and returns selected Unicode text with
+`get_selected_text`. The worker limits the copy to 256 KiB and joins inline
+roots using Blitz's own text semantics. Only the native host writes to the
+clipboard, on an explicit copy action. Normal clicks still resolve links.
+
+Sizes, scroll positions, scale, themes and message changes retire the selection.
+Use the Text tab or Select text for keyboard selection and copying across
+viewports. Focused renderer and worker tests cover selection direction, Unicode,
+highlighted pixels, stale geometry, source replacement and dragging across a
+link. Wayland clipboard and assistive-technology acceptance are separate checks.
+
 GPUI Kit's segmented `TabBar` and `Toolbar` select HTML or native text. Standard
 `ScrollHandle` and Kit horizontal/vertical scrollbars own scrolling; a small GPUI
 canvas bridge measures their public bounds and paints the matching viewport.

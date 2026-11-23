@@ -134,6 +134,8 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
 - [ ] Establish an appropriate public-API HTML selection/copy route if practical;
   keep native Text/Select text usable for every readable message. A raster alone
   is not text accessibility. Verify actual assistive-technology behavior below.
+  The HTML viewport now uses Blitz text hits for drag selection and Ctrl+C.
+  See [scope and acceptance](RENDERING.md#html-text-selection).
 - [x] Provide a retained passive document API that reuses DOM/font/raster state,
   repaints only bounded physical viewport pixels, forwards logical scale/theme,
   clamps scroll and rejects invalid geometry/excessive CSS extents. Verify pixel

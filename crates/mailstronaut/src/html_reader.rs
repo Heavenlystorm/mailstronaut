@@ -11,7 +11,7 @@ use gpui::{
 use mailstronaut_render::{Link, View};
 use tokio::sync::watch;
 
-use crate::html_worker::{Content, Reply, Request};
+use crate::html_worker::{Action, Content, Reply, Request};
 
 gpui::actions!(
     html_reader,
@@ -27,7 +27,10 @@ gpui::actions!(
         DocumentHome,
         #[derive(Eq)]
         /// Scroll to the bottom of the HTML document.
-        DocumentEnd
+        DocumentEnd,
+        #[derive(Eq)]
+        /// Copy the highlighted HTML text.
+        CopySelection
     ]
 );
 
@@ -35,6 +38,11 @@ pub enum Event {
     Ready(u64),
     Failed(u64),
     Link(u64, Link),
+}
+
+struct Drag {
+    anchor: (f32, f32),
+    moved: bool,
 }
 
 pub struct HtmlReader {
@@ -52,6 +60,10 @@ pub struct HtmlReader {
     ready_serial: Option<u64>,
     status: String,
     links: Arc<[Link]>,
+    drag: Option<Drag>,
+    action: Action,
+    selected_text: Option<String>,
+    copy_pending: bool,
     sender: Option<watch::Sender<Option<Request>>>,
     _responses: Task<()>,
 }
@@ -64,13 +76,14 @@ impl HtmlReader {
             KeyBinding::new("pageup", PageUp, Some("MailHtml")),
             KeyBinding::new("home", DocumentHome, Some("MailHtml")),
             KeyBinding::new("end", DocumentEnd, Some("MailHtml")),
+            KeyBinding::new("ctrl-c", CopySelection, Some("MailHtml")),
         ]);
         let (sender, responses) = match crate::html_worker::start(runtime) {
             Ok((sender, mut replies)) => {
                 let task = cx.spawn_in(window, async move |this, cx| {
                     while let Some(reply) = replies.recv().await {
                         if this
-                            .update_in(cx, |this, _, cx| this.receive(reply, cx))
+                            .update_in(cx, |this, window, cx| this.receive(reply, window, cx))
                             .is_err()
                         {
                             break;
@@ -99,6 +112,10 @@ impl HtmlReader {
             ready_serial: None,
             status: String::new(),
             links: Arc::default(),
+            drag: None,
+            action: Action::Paint,
+            selected_text: None,
+            copy_pending: false,
             sender,
             _responses: responses,
         }
@@ -121,6 +138,7 @@ impl HtmlReader {
         self.serial = self.serial.wrapping_add(1);
         self.content = None;
         self.requested = None;
+        self.reset_selection();
         self.retire_frame();
         self.links = Arc::default();
         self.ready_serial = None;
@@ -134,23 +152,38 @@ impl HtmlReader {
         if self.requested == Some(view) {
             return;
         }
-        let (Some(sender), Some(content)) = (self.sender.clone(), self.content.clone()) else {
-            return;
-        };
-        self.serial = self.serial.wrapping_add(1);
+        self.reset_selection();
         self.requested = Some(view);
         self.retire_frame();
-        sender.send_replace(Some(Request {
-            serial: self.serial,
-            epoch: self.epoch,
-            content,
-            view,
-            hit: None,
-        }));
+        self.send(view, Action::Paint);
         cx.notify();
     }
 
-    fn receive(&mut self, reply: Reply, cx: &mut Context<Self>) {
+    fn reset_selection(&mut self) {
+        self.drag = None;
+        self.action = Action::Paint;
+        self.selected_text = None;
+        self.copy_pending = false;
+    }
+
+    fn send(&mut self, view: View, action: Action) {
+        let (Some(sender), Some(content)) = (&self.sender, &self.content) else {
+            return;
+        };
+        self.serial = self.serial.wrapping_add(1);
+        self.action = action;
+        self.selected_text = None;
+        self.copy_pending = false;
+        sender.send_replace(Some(Request {
+            serial: self.serial,
+            epoch: self.epoch,
+            content: content.clone(),
+            view,
+            action,
+        }));
+    }
+
+    fn receive(&mut self, reply: Reply, window: &Window, cx: &mut Context<Self>) {
         if let Reply::Link {
             serial,
             epoch,
@@ -176,6 +209,7 @@ impl HtmlReader {
             serial,
             epoch,
             view,
+            selected_text,
             result,
         } = reply
         else {
@@ -203,6 +237,16 @@ impl HtmlReader {
                         view,
                         Arc::new(RenderImage::new([image::Frame::new(pixels)])),
                     ));
+                    self.selected_text = selected_text;
+                    if matches!(self.action, Action::Link { .. }) {
+                        self.action = Action::Paint;
+                    }
+                    if std::mem::take(&mut self.copy_pending)
+                        && self.focus.is_focused(window)
+                        && let Some(text) = &self.selected_text
+                    {
+                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.clone()));
+                    }
                     self.status = if omitted {
                         "Some local images could not be displayed. External resources are blocked."
                             .into()
@@ -231,12 +275,13 @@ impl HtmlReader {
         }
     }
 
-    fn click_link(&self, position: gpui::Point<Pixels>, window: &Window, cx: &Context<Self>) {
-        let (Some((view, _)), Some(sender), Some(content)) =
-            (&self.frame, &self.sender, &self.content)
-        else {
-            return;
-        };
+    fn viewport_point(
+        &self,
+        position: gpui::Point<Pixels>,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> Option<(View, (f32, f32))> {
+        let (view, _) = self.frame.as_ref()?;
         let bounds = self.scroll.bounds();
         let current = measured_view(
             bounds,
@@ -245,16 +290,61 @@ impl HtmlReader {
             self.scroll.offset(),
         );
         if current != Some(*view) || !bounds.contains(&position) {
-            return;
+            return None;
         }
         let position = position - bounds.origin;
-        sender.send_replace(Some(Request {
-            serial: self.serial,
-            epoch: self.epoch,
-            content: content.clone(),
-            view: *view,
-            hit: Some((f32::from(position.x), f32::from(position.y))),
-        }));
+        Some((*view, (f32::from(position.x), f32::from(position.y))))
+    }
+
+    fn pointer_move(
+        &mut self,
+        position: gpui::Point<Pixels>,
+        released: bool,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
+        let Some((view, focus)) = self.viewport_point(position, window, cx) else {
+            if released {
+                self.drag = None;
+            }
+            return;
+        };
+        let Some(drag) = &mut self.drag else { return };
+        let anchor = drag.anchor;
+        drag.moved |= (anchor.0 - focus.0).hypot(anchor.1 - focus.1) >= 4.;
+        let action = if drag.moved {
+            Some(Action::Select { anchor, focus })
+        } else {
+            // A coalesced worker request may already have cleared its DOM while the
+            // displayed frame still has a highlight. Repaint after the click in either case.
+            released.then_some(Action::Link {
+                point: focus,
+                clear_highlight: matches!(
+                    self.action,
+                    Action::Select { .. }
+                        | Action::Link {
+                            clear_highlight: true,
+                            ..
+                        }
+                ),
+            })
+        };
+        if released {
+            self.drag = None;
+        }
+        if let Some(action) = action
+            && (action != self.action || matches!(action, Action::Link { .. }))
+        {
+            self.send(view, action);
+        }
+    }
+
+    fn copy_selection(&mut self, cx: &Context<Self>) {
+        if let Some(text) = &self.selected_text {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.clone()));
+        } else if matches!(self.action, Action::Select { .. }) {
+            self.copy_pending = true;
+        }
     }
 
     fn scroll_page(&self, direction: f32, cx: &mut Context<Self>) {
@@ -286,11 +376,34 @@ impl HtmlReader {
             .track_focus(&self.focus)
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, window, cx| window.focus(&this.focus, cx)),
+                cx.listener(|this, event: &gpui::MouseDownEvent, window, cx| {
+                    window.focus(&this.focus, cx);
+                    this.copy_pending = false;
+                    this.drag =
+                        this.viewport_point(event.position, window, cx)
+                            .map(|(_, anchor)| Drag {
+                                anchor,
+                                moved: false,
+                            });
+                }),
             )
-            .on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
-                this.click_link(event.position(), window, cx);
-            }))
+            .on_mouse_move(
+                cx.listener(|this, event: &gpui::MouseMoveEvent, window, cx| {
+                    if event.dragging() {
+                        this.pointer_move(event.position, false, window, cx);
+                    }
+                }),
+            )
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, event: &gpui::MouseUpEvent, window, cx| {
+                    this.pointer_move(event.position, true, window, cx);
+                }),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|this, _, _, _| this.drag = None),
+            )
             .child(div().flex_none().w(self.extent.width).h(self.extent.height))
             .child(
                 canvas(
@@ -399,6 +512,7 @@ impl Render for HtmlReader {
             .flex()
             .flex_col()
             .key_context("MailHtml")
+            .on_action(cx.listener(|this, _: &CopySelection, _, cx| this.copy_selection(cx)))
             .on_action(cx.listener(|this, _: &PageDown, _, cx| this.scroll_page(1.0, cx)))
             .on_action(cx.listener(|this, _: &PageUp, _, cx| this.scroll_page(-1.0, cx)))
             .on_action(cx.listener(|this, _: &DocumentHome, _, cx| {

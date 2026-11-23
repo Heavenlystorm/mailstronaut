@@ -203,12 +203,7 @@ impl Document {
         })
     }
 
-    /// Identify a web link under a CSS viewport point in the last successful frame.
-    ///
-    /// This reads layout only. It sends no DOM event or navigation request. The
-    /// exact painted view must match; unknown, hidden and unsupported targets fail.
-    #[must_use]
-    pub fn link_at(&self, view: View, x: f32, y: f32) -> Option<Link> {
+    fn document_point(&self, view: View, (x, y): (f32, f32)) -> Option<(f32, f32)> {
         if self.painted_view != Some(view)
             || !x.is_finite()
             || !y.is_finite()
@@ -227,7 +222,56 @@ impl Document {
             clippy::cast_possible_truncation,
             reason = "Blitz's public hit API uses f32; paint bounds finite document coordinates to one million CSS pixels. Fractional layout is narrowed to that engine's precision."
         )]
-        let hit = self.dom.hit(x as f32, y as f32)?;
+        let point = (x as f32, y as f32);
+        Some(point)
+    }
+
+    /// Clear the passive highlight before painting a different viewport or ending a selection.
+    pub fn clear_selection(&mut self) {
+        self.dom.clear_text_selection();
+    }
+
+    /// Select between two logical viewport positions in the same painted frame.
+    /// Blitz maps both positions to text clusters, orders the range and paints the highlight.
+    /// The host alone handles explicit clipboard requests.
+    pub fn select_text(
+        &mut self,
+        view: View,
+        anchor: (f32, f32),
+        focus: (f32, f32),
+    ) -> Option<String> {
+        self.clear_selection();
+        let position = |point| {
+            let (x, y) = self.document_point(view, point)?;
+            self.dom.find_text_position(x, y)
+        };
+        let (a, start) = position(anchor)?;
+        let (b, end) = position(focus)?;
+        self.dom.set_text_selection(a, start, b, end);
+        // CSS-generated text need not fit the original message's byte length.
+        // Check Blitz's ranges (including its joining spaces) before copying them.
+        let size = self
+            .dom
+            .get_text_selection_ranges()
+            .iter()
+            .try_fold(0_usize, |total, (_, start, end)| {
+                total.checked_add(end.checked_sub(*start)?.checked_add(1)?)
+            });
+        if size.is_none_or(|size| size > MAX_HTML_BYTES) {
+            self.clear_selection();
+            return None;
+        }
+        self.dom.get_selected_text()
+    }
+
+    /// Identify a web link under a CSS viewport point in the last successful frame.
+    ///
+    /// This reads layout only. It sends no DOM event or navigation request. The
+    /// exact painted view must match; unknown, hidden and unsupported targets fail.
+    #[must_use]
+    pub fn link_at(&self, view: View, x: f32, y: f32) -> Option<Link> {
+        let (x, y) = self.document_point(view, (x, y))?;
+        let hit = self.dom.hit(x, y)?;
         let mut id = Some(hit.node_id);
         while let Some(current) = id {
             let node = self.dom.get_node(current)?;
@@ -261,6 +305,43 @@ mod tests {
     fn center(frame: &Frame) -> &[u8] {
         let index = ((frame.height / 2 * frame.width + frame.width / 2) * 4) as usize;
         &frame.pixels[index..index + 4]
+    }
+
+    #[test]
+    fn pointer_selection_uses_painted_layout_and_original_unicode_in_either_direction() {
+        let html = "<style>body,p{margin:0}p{font:14px monospace;line-height:24px}</style><div style='height:200px'></div><p>Café</p><p>世界</p>";
+        let mut doc = Document::new(html, &[]).expect("bounded synthetic mail");
+        let view = View {
+            width: 200,
+            height: 96,
+            scale: 2.0,
+            scroll_y: 200.0,
+            ..view()
+        };
+        let start = (0.1, 10.);
+        let end = (99., 34.);
+        assert!(doc.select_text(view, start, end).is_none());
+        let plain = doc.paint(view).expect("current layout");
+        for (a, b) in [(start, end), (end, start)] {
+            assert_eq!(doc.select_text(view, a, b).as_deref(), Some("Café 世界"));
+            assert_ne!(doc.paint(view).expect("highlight").pixels, plain.pixels);
+        }
+        assert!(
+            doc.select_text(
+                View {
+                    scroll_y: 0.,
+                    ..view
+                },
+                start,
+                end
+            )
+            .is_none()
+        );
+        assert_eq!(
+            doc.paint(view).expect("cleared highlight").pixels,
+            plain.pixels
+        );
+        assert!(doc.select_text(view, start, (f32::NAN, 12.)).is_none());
     }
 
     #[test]
