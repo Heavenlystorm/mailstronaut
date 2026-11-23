@@ -160,3 +160,11 @@ with automatic sync off and fetches it from a previously exhausted folder.
 the account and releases the chooser with a valid destination. It checks that
 the existing file and the Dovecot sign-in count are unchanged. Both run under
 the existing private Wayland, Secret Service and Dovecot harness.
+
+Both workflows passed on 2026-11-23 with the pinned x86_64 Nix development
+build at `a2512ab`. The [history run](artifacts/p02-gpui-accounts/reload-history.log)
+read the imported archive message after reload and preserved the message count
+across restart. The [attachment run](artifacts/p02-gpui-accounts/reload-attachment.log)
+saved a 30 MiB remote part with its expected digest, then confirmed that a
+delayed save for a removed account left the destination sentinel intact and
+opened no new IMAP session. The chooser used a private portal fixture.
