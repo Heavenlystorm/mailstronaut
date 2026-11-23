@@ -15,8 +15,8 @@ use gpui::component::{
     WindowExt as _,
     alert::Alert,
     attachment::{
-        Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia,
-        AttachmentTitle,
+        Attachment, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup,
+        AttachmentMedia, AttachmentTitle,
     },
     badge::Badge,
     button::{Button, ButtonVariants as _},
@@ -58,6 +58,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::mailbox::{Priority, Row, Rows};
 
+mod attachment_open;
 mod deadlines;
 mod history;
 mod move_picker;
@@ -215,6 +216,8 @@ pub struct Workspace {
     reader_notice: String,
     headers_open: bool,
     link_cancel: Option<CancellationToken>,
+    preview_cancel: Option<CancellationToken>,
+    previews: crate::attachment_portal::Previews,
     search: Entity<InputState>,
     filters: Entity<crate::search_filters::Filters>,
     filter: SearchFilter,
@@ -745,6 +748,8 @@ impl Workspace {
             reader_notice: String::new(),
             headers_open: false,
             link_cancel: None,
+            preview_cancel: None,
+            previews: services.previews,
             search,
             filters,
             filter: SearchFilter::default(),
@@ -1060,7 +1065,7 @@ impl Workspace {
 
     fn focus_reader(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.selected.is_some() && self.view == View::Inbox {
-            self.cancel_link();
+            self.cancel_reader_requests();
             self.reader_mode = ReaderMode::Text;
             self.preferred_reader = ReaderMode::Text;
             self.html_reader
@@ -1089,7 +1094,7 @@ impl Workspace {
             .update(cx, |reader, cx| reader.set_value("", window, cx));
         self.thread_reader
             .update(cx, crate::thread_reader::ThreadReader::clear);
-        self.cancel_link();
+        self.cancel_reader_requests();
         self.reading_generation = self.reading_generation.wrapping_add(1);
         self.html_reader
             .update(cx, crate::html_reader::HtmlReader::hide);
@@ -1535,7 +1540,7 @@ impl Workspace {
                 thread.show(row.clone(), handle, zone, window, cx);
             });
         }
-        self.cancel_link();
+        self.cancel_reader_requests();
         self.reading_generation = self.reading_generation.wrapping_add(1);
         let generation = self.reading_generation;
         let revision = self.declaration.revision();
@@ -1684,7 +1689,11 @@ impl Workspace {
         cx.notify();
     }
 
-    fn cancel_link(&mut self) {
+    fn cancel_reader_requests(&mut self) {
+        if let Some(cancel) = self.preview_cancel.take() {
+            cancel.cancel();
+            self.reader_notice.clear();
+        }
         if let Some(cancel) = self.link_cancel.take() {
             cancel.cancel();
             self.reader_notice.clear();
@@ -2390,7 +2399,7 @@ impl Workspace {
     }
 
     fn show_accounts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.cancel_link();
+        self.cancel_reader_requests();
         self.view = View::Accounts;
         self.read_gate.visibility(false);
         self.html_reader
@@ -2401,7 +2410,7 @@ impl Workspace {
     }
 
     fn show_compose(&mut self, window: &Window, cx: &mut Context<Self>) {
-        self.cancel_link();
+        self.cancel_reader_requests();
         self.view = View::Compose;
         self.read_gate.visibility(false);
         self.html_reader
@@ -2412,7 +2421,7 @@ impl Workspace {
     }
 
     fn show_reminders(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.cancel_link();
+        self.cancel_reader_requests();
         self.view = View::Reminders;
         self.read_gate.visibility(false);
         self.html_reader
@@ -3345,6 +3354,8 @@ impl Workspace {
                         Attachment::new()
                             .media(AttachmentMedia::new().child(AssetIcon::FileText))
                             .id(("received-attachment", index))
+                            .w_full()
+                            .actions(Self::attachment_actions(index, false, &name, cx))
                             .tooltip("Save a copy")
                             .content(
                                 AttachmentContent::new()
@@ -3400,7 +3411,7 @@ impl Workspace {
             view.mb_3()
                 .child(
                     Label::new(format!(
-                        "This message is {}, too large to keep on this device. Its attachments stay on the server until you save them.",
+                        "This message is {}, too large to keep on this device. Its attachments stay on the server until you open or save them.",
                         crate::composer::size_label(omitted.size as usize)
                     ))
                     .text_sm()
@@ -3415,6 +3426,8 @@ impl Workspace {
                             Attachment::new()
                             .media(AttachmentMedia::new().child(AssetIcon::FileText))
                                 .id(("remote-attachment", index))
+                                .w_full()
+                                .actions(Self::attachment_actions(index, true, &name, cx))
                                 .tooltip("Download and save a copy")
                                 .content(
                                     AttachmentContent::new()
