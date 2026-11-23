@@ -1282,6 +1282,13 @@ impl Workspace {
                 let ready = *progress.borrow_and_update() == Some(0);
                 if this
                     .update_in(cx, |this, window, cx| {
+                        let partial = !ready && this.search_mode == SearchMode::Words;
+                        this.list.update(cx, |list, cx| {
+                            if list.delegate().indexing_words != partial {
+                                list.delegate_mut().indexing_words = partial;
+                                cx.notify();
+                            }
+                        });
                         if ready
                             && this.view == View::Inbox
                             && this.search_mode == SearchMode::Words
@@ -1386,6 +1393,8 @@ impl Workspace {
             let rows = list.delegate_mut();
             rows.loading = true;
             rows.searching = !query.is_empty() || !filter.is_empty();
+            rows.indexing_words = self.search_mode == SearchMode::Words
+                && self.fuzzy.as_ref().is_some_and(|index| index.queued() > 0);
             rows.has_accounts = !accounts.is_empty();
             cx.notify();
         });
