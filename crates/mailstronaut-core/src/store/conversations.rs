@@ -691,11 +691,11 @@ mod tests {
             .expect("merged identities only");
         aliases.sort_unstable();
         assert_eq!(aliases, [(ids[1], ids[0]), (ids[2], ids[0])]);
-        assert!(
+        assert_eq!(
             store
                 .merged_conversations(&["b".into()], &ids)
-                .expect("other account")
-                .is_empty()
+                .expect("other account"),
+            []
         );
         assert!(matches!(
             store.merged_conversations(&["a".into()], &[1; 101]),

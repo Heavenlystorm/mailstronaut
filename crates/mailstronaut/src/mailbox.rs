@@ -615,6 +615,7 @@ fn mailbox_today(zone: &str) -> chrono::NaiveDate {
 mod tests {
     use super::{Row, Rows, cut_group, date, display_text, due_label};
     use gpui::px;
+    use std::collections::HashMap;
 
     fn row(account: &str, id: i64, conversation: Option<i64>) -> Row {
         Row {
@@ -670,13 +671,13 @@ mod tests {
         assert_eq!(anchor.0.id, 3);
         rows.items.insert(0, row("a", 11, None));
         assert_eq!(
-            rows.anchored_offset(anchor.clone(), &Default::default()),
+            rows.anchored_offset(anchor.clone(), &HashMap::new()),
             Some(-px(384.))
         );
         // A priority section adds two fixed header heights, without opening anything.
         rows.priority.rows.push(row("b", 12, None));
         assert_eq!(
-            rows.anchored_offset(anchor, &Default::default()),
+            rows.anchored_offset(anchor, &HashMap::new()),
             Some(-px(564.))
         );
         assert!(
@@ -698,7 +699,7 @@ mod tests {
         rows.items.clear();
         // A new original now represents the merged group in the priority section.
         rows.priority.rows = vec![row("b", 90, Some(9)), row("a", 30, Some(1))];
-        let aliases = [(2, 1)].into_iter().collect();
+        let aliases = HashMap::from([(2, 1)]);
         assert_eq!(
             rows.position(selected.clone(), &aliases),
             Some(gpui::component::IndexPath::new(1))
