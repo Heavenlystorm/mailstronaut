@@ -38,7 +38,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
 chooser=''
 cleanup() {
   session_cleanup
-  if [[ -n "$chooser" ]]; then kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
+  if [[ -n "$chooser" ]]; then kill -CONT "$chooser" 2>/dev/null || true; kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
 # A protocol-accurate file chooser on this private bus, answering from a file.
@@ -76,6 +76,27 @@ wtype -s 100 'to@example.test' -s 100 -k Tab -s 100
 wtype 'Synthetic attachment · Unicode subject' -k Tab -s 100 'Synthetic body with a file.'
 sleep 2
 await 'the draft is saved before attaching' 1 "$open_drafts"
+# Stop the private chooser before it can answer. The pending keystroke lands
+# within the autosave delay, and must reach the database while the dialog is open.
+printf '%s\n' cancel > "$artifacts/chooser-answer"
+kill -STOP "$chooser"
+wtype ' Pending before chooser.'
+click "$attach_x" "$attach_y"
+pending="SELECT count(*) FROM drafts WHERE closed=0 AND instr(json_extract(content,'$.body'),'Pending before chooser.')>0"
+await 'the last edit reached SQLite while the file chooser was held' 1 "$pending"
+kill -CONT "$chooser"
+for _ in {1..50}; do [[ -s $artifacts/chooser-requests.jsonl ]] && break; sleep .1; done
+[[ -s $artifacts/chooser-requests.jsonl ]]
+sleep .5
+[[ $(query "$attachments") == 0 ]]
+capture chooser-cancelled
+# Losing access before import leaves the same editable draft and its saved text.
+printf 'file://%s/missing-file.txt\n' "$artifacts" > "$artifacts/chooser-answer"
+click "$attach_x" "$attach_y"
+sleep .7
+[[ $(query "$pending") == 1 && $(query "$attachments") == 0 ]]
+capture unreadable-file
+python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).as_uri())' "$attachment" > "$artifacts/chooser-answer"
 click "$attach_x" "$attach_y"
 await 'the file chooser attached one file' 1 "$attachments"
 # Attaching kept a private copy, so the original can go away before the removal.
