@@ -88,3 +88,22 @@ nodes and no unreadable nodes. The local screenshot and report are in
 
 This establishes the native text interface and focus. Screen-reader speech
 and the composition, Settings and dialog flows remain open.
+
+## Composition and Settings export fixture
+
+The composer's To, Cc, Bcc and Subject inputs give their names directly to the
+native text controls. Revealing the copy fields focuses Cc. Hiding them while
+Cc or Bcc has focus returns to To, so a keyboard user can continue to Subject
+and the message body. Hiding the fields preserves focus elsewhere in the editor.
+
+The existing private Wayland fixture now opens a synthetic draft with Ctrl+N,
+toggles the copy fields with Ctrl+Shift+B and checks the focused accessible
+after each Tab. It enters Settings with Ctrl+comma, opens Export to Nix with
+Ctrl+Shift+E, compares the focused AT-SPI text to the CLI export of the same
+synthetic configuration, and checks that Escape returns to Settings. It writes
+composer and export-dialog trees and screenshots beside the reader artifacts.
+
+Run `experiments/p01-gpui/accessibility.sh APP_BINARY WORKER_TEST_EXECUTABLE`
+inside `nix develop .#gui-test` with `MAILSTRONAUT_A11Y_REQUIRE_TEXT=1`.
+The expanded workflow awaits native execution. Earlier recordings above
+cover the mailbox and reader.
