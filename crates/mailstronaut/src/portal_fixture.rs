@@ -162,7 +162,8 @@ impl FileOpener {
             .get("ask")
             .and_then(|v| bool::try_from(v).ok())
             .unwrap_or(false)
-            || options.contains_key("writable") || options.contains_key("writeable")
+            || options.contains_key("writable")
+            || options.contains_key("writeable")
             || file.write(b"x").is_ok()
         {
             return Err(fdo::Error::Failed(
