@@ -284,8 +284,13 @@ def sway(*args):
 
 def drag(x, y, target):
     sway("seat", "seat0", "cursor", "set", x, y)
+    time.sleep(.15)
     sway("seat", "seat0", "cursor", "press", "button1")
-    sway("seat", "seat0", "cursor", "set", target, y)
+    # Actual relative movement is delivered during the grab. A Sway cursor
+    # warp requested during the grab is delivered only after button release.
+    for step in [5, target - x - 5]:
+        subprocess.run(["wlrctl", "pointer", "move", str(step), "0"], check=True)
+        time.sleep(.1)
     sway("seat", "seat0", "cursor", "release", "button1")
     time.sleep(.3)
 
@@ -294,7 +299,9 @@ drag(x + width, y + height // 2, x + width + 70)
 wider = row_bounds()
 checks["drag_resizes_message_list"] = wider[2] >= width + 40
 drag(wider[0], y + height // 2, wider[0] + 50)
-checks["drag_resizes_sidebar"] = row_bounds()[0] >= wider[0] + 30
+shifted = row_bounds()
+checks["drag_resizes_sidebar"] = shifted[0] >= wider[0] + 30
+(artifacts / "pane-bounds.json").write_text(json.dumps([list((x, y, width, height)), wider, shifted]))
 for mode in ["960x720", "1280x840"]:
     sway("output", "HEADLESS-1", "mode", mode)
     time.sleep(.5)

@@ -3147,7 +3147,13 @@ impl Workspace {
                 view.mb_3().children(
                     notes
                         .into_iter()
-                        .map(|note| Label::new(note).text_sm().text_color(muted)),
+                        .enumerate()
+                        .map(|(index, note)| {
+                            Label::new(note)
+                                .id(("analysis-note", index))
+                                .text_sm()
+                                .text_color(muted)
+                        }),
                 )
             })
             .child(self.deadline_controls(cx))
