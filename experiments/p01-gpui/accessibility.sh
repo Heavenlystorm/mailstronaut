@@ -63,10 +63,9 @@ export MAILSTRONAUT_SCREEN_READER_FIXTURE
 MAILSTRONAUT_SCREEN_READER_FIXTURE=$(realpath "$(dirname "${BASH_SOURCE[0]}")/screen-reader.sh")
 
 config="$root/config.nix"
-cat > "$config" <<'NIX'
+cat > "$root/declared.nix" <<'NIX'
 {
   schemaVersion = 1;
-  managed = true;
   appearance = "light";
   sync.automatic = false;
   accounts = map (identity: {
@@ -84,6 +83,7 @@ cat > "$config" <<'NIX'
   ];
 }
 NIX
+"$binary" config reconcile --declared "$root/declared.nix" --path "$config"
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
 MAILSTRONAUT_PERFORMANCE_MAILBOX=1 "$fixture" seed_conversation_gui --ignored --exact --nocapture \
   > "$root/seed.log" 2>&1
@@ -376,6 +376,8 @@ def back_in_settings(nodes):
 
 
 checks["escape_returns_to_settings"] = back_in_settings(wait_tree(back_in_settings))
+from account_dialog_checks import check_workflows
+checks.update(check_workflows(walk, wait_tree, key, shortcut, focused_name, capture, gdbus, literal))
 summary = {
     "nodes_exposed": len(tree),
     "unreadable_nodes": walk_errors[:10],
@@ -392,7 +394,7 @@ if not all(checks.values()):
 if os.environ.get("MAILSTRONAUT_A11Y_REQUIRE_TEXT") == "1" and not reader_exposes_exact_text:
     raise SystemExit("the reader does not expose its body through the AT-SPI Text interface")
 PYDRIVER
-python3 "$driver" > "$artifacts/driver.log" 2>&1 || {
+PYTHONPATH="$(dirname "${BASH_SOURCE[0]}")" python3 "$driver" > "$artifacts/driver.log" 2>&1 || {
   cat "$artifacts/driver.log" >&2
   printf 'Accessibility driver failed: %s\n' "$root" >&2
   exit 1
