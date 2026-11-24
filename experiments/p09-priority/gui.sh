@@ -95,6 +95,24 @@ printf '%s\n' 'OK: analysis set no Seen flag'
 sleep 1
 capture needs-attention
 
+# Replace the configuration while the application stays open. New mail still syncs
+# with analysis disabled, then becomes eligible when the rules are enabled again.
+cp "$config" "$artifacts/enabled.nix"
+sed 's/priority.enabled = true/priority.enabled = false/' "$artifacts/enabled.nix" > "$config"
+wtype -M ctrl -M shift -k r -m shift -m ctrl -s 1000
+for number in $(seq 1 65); do
+  message "rules-reload-$number" 'Office' "Rules reload sample $number" 'Here are the meeting notes.'
+done
+wtype -M ctrl -k r -m ctrl
+await 'new mail was cached with priority off' 65 "SELECT count(*) FROM messages WHERE subject LIKE 'Rules reload sample %'"
+reload_result="SELECT count(*) FROM analysis a JOIN messages m ON m.id=a.message_id WHERE m.subject LIKE 'Rules reload sample %'"
+[[ $(query "$reload_result") == 0 ]]
+capture rules-disabled
+cp "$artifacts/enabled.nix" "$config"
+wtype -M ctrl -M shift -k r -m shift -m ctrl
+await 'the replacement worker drained two batches without another delivery' 65 "$reload_result"
+[[ $(query 'SELECT count(*) FROM effective_memberships WHERE seen=1') == 0 ]]
+
 # Dismissing does not open or read the message, and it stays gone.
 click 533 274
 await 'dismissing took one message out of the group' 1 "$live"

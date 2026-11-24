@@ -154,3 +154,19 @@ one matching Sent copy when IMAP came back, without a second SMTP submission.
 
 Receipts: `target/local-checks/compose-compose.log`, `compose-delivery.log` and
 `compose-sent_copy.log`. Only synthetic mail and private credentials were used.
+
+## Draft recovery during attachment selection
+
+Opening Attach now starts saving the editor's pending text immediately. The attachment
+transaction waits for that save. Cancelling the chooser returns to the same draft and
+an unreadable selection shows a dismissible error. A missing source file leaves the
+draft text and attachment list intact.
+
+The same native Sway fixture failed on upstream when the private chooser was held open
+before the 500 ms autosave. With the change, SQLite contained the last edit while the
+chooser was still held. Cancelling, selecting a missing file, dismissing the alert and
+retrying the import preserved the editor. After a successful import the fixture removed
+the original file, removed its stored draft reference, switched to a second draft and
+back, and closed immediately after typing. Both bodies survived restart, the removed
+attachment stayed removed and the outbox was empty.
+[Native error and saved draft](artifacts/p07-draft-attachment/import-failed.png).

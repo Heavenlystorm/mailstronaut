@@ -190,7 +190,7 @@ struct Part {
 pub struct Opened {
     /// The usable index.
     pub index: Index,
-    /// True when created just now, including after discarding an unusable one.
+    /// True when there are no committed documents, including after interrupted creation.
     pub fresh: bool,
 }
 
@@ -224,15 +224,17 @@ impl Index {
     fn try_open(directory: &Path) -> Result<Opened, Error> {
         fs::create_dir_all(directory).map_err(|_| Error::Storage)?;
         let storage = MmapDirectory::open(directory).map_err(|_| Error::Storage)?;
-        let fresh = !Engine::exists(&storage).map_err(|_| Error::Storage)?;
         let (schema, fields) = schema();
         let engine = Engine::open_or_create(storage, schema)?;
         engine.tokenizers().register(ANALYZER, analyzer());
         let writer = engine.writer_with_num_threads(1, WRITER_MEMORY)?;
-        let reader = engine
+        let reader: IndexReader = engine
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .try_into()?;
+        // The previous process may have created the index but stopped before it
+        // asked SQLite to requeue its originals. An existing empty index still needs them.
+        let fresh = reader.searcher().num_docs() == 0;
         Ok(Opened {
             index: Self {
                 fields,

@@ -82,8 +82,9 @@ Ctrl+Shift+T to focus message text, Ctrl+A/C to select/copy, and the usual
 Home/End/Page keys to navigate. Ctrl+K focuses search; Ctrl+Shift+D toggles
 appearance. Focusing, copying and changing appearance do not open a message or
 mark additional mail Seen. Cached HTML opens in a bounded, passive Blitz viewport
-with native scrollbars, resize, HiDPI and theme handling. Text/HTML tabs and Select
-text keep the native text alternative available for selection and copying. Remote
+with native scrollbars, resize, HiDPI and theme handling. Drag across HTML text
+and press Ctrl+C to copy the highlighted passage. Use Text or Select text for
+keyboard selection across viewports. Remote
 resources stay blocked; only validated message-local PNG/JPEG images are supplied.
 Click a web link to open it through the desktop browser portal, or use Links in
 the reader toolbar (Ctrl+Shift+L, Enter, arrow keys, Enter). The picker displays

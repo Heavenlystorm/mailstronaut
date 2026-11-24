@@ -329,6 +329,11 @@
               pkgs.xz
             ];
           });
+          # Exercise actual screen-reader speech on the private accessibility bus.
+          a11y-test = self.devShells.${system}.gui-test.overrideAttrs (_: {
+            MAILSTRONAUT_ORCA = "${pkgs.orca}/bin/orca";
+            MAILSTRONAUT_SPEECHD = "${pkgs.speechd}";
+          });
           # Optional isolated-window acceptance tools; retain every development
           # toolchain/environment setting without relying on inputsFrom.
           gui-test = self.devShells.${system}.default.overrideAttrs (old: {

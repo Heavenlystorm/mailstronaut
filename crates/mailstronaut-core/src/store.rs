@@ -28,7 +28,7 @@ pub mod retention;
 pub mod search;
 pub mod semantic;
 
-const SCHEMA_VERSION: u32 = 16;
+const SCHEMA_VERSION: u32 = 17;
 
 /// Initial numbered migration.
 const SCHEMA: &str = "
@@ -192,6 +192,7 @@ impl Store {
             M::up(backfill::SCHEMA).foreign_key_check(),
             M::up(semantic::SCHEMA).foreign_key_check(),
             M::up(analysis::DEADLINE_CORRECTIONS_SCHEMA).foreign_key_check(),
+            M::up(moves::WARNING_SCHEMA).foreign_key_check(),
         ])
         .to_latest(&mut connection);
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -685,6 +686,16 @@ mod tests {
         assert_eq!(version, i64::from(super::SCHEMA_VERSION));
         drop(store);
         let reopened = Store::open(dir.path()).unwrap();
+        let mode: String = reopened
+            .connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        let busy_ms: u32 = reopened
+            .connection
+            .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+        assert_eq!(busy_ms, 5000);
         let reopened_version: i64 = reopened
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))

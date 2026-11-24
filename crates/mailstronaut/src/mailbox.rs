@@ -1,6 +1,9 @@
 //! Standard GPUI Kit list; selection never authorizes reading a message.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 use gpui::base::StyledExt as _;
 use gpui::component::{
@@ -10,13 +13,16 @@ use gpui::component::{
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle},
     label::Label,
     list::{ListDelegate, ListItem, ListState},
+    menu::{ContextMenuExt as _, PopupMenu, PopupMenuItem},
     tag::Tag,
 };
 use gpui::{
-    App, Context, HighlightStyle, Hsla, IntoElement, ParentElement as _, Pixels, Role,
-    StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
+    App, Context, HighlightStyle, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
+    Pixels, Role, StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
     prelude::FluentBuilder as _, px, rems,
 };
+use mailstronaut_core::store::mailbox::FolderRole;
+use mailstronaut_mail::imap::FlagChange;
 use mailstronaut_search::excerpt::BodyExcerpt;
 
 const ROW_HEIGHT: Pixels = px(124.);
@@ -63,6 +69,39 @@ impl From<mailstronaut_core::store::conversations::Summary> for Row {
 }
 
 impl Row {
+    fn accessibility_label(&self, received: &str, priority: bool, due: Option<&str>) -> String {
+        let count = if self.messages == 1 {
+            if self.unread == 0 { "read" } else { "unread" }.to_owned()
+        } else {
+            format!("{} messages, {} unread", self.messages, self.unread)
+        };
+        let mut fields = vec![
+            self.sender.as_str(),
+            self.subject.as_str(),
+            self.account.as_str(),
+            received,
+            &count,
+        ];
+        if priority {
+            fields.push("Needs attention");
+        }
+        if self.starred {
+            fields.push("starred");
+        }
+        fields.extend(due);
+        if !self.preview.is_empty() {
+            fields.push(&self.preview);
+        }
+        fields.join(" · ")
+    }
+
+    fn resolve_merge(mut self, aliases: &HashMap<i64, i64>) -> Self {
+        if let Some(&survivor) = self.conversation.and_then(|id| aliases.get(&id)) {
+            self.conversation = Some(survivor);
+        }
+        self
+    }
+
     pub fn same_group(&self, other: &Self) -> bool {
         self.account == other.account
             && match (self.conversation, other.conversation) {
@@ -141,6 +180,37 @@ pub fn addresses(addresses: &[mailstronaut_core::mime::Mailbox]) -> String {
 }
 
 pub type Dismiss = Rc<dyn Fn(i64, &mut Window, &mut App)>;
+pub type RowMenuAction = Rc<dyn Fn(&Row, RowAction, &mut Window, &mut App)>;
+
+#[derive(Clone, Copy)]
+pub enum RowAction {
+    Open,
+    Flag(FlagChange, bool),
+    Move(FolderRole),
+}
+
+fn row_menu(mut menu: PopupMenu, row: &Row, action: &RowMenuAction) -> PopupMenu {
+    for (title, choice) in [
+        ("Open", RowAction::Open),
+        (
+            if row.seen { "Mark unread" } else { "Mark read" },
+            RowAction::Flag(FlagChange::Seen, !row.seen),
+        ),
+        (
+            if row.starred { "Unstar" } else { "Star" },
+            RowAction::Flag(FlagChange::Starred, !row.starred),
+        ),
+        ("Archive", RowAction::Move(FolderRole::Archive)),
+        ("Trash", RowAction::Move(FolderRole::Trash)),
+    ] {
+        let row = row.clone();
+        let action = action.clone();
+        menu = menu.item(PopupMenuItem::new(title).on_click(move |_, window, cx| {
+            action(&row, choice, window, cx);
+        }));
+    }
+    menu
+}
 /// Called when the user asks to see every conversation that needs attention.
 pub type ShowAll = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -164,10 +234,12 @@ pub struct Rows {
     pub show_all_priority: bool,
     pub loading: bool,
     pub searching: bool,
+    pub indexing_words: bool,
     pub has_accounts: bool,
     pub time_zone: String,
     /// Called with a row's message when the user dismisses it from the priority group.
     pub on_dismiss: Option<Dismiss>,
+    pub on_row_action: Option<RowMenuAction>,
     /// Called when the user asks for every conversation that needs attention.
     pub on_show_all: Option<ShowAll>,
     /// Kit calls this near the end of the virtualized list.
@@ -181,6 +253,12 @@ pub struct Rows {
 }
 
 impl Rows {
+    pub fn current(&self, target: &Row) -> Option<&Row> {
+        self.items
+            .iter()
+            .chain(&self.priority.rows)
+            .find(|row| row.account == target.account && row.id == target.id)
+    }
     /// Append metadata without duplicating canonical conversations or ungrouped originals.
     pub fn append(&mut self, rows: Vec<Row>) {
         let existing = self.items.iter().chain(&self.priority.rows);
@@ -251,9 +329,14 @@ impl Rows {
             .map(|(row, y)| (row.clone(), -offset - y))
     }
 
-    fn anchored_offset(&self, anchor: &(Row, Pixels)) -> Option<Pixels> {
+    fn anchored_offset(
+        &self,
+        anchor: (Row, Pixels),
+        aliases: &HashMap<i64, i64>,
+    ) -> Option<Pixels> {
+        let row = anchor.0.resolve_merge(aliases);
         self.positions()
-            .find(|(row, _)| row.same_group(&anchor.0))
+            .find(|(candidate, _)| candidate.same_group(&row))
             .map(|(_, y)| -y - anchor.1)
     }
 
@@ -270,8 +353,9 @@ impl Rows {
         }
     }
 
-    fn position(&self, row: &Row) -> Option<IndexPath> {
-        let find = |rows: &[Row]| rows.iter().position(|other| other.same_group(row));
+    fn position(&self, row: Row, aliases: &HashMap<i64, i64>) -> Option<IndexPath> {
+        let row = row.resolve_merge(aliases);
+        let find = |rows: &[Row]| rows.iter().position(|other| other.same_group(&row));
         find(&self.priority.rows).map(IndexPath::new).or_else(|| {
             find(&self.items).map(|found| IndexPath::new(found).section(self.mailbox_section()))
         })
@@ -295,7 +379,7 @@ pub fn replace(
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
-    replace_with_priority(list, rows, Priority::default(), window, cx);
+    replace_with_priority(list, rows, Priority::default(), &HashMap::new(), window, cx);
 }
 
 /// Like [`replace`], with a priority group. A conversation in the group is not repeated
@@ -304,6 +388,7 @@ pub fn replace_with_priority(
     list: &mut ListState<Rows>,
     mut rows: Vec<Row>,
     priority: Priority,
+    aliases: &HashMap<i64, i64>,
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
@@ -316,9 +401,9 @@ pub fn replace_with_priority(
     list.delegate_mut().priority = priority;
     list.delegate_mut().loading = false;
     list.delegate_mut().more = false;
-    let selected = old.and_then(|old| list.delegate().position(&old));
+    let selected = old.and_then(|old| list.delegate().position(old, aliases));
     list.set_selected_index(selected, window, cx);
-    if let Some(y) = anchor.and_then(|anchor| list.delegate().anchored_offset(&anchor)) {
+    if let Some(y) = anchor.and_then(|anchor| list.delegate().anchored_offset(anchor, aliases)) {
         let mut offset = list.scroll_handle().offset();
         offset.y = y;
         list.scroll_handle().set_offset(offset);
@@ -362,6 +447,7 @@ impl ListDelegate for Rows {
         };
         Some(
             div()
+                .id(("mailbox-section", section))
                 .h(SECTION_HEIGHT)
                 .flex()
                 .items_center()
@@ -394,11 +480,15 @@ impl ListDelegate for Rows {
         let muted = cx.theme().muted_foreground;
         let today = mailbox_today(&self.time_zone);
         let due = row.due.as_deref().map(|due| due_label(due, today));
-        let dismiss = (index.section != self.mailbox_section())
+        let priority = index.section != self.mailbox_section();
+        let received = date(row.received_at, &self.time_zone);
+        let dismiss = priority
             .then(|| self.on_dismiss.clone())
             .flatten()
             .map(|dismiss| (dismiss, row.id));
         let unread = row.unread > 0;
+        let action = self.on_row_action.clone();
+        let target = row.clone();
         Some(
             // A list item is exposed as a named row only with an explicit role. Kit's item
             // supplies the id and the label; without the role, assistive technology sees an
@@ -413,19 +503,10 @@ impl ListDelegate for Rows {
                 .px_4()
                 .border_b_1()
                 .border_color(cx.theme().border)
-                .accessibility_label(format!(
-                    "{} · {} · {} · {} messages · {} unread{}{}",
-                    row.sender,
-                    row.subject,
-                    row.account,
-                    row.messages,
-                    row.unread,
-                    if row.starred { " · starred" } else { "" },
-                    due.as_deref()
-                        .map_or_else(String::new, |due| format!(" · {due}"))
-                ))
+                .accessibility_label(row.accessibility_label(&received, priority, due.as_deref()))
                 .child(
                     div()
+                        .id(("message-row-menu", row.id.cast_unsigned()))
                         .w_full()
                         .min_w_0()
                         .child(
@@ -453,6 +534,10 @@ impl ListDelegate for Rows {
                                             .ghost()
                                             .xsmall()
                                             .icon(IconName::Close)
+                                            .accessibility_label(format!(
+                                                "Dismiss priority for {}",
+                                                row.subject
+                                            ))
                                             .tooltip("Does not need attention")
                                             .on_click(move |_, window, cx| {
                                                 // The row underneath must not also open,
@@ -477,7 +562,11 @@ impl ListDelegate for Rows {
                         .when_some(due, |view, due| {
                             view.child(div().flex().child(Tag::warning().small().child(due)))
                         })
-                        .child(row_footer(row, &self.time_zone, muted)),
+                        .child(row_footer(row, received, muted))
+                        .context_menu(move |menu, _, _| match &action {
+                            Some(action) => row_menu(menu, &target, action),
+                            None => menu,
+                        }),
                 ),
         )
     }
@@ -516,14 +605,19 @@ impl ListDelegate for Rows {
         _: &mut Window,
         _: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
+        let incomplete = self.searching && self.indexing_words;
         Empty::new().header(
             EmptyHeader::new()
-                .title(EmptyTitle::new().child(if self.searching {
+                .title(EmptyTitle::new().child(if incomplete {
+                    "Searching indexed mail"
+                } else if self.searching {
                     "No cached matches"
                 } else {
                     "No cached mail"
                 }))
-                .description(EmptyDescription::new().child(if self.searching {
+                .description(EmptyDescription::new().child(if incomplete {
+                    "Results will update when the search index is ready."
+                } else if self.searching {
                     "Try a different query. Only locally cached text is searched."
                 } else if self.has_accounts {
                     "Use Sync mail to check for messages."
@@ -563,7 +657,7 @@ fn row_preview(
         )
 }
 
-fn row_footer(row: &Row, zone: &str, muted: Hsla) -> impl IntoElement {
+fn row_footer(row: &Row, received: String, muted: Hsla) -> impl IntoElement {
     div()
         .flex()
         .items_center()
@@ -581,12 +675,7 @@ fn row_footer(row: &Row, zone: &str, muted: Hsla) -> impl IntoElement {
             .min_w_0()
             .truncate(),
         )
-        .child(
-            Label::new(date(row.received_at, zone))
-                .text_xs()
-                .text_color(muted)
-                .flex_none(),
-        )
+        .child(Label::new(received).text_xs().text_color(muted).flex_none())
 }
 
 fn mailbox_today(zone: &str) -> chrono::NaiveDate {
@@ -598,6 +687,7 @@ fn mailbox_today(zone: &str) -> chrono::NaiveDate {
 mod tests {
     use super::{Row, Rows, cut_group, date, display_text, due_label};
     use gpui::px;
+    use std::collections::HashMap;
 
     fn row(account: &str, id: i64, conversation: Option<i64>) -> Row {
         Row {
@@ -652,14 +742,48 @@ mod tests {
         let anchor = rows.anchor(-px(260.)).expect("third row");
         assert_eq!(anchor.0.id, 3);
         rows.items.insert(0, row("a", 11, None));
-        assert_eq!(rows.anchored_offset(&anchor), Some(-px(384.)));
+        assert_eq!(
+            rows.anchored_offset(anchor.clone(), &HashMap::new()),
+            Some(-px(384.))
+        );
         // A priority section adds two fixed header heights, without opening anything.
         rows.priority.rows.push(row("b", 12, None));
-        assert_eq!(rows.anchored_offset(&anchor), Some(-px(564.)));
+        assert_eq!(
+            rows.anchored_offset(anchor, &HashMap::new()),
+            Some(-px(564.))
+        );
         assert!(
             rows.anchor(px(0.)).is_none(),
             "at the top newer mail should be visible"
         );
+    }
+
+    #[test]
+    fn merge_preserves_passive_selection_and_intra_row_offset_across_sections() {
+        let mut rows = Rows {
+            items: vec![row("a", 10, Some(1)), row("a", 20, Some(2))],
+            ..Rows::default()
+        };
+        let anchor = rows
+            .anchor(-px(140.))
+            .expect("16 pixels into the losing group");
+        let selected = rows.items[1].clone();
+        rows.items.clear();
+        // A new original now represents the merged group in the priority section.
+        rows.priority.rows = vec![row("b", 90, Some(9)), row("a", 30, Some(1))];
+        let aliases = HashMap::from([(2, 1)]);
+        assert_eq!(
+            rows.position(selected.clone(), &aliases),
+            Some(gpui::component::IndexPath::new(1))
+        );
+        assert_eq!(
+            rows.anchored_offset(anchor.clone(), &aliases),
+            Some(-px(168.))
+        );
+        assert!(rows.priority.rows.iter().all(|row| !row.seen));
+        rows.priority.rows[1].account = "b".into();
+        assert!(rows.position(selected, &aliases).is_none());
+        assert!(rows.anchored_offset(anchor, &aliases).is_none());
     }
 
     #[test]

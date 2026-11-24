@@ -1,8 +1,13 @@
 //! Parent-side lifecycle for the limited same-executable configuration helper.
 
 use core::{error::Error as ErrorTrait, fmt, time::Duration};
-use std::{path::Path, process::Stdio};
+use std::{
+    os::unix::process::ExitStatusExt as _,
+    path::Path,
+    process::{ExitStatus, Stdio},
+};
 
+use rustix::process::Signal;
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     process::{Child, Command},
@@ -31,7 +36,7 @@ pub enum EvaluationError {
     SourceTooLarge,
     /// The operating system could not start the helper.
     Spawn,
-    /// The helper exceeded the wall-time budget and was killed and waited for.
+    /// The helper reached its CPU or wall-time limit and was reaped.
     TimedOut,
     /// Pipe I/O or process exit failed.
     Transport,
@@ -177,12 +182,41 @@ async fn exchange(child: &mut Child, source: &str) -> Result<helper::Response, E
     };
     let wait = async {
         let status = child.wait().await.map_err(|_| EvaluationError::Transport)?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(EvaluationError::Transport)
-        }
+        check_exit(status)
     };
     let ((), bytes, ()) = tokio::try_join!(write, read, wait)?;
     serde_json::from_slice(&bytes).map_err(|_| EvaluationError::InvalidResponse)
+}
+
+fn check_exit(status: ExitStatus) -> Result<(), EvaluationError> {
+    if status.success() {
+        Ok(())
+    } else if status.signal() == Some(Signal::XCPU.as_raw()) {
+        Err(EvaluationError::TimedOut)
+    } else {
+        Err(EvaluationError::Transport)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cpu_limit_signal_reports_a_timeout_and_other_failed_exits_report_transport() {
+        let cpu_limit = Signal::XCPU.as_raw();
+        assert_eq!(
+            check_exit(ExitStatus::from_raw(cpu_limit)),
+            Err(EvaluationError::TimedOut)
+        );
+        assert_eq!(
+            check_exit(ExitStatus::from_raw(Signal::TERM.as_raw())),
+            Err(EvaluationError::Transport)
+        );
+        assert_eq!(
+            check_exit(ExitStatus::from_raw(cpu_limit << 8)),
+            Err(EvaluationError::Transport)
+        );
+        assert_eq!(check_exit(ExitStatus::from_raw(0)), Ok(()));
+    }
 }

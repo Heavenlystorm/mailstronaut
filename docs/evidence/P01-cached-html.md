@@ -177,3 +177,28 @@ message-initiated I/O. Before explicitly opening the first original, the driver
 reloaded the unchanged configuration and verified that passive selection left
 every original unread. This uses the local reload path because Ctrl+R also
 requests a server sync. The trace and frames are under `target/p01.SKu1SY`.
+
+## Selecting text in the HTML viewport
+
+At `28df877`, both focused tests and the complete private Wayland reader
+fixture passed with the pinned Nix development toolchain:
+
+```sh
+cargo test --locked --offline -p mailstronaut-render pointer_selection_uses_painted_layout
+cargo test --locked --offline -p mailstronaut drag_selection_never_activates
+```
+
+The fixture ran `experiments/p01-blitz/reader.sh` against that revision's
+debug application, synthetic store fixture and private browser portal. A
+virtual pointer dragged across “Synthetic HTML Alpha · Bonjour · 世界” in the
+rendered message. The selection left a clipboard sentinel untouched until
+Ctrl+C, which copied the exact Unicode heading. This passed at ordinary and
+narrow widths, at native scale two, and after changing appearance. The fixture
+also checked the native Text alternative, source replacement, offline restart,
+bounded rendering, and explicit-open Seen behavior.
+
+Dragging across a link produced no portal call. Ordinary clicks still reached
+the private portal. The renderer test also verifies backward selection,
+highlight pixels, coordinate validation and stale geometry. This scope covers
+pointer selection within one viewport. Text/Select text remains the path for
+keyboard selection across viewports and for accessible multiline reading.

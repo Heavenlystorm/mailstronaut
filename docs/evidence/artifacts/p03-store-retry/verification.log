@@ -1,0 +1,121 @@
+   Compiling mailstronaut-config v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-config)
+   Compiling mailstronaut-models v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-models)
+   Compiling mailstronaut-render v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-render)
+   Compiling mailstronaut-priority v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-priority)
+   Compiling mailstronaut-search v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-search)
+   Compiling mailstronaut-mail v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-mail)
+   Compiling mailstronaut-core v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-core)
+   Compiling mailstronaut v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.91s
+   Compiling mailstronaut-config v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-config)
+   Compiling mailstronaut-mail v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-mail)
+   Compiling mailstronaut-core v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.99s
+   Compiling mailstronaut-core v0.1.0 (/sources/p03-store-retry-bb3f94628413/crates/mailstronaut-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.89s
+     Running unittests src/lib.rs (/build/target/debug/build/mailstronaut-core/099e77a057b3cfee/out/mailstronaut_core-099e77a057b3cfee)
+
+running 84 tests
+test outline::tests::parts_decode_by_their_own_headers ... ok
+test reminders::tests::civil_presets_use_calendar_days_and_elapsed_hours_across_dst ... ok
+test outline::tests::a_message_with_no_readable_text_still_has_its_headers ... ok
+test outline::tests::the_small_copy_is_an_ordinary_message_without_the_original_structure ... ok
+test reminders::tests::gaps_are_rejected_and_folds_choose_the_first_still_future_occurrence ... ok
+test store::analysis::tests::an_explicit_time_in_a_dst_fold_or_gap_is_rejected ... ok
+test attachments::tests::snapshots_binary_unicode_and_empty_files_without_retaining_paths ... ok
+test attachments::tests::rejects_aggregate_oversize_and_missing_sources_as_one_failed_import ... ok
+test outline::tests::nothing_too_large_for_the_store_is_produced ... ok
+test store::analysis::tests::a_correction_controls_active_expiry_and_survives_reanalysis_and_cache_clear ... ok
+test store::backfill::tests::a_pass_belongs_to_one_account_and_folder_and_needs_a_real_folder ... ok
+test store::backfill::tests::a_pass_survives_reopening_and_each_save_replaces_the_last ... ok
+test store::analysis::tests::invalid_limits_are_refused ... ok
+test store::analysis::tests::a_result_for_a_message_that_has_gone_is_ignored ... ok
+test store::backfill::tests::coverage_reports_each_folder_of_the_asked_accounts_without_inventing_progress ... ok
+test store::analysis::tests::a_stored_result_stops_waiting_until_the_policy_changes ... ok
+test store::analysis::tests::dismissing_is_final_and_does_not_read_the_message ... ok
+test store::analysis::tests::leaving_the_inbox_or_being_another_accounts_mail_ends_it ... ok
+test store::analysis::tests::the_group_is_ordered_by_what_ends_soonest_and_only_while_it_lasts ... ok
+test store::analysis::tests::only_unread_recent_inbox_mail_waits_and_it_carries_what_analysis_needs ... ok
+test store::browse::tests::authenticated_catalog_keeps_wire_names_and_offline_history_but_replaces_the_inbox_role ... ok
+test store::analysis::tests::reading_is_final_even_after_marking_unread_again ... ok
+test store::analysis::tests::new_mail_is_what_arrived_after_a_baseline_and_is_still_unread_in_the_inbox ... ok
+test store::analysis::tests::corrections_never_start_priority_for_expired_dismissed_or_read_originals ... ok
+test store::browse::tests::local_search_opens_a_matching_member_and_respects_account_folder_and_namespace ... ok
+test store::browse::tests::metadata_filters_select_matching_originals_without_clearing_unread_siblings ... ok
+test store::conversations::identity_regression::simultaneous_split_and_merge_reserve_old_ids_for_their_oldest_surviving_members ... ok
+test store::browse::tests::query_text_cannot_supply_fts_operators_or_sql ... ok
+test store::browse::tests::ranked_pages_keep_the_given_order_group_conversations_and_respect_scope ... ok
+test store::browse::tests::sender_only_filters_page_and_scope_without_hiding_thread_members ... ok
+test store::browse::tests::local_search_is_bounded_and_pages_equal_dates_without_duplicates ... ok
+test store::browse::tests::unread_counts_follow_what_the_user_sees_in_each_folder ... ok
+test store::conversations::tests::late_results_and_incomplete_coverage_cannot_replace_newer_metadata ... ok
+test store::conversations::tests::conversation_inbox_is_account_local_includes_sent_and_updates_flags_per_message ... ok
+test store::migration_tests::failed_upgrade_rolls_back_schema_and_keeps_original_user_state ... ok
+test store::migration_tests::future_schema_is_rejected_without_downgrading_or_clearing_data ... ok
+test store::scale_tests::scale_measurement ... ignored, explicit release-mode measurement
+test store::migration_tests::removed_messages_never_reuse_an_old_reminder_identity_even_after_restart ... ok
+test store::conversations::tests::splitting_preserves_only_one_old_identity_and_deleted_roots_do_not_erase_surviving_thread_ids ... ok
+test store::conversations::tests::merges_keep_oldest_identity_and_aliases_survive_restart_and_later_merges ... ok
+test store::migration_tests::schema_two_upgrade_retains_legacy_drafts_and_has_a_schema_two_backup ... ok
+test store::reminders::tests::failures_missing_targets_and_read_history_remain_independent ... ok
+test store::search::excerpts::tests::literal_excerpt_comes_from_the_opened_original_even_beyond_its_preview ... ok
+test store::migration_tests::reminder_upgrade_binds_one_legacy_record_and_preserves_ambiguous_or_missing_targets ... ok
+test store::reminders::tests::invalid_times_stale_desktop_actions_and_foreign_edits_do_not_change_state ... ok
+test store::reminders::tests::generations_scope_restart_and_late_delivery_cannot_change_another_reminder ... ok
+test store::search::tests::a_message_changed_while_being_indexed_stays_queued ... ok
+test store::migration_tests::schema_three_upgrade_keeps_originals_and_requires_verified_server_provenance_before_flags ... ok
+test store::reminders::tests::only_the_exclusive_owner_recovers_interrupted_delivery_with_the_same_notification_id ... ok
+test store::search::tests::a_recreated_index_gets_everything_again ... ok
+test store::search::tests::cached_mail_is_queued_with_its_text_and_stays_queued_until_acknowledged ... ok
+test store::migration_tests::upgrades_with_consistent_private_backup_including_committed_wal ... ok
+test store::search::tests::nothing_queued_has_no_acknowledgment_and_a_zero_batch_is_refused ... ok
+test store::search::tests::deleted_mail_and_cleared_indexes_are_queued_for_removal ... ok
+test store::search::tests::scope_candidates_follow_current_memberships_and_enabled_accounts_without_reading ... ok
+test sync::history_tests::a_changed_mailbox_context_or_age_cap_starts_again ... ok
+test sync::history_tests::a_finished_pass_rests_until_the_rewalk_interval_has_passed ... ok
+test sync::history_tests::a_new_folder_starts_from_its_newest_uid_with_a_total ... ok
+test sync::history_tests::a_partial_pass_resumes_exactly_where_it_stopped ... ok
+test sync::history_tests::a_uid_reset_never_resumes_the_old_namespaces_cursor ... ok
+test sync::tests::names_are_a_fallback_and_unselectable_or_unknown_folders_gain_no_role ... ok
+test sync::tests::special_use_beats_conventional_names_and_an_override_beats_both ... ok
+test threads::tests::budgets_and_exact_output_coverage_reject_invalid_metadata_without_exposing_it ... ok
+test threads::tests::cycles_self_references_and_headerless_mail_preserve_exact_coverage ... ok
+test threads::tests::duplicate_header_ids_preserve_distinct_messages_and_bind_references_to_the_first ... ok
+test threads::tests::missing_ancestor_siblings_and_a_late_parent_remain_one_conversation ... ok
+test threads::tests::single_parent_fallback_is_used_only_when_references_are_absent ... ok
+test store::tests::corruption_and_symlinks_are_rejected_and_unknown_files_retained ... ok
+test store::semantic::tests::a_source_changed_after_retrieval_is_fenced_without_losing_its_cursor_rank ... ok
+test store::tests::migrations_and_foreign_keys_survive_reopen ... ok
+test store::semantic::tests::independent_frontiers_survive_lexical_acknowledgment_replay_and_deletion ... ok
+test store::semantic::tests::bounded_unicode_sources_report_coverage_and_exclude_encrypted_or_headers_only_mail ... ok
+test store::tests::failed_insert_leaves_collectible_orphan ... ok
+test store::tests::writer_lock_prevents_collection_before_reference_commit ... ok
+test store::tests::ingestion_reopens_and_shares_blobs_without_collapsing_messages ... ok
+test worker::tests::a_full_store_queue_defers_admission_without_committing_cancelled_requests ... ok
+test store::semantic::tests::upgrading_schema_fourteen_seeds_semantic_work_without_requeueing_lexical_mail ... ok
+test store::semantic::tests::scope_and_sender_dates_are_canonical_and_do_not_change_seen ... ok
+test store::tests::index_clear_preserves_durable_state_and_referenced_blob ... ok
+test worker::tests::accepted_draft_and_smtp_result_commands_survive_dropped_ui_waiters ... ok
+test store::scale_tests::an_account_too_large_to_group_still_lists_and_searches_its_mail ... ok
+test store::conversations::tests::a_bounded_member_page_always_contains_the_selected_message ... ok
+test store::conversations::tests::original_pages_reach_every_member_with_tied_dates_and_isolate_accounts ... ok
+test store::browse::tests::page_without_a_search_agrees_with_the_complete_query ... ok
+
+test result: ok. 83 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 17.88s
+
+     Running tests/worker.rs (/build/target/debug/build/mailstronaut-core/4781927651990e01/out/worker-4781927651990e01)
+
+running 4 tests
+test seed_conversation_gui ... ignored, explicit private native conversation GUI fixture only
+test only_one_application_worker_can_own_a_profile_until_shutdown ... ok
+test durable_round_trip_restarts_and_shutdown_closes_cloned_handles ... ok
+test sqlite_writer_contention_does_not_block_the_async_timer ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: []
+Effective Seen matches explicit opens: ['unrelated']
+Effective Seen matches explicit opens: ['unrelated']
+Effective Seen matches explicit opens: ['unrelated']
+Recovered the seeded mailbox in the same window: /sources/p03-store-retry-bb3f94628413/target/p06.i8mtap

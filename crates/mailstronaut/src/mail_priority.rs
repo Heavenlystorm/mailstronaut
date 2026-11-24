@@ -20,7 +20,7 @@ use tokio::{
     runtime::Runtime,
     sync::{Notify, mpsc},
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::sync::{CancellationToken, DropGuard};
 
 const BATCH: u32 = 64;
 const BETWEEN_BATCHES: Duration = Duration::from_millis(20);
@@ -150,9 +150,10 @@ pub fn deadline_notes(analysis: &Analysis) -> Vec<String> {
         .collect()
 }
 
-/// Dropping this does not stop analysis; cancelling its token does.
+/// The active configuration owns the worker, including an idle worker waiting for mail.
 pub struct PriorityEngine {
     wake: Arc<Notify>,
+    _lifetime: DropGuard,
 }
 
 impl PriorityEngine {
@@ -170,9 +171,15 @@ impl PriorityEngine {
             store,
             wake.clone(),
             changed,
-            cancel,
+            cancel.clone(),
         ));
-        (Self { wake }, receiver)
+        (
+            Self {
+                wake,
+                _lifetime: cancel.drop_guard(),
+            },
+            receiver,
+        )
     }
 
     /// New mail may have been cached.
@@ -189,10 +196,16 @@ async fn run(
     cancel: CancellationToken,
 ) {
     loop {
-        let wait = match batch(&rules, &store).await {
-            Ok(0) => None,
-            Ok(prioritized) => {
-                if prioritized > 0 {
+        let Some(result) = cancel
+            .run_until_cancelled(batch(&rules, &store, &cancel))
+            .await
+        else {
+            return;
+        };
+        let wait = match result {
+            Ok(None) => None,
+            Ok(Some(has_priority)) => {
+                if has_priority {
                     // A full channel already says the same thing.
                     _ = changed.try_send(());
                 }
@@ -208,9 +221,12 @@ async fn run(
     }
 }
 
-/// Returns how many messages were analyzed, plus one if any of them qualified: an empty
-/// batch and a batch of nothing interesting must be told apart.
-async fn batch(rules: &Rules, store: &Handle) -> Result<u32, ()> {
+/// None means the queue is empty. An ordinary-only batch still advances the queue.
+async fn batch(
+    rules: &Rules,
+    store: &Handle,
+    cancel: &CancellationToken,
+) -> Result<Option<bool>, ()> {
     let now = i64::try_from(
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -228,7 +244,7 @@ async fn batch(rules: &Rules, store: &Handle) -> Result<u32, ()> {
         .await
         .map_err(|_| ())?;
     if inputs.is_empty() {
-        return Ok(0);
+        return Ok(None);
     }
     let results: Vec<_> = inputs
         .iter()
@@ -237,12 +253,12 @@ async fn batch(rules: &Rules, store: &Handle) -> Result<u32, ()> {
     if results.is_empty() {
         return Err(());
     }
-    let prioritized = results
-        .iter()
-        .filter(|result| result.expires_at.is_some())
-        .count();
-    store.store_analysis(results).await.map_err(|_| ())?;
-    Ok(u32::try_from(prioritized).unwrap_or(u32::MAX))
+    let has_priority = results.iter().any(|result| result.expires_at.is_some());
+    store
+        .store_analysis_while_active(results, cancel.clone())
+        .await
+        .map_err(|_| ())?;
+    Ok(Some(has_priority))
 }
 
 #[cfg(test)]
@@ -250,6 +266,29 @@ mod tests {
     use chrono::TimeZone as _;
 
     use super::*;
+
+    #[test]
+    fn replacing_the_engine_releases_its_idle_worker() {
+        let runtime = Runtime::new().expect("runtime");
+        runtime.block_on(async {
+            let root = tempfile::tempdir().expect("profile");
+            let store = mailstronaut_core::worker::Worker::open(root.path().to_owned())
+                .await
+                .expect("store");
+            let config: Config =
+                serde_json::from_str(r#"{"schemaVersion":1}"#).expect("configuration");
+            let (engine, mut changed) =
+                PriorityEngine::start(&runtime, store.handle(), &config, CancellationToken::new());
+            drop(engine);
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(3), changed.recv())
+                    .await
+                    .expect("worker stopped"),
+                None
+            );
+            store.shutdown().await.expect("shutdown");
+        });
+    }
 
     fn result(body: &str, direct: bool) -> Analysis {
         let written = chrono_tz::Europe::Paris

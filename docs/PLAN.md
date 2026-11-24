@@ -131,9 +131,11 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   for reader actions. Reuse `ScrollableElement`/`ScrollHandle` for scrollbars;
   implement actual viewport rendering, resize, HiDPI and native keyboard scrolling.
   [Installed Wayland evidence](evidence/P01-cached-html.md).
-- [ ] Establish an appropriate public-API HTML selection/copy route if practical;
+- [x] Establish an appropriate public-API HTML selection/copy route if practical;
   keep native Text/Select text usable for every readable message. A raster alone
   is not text accessibility. Verify actual assistive-technology behavior below.
+  [Drag selection, current-frame Unicode copying and the keyboard text alternative
+  on private native Wayland](evidence/P01-cached-html.md#selecting-text-in-the-html-viewport).
 - [x] Provide a retained passive document API that reuses DOM/font/raster state,
   repaints only bounded physical viewport pixels, forwards logical scale/theme,
   clamps scroll and rejects invalid geometry/excessive CSS extents. Verify pixel
@@ -148,12 +150,11 @@ Read RENDERING.md, DEPENDENCIES.md and [reader component choices](INTERFACE.md#p
   cancellation/refusal, 2x hit and no-fetch observations pass in private fixtures.
   [Bounded installed-package evidence](evidence/P01-web-links.md). Real desktop/
   Flatpak portal activation remains P10/P11 acceptance.
-- [ ] Verify keyboard behavior and the actual accessibility tree on Wayland.
-  Partial: the mailbox tree, row names, search field and keyboard focus through the
-  list are read over AT-SPI in a private headless session ([P01 accessibility](evidence/P01-accessibility.md)).
-  With GPUI Kit 0.10.0, the focused native reader exposes the complete multiline
-  Unicode body through AT-SPI Text and stays read-only. Screen-reader speech,
-  compose, dialogs and Settings remain open.
+- [x] Verify keyboard behavior and the actual accessibility tree on Wayland.
+  The native fixture checks the mailbox, reader, composer, editable accounts,
+  Settings export and discard confirmation. Orca Say All reads the multilingual
+  message through the native Text view. [28 AT-SPI checks and synthesized speech](evidence/P01-accessibility.md#account-editing-and-discard-confirmation).
+  Full daily-workflow and release accessibility remain P11 checks.
 - [x] Measure long-email responsiveness, repeated message switches, frame memory
   and hidden idle CPU; drop obsolete documents and stop hidden rendering. Measured in
   a headless software-rendered session with the release binary: 100 switches with no
@@ -232,13 +233,18 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   desktop and Flatpak portals. [Save, cancellation, refusal and no-clobber passed
   on a private native session bus](evidence/P02-native-nix.md#local-native-filechooser-export).
   Live desktop portals and Flatpak document grants remain open.
-- [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
+- [x] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
-  Basic preference round trips, conflicts and invalid reloads pass the private
-  native workflow above; full HM generation ownership transitions remain open.
+  The [same-home generation fixture](evidence/P02-preferences.md#home-manager-ownership-transitions)
+  passed the native Settings round trip, declared precedence and safe ownership
+  changes. The configuration integration tests also passed writer conflicts,
+  string escaping and last-valid reload retention.
 - [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
   configuration cannot replace the last valid account state or expose secrets.
+  Explicit older-mail requests and server attachment saves now retire with an
+  accepted account declaration. [Private Wayland and Dovecot checks](evidence/P02-gpui-accounts.md#explicit-fetches-during-configuration-reload)
+  passed for reuse of folder IDs and delayed chooser replies.
 - [ ] Verify the same `.nix` source through disposable Home Manager integration,
   native package and Flatpak regular-file/document access. Never activate user dotfiles.
 - [ ] Prove no password/token appears in config, Nix store, Debug, tracing or failed
@@ -252,27 +258,30 @@ Reuse `mailstronaut-core`, rusqlite/migrations, mail-parser and mail-threading.
 Existing synthetic backend tests/evidence remain relevant; rerun them with the
 new dependency graph before claiming current-package acceptance.
 
-- [ ] Verify private XDG paths, one blocking store owner/profile lock, bounded
+- [x] Verify private XDG paths, one blocking store owner/profile lock, bounded
   commands, WAL/foreign keys/busy timeout and migration backup/rollback. Present
   unavailable/corrupt stores with `Empty`/`Alert` and a real Retry action; use
   `AlertDialog` only for explicitly destructive purge/reset decisions.
+  [Store, worker and native Wayland recovery checks](evidence/P03-store-retry.md).
 - [x] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
   [Named checks for each clause, including real kills at three points of one pass](evidence/P03-durability.md).
-- [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
+- [x] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
   attachment/CID descriptors and source/body revisions. No generated summaries.
+  [Current synthetic MIME fixture results](evidence/P03.md#bounded-attachment-descriptors-and-revisions).
 - [x] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
   deduplication and duplicate Message-ID tests; never merge different accounts.
   [Named tests per clause, including a UIDVALIDITY reset on a real server](evidence/P03-identity.md).
 - [x] Retain account-local RFC5256/JWZ grouping with subject merging disabled,
   revision-fenced stable conversations and the 37-case upstream conformance corpus.
-- [ ] Complete missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior
+- [x] Complete [missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior](evidence/P03-scale.md#late-sent-ancestry-at-the-account-limit)
   at measured mailbox scale; sequence numbers never become persistent identity.
-- [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
+- [x] Verify paginated unified/search projections, derived-index purge/rebuild,
   partial-cache states and bounded 100k-message behavior. See P06 for strong search.
   [Queries are measured at 100k and an over-limit account still lists its
   mail](evidence/P03-scale.md); [scoped history coverage](evidence/P04-history.md#scoped-cache-coverage)
   distinguishes interrupted and capped history.
+  [Live indexing, query refresh and 100,000-message measurements](evidence/P03-index-progress.md).
   Rebuild progress uses `Spinner`, or `Progress` only with a known bounded total;
   [components present store state](INTERFACE.md#p03-store-and-p04-synchronization), not persistence logic.
 
@@ -386,7 +395,9 @@ Optional CONDSTORE/QRESYNC requires separate extension proof before adoption.
   Sign in/Unlock/Reauthenticate/Cancel buttons with `Spinner`/`Alert`, not a new wizard.
 - [ ] Test locked/unavailable keyring, denied/cancelled browser, invalid callback,
   refresh races and logout/purge. Complete native Wayland and Flatpak portal flows.
-- [ ] Keep live-provider outcomes separate from local mock/compile evidence.
+- [x] Keep live-provider outcomes separate from local mock/compile evidence.
+  The [per-provider acceptance record](evidence/P05.md#required-provider-acceptance)
+  lists all five live outcomes alongside their synthetic coverage.
 
 ## P06 — GPUI mailbox workspace and strong local search
 
@@ -425,7 +436,7 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   folder scale requires it, without maintaining two navigation models.
   [Routes, active states and nesting](evidence/P06-navigation.md); [unread counts on a
   real server](evidence/P04-background-sync.md).
-- [ ] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
+- [x] Deliver `h_resizable`/`resizable_panel` mailbox/list/reader panes and
   `List`/`ListState`/`ListDelegate`/`ListItem` virtualized rows. Disable the list's
   extra query field with `ListState::searchable(false)`. Use `v_virtual_list` only
   when measured variable-height rows require it; do not implement virtualization.
@@ -433,6 +444,8 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   for account, sender/subject/date/two-or-three-line preview hierarchy,
   distinct focus/selection/unread/priority states and keyboard commands. Keep search,
   compose and essential actions discoverable without crowding the reading area.
+  [Native pane and accessible row checks](evidence/P06-gpui-mailbox.md#resizable-panes-and-accessible-rows)
+  cover both dividers, keyboard selection, dates, previews and priority actions.
 - [ ] Verify useful empty/loading/offline/error/partial-cache states, long subjects,
   Unicode names, narrow/wide windows and light/dark appearance using synthetic data.
   Reuse list empty/loading hooks, `Empty`, `Skeleton`, `Alert` and `StatusBar`;
@@ -444,12 +457,12 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   open. The bounded same-scope path is implemented above; complete account/folder,
   conversation-merge, paging, removal and large-list acceptance before this row
   is complete. Preserve unread siblings through every state change.
-- [ ] Display each account-local thread once, include cached Sent ancestry, open
+  [Late IMAP arrivals now preserve the selected group and its scroll anchor](evidence/P06-conversation-merges.md).
+- [x] Display each account-local thread once, include cached Sent ancestry, open
   the matching original and allow per-message selection/actions.
   Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)
   and `DescriptionList` for From/To/Cc/date; do not adopt chat/tail-following behavior.
-  [Selection and opening pass](evidence/P06-navigation.md); per-message actions
-  arrive with P07.
+  [Individual-original flags, replies and header details](evidence/P06-navigation.md#acting-on-an-older-original).
 - [x] Mark Seen only after an **explicit open action loads that original's content**.
   Passive focus/selection/restoration/search/previews/refresh never mark read;
   opening one member does not mark its whole thread. Preserve explicit unread.
@@ -567,9 +580,10 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   component is presentation, not a downloader or upload service. Never pass an
   email-supplied URL/path to its image source; use generic icons or validated owned
   raster previews. Verify keyboard actions, long names, failures and narrow layouts.
-- [ ] Verify autosave, draft switching, source-file access loss, close/restart and
+- [x] Verify autosave, draft switching, source-file access loss, close/restart and
   failure recovery on Wayland. A selected file becomes a private owned snapshot.
   Expose draft/save/outbox state in `StatusBar`, with persistent `Alert` failures.
+  [Draft recovery across the file chooser, draft switches and restart](evidence/P07-native-compose.md#draft-recovery-during-attachment-selection).
 - [x] Integrate explicit send/offline queue/cancel/retry and redacted TLS/auth errors.
   Preserve fixed frozen bytes and Message-ID; no automatic ambiguous-delivery retry.
   [Accepted, unreachable, rejected, unknown, untrusted-certificate, refused sign-in, retry,
@@ -589,6 +603,8 @@ Use the [composer/action component mapping](INTERFACE.md#p07-composition-and-act
   in-app `Notification::action` for Undo. Keep durable errors beyond toast lifetime.
   [Read, star, archive, trash and move with Undo](evidence/P04-background-sync.md);
   [Undo and servers without MOVE or UIDPLUS pass natively](evidence/P07-native-actions.md).
+  [Searchable folder selection, cancellation and Undo](evidence/P07-native-actions.md#searchable-move-destinations)
+  have native coverage.
 - [ ] Recover interrupted operations and reconcile real server state, retaining
   local reminder/analysis identity and visible permanent failure/undo behavior.
   Use `AlertDialog`/`Dialog` for discard, destructive purge or ambiguous-delivery
@@ -840,9 +856,11 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   original, read a thread, reply/attach/save/send, set a reminder and recover from
   offline/auth errors. Compare usability and code complexity, not visual similarity;
   add no unrelated features from the references. Show current app screenshots in chat.
-- [ ] Verify the HM-first settings round trip: declare, activate, change an allowed
+- [x] Verify the HM-first settings round trip: declare, activate, change an allowed
   mutable preference, restart, export to Nix, import into HM and activate again.
   Managed configuration and secrets must retain their stated ownership.
+  The [installed release and private keyring](evidence/P02-preferences.md#home-manager-ownership-transitions)
+  passed all four generations and the byte-for-byte GUI export comparison.
 - [ ] Ordinary HTML emails render reliably within documented Blitz limitations,
   remain network-silent by default and cannot execute active/native content or
   access local resources/other messages/credentials.

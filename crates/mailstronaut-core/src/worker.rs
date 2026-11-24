@@ -107,6 +107,7 @@ enum Command {
     WithdrewReminder(store::reminders::Reminder, Reply<()>),
 
     ConversationSnapshot(String, Reply<Option<store::conversations::Snapshot>>),
+    MergedConversations(Vec<String>, Vec<i64>, Reply<Vec<(i64, i64)>>),
     CommitConversations(
         store::conversations::Snapshot,
         crate::threads::Groups,
@@ -175,7 +176,11 @@ enum Command {
         u32,
         Reply<Vec<store::analysis::AnalysisInput>>,
     ),
-    StoreAnalysis(Vec<store::analysis::AnalysisResult>, Reply<()>),
+    StoreAnalysis(
+        Vec<store::analysis::AnalysisResult>,
+        CancellationToken,
+        Reply<()>,
+    ),
     CorrectDeadline(
         store::analysis::CorrectDeadline,
         Reply<store::analysis::DeadlineCorrection>,
@@ -222,6 +227,8 @@ enum Command {
     BeginMove(String, String, Reply<Option<MoveAttempt>>),
     FinishMove(MoveAttempt, bool, Reply<()>),
     AbandonMove(MoveAttempt, Reply<()>),
+    MoveWarnings(Vec<String>, Reply<Vec<(String, String)>>),
+    DismissMoveWarning(String, String, Reply<()>),
     RetryMoves(String, Reply<()>),
     PendingSentCopy(String, Reply<Option<outbox::SentCopy>>),
     FinishSentCopy(String, String, Reply<()>),
@@ -404,6 +411,17 @@ impl Handle {
         self.request(|reply| Command::CommitConversations(snapshot, groups, reply))
             .await
     }
+    /// Resolve merged groups among at most 100 previous row identities.
+    /// # Errors
+    /// Rejects excessive batch sizes and unavailable storage.
+    pub async fn merged_conversations(
+        &self,
+        accounts: Vec<String>,
+        ids: Vec<i64>,
+    ) -> Result<Vec<(i64, i64)>, Error> {
+        self.request(|reply| Command::MergedConversations(accounts, ids, reply))
+            .await
+    }
     /// Read at most 100 account-local conversation rows with unread/star aggregates.
     /// # Errors
     /// Rejects excessive account/page selections and storage failures.
@@ -565,7 +583,18 @@ impl Handle {
         &self,
         results: Vec<store::analysis::AnalysisResult>,
     ) -> Result<(), Error> {
-        self.request(|reply| Command::StoreAnalysis(results, reply))
+        self.store_analysis_while_active(results, CancellationToken::new())
+            .await
+    }
+    /// Store a background analysis batch only while its configuration remains active.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn store_analysis_while_active(
+        &self,
+        results: Vec<store::analysis::AnalysisResult>,
+        active: CancellationToken,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::StoreAnalysis(results, active, reply))
             .await
     }
     /// Persist an explicit deadline correction on the store owner.
@@ -772,6 +801,29 @@ impl Handle {
     /// Rejects stale attempts and storage failures.
     pub async fn abandon_move(&self, attempt: MoveAttempt) -> Result<(), Error> {
         self.request(|reply| Command::AbandonMove(attempt, reply))
+            .await
+    }
+    /// Read permanent move refusals and the mailbox contexts that reported them.
+    ///
+    /// # Errors
+    /// Returns store or worker errors.
+    pub async fn move_warnings(
+        &self,
+        accounts: Vec<String>,
+    ) -> Result<Vec<(String, String)>, Error> {
+        self.request(|reply| Command::MoveWarnings(accounts, reply))
+            .await
+    }
+    /// Dismiss a permanent move refusal for this mailbox context.
+    ///
+    /// # Errors
+    /// Returns store or worker errors.
+    pub async fn dismiss_move_warning(
+        &self,
+        account: String,
+        context: String,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::DismissMoveWarning(account, context, reply))
             .await
     }
     /// Requeue this account's failed moves.
@@ -1403,6 +1455,9 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             Command::CommitConversations(snapshot, groups, reply) => {
                 commit(reply, || store.commit_conversations(&snapshot, &groups));
             }
+            Command::MergedConversations(accounts, ids, reply) => {
+                respond(reply, || store.merged_conversations(&accounts, &ids));
+            }
             Command::ConversationPage(accounts, scope, query, after, limit, reply) => {
                 respond(reply, || {
                     store.conversation_page(&accounts, &scope, &query, after, limit)
@@ -1461,8 +1516,10 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                     store.analysis_pending(&accounts, policy, since, limit)
                 });
             }
-            Command::StoreAnalysis(results, reply) => {
-                commit(reply, || store.store_analysis(&results));
+            Command::StoreAnalysis(results, active, reply) => {
+                commit(reply, || {
+                    store.store_analysis_if(&results, || !active.is_cancelled())
+                });
             }
             Command::CorrectDeadline(edit, reply) => {
                 commit(reply, || store.correct_deadline(&edit));
@@ -1549,6 +1606,12 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::AbandonMove(attempt, reply) => {
                 commit(reply, || store.abandon_move(&attempt));
+            }
+            Command::MoveWarnings(accounts, reply) => {
+                respond(reply, || store.move_warnings(&accounts));
+            }
+            Command::DismissMoveWarning(account, context, reply) => {
+                commit(reply, || store.dismiss_move_warning(&account, &context));
             }
             Command::RetryMoves(account, reply) => {
                 commit(reply, || store.retry_moves(&account));
@@ -1679,6 +1742,37 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_full_store_queue_defers_admission_without_committing_cancelled_requests() {
+        let root = tempfile::tempdir().expect("fixture");
+        let owner = Worker::open(root.path().to_owned()).await.expect("owner");
+        let handle = owner.handle();
+        assert_eq!(handle.0.max_capacity(), 16);
+        let reserved = handle.0.reserve_many(16).await.expect("all queue slots");
+        assert!(
+            tokio::time::timeout(
+                std::time::Duration::from_millis(25),
+                handle.ensure_account("cancelled".into()),
+            )
+            .await
+            .is_err()
+        );
+        drop(reserved);
+        handle
+            .ensure_account("admitted".into())
+            .await
+            .expect("room");
+        owner.shutdown().await.expect("shutdown");
+        let database = rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("store");
+        let accounts: String = database
+            .query_row("SELECT group_concat(id) FROM accounts", [], |row| {
+                row.get(0)
+            })
+            .expect("only the admitted request committed");
+        assert_eq!(accounts, "admitted");
+    }
+
     #[tokio::test]
     async fn accepted_draft_and_smtp_result_commands_survive_dropped_ui_waiters() {
         let root = tempfile::tempdir().expect("fixture");
