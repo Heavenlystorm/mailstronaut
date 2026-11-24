@@ -272,7 +272,7 @@ new dependency graph before claiming current-package acceptance.
   [Named tests per clause, including a UIDVALIDITY reset on a real server](evidence/P03-identity.md).
 - [x] Retain account-local RFC5256/JWZ grouping with subject merging disabled,
   revision-fenced stable conversations and the 37-case upstream conformance corpus.
-- [ ] Complete missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior
+- [x] Complete [missing/late/Sent ancestry, cycles, duplicate IDs and merge behavior](evidence/P03-scale.md#late-sent-ancestry-at-the-account-limit)
   at measured mailbox scale; sequence numbers never become persistent identity.
 - [ ] Verify paginated unified/search projections, derived-index purge/rebuild,
   partial-cache states and bounded 100k-message behavior. See P06 for strong search.
