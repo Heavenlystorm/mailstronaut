@@ -3244,11 +3244,13 @@ impl Workspace {
         let muted = cx.theme().muted_foreground;
         div()
             .when(!notes.is_empty(), |view| {
-                view.mb_3().children(
-                    notes
-                        .into_iter()
-                        .map(|note| Label::new(note).text_sm().text_color(muted)),
-                )
+                view.mb_3()
+                    .children(notes.into_iter().enumerate().map(|(index, note)| {
+                        Label::new(note)
+                            .id(("analysis-note", index))
+                            .text_sm()
+                            .text_color(muted)
+                    }))
             })
             .child(self.deadline_controls(cx))
     }
