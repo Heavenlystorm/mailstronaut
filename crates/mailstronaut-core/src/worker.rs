@@ -1679,6 +1679,37 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_full_store_queue_defers_admission_without_committing_cancelled_requests() {
+        let root = tempfile::tempdir().expect("fixture");
+        let owner = Worker::open(root.path().to_owned()).await.expect("owner");
+        let handle = owner.handle();
+        assert_eq!(handle.0.max_capacity(), 16);
+        let reserved = handle.0.reserve_many(16).await.expect("all queue slots");
+        assert!(
+            tokio::time::timeout(
+                std::time::Duration::from_millis(25),
+                handle.ensure_account("cancelled".into()),
+            )
+            .await
+            .is_err()
+        );
+        drop(reserved);
+        handle
+            .ensure_account("admitted".into())
+            .await
+            .expect("room");
+        owner.shutdown().await.expect("shutdown");
+        let database = rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("store");
+        let accounts: String = database
+            .query_row("SELECT group_concat(id) FROM accounts", [], |row| {
+                row.get(0)
+            })
+            .expect("only the admitted request committed");
+        assert_eq!(accounts, "admitted");
+    }
+
     #[tokio::test]
     async fn accepted_draft_and_smtp_result_commands_survive_dropped_ui_waiters() {
         let root = tempfile::tempdir().expect("fixture");
