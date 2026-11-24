@@ -240,6 +240,9 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   native workflow above; full HM generation ownership transitions remain open.
 - [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
   configuration cannot replace the last valid account state or expose secrets.
+  Explicit older-mail requests and server attachment saves now retire with an
+  accepted account declaration. [Private Wayland and Dovecot checks](evidence/P02-gpui-accounts.md#explicit-fetches-during-configuration-reload)
+  passed for reuse of folder IDs and delayed chooser replies.
 - [ ] Verify the same `.nix` source through disposable Home Manager integration,
   native package and Flatpak regular-file/document access. Never activate user dotfiles.
 - [ ] Prove no password/token appears in config, Nix store, Debug, tracing or failed
