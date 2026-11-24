@@ -1,6 +1,9 @@
 //! Standard GPUI Kit list; selection never authorizes reading a message.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 use gpui::base::StyledExt as _;
 use gpui::component::{
@@ -90,6 +93,13 @@ impl Row {
             fields.push(&self.preview);
         }
         fields.join(" · ")
+    }
+
+    fn resolve_merge(mut self, aliases: &HashMap<i64, i64>) -> Self {
+        if let Some(&survivor) = self.conversation.and_then(|id| aliases.get(&id)) {
+            self.conversation = Some(survivor);
+        }
+        self
     }
 
     pub fn same_group(&self, other: &Self) -> bool {
@@ -319,9 +329,14 @@ impl Rows {
             .map(|(row, y)| (row.clone(), -offset - y))
     }
 
-    fn anchored_offset(&self, anchor: &(Row, Pixels)) -> Option<Pixels> {
+    fn anchored_offset(
+        &self,
+        anchor: (Row, Pixels),
+        aliases: &HashMap<i64, i64>,
+    ) -> Option<Pixels> {
+        let row = anchor.0.resolve_merge(aliases);
         self.positions()
-            .find(|(row, _)| row.same_group(&anchor.0))
+            .find(|(candidate, _)| candidate.same_group(&row))
             .map(|(_, y)| -y - anchor.1)
     }
 
@@ -338,8 +353,9 @@ impl Rows {
         }
     }
 
-    fn position(&self, row: &Row) -> Option<IndexPath> {
-        let find = |rows: &[Row]| rows.iter().position(|other| other.same_group(row));
+    fn position(&self, row: Row, aliases: &HashMap<i64, i64>) -> Option<IndexPath> {
+        let row = row.resolve_merge(aliases);
+        let find = |rows: &[Row]| rows.iter().position(|other| other.same_group(&row));
         find(&self.priority.rows).map(IndexPath::new).or_else(|| {
             find(&self.items).map(|found| IndexPath::new(found).section(self.mailbox_section()))
         })
@@ -363,7 +379,7 @@ pub fn replace(
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
-    replace_with_priority(list, rows, Priority::default(), window, cx);
+    replace_with_priority(list, rows, Priority::default(), &HashMap::new(), window, cx);
 }
 
 /// Like [`replace`], with a priority group. A conversation in the group is not repeated
@@ -372,6 +388,7 @@ pub fn replace_with_priority(
     list: &mut ListState<Rows>,
     mut rows: Vec<Row>,
     priority: Priority,
+    aliases: &HashMap<i64, i64>,
     window: &mut Window,
     cx: &mut Context<ListState<Rows>>,
 ) {
@@ -384,9 +401,9 @@ pub fn replace_with_priority(
     list.delegate_mut().priority = priority;
     list.delegate_mut().loading = false;
     list.delegate_mut().more = false;
-    let selected = old.and_then(|old| list.delegate().position(&old));
+    let selected = old.and_then(|old| list.delegate().position(old, aliases));
     list.set_selected_index(selected, window, cx);
-    if let Some(y) = anchor.and_then(|anchor| list.delegate().anchored_offset(&anchor)) {
+    if let Some(y) = anchor.and_then(|anchor| list.delegate().anchored_offset(anchor, aliases)) {
         let mut offset = list.scroll_handle().offset();
         offset.y = y;
         list.scroll_handle().set_offset(offset);
@@ -670,6 +687,7 @@ fn mailbox_today(zone: &str) -> chrono::NaiveDate {
 mod tests {
     use super::{Row, Rows, cut_group, date, display_text, due_label};
     use gpui::px;
+    use std::collections::HashMap;
 
     fn row(account: &str, id: i64, conversation: Option<i64>) -> Row {
         Row {
@@ -724,14 +742,48 @@ mod tests {
         let anchor = rows.anchor(-px(260.)).expect("third row");
         assert_eq!(anchor.0.id, 3);
         rows.items.insert(0, row("a", 11, None));
-        assert_eq!(rows.anchored_offset(&anchor), Some(-px(384.)));
+        assert_eq!(
+            rows.anchored_offset(anchor.clone(), &HashMap::new()),
+            Some(-px(384.))
+        );
         // A priority section adds two fixed header heights, without opening anything.
         rows.priority.rows.push(row("b", 12, None));
-        assert_eq!(rows.anchored_offset(&anchor), Some(-px(564.)));
+        assert_eq!(
+            rows.anchored_offset(anchor, &HashMap::new()),
+            Some(-px(564.))
+        );
         assert!(
             rows.anchor(px(0.)).is_none(),
             "at the top newer mail should be visible"
         );
+    }
+
+    #[test]
+    fn merge_preserves_passive_selection_and_intra_row_offset_across_sections() {
+        let mut rows = Rows {
+            items: vec![row("a", 10, Some(1)), row("a", 20, Some(2))],
+            ..Rows::default()
+        };
+        let anchor = rows
+            .anchor(-px(140.))
+            .expect("16 pixels into the losing group");
+        let selected = rows.items[1].clone();
+        rows.items.clear();
+        // A new original now represents the merged group in the priority section.
+        rows.priority.rows = vec![row("b", 90, Some(9)), row("a", 30, Some(1))];
+        let aliases = HashMap::from([(2, 1)]);
+        assert_eq!(
+            rows.position(selected.clone(), &aliases),
+            Some(gpui::component::IndexPath::new(1))
+        );
+        assert_eq!(
+            rows.anchored_offset(anchor.clone(), &aliases),
+            Some(-px(168.))
+        );
+        assert!(rows.priority.rows.iter().all(|row| !row.seen));
+        rows.priority.rows[1].account = "b".into();
+        assert!(rows.position(selected, &aliases).is_none());
+        assert!(rows.anchored_offset(anchor, &aliases).is_none());
     }
 
     #[test]
