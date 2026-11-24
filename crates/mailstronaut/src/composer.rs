@@ -822,6 +822,13 @@ impl Composer {
             return;
         };
         self.autosave.cancel();
+        // A portal can stay open indefinitely. Save the pending edit while the
+        // chooser is open and order the attachment transaction after that write.
+        let pending = self.unsaved().map(|draft| {
+            let store = store.clone();
+            self.runtime
+                .spawn(async move { save_snapshot(&store, draft).await })
+        });
         self.activity = Activity::Attaching;
         self.error = None;
         let paths = cx.prompt_for_paths(PathPromptOptions {
@@ -838,8 +845,18 @@ impl Composer {
             };
             let active = declaration.clone();
             let job = runtime.spawn(async move {
-                let Ok(Ok(Some(paths))) = selection else {
-                    return Err("The file chooser is unavailable. Nothing was attached.".to_owned());
+                if let Some(pending) = pending {
+                    pending
+                        .await
+                        .map_err(|_| "Saving the draft was interrupted.")?
+                        .map_err(|error| error.to_string())?;
+                }
+                let paths = match selection {
+                    Ok(Ok(Some(paths))) => paths,
+                    Ok(Ok(None)) => return Ok(draft),
+                    _ => {
+                        return Err("The file chooser is unavailable. Nothing was attached.".into());
+                    }
                 };
                 let files = tokio::task::spawn_blocking(move || read_files(paths, remaining))
                     .await
