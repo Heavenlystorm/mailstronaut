@@ -260,8 +260,9 @@ new dependency graph before claiming current-package acceptance.
 - [x] Verify atomic SHA-256 blob ingestion/GC, cross-handle transactions and cache
   clearing that preserves drafts/outbox/reminders; add crash-injection acceptance.
   [Named checks for each clause, including real kills at three points of one pass](evidence/P03-durability.md).
-- [ ] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
+- [x] Complete bounded MIME/non-UTF8/alternative/nested/malformed/encrypted fixtures,
   attachment/CID descriptors and source/body revisions. No generated summaries.
+  [Current synthetic MIME fixture results](evidence/P03.md#bounded-attachment-descriptors-and-revisions).
 - [x] Complete account/folder/UIDVALIDITY/UID identity, multi-membership/provider
   deduplication and duplicate Message-ID tests; never merge different accounts.
   [Named tests per clause, including a UIDVALIDITY reset on a real server](evidence/P03-identity.md).
