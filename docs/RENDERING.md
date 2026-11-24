@@ -139,6 +139,25 @@ or hiding retire the prior DOM/resource table. BGRA conversion runs on that same
 owner thread. GPUI's normal image paint API presents the result; there is no
 custom GPU interop or forwarded HTML input event.
 
+## HTML text selection
+
+A left-button drag within a painted HTML viewport selects visible text. Ctrl+C
+copies the selection while the viewport has focus. The worker maps the anchor
+and focus through Blitz's public `find_text_position` and `set_text_selection`
+APIs. Blitz paints the highlight and returns selected Unicode text with
+`get_selected_text`. The worker limits the copy to 256 KiB and joins inline
+roots using Blitz's own text semantics. Only the native host writes to the
+clipboard, on an explicit copy action. Normal clicks still resolve links.
+
+Sizes, scroll positions, scale, themes and message changes retire the selection.
+Use the Text tab or Select text for keyboard selection and copying across
+viewports. Focused renderer and worker tests cover selection direction, Unicode,
+highlighted pixels, stale geometry, source replacement and dragging across a
+link. [Native clipboard checks](evidence/P01-cached-html.md#selecting-text-in-the-html-viewport)
+exercise pointer selection independently from assistive-technology acceptance.
+
+## Native viewport and text alternative
+
 GPUI Kit's segmented `TabBar` and `Toolbar` select HTML or native text. Standard
 `ScrollHandle` and Kit horizontal/vertical scrollbars own scrolling; a small GPUI
 canvas bridge measures their public bounds and paints the matching viewport.
@@ -173,10 +192,10 @@ It accepts no edits; selection/copy, wrapping and keyboard scrolling remain the
 component's responsibility. Focus and appearance changes never reopen mail or
 authorize Seen. The demo includes a synthetic long text alternative alongside
 the actual Blitz preview. The Blitz image alone is not an accessibility tree.
-Verify Unicode copy,
-keyboard navigation/scrolling, focus and actual Wayland/AT-SPI exposure. HTML hit
-handling/selection and a possible accessibility subtree bridge need explicit
-public-API, lifecycle and user-session acceptance before claiming support.
+The native clipboard checks cover Unicode copy, keyboard navigation/scrolling and
+focus. [Accessibility evidence](evidence/P01-accessibility.md) records what the
+text component exposes through Wayland/AT-SPI. An accessibility subtree for the
+HTML raster remains open.
 
 ## Required proof
 

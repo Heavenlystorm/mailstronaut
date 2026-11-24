@@ -68,7 +68,20 @@ pub struct Request {
     pub epoch: u64,
     pub content: Arc<Content>,
     pub view: View,
-    pub hit: Option<(f32, f32)>,
+    pub action: Action,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Action {
+    Paint,
+    Link {
+        point: (f32, f32),
+        clear_highlight: bool,
+    },
+    Select {
+        anchor: (f32, f32),
+        focus: (f32, f32),
+    },
 }
 
 pub enum Reply {
@@ -82,6 +95,7 @@ pub enum Reply {
         serial: u64,
         epoch: u64,
         view: View,
+        selected_text: Option<String>,
         result: Result<(Frame, bool), String>,
     },
     Retired,
@@ -127,7 +141,11 @@ fn run(
                 prepared: request.content.prepare(),
             });
         }
-        if let Some((x, y)) = request.hit {
+        if let Action::Link {
+            point: (x, y),
+            clear_highlight,
+        } = request.action
+        {
             let link = active
                 .as_ref()
                 .and_then(|active| active.prepared.as_ref().ok()?.0.link_at(request.view, x, y));
@@ -143,21 +161,31 @@ fn run(
             {
                 break;
             }
-            continue;
+            if !clear_highlight {
+                continue;
+            }
         }
+        let mut selected_text = None;
         let result = active.as_mut().map_or_else(
             || Err("HTML document is unavailable.".to_owned()),
             |active| match &mut active.prepared {
-                Ok((document, omitted)) => document
-                    .paint(request.view)
-                    .map(|mut frame| {
-                        // GPUI uses BGRA. Convert on the owner thread, never in a UI callback.
-                        for pixel in frame.pixels.as_chunks_mut::<4>().0 {
-                            pixel.swap(0, 2);
-                        }
-                        (frame, *omitted)
-                    })
-                    .map_err(|error| error.to_string()),
+                Ok((document, omitted)) => {
+                    if let Action::Select { anchor, focus } = request.action {
+                        selected_text = document.select_text(request.view, anchor, focus);
+                    } else {
+                        document.clear_selection();
+                    }
+                    document
+                        .paint(request.view)
+                        .map(|mut frame| {
+                            // GPUI uses BGRA. Convert on the owner thread, never in a UI callback.
+                            for pixel in frame.pixels.as_chunks_mut::<4>().0 {
+                                pixel.swap(0, 2);
+                            }
+                            (frame, *omitted)
+                        })
+                        .map_err(|error| error.to_string())
+                }
                 Err(error) => Err(error.to_string()),
             },
         );
@@ -169,6 +197,7 @@ fn run(
                 serial: request.serial,
                 epoch: request.epoch,
                 view: request.view,
+                selected_text,
                 result,
             })
             .is_err()
@@ -219,7 +248,7 @@ mod tests {
                 scroll_x: 0.0,
                 scroll_y: 0.0,
             },
-            hit: None,
+            action: Action::Paint,
         }
     }
 
@@ -319,6 +348,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn drag_selection_never_activates_a_link_or_reads_text_from_a_retired_source() {
+        let raw = b"Content-Type: text/html\r\n\r\n<style>body,p{margin:0}p{font:14px monospace;line-height:20px}</style><p><a href='https://example.test/'>First</a></p><p>Last</p>";
+        let selected = Arc::new(Content::Mail(Arc::new(
+            mailstronaut_core::mime::project(raw).expect("synthetic linked mail"),
+        )));
+        let (sender, mut receiver) = start(&tokio::runtime::Handle::current()).expect("worker");
+        let mut work = request(1, selected);
+        sender.send_replace(Some(work.clone()));
+        assert!(matches!(
+            reply(&mut receiver).await,
+            Reply::Painted { result: Ok(_), .. }
+        ));
+        work.action = Action::Select {
+            anchor: (0.1, 9.),
+            focus: (63., 29.),
+        };
+        sender.send_replace(Some(work.clone()));
+        let Reply::Painted {
+            selected_text,
+            result: Ok(_),
+            ..
+        } = reply(&mut receiver).await
+        else {
+            panic!("drag must only produce a highlighted frame");
+        };
+        assert_eq!(selected_text.as_deref(), Some("First Last"));
+        work.content = source(false);
+        work.epoch += 1;
+        sender.send_replace(Some(work));
+        assert!(matches!(
+            reply(&mut receiver).await,
+            Reply::Painted {
+                epoch: 2,
+                selected_text: None,
+                result: Ok(_),
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
     async fn link_requests_cannot_use_an_unpainted_source_or_retired_geometry() {
         fn linked(target: &str) -> Arc<Content> {
             let raw = format!(
@@ -339,7 +409,10 @@ mod tests {
             panic!("A frame");
         };
         let mut hit = request(1, a);
-        hit.hit = Some((10.0, 10.0));
+        hit.action = Action::Link {
+            point: (10., 10.),
+            clear_highlight: false,
+        };
         sender.send_replace(Some(hit));
         let Reply::Link {
             link: Some(link), ..
@@ -350,7 +423,10 @@ mod tests {
         assert_eq!(link, frame.links[0]);
         let b = linked("b");
         let mut hit = request(2, b.clone());
-        hit.hit = Some((10.0, 10.0));
+        hit.action = Action::Link {
+            point: (10., 10.),
+            clear_highlight: false,
+        };
         sender.send_replace(Some(hit));
         assert!(
             matches!(reply(&mut receiver).await, Reply::Link { link: None, .. }),
@@ -367,7 +443,10 @@ mod tests {
         assert_eq!(frame.links[0].as_str(), "https://b.example.test/");
         let mut hit = request(3, b.clone());
         hit.view.width = 100;
-        hit.hit = Some((10.0, 10.0));
+        hit.action = Action::Link {
+            point: (10., 10.),
+            clear_highlight: false,
+        };
         sender.send_replace(Some(hit));
         assert!(
             matches!(reply(&mut receiver).await, Reply::Link { link: None, .. }),
@@ -376,7 +455,10 @@ mod tests {
         sender.send_replace(None);
         assert!(matches!(reply(&mut receiver).await, Reply::Retired));
         let mut hit = request(4, b);
-        hit.hit = Some((10.0, 10.0));
+        hit.action = Action::Link {
+            point: (10., 10.),
+            clear_highlight: false,
+        };
         sender.send_replace(Some(hit));
         assert!(
             matches!(reply(&mut receiver).await, Reply::Link { link: None, .. }),

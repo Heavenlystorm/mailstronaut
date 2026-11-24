@@ -1,5 +1,20 @@
 # P09 — Priority rules and deadlines, without a model
 
+## Reconfiguring the background rules
+
+The private Wayland and Dovecot fixture at `a7c3d9a` disabled priority while
+the window was open. All 65 newly delivered messages were cached and none had
+an analysis result. Enabling the rules processed all 65 ordinary messages in
+two batches with no further delivery, no restart and no Seen flag. The existing
+priority, dismissal, expiry, restart and private keyring checks also passed.
+
+Replacing or disabling the engine retires its waiting worker. A deterministic
+store test retires a batch before commit, verifies both originals remain pending
+and applies the replacement batch. The private fixture runs with
+`MAILSTRONAUT_PRIORITY_GUI_BINARY` through `experiments/p02-accounts/credentials.sh`.
+These checks exercise the built-in rules. Optional model selection and quality
+remain later P09 requirements.
+
 Status: native acceptance of the **rules baseline** against a real server with synthetic
 mail. No model is selected or installed, and this does not complete P09. CLASSIFIER.md's
 held-out acceptance experiment has not been run.

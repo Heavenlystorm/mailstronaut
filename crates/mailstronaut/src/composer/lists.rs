@@ -228,8 +228,10 @@ impl Composer {
         }
         let this = cx.entity().downgrade();
         let entry = entry.clone();
+        let declaration = self.declaration.clone();
         window.open_alert_dialog(cx, move |alert, _, _| {
             let (this, entry) = (this.clone(), entry.clone());
+            let declaration = declaration.clone();
             alert
                 .confirm()
                 .title("Send this message again?")
@@ -239,9 +241,11 @@ impl Composer {
                 .ok_text("Send again")
                 .ok_variant(ButtonVariant::Danger)
                 .on_ok(move |_, window, cx| {
-                    _ = this.update(cx, |this, cx| {
-                        this.submit(&entry, Some(true), window, cx);
-                    });
+                    if !declaration.is_cancelled() {
+                        _ = this.update(cx, |this, cx| {
+                            this.submit(&entry, Some(true), window, cx);
+                        });
+                    }
                     true
                 })
         });

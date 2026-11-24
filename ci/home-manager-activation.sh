@@ -8,10 +8,11 @@
 set -euo pipefail
 root=$(pwd)
 flake_url=${1:-$(python3 -c 'from pathlib import Path; print("git+" + Path.cwd().as_uri())')}
+mode=${2:-}
 mkdir -p "$root/target"
 work=$(mktemp -d "$root/target/hm-activation.XXXXXX")
 # Keep the throwaway homes when a check fails, so their contents can be inspected.
-trap 'status=$?; [[ $status == 0 ]] && rm -rf "$work"; exit "$status"' EXIT
+trap 'status=$?; if [[ $status == 0 && -z $mode ]]; then rm -rf "$work"; fi; exit "$status"' EXIT
 fixture_home="$work/home"
 mkdir -p "$fixture_home"
 config="$fixture_home/.config/mailstronaut/config.nix"
@@ -33,6 +34,7 @@ build() {
         declareAppearance = $3;
         accounts = $4;
         startOnLogin = ${6:-false};
+        trackGenerations = $(if [[ $mode == --gui-roundtrip ]]; then echo true; else echo false; fi);
         settings = if exportPath == \"\" then null else import (builtins.toPath exportPath);
       }"
 }
@@ -65,6 +67,16 @@ expect_refusal() {
     exit 1
   fi
 }
+
+if [[ $mode == --gui-roundtrip ]]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=home-manager-roundtrip.sh
+  source "$root/ci/home-manager-roundtrip.sh"
+  exit
+elif [[ -n $mode ]]; then
+  printf 'Unknown mode: %s\n' "$mode" >&2
+  exit 2
+fi
 
 # Immutable: the configuration is a read-only link into the store.
 activation=$(build '"dark"' false true null)

@@ -78,10 +78,17 @@ elif action == "delete-without-expunge":
     client.select("INBOX")
     _, found = client.uid("SEARCH", None, "BODY", sys.argv[6])
     client.uid("STORE", found[0].split()[-1], "+FLAGS", r"(\Deleted)")
+elif action == "create-folder":
+    assert client.create(sys.argv[6])[0] == "OK"
 client.logout()
 PY
 }
 capabilities=$(other_client capabilities)
+if [[ $variant == full ]]; then
+  # The menu shows the decoded label Project-Été. IMAP and SQLite use this wire name.
+  picked_folder='Project-&AMk-t&AOk-'
+  other_client create-folder "$picked_folder"
+fi
 for capability in MOVE UIDPLUS; do
   case "$variant,$capability" in
     full,*) wanted=yes ;;
@@ -122,6 +129,12 @@ await_server() {
 }
 in_inbox="SELECT count(*) FROM effective_memberships m JOIN folders f ON f.account_id=m.account_id AND f.id=m.folder_id WHERE f.is_inbox=1"
 open_newest() { click 350 150; sleep 1; }
+row_menu() {
+  swaymsg seat seat0 cursor set 350 270 > /dev/null
+  swaymsg seat seat0 cursor press button3 > /dev/null
+  swaymsg seat seat0 cursor release button3 > /dev/null
+  sleep .4
+}
 
 start initial
 await 'the inbox was cached' 4 'SELECT count(*) FROM messages'
@@ -149,6 +162,23 @@ if [[ $variant == neither ]]; then
   await 'new mail still arrives after the refusal' 5 'SELECT count(*) FROM messages'
   sleep 2
   capture still-syncing
+  warning="SELECT move_unavailable FROM accounts WHERE id='actions-neither'"
+  await 'the permanent warning survived a successful sync' 1 "$warning"
+  close_window
+  start warning-restart
+  await 'the refusal survived restart' 1 "$warning"
+  sleep 1
+  capture warning-restarted
+  click 542 117
+  await 'the user acknowledged the stored warning' 0 "$warning"
+  close_window
+  start warning-dismissed
+  sleep 1
+  [[ $(query "$warning") == 0 && $(query 'SELECT count(*) FROM pending_moves') == 0 ]]
+  [[ $(query "$in_inbox") == 5 ]]
+  server_flags INBOX marker-delta > /dev/null
+  capture warning-dismissed
+  printf '%s\n' 'OK: dismissal survived a second restart and all five messages remained in the inbox'
 elif [[ $variant == no-move ]]; then
   # Another client has marked a message for deletion. A plain EXPUNGE would destroy it.
   other_client delete-without-expunge marker-alpha
@@ -164,6 +194,72 @@ elif [[ $variant == no-move ]]; then
   sleep 1
   capture moved
 else
+  await 'the searchable destination was discovered' 1 "SELECT count(*) FROM folders WHERE name='$picked_folder'"
+  open_newest
+  click 922 244
+  wtype -s 300 'Project' -s 350
+  capture move-folder-search
+  wtype -k Escape -s 300
+  [[ $(query 'SELECT count(*) FROM pending_moves') == 0 ]]
+  [[ $(query "$in_inbox") == 4 ]]
+  # Changing the account declaration while its popup is open retires its choice.
+  click 922 244
+  wtype -s 300 'Project' -s 300 -M ctrl -M shift r -m shift -m ctrl -s 1000 -k Return -s 300
+  [[ $(query 'SELECT count(*) FROM pending_moves') == 0 ]]
+  open_newest
+  click 922 244
+  wtype -s 300 'Project' -s 350 -k Down -k Return -s 350
+  await 'the searched label queued its exact IMAP wire name' "$picked_folder" 'SELECT destination FROM pending_moves'
+  click 1205 76
+  await 'Undo cancelled the searched move' 0 'SELECT count(*) FROM pending_moves'
+  await 'Undo restored the original membership' 4 "$in_inbox"
+  sleep 9
+  server_flags INBOX marker-delta > /dev/null
+  if server_flags "$picked_folder" marker-delta > /dev/null 2>&1; then
+    printf '%s\n' 'The server received an undone picker move' >&2; exit 1
+  fi
+  printf '%s\n' 'OK: dismissing, reloading and undoing the picker left the server message in its inbox'
+  # Keep delta open while using the menu on the next unread row, charlie.
+  open_newest
+  seen="SELECT count(*) FROM effective_memberships WHERE seen=1"
+  starred="SELECT m.subject FROM effective_memberships e JOIN messages m ON e.message_id=m.id WHERE e.starred=1"
+  await 'only the explicitly opened delta is seen' 1 "$seen"
+  row_menu
+  capture row-context
+  wtype -k Escape -s 300
+  [[ $(query "$seen") == 1 ]]
+  row_menu
+  wtype -k Down -k Down -k Down -k Return -s 400
+  await 'row-menu Star targets charlie' 'Synthetic charlie' "$starred"
+  [[ $(query "$seen") == 1 ]]
+  # The menu restored focus to its row. Click Select text in the existing reader.
+  click 763 297
+  wtype -s 200 -M ctrl a -m ctrl -s 100 -M ctrl c -m ctrl -s 200
+  for _ in {1..25}; do
+    wl-paste --no-newline > "$artifacts/open-body.txt" 2>/dev/null || true
+    grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt" && break
+    sleep .2
+  done
+  grep -q 'Synthetic body marker-delta.' "$artifacts/open-body.txt"
+  row_menu
+  click 388 316
+  await 'explicit row-menu Mark read updates charlie' 2 "$seen"
+  sleep 1
+  row_menu
+  capture row-context-read
+  click 388 316
+  await 'explicit row-menu Mark unread restores charlie' 1 "$seen"
+  row_menu
+  click 387 371
+  await 'the row menu archived charlie, leaving delta in view' 'Synthetic charlie' 'SELECT m.subject FROM pending_moves p JOIN messages m ON p.message_id=m.id'
+  sleep .8
+  capture row-context-undo
+  click 1205 76
+  await 'Undo restored the context-menu move' 4 "$in_inbox"
+  [[ $(query "$seen") == 1 ]]
+  for _ in {1..50}; do [[ $(server_flags INBOX marker-charlie) != *S* ]] && break; sleep .2; done
+  [[ $(server_flags INBOX marker-charlie) != *S* ]]
+  printf '%s\n' 'OK: opening, dismissing and acting on the row menu kept charlie unread and delta open'
   # Undo within the grace period: back at once, and the server never hears of it.
   open_newest
   wtype -s 300 -M alt e -m alt -s 600

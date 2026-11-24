@@ -176,7 +176,11 @@ enum Command {
         u32,
         Reply<Vec<store::analysis::AnalysisInput>>,
     ),
-    StoreAnalysis(Vec<store::analysis::AnalysisResult>, Reply<()>),
+    StoreAnalysis(
+        Vec<store::analysis::AnalysisResult>,
+        CancellationToken,
+        Reply<()>,
+    ),
     CorrectDeadline(
         store::analysis::CorrectDeadline,
         Reply<store::analysis::DeadlineCorrection>,
@@ -223,6 +227,8 @@ enum Command {
     BeginMove(String, String, Reply<Option<MoveAttempt>>),
     FinishMove(MoveAttempt, bool, Reply<()>),
     AbandonMove(MoveAttempt, Reply<()>),
+    MoveWarnings(Vec<String>, Reply<Vec<(String, String)>>),
+    DismissMoveWarning(String, String, Reply<()>),
     RetryMoves(String, Reply<()>),
     PendingSentCopy(String, Reply<Option<outbox::SentCopy>>),
     FinishSentCopy(String, String, Reply<()>),
@@ -577,7 +583,18 @@ impl Handle {
         &self,
         results: Vec<store::analysis::AnalysisResult>,
     ) -> Result<(), Error> {
-        self.request(|reply| Command::StoreAnalysis(results, reply))
+        self.store_analysis_while_active(results, CancellationToken::new())
+            .await
+    }
+    /// Store a background analysis batch only while its configuration remains active.
+    /// # Errors
+    /// Reports storage failures.
+    pub async fn store_analysis_while_active(
+        &self,
+        results: Vec<store::analysis::AnalysisResult>,
+        active: CancellationToken,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::StoreAnalysis(results, active, reply))
             .await
     }
     /// Persist an explicit deadline correction on the store owner.
@@ -784,6 +801,29 @@ impl Handle {
     /// Rejects stale attempts and storage failures.
     pub async fn abandon_move(&self, attempt: MoveAttempt) -> Result<(), Error> {
         self.request(|reply| Command::AbandonMove(attempt, reply))
+            .await
+    }
+    /// Read permanent move refusals and the mailbox contexts that reported them.
+    ///
+    /// # Errors
+    /// Returns store or worker errors.
+    pub async fn move_warnings(
+        &self,
+        accounts: Vec<String>,
+    ) -> Result<Vec<(String, String)>, Error> {
+        self.request(|reply| Command::MoveWarnings(accounts, reply))
+            .await
+    }
+    /// Dismiss a permanent move refusal for this mailbox context.
+    ///
+    /// # Errors
+    /// Returns store or worker errors.
+    pub async fn dismiss_move_warning(
+        &self,
+        account: String,
+        context: String,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::DismissMoveWarning(account, context, reply))
             .await
     }
     /// Requeue this account's failed moves.
@@ -1476,8 +1516,10 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
                     store.analysis_pending(&accounts, policy, since, limit)
                 });
             }
-            Command::StoreAnalysis(results, reply) => {
-                commit(reply, || store.store_analysis(&results));
+            Command::StoreAnalysis(results, active, reply) => {
+                commit(reply, || {
+                    store.store_analysis_if(&results, || !active.is_cancelled())
+                });
             }
             Command::CorrectDeadline(edit, reply) => {
                 commit(reply, || store.correct_deadline(&edit));
@@ -1564,6 +1606,12 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::AbandonMove(attempt, reply) => {
                 commit(reply, || store.abandon_move(&attempt));
+            }
+            Command::MoveWarnings(accounts, reply) => {
+                respond(reply, || store.move_warnings(&accounts));
+            }
+            Command::DismissMoveWarning(account, context, reply) => {
+                commit(reply, || store.dismiss_move_warning(&account, &context));
             }
             Command::RetryMoves(account, reply) => {
                 commit(reply, || store.retry_moves(&account));
@@ -1694,6 +1742,37 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_full_store_queue_defers_admission_without_committing_cancelled_requests() {
+        let root = tempfile::tempdir().expect("fixture");
+        let owner = Worker::open(root.path().to_owned()).await.expect("owner");
+        let handle = owner.handle();
+        assert_eq!(handle.0.max_capacity(), 16);
+        let reserved = handle.0.reserve_many(16).await.expect("all queue slots");
+        assert!(
+            tokio::time::timeout(
+                std::time::Duration::from_millis(25),
+                handle.ensure_account("cancelled".into()),
+            )
+            .await
+            .is_err()
+        );
+        drop(reserved);
+        handle
+            .ensure_account("admitted".into())
+            .await
+            .expect("room");
+        owner.shutdown().await.expect("shutdown");
+        let database = rusqlite::Connection::open(root.path().join("mail.sqlite3")).expect("store");
+        let accounts: String = database
+            .query_row("SELECT group_concat(id) FROM accounts", [], |row| {
+                row.get(0)
+            })
+            .expect("only the admitted request committed");
+        assert_eq!(accounts, "admitted");
+    }
+
     #[tokio::test]
     async fn accepted_draft_and_smtp_result_commands_survive_dropped_ui_waiters() {
         let root = tempfile::tempdir().expect("fixture");

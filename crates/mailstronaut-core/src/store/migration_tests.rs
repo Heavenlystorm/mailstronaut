@@ -6,6 +6,35 @@ use rusqlite::{Connection, params};
 
 use super::{Error, SCHEMA, Store};
 
+#[test]
+fn upgrading_schema_sixteen_starts_existing_accounts_without_move_warnings() {
+    let root = tempfile::tempdir().expect("profile");
+    let mut store = Store::open(root.path()).expect("store");
+    store.ensure_account("existing").expect("account");
+    drop(store);
+    let database = Connection::open(root.path().join("mail.sqlite3")).expect("database");
+    database
+        .execute_batch("ALTER TABLE accounts DROP COLUMN move_unavailable; PRAGMA user_version=16;")
+        .expect("schema sixteen");
+    drop(database);
+    let upgraded = Store::open(root.path()).expect("upgrade");
+    assert_eq!(
+        upgraded
+            .move_warnings(&["existing".into()])
+            .expect("warnings"),
+        Vec::<(String, String)>::new()
+    );
+    let accounts: i64 = upgraded
+        .connection
+        .query_row(
+            "SELECT count(*) FROM accounts WHERE id='existing'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("preserved account");
+    assert_eq!(accounts, 1);
+}
+
 fn legacy(root: &Path) -> Connection {
     let connection = Connection::open(root.join("mail.sqlite3")).expect("legacy database");
     connection

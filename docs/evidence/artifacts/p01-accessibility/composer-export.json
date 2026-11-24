@@ -1,0 +1,52 @@
+{
+  "nodes_exposed": 63,
+  "unreadable_nodes": [
+    {
+      "bus": ":1.1",
+      "path": "/org/a11y/atspi/accessible/0/185234439117073056295055522797665124352",
+      "error": "CalledProcessError"
+    },
+    {
+      "bus": ":1.1",
+      "path": "/org/a11y/atspi/accessible/0/162666668514549747840724286633444114432",
+      "error": "CalledProcessError"
+    },
+    {
+      "bus": ":1.1",
+      "path": "/org/a11y/atspi/accessible/0/181103273277141692749425953641475342336",
+      "error": "CalledProcessError"
+    }
+  ],
+  "row_names_sample": [
+    "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread",
+    "Performance 001"
+  ],
+  "focused_after_first_down": [
+    "Synthetic \u00b7 Performance 000 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread"
+  ],
+  "focused_after_second_down": [
+    "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 1 messages \u00b7 1 unread"
+  ],
+  "reader_exposes_exact_text": true,
+  "checks": {
+    "application_window_exposed": true,
+    "row_names_exposed": true,
+    "search_field_exposed": true,
+    "focus_follows_list_row_one": true,
+    "focus_follows_list_row_two": true,
+    "focus_moved_between_rows": true,
+    "reader_text_focused": true,
+    "reader_rejects_typed_edits": true,
+    "new_draft_focuses_named_recipient": true,
+    "show_copies_focuses_cc": true,
+    "tab_focuses_bcc": true,
+    "hiding_copies_restores_visible_focus": true,
+    "tab_focuses_subject": true,
+    "tab_focuses_message_body": true,
+    "settings_exposes_export_action": true,
+    "export_exposes_copy_action": true,
+    "export_text_keyboard_focus": true,
+    "export_accessible_text_matches_config": true,
+    "escape_returns_to_settings": true
+  }
+}

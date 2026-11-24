@@ -257,7 +257,7 @@ mod tests {
             .search_indexed(lexical.through.expect("cursor"))
             .expect("lexical already indexed");
         let unread = store.unread_counts(&["a".into()]).expect("unread");
-        store.connection.execute_batch("DROP TABLE deadline_corrections; DROP TRIGGER semantic_queued; DROP TABLE semantic_pending; PRAGMA user_version=14;").expect("previous schema");
+        store.connection.execute_batch("ALTER TABLE accounts DROP COLUMN move_unavailable; DROP TABLE deadline_corrections; DROP TRIGGER semantic_queued; DROP TABLE semantic_pending; PRAGMA user_version=14;").expect("previous schema");
         drop(store);
         let upgraded = Store::open(root.path()).expect("upgrade with backup");
         assert_eq!(
