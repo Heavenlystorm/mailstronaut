@@ -11,6 +11,7 @@ experiments/p01-blitz/privacy.sh
 experiments/p01-blitz/reader.sh
 experiments/p01-blitz/portal.sh
 experiments/p01-gpui/wayland.sh
+experiments/p01-gpui/screen-reader.sh
 experiments/p02-accounts/credentials.sh
 experiments/p02-accounts/gui.sh
 experiments/p02-config/export-gui.sh
