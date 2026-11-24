@@ -233,11 +233,13 @@ Use the [settings component mapping](INTERFACE.md#p02-settings-and-p05-onboardin
   desktop and Flatpak portals. [Save, cancellation, refusal and no-clobber passed
   on a private native session bus](evidence/P02-native-nix.md#local-native-filechooser-export).
   Live desktop portals and Flatpak document grants remain open.
-- [ ] Verify edit/save/restart/export/reimport equivalence, native string escaping,
+- [x] Verify edit/save/restart/export/reimport equivalence, native string escaping,
   default/omitted fields, activation precedence, concurrent-write conflicts, invalid
   reload retention and mutable/immutable transitions in disposable profiles.
-  Basic preference round trips, conflicts and invalid reloads pass the private
-  native workflow above; full HM generation ownership transitions remain open.
+  The [same-home generation fixture](evidence/P02-preferences.md#home-manager-ownership-transitions)
+  passed the native Settings round trip, declared precedence and safe ownership
+  changes. The configuration integration tests also passed writer conflicts,
+  string escaping and last-valid reload retention.
 - [ ] Reconfigure account workers atomically; stale callbacks and invalid/removed
   configuration cannot replace the last valid account state or expose secrets.
   Explicit older-mail requests and server attachment saves now retire with an
@@ -846,9 +848,11 @@ Use the [priority/model component mapping](INTERFACE.md#p09-priority-deadlines-a
   original, read a thread, reply/attach/save/send, set a reminder and recover from
   offline/auth errors. Compare usability and code complexity, not visual similarity;
   add no unrelated features from the references. Show current app screenshots in chat.
-- [ ] Verify the HM-first settings round trip: declare, activate, change an allowed
+- [x] Verify the HM-first settings round trip: declare, activate, change an allowed
   mutable preference, restart, export to Nix, import into HM and activate again.
   Managed configuration and secrets must retain their stated ownership.
+  The [installed release and private keyring](evidence/P02-preferences.md#home-manager-ownership-transitions)
+  passed all four generations and the byte-for-byte GUI export comparison.
 - [ ] Ordinary HTML emails render reliably within documented Blitz limitations,
   remain network-silent by default and cannot execute active/native content or
   access local resources/other messages/credentials.

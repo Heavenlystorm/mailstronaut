@@ -6,7 +6,7 @@ let
   package = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
   hmLib = lib.extend (
     _: _: {
-      hm.dag.entryAfter = after: data: { inherit after data; };
+      hm.dag.entryBetween = before: after: data: { inherit before after data; };
     }
   );
   evaluate =

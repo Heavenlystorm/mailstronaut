@@ -80,11 +80,14 @@ in
         xdg.configFile."mailstronaut/config.nix".source = native true;
       })
       (lib.mkIf cfg.mutableSettings {
-        home.activation.mailstronautSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          run ${lib.getExe cfg.package} config reconcile \
-            --declared ${native false} \
-            --path ${lib.escapeShellArg configPath}
-        '';
+        # Reconcile against the previous managed source before HM unlinks it.
+        home.activation.mailstronautSettings =
+          lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ]
+            ''
+              run ${lib.getExe cfg.package} config reconcile \
+                --declared ${native false} \
+                --path ${lib.escapeShellArg configPath}
+            '';
       })
       (lib.mkIf cfg.startOnLogin {
         systemd.user.services.mailstronaut = {
