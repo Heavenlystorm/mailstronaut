@@ -27,6 +27,9 @@ server really advertises, using Dovecot's own `imap_capability` setting.
 
 With **MOVE and UIDPLUS**:
 
+The [message row context actions](P07-row-actions.md) also run in this private
+session with a different message open in the reader.
+
 - Archive hides the message at once, right after opening it, which is the case that used to fail.
 - Undo brings it back, and past the grace period the server still has it in the inbox.
 - Without Undo, UID MOVE reaches the server and the other messages stay where they were.
@@ -49,8 +52,27 @@ operation on its account and supports dismissal after restart.
 
 `crates/mailstronaut-core/tests/moves.rs` covers the stored hold and giving up on a move.
 
+## Searchable move destinations
+
+The reader's Move to control searches the current account's discovered folders.
+It displays decoded labels and keeps the IMAP wire name as the value. When two
+labels match, both rows also show their wire name. A folder view offers the
+other folders, including Inbox. The unified inbox offers non-inbox destinations.
+
+The full Dovecot variant in `experiments/p07-compose/actions.sh` creates
+`Project-&AMk-t&AOk-`, searches for “Project” and exercises Escape, configuration
+reload, selection and Undo. It checks the exact queued destination in SQLite,
+the restored inbox membership and the message's location on the server after
+the Undo period. The Rust test
+`matching_display_labels_keep_distinct_server_destinations` covers a role label
+that collides with an unrelated folder's displayed name.
+
+The picker checks passed on 2026-11-23 against a private native Wayland session
+and Dovecot at `7ccd727`. [Search in the running application](artifacts/p07-move-picker/search.png)
+· [Fixture results](artifacts/p07-move-picker/native.log).
+
 ## Not established
 
 Live providers. A move that fails for a passing reason keeps its warning and is retried on each
 pass, which has only been exercised through its unit paths, not on a real server refusing and
-then recovering. Move to from the menu has not been driven through the GUI.
+then recovering.

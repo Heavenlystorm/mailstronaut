@@ -38,7 +38,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../wayland-session.sh"
 chooser=''
 cleanup() {
   session_cleanup
-  if [[ -n "$chooser" ]]; then kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
+  if [[ -n "$chooser" ]]; then kill -CONT "$chooser" 2>/dev/null || true; kill "$chooser" 2>/dev/null || true; wait "$chooser" 2>/dev/null || true; fi
 }
 trap cleanup EXIT
 # A protocol-accurate file chooser on this private bus, answering from a file.
@@ -76,6 +76,29 @@ wtype -s 100 'to@example.test' -s 100 -k Tab -s 100
 wtype 'Synthetic attachment · Unicode subject' -k Tab -s 100 'Synthetic body with a file.'
 sleep 2
 await 'the draft is saved before attaching' 1 "$open_drafts"
+# Stop the private chooser before it can answer. The pending keystroke lands
+# within the autosave delay, and must reach the database while the dialog is open.
+printf '%s\n' cancel > "$artifacts/chooser-answer"
+click 750 440
+kill -STOP "$chooser"
+wtype ' Pending before chooser.'
+click "$attach_x" "$attach_y"
+pending="SELECT count(*) FROM drafts WHERE closed=0 AND instr(json_extract(content,'$.body'),'Pending before chooser.')>0"
+await 'the last edit reached SQLite while the file chooser was held' 1 "$pending"
+kill -CONT "$chooser"
+for _ in {1..50}; do [[ -s $artifacts/chooser-requests.jsonl ]] && break; sleep .1; done
+[[ -s $artifacts/chooser-requests.jsonl ]]
+sleep .5
+[[ $(query "$attachments") == 0 ]]
+capture chooser-cancelled
+# Losing access before import leaves the same editable draft and its saved text.
+printf 'file://%s/missing-file.txt\n' "$artifacts" > "$artifacts/chooser-answer"
+click "$attach_x" "$attach_y"
+sleep .7
+[[ $(query "$pending") == 1 && $(query "$attachments") == 0 ]]
+capture unreadable-file
+click 1241 132 # Dismiss the persistent alert before retrying Attach.
+python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).as_uri())' "$attachment" > "$artifacts/chooser-answer"
 click "$attach_x" "$attach_y"
 await 'the file chooser attached one file' 1 "$attachments"
 # Attaching kept a private copy, so the original can go away before the removal.
@@ -94,12 +117,28 @@ sleep 3
 [[ $(query "$attachments") == 0 ]]
 printf '%s\n' 'OK: no late autosave restored the removed attachment'
 capture removed
+
+# Switch away and back using two independently saved drafts. The last change to
+# the first body also has to survive closing before the normal debounce expires.
+wtype -M ctrl n -m ctrl -s 600
+await 'a distinct second draft exists' 2 "$open_drafts"
+click 750 440
+wtype 'Independent second draft.'
+await 'the second body belongs to a different draft' 1 "SELECT count(*) FROM drafts WHERE json_extract(content,'$.body')='Independent second draft.'"
+capture before-switch
+click 350 240
+sleep .5
+capture switched-editor
+click 750 440
+wtype -k End ' Saved at close.'
 close_window
 
 start attach-restarted
 sleep 3
-[[ $(query "$attachments") == 0 ]]
-printf '%s\n' 'OK: a removed attachment stays removed after a restart'
+[[ $(query "$attachments") == 0 && $(query "$open_drafts") == 2 ]]
+[[ $(query "SELECT count(*) FROM drafts WHERE instr(json_extract(content,'$.body'),'Pending before chooser. Saved at close.')>0") == 1 ]]
+[[ $(query 'SELECT count(*) FROM outbox') == 0 ]]
+printf '%s\n' 'OK: both drafts survived restart, the last edit was saved, and the removed attachment stayed removed'
 capture attach-restarted
 close_window
 

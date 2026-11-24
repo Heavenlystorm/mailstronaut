@@ -5,10 +5,7 @@
 
 use std::{
     path::PathBuf,
-    sync::{
-        Arc, OnceLock,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 
@@ -17,7 +14,10 @@ use mailstronaut_core::{
     worker::Handle,
 };
 use mailstronaut_search::{Change, Document, Index};
-use tokio::{runtime::Runtime, sync::Notify};
+use tokio::{
+    runtime::Runtime,
+    sync::{Notify, watch},
+};
 use tokio_util::sync::CancellationToken;
 
 /// Small enough not to hold up the store's owner, and to keep indexing in the background.
@@ -43,7 +43,7 @@ pub async fn attach_body_excerpts(store: &Handle, rows: &mut [Summary], words: &
 #[derive(Default)]
 struct Shared {
     index: OnceLock<Index>,
-    queued: AtomicU64,
+    queued: watch::Sender<Option<u64>>,
     wake: Notify,
 }
 
@@ -70,7 +70,12 @@ impl MailSearch {
 
     /// Messages not yet searchable through the index.
     pub fn queued(&self) -> u64 {
-        self.0.queued.load(Ordering::Relaxed)
+        self.0.queued.borrow().unwrap_or_default()
+    }
+
+    /// Changes in the durable index queue; None until the index has opened.
+    pub fn progress(&self) -> watch::Receiver<Option<u64>> {
+        self.0.queued.subscribe()
     }
 
     /// Matching messages in order, or `None` if the store's literal search should answer.
@@ -123,7 +128,9 @@ async fn run(shared: Arc<Shared>, directory: PathBuf, store: Handle, cancel: Can
 /// interruption repeats it, which is harmless.
 async fn index_batch(shared: &Arc<Shared>, store: &Handle) -> Result<bool, ()> {
     let batch = store.search_pending(BATCH).await.map_err(|_| ())?;
-    shared.queued.store(batch.queued, Ordering::Relaxed);
+    shared
+        .queued
+        .send_if_modified(|last| last.replace(batch.queued) != Some(batch.queued));
     let Some(through) = batch.through else {
         return Ok(false);
     };
@@ -142,7 +149,7 @@ async fn index_batch(shared: &Arc<Shared>, store: &Handle) -> Result<bool, ()> {
     .await
     .map_err(|_| ())??;
     store.search_indexed(through).await.map_err(|_| ())?;
-    shared.queued.store(remaining, Ordering::Relaxed);
+    shared.queued.send_replace(Some(remaining));
     Ok(true)
 }
 

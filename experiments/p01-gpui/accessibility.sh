@@ -59,14 +59,17 @@ GSETTINGS_BACKEND=memory AT_SPI_BUS_ADDRESS="$a11y" "$MAILSTRONAUT_ATSPI_LIBEXEC
 sleep .5
 kill -0 "$registry"
 export A11Y_ADDRESS=$a11y ARTIFACTS=$artifacts
+export MAILSTRONAUT_SCREEN_READER_FIXTURE
+MAILSTRONAUT_SCREEN_READER_FIXTURE=$(realpath "$(dirname "${BASH_SOURCE[0]}")/screen-reader.sh")
 
 config="$root/config.nix"
-cat > "$config" <<'NIX'
+cat > "$root/declared.nix" <<'NIX'
 {
   schemaVersion = 1;
-  managed = true;
   appearance = "light";
   sync.automatic = false;
+  priority.enabled = true;
+  timeZone = "UTC";
   accounts = map (identity: {
     id = identity.id;
     provider = "manual";
@@ -82,8 +85,9 @@ cat > "$config" <<'NIX'
   ];
 }
 NIX
+"$binary" config reconcile --declared "$root/declared.nix" --path "$config"
 export MAILSTRONAUT_THREADS_CONFIG="$config" MAILSTRONAUT_THREADS_GUI_BINARY="$binary"
-MAILSTRONAUT_PERFORMANCE_MAILBOX=1 "$fixture" seed_conversation_gui --ignored --exact --nocapture \
+MAILSTRONAUT_ACCESSIBLE_ROWS=1 MAILSTRONAUT_PERFORMANCE_MAILBOX=1 "$fixture" seed_conversation_gui --ignored --exact --nocapture \
   > "$root/seed.log" 2>&1
 [[ -s $root/data/mailstronaut/mail.sqlite3 ]]
 # shellcheck source-path=SCRIPTDIR
@@ -108,6 +112,7 @@ driver="$artifacts/driver.py"
 cat > "$driver" <<'PYDRIVER'
 """Read the application's AT-SPI tree over D-Bus and follow keyboard focus through it."""
 import ast
+import datetime
 import json
 import os
 import re
@@ -260,6 +265,68 @@ checks["focus_follows_list_row_one"] = any("Performance 000" in name for name in
 checks["focus_follows_list_row_two"] = any("Performance 001" in name for name in second_focus)
 checks["focus_moved_between_rows"] = first_focus != second_focus
 
+subject = "Performance 000 · Réinscription et suivi de la demande de remboursement avant le prochain conseil"
+checks["priority_row_and_dismiss_button_named"] = (
+    any("Zoë" in name and subject in name and "Needs attention" in name for name in first_focus)
+    and any(node["role"] == 43 and node["name"] == "Dismiss priority for " + subject for node in tree)
+)
+received = datetime.datetime.fromtimestamp(1793309999, datetime.timezone.utc).strftime("%d %b %Y · %H:%M %Z")
+preview = "Synthetic performance original 001. Réinscription au doctorat. Scadenza di domani."
+checks["focused_row_exposes_visible_date_and_preview"] = any(
+    received in name and preview in name and "unread" in name for name in second_focus
+)
+
+def row_bounds():
+    nodes = walk()
+    row = next(n for n in nodes if n["role"] == 32 and "Performance 001" in n["name"])
+    return literal(gdbus(row["bus"], row["path"], "org.a11y.atspi.Component.GetExtents", "1"))[0]
+
+def sway(*args):
+    subprocess.run(["swaymsg", *map(str, args)], stdout=subprocess.DEVNULL, check=True)
+
+def drag(x, y, target):
+    sway("seat", "seat0", "cursor", "set", x, y)
+    time.sleep(.15)
+    sway("seat", "seat0", "cursor", "press", "button1")
+    # Actual relative movement is delivered during the grab. A Sway cursor
+    # warp requested during the grab is delivered only after button release.
+    for step in [5, target - x - 5]:
+        subprocess.run(["wlrctl", "pointer", "move", str(step), "0"], check=True)
+        time.sleep(.1)
+    sway("seat", "seat0", "cursor", "release", "button1")
+    time.sleep(.3)
+
+x, y, width, height = row_bounds()
+drag(x + width, y + height // 2, x + width + 70)
+wider = row_bounds()
+checks["drag_resizes_message_list"] = wider[2] >= width + 40
+drag(wider[0], y + height // 2, wider[0] + 50)
+shifted = row_bounds()
+checks["drag_resizes_sidebar"] = shifted[0] >= wider[0] + 30
+(artifacts / "pane-bounds.json").write_text(json.dumps({"initial": [x, y, width, height], "list_drag": wider, "sidebar_drag": shifted}))
+for mode in ["960x720", "1280x840"]:
+    sway("output", "HEADLESS-1", "mode", mode)
+    time.sleep(.5)
+    nodes = walk()
+    checks["focused_row_survives_" + mode] = focused_name(nodes) == second_focus
+    subprocess.run(["grim", str(artifacts / ("mailbox-panes-" + mode + ".png"))], check=True)
+
+# Open the priority row and read both notes that come from its real analysis.
+# They used to share an accessibility ID, so opening this message lost the tree.
+key("Up")
+key("Return")
+for _ in range(8):
+    notes = [n["name"] for n in walk() if n["role"] == 29]
+    if any(n.startswith("Deadline:") for n in notes):
+        break
+    time.sleep(.15)
+checks["priority_reader_exposes_reason_and_deadline"] = (
+    any(n.startswith("Needs attention:") for n in notes)
+    and any(n.startswith("Deadline:") for n in notes)
+)
+subprocess.run(["wtype", "-M", "ctrl", "-k", "l", "-m", "ctrl"], check=True)
+key("Down")
+
 # Open the focused original and focus its read-only native text alternative.
 key("Return")
 time.sleep(1)
@@ -284,6 +351,98 @@ if len(text_nodes) == 1:
             checks["reader_rejects_typed_edits"] = get_text().strip() == expected
     except subprocess.CalledProcessError as error:
         (artifacts / "reader-text-error.log").write_text(error.stderr)
+
+
+def shortcut(*keys):
+    *modifiers, name = keys
+    command = ["wtype"]
+    for modifier in modifiers:
+        command.extend(["-M", modifier])
+    command.extend(["-k", name])
+    for modifier in reversed(modifiers):
+        command.extend(["-m", modifier])
+    subprocess.run(command, check=True)
+
+
+def wait_tree(predicate):
+    deadline = time.monotonic() + 10
+    while True:
+        nodes = walk()
+        if predicate(nodes) or time.monotonic() >= deadline:
+            return nodes
+        time.sleep(0.1)
+
+
+def tree_with_focus(label):
+    return wait_tree(lambda nodes: label in focused_name(nodes))
+
+
+def has_focus(label):
+    return label in focused_name(tree_with_focus(label))
+
+
+def capture(name):
+    subprocess.run(["grim", str(artifacts / (name + ".png"))], check=True, timeout=15)
+
+
+capture("accessibility-reader")
+if os.environ.get("MAILSTRONAUT_ORCA"):
+    subprocess.run(["bash", os.environ["MAILSTRONAUT_SCREEN_READER_FIXTURE"]], check=True, timeout=60)
+shortcut("ctrl", "n")
+checks["new_draft_focuses_named_recipient"] = has_focus("To recipients")
+shortcut("ctrl", "shift", "b")
+copies = tree_with_focus("Cc recipients")
+checks["show_copies_focuses_cc"] = "Cc recipients" in focused_name(copies)
+key("Tab")
+checks["tab_focuses_bcc"] = has_focus("Bcc recipients")
+capture("accessibility-composer")
+shortcut("ctrl", "shift", "b")
+collapsed = tree_with_focus("To recipients")
+checks["hiding_copies_restores_visible_focus"] = (
+    "To recipients" in focused_name(collapsed)
+    and not any(node["name"] in {"Cc recipients", "Bcc recipients"} for node in collapsed)
+)
+key("Tab")
+checks["tab_focuses_subject"] = has_focus("Subject")
+key("Tab")
+checks["tab_focuses_message_body"] = has_focus("Message body")
+(artifacts / "composer-tree.json").write_text(json.dumps(copies, indent=2))
+
+shortcut("ctrl", "comma")
+settings = wait_tree(lambda nodes: any(node["name"] == "Export to Nix" for node in nodes))
+checks["settings_exposes_export_action"] = any(node["name"] == "Export to Nix" for node in settings)
+shortcut("ctrl", "shift", "e")
+dialog = wait_tree(lambda nodes: any(node["name"] == "Native Nix snapshot" for node in nodes))
+(artifacts / "export-dialog-tree.json").write_text(json.dumps(dialog, indent=2))
+checks["export_exposes_copy_action"] = any(node["name"] == "Copy native Nix snapshot" for node in dialog)
+# Tab within the dialog to the actual text control; its separate copy button is not the text.
+for _ in range(6):
+    if "Native Nix snapshot" in focused_name(dialog):
+        break
+    key("Tab")
+    time.sleep(0.1)
+    dialog = walk()
+snapshots = [node for node in dialog if node["name"] == "Native Nix snapshot" and node["states"] & focused_bit]
+checks["export_text_keyboard_focus"] = len(snapshots) == 1
+checks["export_accessible_text_matches_config"] = False
+if len(snapshots) == 1:
+    node = snapshots[0]
+    snapshot = literal(gdbus(node["bus"], node["path"], "org.a11y.atspi.Text.GetText", "--", "0", "-1"))[0]
+    expected = subprocess.run([os.environ["MAILSTRONAUT_THREADS_GUI_BINARY"], "config", "export", "--path",
+                               os.environ["MAILSTRONAUT_THREADS_CONFIG"]], capture_output=True, check=True, text=True)
+    checks["export_accessible_text_matches_config"] = snapshot.rstrip("\n") == expected.stdout.rstrip("\n")
+capture("accessibility-export")
+key("Escape")
+
+
+def back_in_settings(nodes):
+    names = {node["name"] for node in nodes}
+    return "Export to Nix" in names and "Native Nix snapshot" not in names
+
+
+checks["escape_returns_to_settings"] = back_in_settings(wait_tree(back_in_settings))
+from account_dialog_checks import check_workflows
+checks.update(check_workflows(walk, wait_tree, key, shortcut, focused_name, capture, gdbus, literal))
 summary = {
     "nodes_exposed": len(tree),
     "unreadable_nodes": walk_errors[:10],
@@ -300,11 +459,10 @@ if not all(checks.values()):
 if os.environ.get("MAILSTRONAUT_A11Y_REQUIRE_TEXT") == "1" and not reader_exposes_exact_text:
     raise SystemExit("the reader does not expose its body through the AT-SPI Text interface")
 PYDRIVER
-python3 "$driver" > "$artifacts/driver.log" 2>&1 || {
+PYTHONPATH="$(dirname "${BASH_SOURCE[0]}")" python3 "$driver" > "$artifacts/driver.log" 2>&1 || {
   cat "$artifacts/driver.log" >&2
   printf 'Accessibility driver failed: %s\n' "$root" >&2
   exit 1
 }
 cat "$artifacts/driver.log"
-capture accessibility-reader
 printf 'Native accessibility-tree check: %s\n' "$artifacts"

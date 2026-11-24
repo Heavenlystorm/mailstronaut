@@ -44,3 +44,29 @@ Grouping above 50,000 messages per account: past that, conversations appear as s
 A small folder in a huge mailbox walks past everything newer than its mail, so its cost
 depends on how old that mail is. Unread counts run on every list refresh, so 36 ms is paid
 each time. Worst cases for pending operations have not been measured.
+
+## Late Sent ancestry at the account limit
+
+On 2026-11-23, the pinned x86_64 Linux development build tested 49,991 synthetic
+background messages and nine MIME originals. Two replies initially shared a
+missing parent. A delayed Sent original supplied that parent and linked both
+replies to a previously separate thread. The Sent original reused a UID from
+INBOX. On reopening SQLite, the four distinct local originals belonged to the
+oldest conversation and the other conversation ID resolved to it.
+
+The same run checked that a duplicate Message-ID preserved two originals, a
+reply attached to the first, and a two-message reference cycle formed a single
+thread. The final projection covered all 50,000 local messages. Snapshot,
+grouping and commit together took 1.73 seconds initially and 1.84 seconds for
+the merge in this single development-profile run. These times measure backend
+work. The fixture does not time IMAP delivery or the GUI.
+
+Run inside `nix develop`:
+
+```sh
+cargo test -p mailstronaut-core --lib a_late_sent_ancestor -- --ignored --nocapture
+```
+
+The six existing store conversation tests and the 37-case upstream corpus
+also passed. The [100,000-message projection measurements](#p03--mailbox-queries-at-100000-messages)
+above cover page latency separately.

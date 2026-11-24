@@ -1,8 +1,8 @@
 # P02/P08 — Editable native preferences
 
-Scope: basic preferences in the GPUI Kit Settings view. Account onboarding,
-complete Home Manager generation activation, background lifetime and desktop/
-Flatpak accessibility/portal acceptance remain separate PLAN requirements.
+This record covers preferences in the GPUI Kit Settings view and the Home
+Manager ownership round trip. Account onboarding, background lifetime and
+desktop/Flatpak accessibility and portals have separate PLAN requirements.
 
 ## Implementation
 
@@ -101,5 +101,51 @@ original path retained as a symlink. The move touched only this project's target
 
 Complete release/installed logs remain in `target/remote/prefs-source-final-release.log`
 and `target/remote/prefs-installed.log`; `nix log .` retrieves the package build log.
-Full Home Manager generation collision/backup/activation, successful file portals,
-user-session accessibility, Flatpak and live-provider authorization remain open.
+## Home Manager ownership transitions
+
+On 2026-11-23 the pinned Home Manager at `095fef2f` activated four generations
+in one disposable Linux home. At `6bec23a`, dropping the account declaration
+while switching to mutable settings lost the account. Home Manager removed the
+old link before Mailstronaut read the file. At `9c74d46` the module reconciled
+immediately before link cleanup, and the complete sequence passed.
+
+1. The initial managed file linked into the Nix store. The mutable generation
+   kept every field of the now-undeclared account, including its Unicode name
+   with quotes and a backslash and its credential reference. The source became
+   a mode-0600 regular file. The old store target retained its original bytes.
+2. Native Settings saved a 120-second poll interval and enabled message
+   previews. The source still omitted untouched limits. After restarting the
+   app, Copy in Export to Nix produced exactly the CLI export from before the
+   restart. [Restarted Settings export](artifacts/p02-preferences/home-manager-export.png).
+3. A later mutable generation declared a 240-second interval and retained the
+   edited preview preference and the account. Importing the saved GUI export
+   into a managed generation refused the file collision. The source and current
+   generation were unchanged. With Home Manager's explicit backup extension
+   enabled, activation restored the managed link and backed up the mutable
+   source byte-for-byte. The managed file's effective export matched the saved
+   GUI export, including the original 120-second interval.
+
+Both exports had SHA-256
+`e7d63400db98aeb3a3a2ebbf2dbaa588983c09a9dfcdb8455433b48b60bcfd04`.
+All 12 `configuration_reconcile` and `configuration_source` integration tests
+also passed with the pinned toolchain. They covered native escaping, cooperating
+and uncooperative writers, source ownership, omitted defaults, stale saves and
+last-valid behavior after an invalid reload.
+
+The initial run used the pinned development build of Mailstronaut `b5078a9`.
+A second run at fixture revision `dca1bfd` used the normal stable LLVM release
+from `7f646b0`. All four generations installed
+`/nix/store/713zqza5r9npcpr49midlfg1723kj3zn-mailstronaut-0.1.0` through
+the module's package option. The restarted native GUI exported the same hash.
+A private GNOME Keyring stored a newly generated synthetic password under the
+account's configured reference. After reactivation a fresh keyring process
+retrieved the original value. Its bytes were absent from the old store target,
+final managed declaration, mutable backup and GUI export.
+
+The walkthrough used a private Wayland compositor, session bus and encrypted
+keyring. To repeat with the default release package, run the following under a
+disposable Unix account.
+
+```sh
+nix develop .#gui-test --command bash ci/home-manager-activation.sh "" --gui-roundtrip
+```

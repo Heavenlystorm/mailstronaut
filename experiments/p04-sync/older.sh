@@ -111,6 +111,24 @@ await 'the folder fetched its own older mail' 1 "SELECT count(*) FROM messages W
 sleep 2
 capture archive-fetched
 
+# Both folder cursors are exhausted. Adopt a new declaration using the same IDs,
+# with automatic sync off, then import an old message on the server. Only the
+# explicit history button can fetch it, and only if it has retired the old cursor.
+sed -i -e 's/appearance = "light";/appearance = "dark";/' \
+  -e '/sync.pollSeconds/i\  sync.automatic = false;' "$config"
+wtype -M ctrl -M shift r -m shift -m ctrl
+for _ in {1..60}; do
+  capture reloaded
+  [[ $(magick "$artifacts/reloaded.png" -format '%[fx:p{400,10}.r < 0.5]' info:) == 1 ]] && break
+  sleep .2
+done
+[[ $(magick "$artifacts/reloaded.png" -format '%[fx:p{400,10}.r < 0.5]' info:) == 1 ]]
+message imported-after-reload '240 days ago' "$mail_root/.Archive"
+click 480 779
+await 'reloading permits another history fetch for the same folder' 1 \
+  "SELECT count(*) FROM messages WHERE subject='Synthetic imported-after-reload'"
+capture fetched-after-reload
+
 # Restarting forgets how far back it got, and nothing is duplicated by asking again.
 close_window
 start restarted
@@ -118,7 +136,7 @@ sleep 3
 click 480 779
 sleep 3
 capture restarted
-[[ $(query 'SELECT count(*) FROM messages') == 5 ]]
+[[ $(query 'SELECT count(*) FROM messages') == 6 ]]
 printf '%s\n' 'OK: fetching again after a restart duplicated nothing'
 close_window
 

@@ -1,0 +1,19 @@
+OK: full server: UIDPLUS MOVE
+OK: the inbox was cached
+OK: SPECIAL-USE gave the Archive role
+OK: only the explicitly opened delta is seen
+OK: row-menu Star targets charlie
+OK: explicit row-menu Mark read updates charlie
+OK: explicit row-menu Mark unread restores charlie
+OK: the row menu archived charlie, leaving delta in view
+OK: Undo restored the context-menu move
+OK: opening, dismissing and acting on the row menu kept charlie unread and delta open
+OK: Archive hid the message at once
+OK: Undo brought it back
+OK: past the grace period, the server never heard of the undone move
+OK: Archive hid it again
+OK: UID MOVE reached the server
+OK: the other messages stayed in the inbox
+OK: Trash hid the next message
+OK: it reached the Trash folder
+Native actions acceptance (full): /sources/p07-row-actions-9af3619e2a75/target/p02.FOrZF8/actions-full

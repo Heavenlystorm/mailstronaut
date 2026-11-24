@@ -21,6 +21,7 @@ use gpui::component::{
     badge::Badge,
     button::{Button, ButtonVariants as _},
     description_list::DescriptionList,
+    empty::{Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle},
     input::{Input, InputEvent, InputState, Textarea, TextareaState},
     label::Label,
     list::{List, ListEvent, ListState},
@@ -31,6 +32,7 @@ use gpui::component::{
     resizable::{h_resizable, resizable_panel},
     setting::{SettingGroup, SettingItem, SettingPage, Settings},
     sidebar::{Sidebar, SidebarGroup, SidebarItem as _, SidebarMenu, SidebarMenuItem},
+    spinner::Spinner,
     status_bar::StatusBar,
     tab::{Tab, TabBar},
     toolbar::{Toolbar, ToolbarGroup},
@@ -58,6 +60,7 @@ use crate::mailbox::{Priority, Row, Rows};
 
 mod deadlines;
 mod history;
+mod move_picker;
 
 /// How long a queued move can be undone before the server is told about it.
 const UNDO_GRACE: Duration = Duration::from_secs(8);
@@ -177,6 +180,7 @@ pub struct Workspace {
     onboarding: Entity<crate::onboarding::Onboarding>,
     _preference_events: Subscription,
     loading_config: bool,
+    startup_error: Option<String>,
     pending_open: Option<PendingOpen>,
     view: View,
     account_access: crate::account_actions::Access,
@@ -195,6 +199,7 @@ pub struct Workspace {
     thread_reader: Entity<crate::thread_reader::ThreadReader>,
     _thread_events: Subscription,
     selected: Option<Row>,
+    move_picker: Option<move_picker::Picker>,
     body: String,
     text_reader: Entity<TextareaState>,
     reader_mode: ReaderMode,
@@ -238,8 +243,8 @@ pub struct Workspace {
     /// How far back older mail has been fetched, by account and folder wire name. Absent
     /// means not yet asked for, and `None` means the beginning of the folder was reached.
     older_reached: HashMap<(String, String), Option<mailstronaut_core::sync::Position>>,
-    /// Present while older mail is being fetched.
-    older_fetch: Option<CancellationToken>,
+    /// The accepted configuration revision that owns the current history request.
+    older_fetch: Option<u64>,
     announcer: Option<Arc<crate::mail_notify::Announcer>>,
     syncing: BTreeSet<String>,
     sync_progress: BTreeMap<String, crate::mail_sync::Fetch>,
@@ -703,6 +708,7 @@ impl Workspace {
             onboarding,
             _preference_events: preference_events,
             loading_config: false,
+            startup_error: None,
             pending_open: None,
             view: View::Inbox,
             account_access,
@@ -721,6 +727,7 @@ impl Workspace {
             thread_reader,
             _thread_events: thread_events,
             selected: None,
+            move_picker: None,
             body: String::new(),
             text_reader,
             reader_mode: if demo {
@@ -868,10 +875,11 @@ impl Workspace {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
                 this.loading_config = false;
-                match result {
+                let error = match result {
                     Ok(Ok((owner, config, ownership))) => {
+                        this.startup_error = None;
                         this.owner = owner;
-                        this.start_search();
+                        this.start_search(window, cx);
                         if this.declaration.apply(config) {
                             this.retire_open(window, cx);
                             this.list.update(cx, |list, cx| {
@@ -937,12 +945,16 @@ impl Workspace {
                         } else if let Some(target) = this.pending_open.take() {
                             this.open_notification(target, window, cx);
                         }
+                        None
                     }
-                    Ok(Err(error)) => this.status = error,
-                    Err(_) => this.status = "Unable to open local mail.".into(),
-                }
-                if this.preferences.read(cx).busy() {
-                    let error = this.status.clone();
+                    Ok(Err(error)) => Some(error),
+                    Err(_) => Some("Unable to open local mail.".into()),
+                };
+                if let Some(error) = error {
+                    this.status.clone_from(&error);
+                    if this.owner.is_none() {
+                        this.startup_error = Some(error.clone());
+                    }
                     this.preferences
                         .update(cx, |preferences, cx| preferences.failed(error, cx));
                 }
@@ -961,6 +973,9 @@ impl Workspace {
     ) {
         self.account_lifetime.cancel();
         self.account_lifetime = self.lifetime.child_token();
+        self.older_fetch = None;
+        self.older_reached.clear();
+        window.remove_notification::<AttachmentDownload>(cx);
         self.move_warnings.clear();
         self.account_events.clear();
         self.account_views.clear();
@@ -1069,6 +1084,7 @@ impl Workspace {
     }
 
     fn retire_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_picker = None;
         self.text_reader
             .update(cx, |reader, cx| reader.set_value("", window, cx));
         self.thread_reader
@@ -1158,7 +1174,7 @@ impl Workspace {
             &self.runtime,
             store,
             config,
-            self.lifetime.child_token(),
+            self.account_lifetime.child_token(),
         );
         self.priority = Some(engine);
         let revision = self.declaration.revision();
@@ -1256,7 +1272,7 @@ impl Workspace {
         .detach();
     }
 
-    fn start_search(&mut self) {
+    fn start_search(&mut self, window: &Window, cx: &Context<Self>) {
         if self.fuzzy.is_some() {
             return;
         }
@@ -1268,12 +1284,47 @@ impl Workspace {
             .data_local_dir()
             .join("mailstronaut")
             .join("search");
-        self.fuzzy = Some(crate::mail_search::MailSearch::start(
+        let index = crate::mail_search::MailSearch::start(
             &self.runtime,
             directory,
             store,
             self.lifetime.child_token(),
-        ));
+        );
+        let mut progress = index.progress();
+        self.fuzzy = Some(index);
+        cx.spawn_in(window, async move |this, cx| {
+            while progress.changed().await.is_ok() {
+                // Coalesce small batches into occasional status updates during a long rebuild.
+                cx.background_executor()
+                    .timer(Duration::from_millis(150))
+                    .await;
+                let ready = *progress.borrow_and_update() == Some(0);
+                if this
+                    .update_in(cx, |this, window, cx| {
+                        let partial = !ready && this.search_mode == SearchMode::Words;
+                        this.list.update(cx, |list, cx| {
+                            if list.delegate().indexing_words != partial {
+                                list.delegate_mut().indexing_words = partial;
+                                cx.notify();
+                            }
+                        });
+                        if ready
+                            && this.view == View::Inbox
+                            && this.search_mode == SearchMode::Words
+                            && (!this.query.trim().is_empty() || !this.filter.is_empty())
+                        {
+                            this.refresh_rows(window, cx);
+                        } else {
+                            cx.notify();
+                        }
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
     }
 
     fn page_status(&self, count: usize) -> String {
@@ -1285,21 +1336,13 @@ impl Workspace {
     }
 
     fn lexical_page_status(&self, count: usize) -> String {
-        let waiting = self
-            .fuzzy
-            .as_ref()
-            .map_or(0, crate::mail_search::MailSearch::queued);
         if self.search_mode == SearchMode::Related && related_intent(&self.query) {
             format!("{count} related conversations · suggested by meaning")
         } else if self.query.trim().is_empty() && self.filter.is_empty() {
             format!("{count} cached conversations · local cache")
         } else {
             let matches = if count == 1 { "match" } else { "matches" };
-            if waiting > 0 {
-                format!("{count} {matches} · {waiting} messages not searchable yet")
-            } else {
-                format!("{count} {matches} · searched local cache")
-            }
+            format!("{count} {matches} · searched local cache")
         }
     }
 
@@ -1317,7 +1360,12 @@ impl Workspace {
             })
             .collect();
         self.watch_priority_expiry(&group.rows, window, cx);
-        self.folders = folders;
+        if self.folders != folders {
+            self.folders = folders;
+            if self.move_picker.is_some() {
+                self.reset_move_picker(window, cx);
+            }
+        }
         self.unread = unread
             .into_iter()
             .map(|(folder, count)| (folder, count as usize))
@@ -1333,7 +1381,20 @@ impl Workspace {
         let excerpt = (self.search_mode == SearchMode::Words)
             .then(|| BodyExcerpt::for_words(&self.query))
             .flatten();
+        let workspace = cx.entity().downgrade();
+        let revision = self.declaration.revision();
+        let scope = self.scope.clone();
         self.list.update(cx, |list, cx| {
+            list.delegate_mut().on_row_action = Some(Rc::new(move |target, action, window, cx| {
+                _ = workspace.update(cx, |this, cx| {
+                    if this.view == View::Inbox
+                        && this.declaration.revision() == revision
+                        && this.scope == scope
+                    {
+                        this.row_action(target, action, window, cx);
+                    }
+                });
+            }));
             crate::mailbox::replace_with_priority(list, rows, group, window, cx);
             list.delegate_mut().body_excerpt = excerpt;
             list.delegate_mut().more = self.browse.more;
@@ -1380,6 +1441,8 @@ impl Workspace {
             let rows = list.delegate_mut();
             rows.loading = true;
             rows.searching = !query.is_empty() || !filter.is_empty();
+            rows.indexing_words = self.search_mode == SearchMode::Words
+                && self.fuzzy.as_ref().is_some_and(|index| index.queued() > 0);
             rows.has_accounts = !accounts.is_empty();
             cx.notify();
         });
@@ -1478,6 +1541,7 @@ impl Workspace {
         let revision = self.declaration.revision();
         self.read_gate.clicked(revision, generation);
         self.selected = Some(row.clone());
+        self.reset_move_picker(window, cx);
         self.opened_message = None;
         self.reader_notice.clear();
         self.html_reader
@@ -1705,29 +1769,51 @@ impl Workspace {
     }
 
     fn apply_flag(&mut self, flag: FlagChange, desired: bool, window: &Window, cx: &Context<Self>) {
-        let (Some(handle), Some(row)) = (self.handle(), self.selected.as_mut()) else {
+        let Some(row) = &self.selected else {
+            return;
+        };
+        self.apply_row_flag(row.account.clone(), row.id, flag, desired, window, cx);
+    }
+
+    fn apply_row_flag(
+        &mut self,
+        account_id: String,
+        id: i64,
+        flag: FlagChange,
+        desired: bool,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
+        let Some(handle) = self.handle() else {
             return;
         };
         let Some(account) = self.declaration.active().and_then(|config| {
             config
                 .accounts
                 .iter()
-                .find(|account| account.id == row.account)
+                .find(|account| account.id == account_id)
         }) else {
             return;
         };
         let Ok(context) = mailstronaut_core::store::flags::context(account) else {
             return;
         };
-        match flag {
-            FlagChange::Seen => row.seen = desired,
-            FlagChange::Starred => row.starred = desired,
+        if let Some(row) = self
+            .selected
+            .as_mut()
+            .filter(|row| row.account == account_id && row.id == id)
+        {
+            match flag {
+                FlagChange::Seen => row.seen = desired,
+                FlagChange::Starred => row.starred = desired,
+            }
         }
-        let (account, id) = (row.account.clone(), row.id);
         let revision = self.declaration.revision();
-        let job = self
-            .runtime
-            .spawn(async move { handle.set_flag(account, id, flag, desired, context).await });
+        let job = self.runtime.spawn(async move {
+            handle
+                .set_flag(account_id, id, flag, desired, context)
+                .await
+        });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
@@ -1765,29 +1851,83 @@ impl Workspace {
             .filter(move |folder| folder.account == account)
     }
 
-    fn role_folder(&self, role: FolderRole) -> Option<&Folder> {
-        let row = self.selected.as_ref()?;
-        self.folders
-            .iter()
-            .find(|folder| folder.account == row.account && folder.role == Some(role))
+    fn row_action(
+        &mut self,
+        target: &Row,
+        action: crate::mailbox::RowAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::mailbox::RowAction;
+        let Some(row) = self.list.read(cx).delegate().current(target).cloned() else {
+            return;
+        };
+        match action {
+            RowAction::Open => self.open(row, window, cx),
+            RowAction::Flag(flag, desired) => {
+                self.apply_row_flag(row.account, row.id, flag, desired, window, cx);
+            }
+            RowAction::Move(role) => self.move_row_to_role(row, role, window, cx),
+        }
     }
 
     fn move_to_role(&mut self, role: FolderRole, window: &Window, cx: &mut Context<Self>) {
-        let Some(destination) = self.role_folder(role).map(|folder| folder.name.clone()) else {
-            self.reader_notice = format!(
+        if let Some(row) = self.selected.clone() {
+            self.move_row_to_role(row, role, window, cx);
+        }
+    }
+
+    fn move_row_to_role(
+        &mut self,
+        row: Row,
+        role: FolderRole,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let destination = self
+            .account_folders(&row.account)
+            .find(|folder| folder.role == Some(role))
+            .map(|folder| folder.name.clone());
+        if let Some(destination) = destination {
+            self.move_row(row, destination, role.label().to_owned(), window, cx);
+        } else {
+            let message = format!(
                 "This account has no {} folder. Set one in your Nix configuration.",
                 role.label()
             );
+            self.reader_notice.clone_from(&message);
+            self.status = message;
             cx.notify();
-            return;
-        };
-        self.move_open(destination, role.label().to_owned(), window, cx);
+        }
     }
 
     /// Hide the open conversation now and report it with Undo. The server is told on
     /// the account's next cycle, and only copies in the current folder move.
-    fn move_open(&self, destination: String, label: String, window: &Window, cx: &Context<Self>) {
-        let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
+    fn move_open(
+        &mut self,
+        destination: String,
+        label: String,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.move_picker.take().is_none() {
+            return;
+        }
+        cx.notify();
+        if let Some(row) = self.selected.clone() {
+            self.move_row(row, destination, label, window, cx);
+        }
+    }
+
+    fn move_row(
+        &self,
+        row: Row,
+        destination: String,
+        label: String,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
+        let Some(handle) = self.handle() else {
             return;
         };
         let Some(context) = self.declaration.active().and_then(|config| {
@@ -1801,6 +1941,7 @@ impl Workspace {
             _ => None,
         };
         let revision = self.declaration.revision();
+        let generation = self.reading_generation;
         let (account, id) = (row.account.clone(), row.id);
         // The hold is stored with the move: IDLE can start a sync pass at any moment, and
         // opening a message is usually what makes it happen.
@@ -1813,16 +1954,36 @@ impl Workspace {
                 .await
         });
         let undo = (row.account, row.id);
+        let conversation = row.conversation;
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
                 if revision != this.declaration.revision() {
                     return;
                 }
+                let current = generation == this.reading_generation;
                 match result {
-                    Ok(Ok(_)) => this.after_move(undo, &label, window, cx),
-                    Ok(Err(error)) => this.reader_notice = error.to_string(),
-                    Err(_) => this.reader_notice = "Unable to move this message.".into(),
+                    Ok(Ok(_)) => {
+                        if current
+                            && this.selected.as_ref().is_some_and(|open| {
+                                open.account == undo.0
+                                    && (open.id == undo.1
+                                        || conversation.is_some()
+                                            && open.conversation == conversation)
+                            })
+                        {
+                            this.retire_open(window, cx);
+                        }
+                        this.after_move(undo, &label, window, cx);
+                    }
+                    error if current => {
+                        this.reader_notice = match error {
+                            Ok(Err(error)) => error.to_string(),
+                            _ => "Unable to move this message.".into(),
+                        };
+                        this.reset_move_picker(window, cx);
+                    }
+                    _ => {}
                 }
                 cx.notify();
             });
@@ -1837,7 +1998,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.retire_open(window, cx);
         self.refresh_rows(window, cx);
         // Waking the account at once would claim the move before Undo could be pressed.
         let grace = cx.background_executor().timer(UNDO_GRACE);
@@ -2826,6 +2986,28 @@ impl Workspace {
     }
 
     fn mailbox(&self, cx: &Context<Self>) -> impl IntoElement {
+        if let Some(error) = &self.startup_error {
+            return Empty::new()
+                .size_full()
+                .header(
+                    EmptyHeader::new()
+                        .title(EmptyTitle::new().child("Local mail unavailable"))
+                        .description(EmptyDescription::new().child(error.clone())),
+                )
+                .content(
+                    EmptyContent::new().child(
+                        Button::new("retry-mail-store")
+                            .label("Retry")
+                            .accessibility_label("Retry opening local mail")
+                            .loading(self.loading_config)
+                            .disabled(self.loading_config || self.preferences.read(cx).busy())
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.load_configuration(window, cx);
+                            })),
+                    ),
+                )
+                .into_any_element();
+        }
         h_resizable("mail-panes")
             .child(
                 resizable_panel()
@@ -2834,6 +3016,7 @@ impl Workspace {
                     .child(self.message_list(cx)),
             )
             .child(resizable_panel().child(self.reader(cx)))
+            .into_any_element()
     }
 
     fn top_bar(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -3006,8 +3189,9 @@ impl Workspace {
         if self.older_fetch.is_some() {
             return;
         }
-        let cancel = self.lifetime.child_token();
-        self.older_fetch = Some(cancel.clone());
+        let revision = self.declaration.revision();
+        self.older_fetch = Some(revision);
+        let cancel = self.account_lifetime.child_token();
         let targets = self.older_targets();
         let reached = self.older_reached.clone();
         let access = self.account_access.clone();
@@ -3033,6 +3217,9 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
+                if this.older_fetch != Some(revision) {
+                    return;
+                }
                 this.older_fetch = None;
                 let notice = match result {
                     Ok((progress, downloaded, failure)) => {
@@ -3193,11 +3380,13 @@ impl Workspace {
         let muted = cx.theme().muted_foreground;
         div()
             .when(!notes.is_empty(), |view| {
-                view.mb_3().children(
-                    notes
-                        .into_iter()
-                        .map(|note| Label::new(note).text_sm().text_color(muted)),
-                )
+                view.mb_3()
+                    .children(notes.into_iter().enumerate().map(|(index, note)| {
+                        Label::new(note)
+                            .id(("analysis-note", index))
+                            .text_sm()
+                            .text_color(muted)
+                    }))
             })
             .child(self.deadline_controls(cx))
     }
@@ -3281,10 +3470,13 @@ impl Workspace {
         let (runtime, access, cancel) = (
             self.runtime.clone(),
             self.account_access.clone(),
-            self.lifetime.child_token(),
+            self.account_lifetime.child_token(),
         );
         cx.spawn_in(window, async move |this, cx| {
-            let notice = match chosen.await {
+            let Some(choice) = cancel.run_until_cancelled(chosen).await else {
+                return;
+            };
+            let notice = match choice {
                 Ok(Ok(Some(path))) => {
                     _ = this.update_in(cx, |_, window, cx| {
                         window.push_notification(
@@ -3296,11 +3488,22 @@ impl Workspace {
                             cx,
                         );
                     });
+                    let download = cancel.clone();
                     let saved = runtime
                         .spawn(async move {
                             let bytes = access
-                                .fetch_attachment(&store, &account, row.id, &part.section, &cancel)
+                                .fetch_attachment(
+                                    &store,
+                                    &account,
+                                    row.id,
+                                    &part.section,
+                                    &download,
+                                )
                                 .await?;
+                            // Decoding already-fetched bytes can finish after the account retired.
+                            if download.is_cancelled() {
+                                return Err("Attachment download cancelled.".to_owned());
+                            }
                             tokio::fs::write(path, bytes).await.map_err(|_| {
                                 "The attachment could not be written there.".to_owned()
                             })
@@ -3315,7 +3518,9 @@ impl Workspace {
                 Ok(Ok(None)) => None,
                 _ => Some("The file chooser is unavailable. Nothing was saved.".to_owned()),
             };
-            if let Some(notice) = notice {
+            if !cancel.is_cancelled()
+                && let Some(notice) = notice
+            {
                 _ = this.update_in(cx, |_, window, cx| {
                     window.push_notification(
                         Notification::new()
@@ -3538,15 +3743,6 @@ impl Workspace {
     }
 
     fn move_controls(&self, cx: &Context<Self>) -> impl IntoElement {
-        let targets: Vec<(String, String)> = self
-            .selected
-            .as_ref()
-            .into_iter()
-            .flat_map(|row| self.account_folders(&row.account))
-            .filter(|folder| !folder.inbox)
-            .map(|folder| (folder.name.clone(), folder.label()))
-            .collect();
-        let workspace = cx.entity().downgrade();
         ToolbarGroup::new("message-move")
             .label("Move")
             .child(
@@ -3569,26 +3765,7 @@ impl Workspace {
                         this.move_to_role(FolderRole::Trash, window, cx);
                     })),
             )
-            .content(
-                Button::new("move-to")
-                    .ghost()
-                    .label("Move to")
-                    .disabled(self.demo || targets.is_empty())
-                    .dropdown_menu(move |mut menu, _, _| {
-                        for (name, label) in &targets {
-                            let (workspace, name, title) =
-                                (workspace.clone(), name.clone(), label.clone());
-                            menu = menu.item(PopupMenuItem::new(label.clone()).on_click(
-                                move |_, window, cx| {
-                                    _ = workspace.update(cx, |this, cx| {
-                                        this.move_open(name.clone(), title.clone(), window, cx);
-                                    });
-                                },
-                            ));
-                        }
-                        menu
-                    }),
-            )
+            .content(self.move_picker_control())
     }
 
     fn reader_tools(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -3834,6 +4011,17 @@ impl Render for Workspace {
                                 .when(self.view != View::Compose, |row| {
                                     row.child(self.sync_status())
                                 })
+                                .when_some(
+                                    self.fuzzy
+                                        .as_ref()
+                                        .map(crate::mail_search::MailSearch::queued)
+                                        .filter(|count| *count > 0 && self.view == View::Inbox),
+                                    |row, count| {
+                                        row.child(Spinner::new()).child(format!(
+                                            "Updating search index · {count} pending"
+                                        ))
+                                    },
+                                )
                                 .children(self.fetch_progress(cx))
                                 .children(self.cancelled_fetches.iter().map(|account| {
                                     div().child(format!("{account} · fetch cancelled"))

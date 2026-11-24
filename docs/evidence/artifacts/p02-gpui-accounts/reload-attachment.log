@@ -1,0 +1,31 @@
+OK: all three messages appeared, whatever their size
+OK: the 5 MiB message is kept whole
+OK: the 30 MiB message records what it left behind
+OK: neither was marked read by fetching
+OK: the store holds only 8 MiB after caching 35 MiB of mail
+OK: the text of the large message is searchable
+OK: opening it marked it read
+experiments/p04-sync/large.sh: line 124: /sources/p02-reload-a2512ab93a43/target/p02.z8dHX1/large-gui/chooser-requests.jsonl: No such file or directory
+OK: a cancelled save asked the server for nothing
+OK: saving downloaded the 30 MiB attachment byte for byte
+OK: the dialog suggested the decoded file name
+OK: saving the kept attachment wrote it byte for byte
+OK: a retired attachment save neither signed in nor overwrote its destination
+Native large mail acceptance: /sources/p02-reload-a2512ab93a43/target/p02.z8dHX1/large-gui
+
+running 1 test
+Quiet native lookup created no collections; default alias before/after session: ///org/freedesktop/secrets/collection/login.
+Private Secret Service: exact lookup, account/purpose isolation, rotation, deletion, ambiguity and locked background access passed.
+test private_secret_service_round_trip_isolation_rotation_and_lock ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.32s
+
+
+running 1 test
+Unavailable Secret Service fails closed without a plaintext backend.
+test private_missing_service_fails_closed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+
+Persisted fixture keyring contains none of the synthetic credential markers in plaintext.
+Private keyring artifacts: /sources/p02-reload-a2512ab93a43/target/p02.z8dHX1

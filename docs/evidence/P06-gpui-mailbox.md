@@ -124,3 +124,35 @@ controls, merge/removal selection, explicit unread/actions, composition, reminde
 fuzzy/semantic search and priority/deadline inference remain tracked in PLAN.
 Native user-desktop/screen-reader, CI, aarch64 and current-stack Flatpak acceptance
 are separate from this synthetic local result.
+
+## Resizable panes and accessible rows
+
+The 2026-11-23 private Wayland run at `a72ba87` used the pinned x86_64
+development build with 101 synthetic originals and the production priority
+classifier. Its AT-SPI client followed keyboard focus from a priority row to
+an ordinary unread row. The focused priority row exposed the sender Zoë, the
+complete long French subject, account, local date and time, unread state,
+priority, deadline and preview. Its dismiss button named the affected
+subject. The next row exposed its two-line multilingual preview and the same
+received timestamp as the visible footer, 29 Oct 2026 at 21:39 UTC.
+
+Two duplicate accessible IDs surfaced during this run. The priority and
+regular section headings shared a Kit label ID, as did the priority reason
+and deadline inside an opened message. The pinned debug toolkit stopped the
+app in either case. Distinct IDs let the client read both sections and both
+notes. After returning to the mailbox, the client explicitly opened the
+ordinary original and read its exact multiline text. [Native accessibility
+report](artifacts/p06-mailbox-panes/accessibility.json).
+
+The fixture dragged both dividers with a Wayland pointer. The message list
+grew from 360 to 430 logical pixels. The sidebar then grew from 200 to 250
+pixels. Keyboard focus stayed on the same unread original after resizing the
+window to 960×720 and back to 1280×840. Search, Compose, Sync and the reader
+remained visible. [Measured row bounds](artifacts/p06-mailbox-panes/pane-bounds.json)
+· [960×720](artifacts/p06-mailbox-panes/mailbox-panes-960x720.png)
+· [1280×840](artifacts/p06-mailbox-panes/mailbox-panes-1280x840.png).
+
+All 15 native assertions and the exact reader-text check passed. Formatting,
+ShellCheck, strict all-target Clippy for the application and core, and all
+eight mailbox unit tests passed. The existing continuous-browsing fixture
+covers keyboard and wheel movement across the 100-row batch boundary.

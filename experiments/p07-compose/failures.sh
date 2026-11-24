@@ -25,7 +25,7 @@ write_config() {
   appearance = "light";
   sync.automatic = false;
   accounts = [{
-    id = "failure-synthetic";
+    id = "${2:-failure-synthetic}";
     provider = "manual";
     address = "sender@example.test";
     displayName = "Synthetic sender";
@@ -94,6 +94,28 @@ compose() {
   wtype -s 300 -M ctrl -k Return -m ctrl
 }
 
+# Keep this window open as the configuration source changes. The replacement
+# account deliberately has no credential and automatic synchronization is off.
+reload() { wtype -M ctrl -M shift r -m shift -m ctrl -s 800; }
+replace_account() {
+  write_config "\"$ca\"" replacement-synthetic
+  reload
+}
+check_replacement_draft() {
+  wtype -M ctrl n -m ctrl -s 600 'replacement@example.test'
+  for _ in {1..30}; do
+    if python3 - "$database" <<'PY'
+import json, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    drafts = db.execute("SELECT content FROM drafts WHERE account_id='replacement-synthetic' AND closed=0")
+    sys.exit(0 if any(json.loads(row[0])['to'] == 'replacement@example.test' for row in drafts) else 1)
+PY
+    then return 0; fi
+    sleep .2
+  done
+  return 1
+}
+
 # A server whose certificate cannot be verified: the send stops before any SMTP data.
 write_config ''
 rm -rf "$XDG_DATA_HOME/mailstronaut"
@@ -106,6 +128,38 @@ printf '%s\n' 'OK: the unverifiable certificate sent no data'
 sleep 1
 capture untrusted
 stop_server
+
+# Hold the store's recovery transaction in flight until the old account has
+# been removed. The user's explicit recovery can finish, but its contents must
+# not reappear in the editor of the replacement account.
+python3 - "$database" "$artifacts" <<'PY' &
+import pathlib, sqlite3, sys, time
+artifacts = pathlib.Path(sys.argv[2])
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("BEGIN IMMEDIATE")
+    (artifacts / "recovery-held").touch()
+    for _ in range(80):
+        if (artifacts / "release-recovery").exists():
+            break
+        time.sleep(.05)
+    else:
+        raise SystemExit("Configuration was not replaced during the recovery")
+PY
+holder=$!
+for _ in {1..30}; do [[ -f $artifacts/recovery-held ]] && break; sleep .05; done
+[[ -f $artifacts/recovery-held ]]
+click 342 423
+replace_account
+touch "$artifacts/release-recovery"
+wait "$holder"
+await_state 'selected draft recovery committed for its original account' cancelled:0
+sleep .5
+printf 'replacement clipboard' | wl-copy
+wtype -M ctrl a c -m ctrl -s 200
+[[ $(wl-paste --no-newline) == 'replacement clipboard' ]]
+check_replacement_draft
+capture reload-recovered-draft
+printf '%s\n' 'OK: the recovered draft stayed out of the replacement editor'
 close_window
 
 # A refused sign-in stops the send before any data. Once the server accepts the sign-in,
@@ -146,6 +200,44 @@ sleep 1
 capture cancelled
 stop_server
 close_window
+
+# An invalid edit keeps the same in-flight Send. Adopting another account while
+# SMTP is paused before its greeting cancels the old attempt and restores the draft.
+write_config "\"$ca\""
+rm -rf "$XDG_DATA_HOME/mailstronaut"
+serve MAILSTRONAUT_SMTP_STALL=1
+start reload-send
+compose
+await_state 'old account send is waiting for SMTP' pending:0
+printf '{ broken' > "$config"
+reload
+[[ $(state) == pending:0 ]]
+replace_account
+await_state 'account replacement cancels the original send' cancelled:0
+kill -0 "$server"
+check_replacement_draft
+capture reload-send-replacement
+close_window
+stop_server
+
+# Exercise Retry separately; its outbox row already exists from a refused login.
+write_config "\"$ca\""
+rm -rf "$XDG_DATA_HOME/mailstronaut"
+serve MAILSTRONAUT_SMTP_REJECT_AUTH=1
+start reload-retry
+compose
+await_state 'original login is refused before Retry' failed:0
+stop_server
+serve MAILSTRONAUT_SMTP_STALL=1
+click "$retry_x" "$retry_y"
+await_state 'Retry reaches a pending SMTP attempt' pending:0
+replace_account
+await_state 'account replacement cancels the outbox retry' cancelled:0
+kill -0 "$server"
+check_replacement_draft
+capture reload-retry-replacement
+close_window
+stop_server
 
 # A send stopped in its pre-flight check is still queued after a crash. Restarting neither sends
 # it nor contacts the server, and its Cancel leaves it cancelled.
