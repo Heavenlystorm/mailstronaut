@@ -226,6 +226,8 @@ enum Command {
     BeginMove(String, String, Reply<Option<MoveAttempt>>),
     FinishMove(MoveAttempt, bool, Reply<()>),
     AbandonMove(MoveAttempt, Reply<()>),
+    MoveWarnings(Vec<String>, Reply<Vec<(String, String)>>),
+    DismissMoveWarning(String, String, Reply<()>),
     RetryMoves(String, Reply<()>),
     PendingSentCopy(String, Reply<Option<outbox::SentCopy>>),
     FinishSentCopy(String, String, Reply<()>),
@@ -787,6 +789,29 @@ impl Handle {
     /// Rejects stale attempts and storage failures.
     pub async fn abandon_move(&self, attempt: MoveAttempt) -> Result<(), Error> {
         self.request(|reply| Command::AbandonMove(attempt, reply))
+            .await
+    }
+    /// Read permanent move refusals and the mailbox contexts that reported them.
+    ///
+    /// # Errors
+    /// Returns store or worker errors.
+    pub async fn move_warnings(
+        &self,
+        accounts: Vec<String>,
+    ) -> Result<Vec<(String, String)>, Error> {
+        self.request(|reply| Command::MoveWarnings(accounts, reply))
+            .await
+    }
+    /// Dismiss a permanent move refusal for this mailbox context.
+    ///
+    /// # Errors
+    /// Returns store or worker errors.
+    pub async fn dismiss_move_warning(
+        &self,
+        account: String,
+        context: String,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::DismissMoveWarning(account, context, reply))
             .await
     }
     /// Requeue this account's failed moves.
@@ -1566,6 +1591,12 @@ fn run(store: &mut Store, mut receiver: mpsc::Receiver<Command>) {
             }
             Command::AbandonMove(attempt, reply) => {
                 commit(reply, || store.abandon_move(&attempt));
+            }
+            Command::MoveWarnings(accounts, reply) => {
+                respond(reply, || store.move_warnings(&accounts));
+            }
+            Command::DismissMoveWarning(account, context, reply) => {
+                commit(reply, || store.dismiss_move_warning(&account, &context));
             }
             Command::RetryMoves(account, reply) => {
                 commit(reply, || store.retry_moves(&account));
