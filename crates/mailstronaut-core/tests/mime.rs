@@ -257,6 +257,61 @@ mod tests {
         assert_eq!(result.original, raw.as_bytes());
         assert_eq!(result.text.as_deref(), Some("Readable body."));
     }
+
+    #[test]
+    fn oversized_attachment_fields_leave_payloads_and_other_cids_available() {
+        let oversized = "a".repeat(mime::MAX_HEADER_BYTES + 1);
+        let parts = format!(
+            "--x\r\nContent-Type: application/{oversized}\r\nContent-Disposition: attachment; filename=\"{oversized}\"\r\nContent-ID: <{oversized}>\r\n\r\nfirst\r\n\
+             --x\r\nContent-Type: image/png\r\nContent-ID: <{oversized}>\r\n\r\nskip\r\n\
+             --x\r\nContent-Type: image/png\r\nContent-ID: <local>\r\n\r\nvalid\r\n"
+        );
+        let raw = inline_message(&parts);
+        let projected = mime::project(&raw).expect("synthetic message");
+        assert!(projected.status.attachment_metadata_truncated);
+        assert!(!projected.status.headers_truncated);
+        let attachment = &projected.attachments[0];
+        assert!(attachment.name.is_none() && attachment.media_type.is_none());
+        assert!(attachment.content_id.is_none());
+        assert!(projected.attachment_for_cid(&oversized).is_none());
+        assert!(
+            projected
+                .attachment_for_cid(&oversized[..mime::MAX_HEADER_BYTES])
+                .is_none()
+        );
+        assert_eq!(
+            projected.attachment_bytes(0).expect("original payload"),
+            b"first"
+        );
+        let images = projected.inline_rasters().expect("remaining local images");
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].bytes, b"valid");
+        assert_eq!(projected.original, raw);
+    }
+
+    #[test]
+    fn changing_only_an_attachment_changes_the_original_and_preview_revision() {
+        let part = "--x\r\nContent-Type: application/pdf\r\nContent-Disposition: inline; filename=agenda.pdf\r\nContent-ID: <agenda>\r\n\r\nfirst\r\n";
+        let first = mime::project(&inline_message(part)).expect("synthetic PDF");
+        let second =
+            mime::project(&inline_message(&part.replace("first", "later"))).expect("updated PDF");
+        assert_ne!(first.revision, second.revision);
+        let (first_preview, second_preview) = (
+            first.preview.as_ref().expect("preview"),
+            second.preview.as_ref().expect("preview"),
+        );
+        assert_eq!(first_preview.text, second_preview.text);
+        assert_eq!(first_preview.body_revision, first.revision);
+        assert_eq!(second_preview.body_revision, second.revision);
+        assert_eq!(second_preview.source, mime::PreviewSource::Extracted);
+        let listed = second.listed_attachments();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].1.name.as_deref(), Some("agenda.pdf"));
+        assert_eq!(
+            second.attachment_bytes(listed[0].0).expect("file"),
+            b"later"
+        );
+    }
 }
 
 #[test]

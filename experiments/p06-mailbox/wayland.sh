@@ -82,6 +82,16 @@ MAILSTRONAUT_MAILBOX_NAVIGATION=$navigation_seed "$fixture" seed_conversation_gu
 if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
   "${MAILSTRONAUT_LONG_THREAD_FIXTURE:?prebuilt long-thread fixture}" --ignored --exact seed_long_thread > "$root/long-seed.log" 2>&1
 fi
+if [[ ${MAILSTRONAUT_INDEX_PROGRESS_GUI:-0} == 1 ]]; then
+  # A backlog of canonical deletion records puts a real fuzzy match in the final
+  # batch. The app observes the same queue when rebuilding a previously purged index.
+  python3 - "$XDG_DATA_HOME/mailstronaut/mail.sqlite3" <<'PYQUEUE'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.executemany("INSERT INTO search_pending(message_id) VALUES (?)",
+                   ((number,) for number in range(100000, 132768)))
+PYQUEUE
+fi
 if [[ ${MAILSTRONAUT_ONBOARDING_GUI:-0} == 1 ]]; then
   mv "$config" "$root/seeded-config.nix"
 fi
@@ -158,11 +168,88 @@ copy_body() {
   done
   return 1
 }
+if [[ ${MAILSTRONAUT_STORE_RETRY_GUI:-0} == 1 ]]; then
+  # Use the seeded store and retain the open window across each retry.
+  profile="$XDG_DATA_HOME/mailstronaut"
+  lock="$profile/profile.lock"
+  retry_store() {
+    click 740 488
+    for _ in {1..50}; do
+      if ! flock -n "$lock" true; then return 0; fi
+      sleep .1
+    done
+    echo "Retry did not reacquire the profile lock" >&2
+    return 1
+  }
+  exec 9<>"$lock"
+  flock -x 9
+  start locked 9>&-
+  capture store-in-use
+  check_seen
+  flock -u 9
+  exec 9>&-
+  retry_store
+  capture store-recovered
+  check_seen
+  [[ $(stat -c '%a' "$profile" "$profile/blobs") == $'700\n700' ]]
+  [[ $(stat -c '%a' "$profile/mail.sqlite3" "$lock") == $'600\n600' ]]
+  [[ -z $(find "$profile/blobs" -type f ! -perm 0600 -print -quit) ]]
+  wl-copy --clear
+  click 280 125
+  copy_body store-reopened 'Synthetic unrelated same-subject message.'
+  check_seen unrelated
+  stop
+
+  # Preserve the entire seeded profile, including SQLite sidecars. Damage only
+  # a second synthetic profile; the app cannot find the healthy copy itself.
+  mv "$profile" "$root/healthy-store"
+  mkdir -m 700 "$profile"
+  printf '%s\n' 'Synthetic damaged SQLite file' > "$profile/mail.sqlite3"
+  checksum=$(sha256sum "$profile/mail.sqlite3")
+  start damaged
+  capture store-damaged
+  click 740 488
+  sleep 1
+  [[ $(sha256sum "$profile/mail.sqlite3") == "$checksum" ]]
+  flock -n "$lock" true
+
+  # Simulate the user's external restoration without deleting either profile.
+  mv "$profile" "$root/damaged-store"
+  mv "$root/healthy-store" "$profile"
+  retry_store
+  capture damaged-store-recovered
+  check_seen unrelated
+  wl-copy --clear
+  click 280 125
+  copy_body restored 'Synthetic unrelated same-subject message.'
+  check_seen unrelated
+  stop
+  printf 'Recovered the seeded mailbox in the same window: %s\n' "$root"
+  exit 0
+fi
 start initial
 sleep 1
 capture initial
 if [[ ${MAILSTRONAUT_MAILBOX_CAPTURE_ONLY:-0} == 1 ]]; then printf 'Inspection: %s\n' "$root"; exit 0; fi
 check_seen
+if [[ ${MAILSTRONAUT_INDEX_PROGRESS_GUI:-0} == 1 ]]; then
+  database="$XDG_DATA_HOME/mailstronaut/mail.sqlite3"
+  remaining() { python3 -c 'import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute("SELECT COUNT(*) FROM search_pending").fetchone()[0])' "$database"; }
+  wtype -M ctrl k -m ctrl -s 120 'unrelatd' -s 400
+  [[ $(remaining) -gt 64 ]]
+  capture indexing-active
+  for _ in {1..1200}; do [[ $(remaining) == 0 ]] && break; kill -0 "$app"; sleep .1; done
+  [[ $(remaining) == 0 ]]
+  sleep 1
+  capture indexing-complete
+  check_seen
+  click 350 150
+  sleep .5
+  copy_body indexed 'Synthetic unrelated same-subject message.'
+  check_seen unrelated
+  printf 'Active search refreshed without typing again: %s\n' "$root"
+  exit 0
+fi
 if [[ ${MAILSTRONAUT_LONG_THREAD_GUI:-0} == 1 ]]; then
   click 280 120
   sleep 1

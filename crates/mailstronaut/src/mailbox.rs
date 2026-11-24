@@ -66,6 +66,32 @@ impl From<mailstronaut_core::store::conversations::Summary> for Row {
 }
 
 impl Row {
+    fn accessibility_label(&self, received: &str, priority: bool, due: Option<&str>) -> String {
+        let count = if self.messages == 1 {
+            if self.unread == 0 { "read" } else { "unread" }.to_owned()
+        } else {
+            format!("{} messages, {} unread", self.messages, self.unread)
+        };
+        let mut fields = vec![
+            self.sender.as_str(),
+            self.subject.as_str(),
+            self.account.as_str(),
+            received,
+            &count,
+        ];
+        if priority {
+            fields.push("Needs attention");
+        }
+        if self.starred {
+            fields.push("starred");
+        }
+        fields.extend(due);
+        if !self.preview.is_empty() {
+            fields.push(&self.preview);
+        }
+        fields.join(" · ")
+    }
+
     pub fn same_group(&self, other: &Self) -> bool {
         self.account == other.account
             && match (self.conversation, other.conversation) {
@@ -198,6 +224,7 @@ pub struct Rows {
     pub show_all_priority: bool,
     pub loading: bool,
     pub searching: bool,
+    pub indexing_words: bool,
     pub has_accounts: bool,
     pub time_zone: String,
     /// Called with a row's message when the user dismisses it from the priority group.
@@ -403,6 +430,7 @@ impl ListDelegate for Rows {
         };
         Some(
             div()
+                .id(("mailbox-section", section))
                 .h(SECTION_HEIGHT)
                 .flex()
                 .items_center()
@@ -435,7 +463,9 @@ impl ListDelegate for Rows {
         let muted = cx.theme().muted_foreground;
         let today = mailbox_today(&self.time_zone);
         let due = row.due.as_deref().map(|due| due_label(due, today));
-        let dismiss = (index.section != self.mailbox_section())
+        let priority = index.section != self.mailbox_section();
+        let received = date(row.received_at, &self.time_zone);
+        let dismiss = priority
             .then(|| self.on_dismiss.clone())
             .flatten()
             .map(|dismiss| (dismiss, row.id));
@@ -456,17 +486,7 @@ impl ListDelegate for Rows {
                 .px_4()
                 .border_b_1()
                 .border_color(cx.theme().border)
-                .accessibility_label(format!(
-                    "{} · {} · {} · {} messages · {} unread{}{}",
-                    row.sender,
-                    row.subject,
-                    row.account,
-                    row.messages,
-                    row.unread,
-                    if row.starred { " · starred" } else { "" },
-                    due.as_deref()
-                        .map_or_else(String::new, |due| format!(" · {due}"))
-                ))
+                .accessibility_label(row.accessibility_label(&received, priority, due.as_deref()))
                 .child(
                     div()
                         .id(("message-row-menu", row.id.cast_unsigned()))
@@ -497,6 +517,10 @@ impl ListDelegate for Rows {
                                             .ghost()
                                             .xsmall()
                                             .icon(IconName::Close)
+                                            .accessibility_label(format!(
+                                                "Dismiss priority for {}",
+                                                row.subject
+                                            ))
                                             .tooltip("Does not need attention")
                                             .on_click(move |_, window, cx| {
                                                 // The row underneath must not also open,
@@ -521,7 +545,7 @@ impl ListDelegate for Rows {
                         .when_some(due, |view, due| {
                             view.child(div().flex().child(Tag::warning().small().child(due)))
                         })
-                        .child(row_footer(row, &self.time_zone, muted))
+                        .child(row_footer(row, received, muted))
                         .context_menu(move |menu, _, _| match &action {
                             Some(action) => row_menu(menu, &target, action),
                             None => menu,
@@ -564,14 +588,19 @@ impl ListDelegate for Rows {
         _: &mut Window,
         _: &mut Context<ListState<Self>>,
     ) -> impl IntoElement {
+        let incomplete = self.searching && self.indexing_words;
         Empty::new().header(
             EmptyHeader::new()
-                .title(EmptyTitle::new().child(if self.searching {
+                .title(EmptyTitle::new().child(if incomplete {
+                    "Searching indexed mail"
+                } else if self.searching {
                     "No cached matches"
                 } else {
                     "No cached mail"
                 }))
-                .description(EmptyDescription::new().child(if self.searching {
+                .description(EmptyDescription::new().child(if incomplete {
+                    "Results will update when the search index is ready."
+                } else if self.searching {
                     "Try a different query. Only locally cached text is searched."
                 } else if self.has_accounts {
                     "Use Sync mail to check for messages."
@@ -611,7 +640,7 @@ fn row_preview(
         )
 }
 
-fn row_footer(row: &Row, zone: &str, muted: Hsla) -> impl IntoElement {
+fn row_footer(row: &Row, received: String, muted: Hsla) -> impl IntoElement {
     div()
         .flex()
         .items_center()
@@ -629,12 +658,7 @@ fn row_footer(row: &Row, zone: &str, muted: Hsla) -> impl IntoElement {
             .min_w_0()
             .truncate(),
         )
-        .child(
-            Label::new(date(row.received_at, zone))
-                .text_xs()
-                .text_color(muted)
-                .flex_none(),
-        )
+        .child(Label::new(received).text_xs().text_color(muted).flex_none())
 }
 
 fn mailbox_today(zone: &str) -> chrono::NaiveDate {

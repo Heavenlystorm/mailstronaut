@@ -182,6 +182,36 @@ copy_body() {
   return 1
 }
 open_html() { click 350 "$1"; click 684 296; sleep .5; }
+drag_line() {
+  swaymsg seat seat0 cursor set "$1" "$3" > /dev/null
+  swaymsg seat seat0 cursor press button1 > /dev/null
+  # A Sway cursor warp during a button grab reaches the client after release.
+  # Send actual relative motion through the private seat's virtual pointer.
+  wlrctl pointer move "$(($2 - $1))" 0
+  swaymsg seat seat0 cursor release button1 > /dev/null
+}
+check_html_selection() {
+  local name=$1 color=$2 scale=$3 x y width expected='Synthetic HTML Alpha · Bonjour · 世界'
+  # Locate the header in the actual frame. Portal notices, pane widths and scale
+  # move the text, while Sway always accepts logical coordinates.
+  read -r x y width < <(magick "$root/$name.png" -alpha off -fill black +opaque "$color" \
+    -fill white -opaque "$color" -trim -format '%X %Y %w\n' info:)
+  x=$((x / scale + 1)); y=$((y / scale + 9)); width=$((width / scale - 4))
+  printf 'HTML selection observer' | wl-copy
+  drag_line "$x" "$((x + (width < 340 ? width : 340)))" "$y"
+  [[ $(timeout 5 wl-paste --no-newline) == 'HTML selection observer' ]]
+  wtype -M ctrl -k c -m ctrl
+  for _ in {1..30}; do
+    if [[ $(timeout 1 wl-paste --no-newline) == "$expected" ]]; then
+      capture "$name-selection"
+      return
+    fi
+    sleep .1
+  done
+  capture "$name-selection-failure"
+  printf 'Expected the Unicode HTML heading on the clipboard at %s\n' "$name" >&2
+  return 1
+}
 check_links() {
   [[ -n "$portal" ]] || return 0
   python3 - "$root" "$1" <<'PYLINKS'
@@ -221,6 +251,9 @@ check_links 0
 copy_body alpha 'Synthetic HTML Alpha plain alternative'
 open_html 150
 capture_marker alpha-html 800 395 51,170,102
+check_html_selection alpha-html '#33aa66' 1
+drag_line 650 715 552
+check_links 0
 # Only the private portal variant attempts browser handoff. The renderer-only
 # variant must not introduce an absent-portal error banner into its pixel fixture.
 if [[ -n "$portal" ]]; then click 650 552; fi
@@ -255,12 +288,14 @@ capture_marker home 800 395 51,170,102
 # Native logical resize changes the CSS media query; native scale keeps that query.
 swaymsg output HEADLESS-1 mode 960x840 > /dev/null
 capture_marker narrow 700 395 51,85,170 960 840
+check_html_selection narrow '#3355aa' 1
 swaymsg output HEADLESS-1 mode 2560x1680 scale 2 > /dev/null
 # At 2x the software GPU uploads four times as many pixels. Wait for the
 # current Alpha frame, including its new scale, before clicking a link in it.
 # Sample below the text on the 80px-high marker, both with and without the
 # cancellation notice above it.
 capture_marker hidpi 1600 790 51,170,102 2560 1680
+check_html_selection hidpi '#33aa66' 2
 if [[ -n "$portal" ]]; then
   # Sway input coordinates stay logical at 2x; exercise the actual HTML hit path.
   # The portal cancellation notice adds 23 logical pixels above the message.
@@ -273,6 +308,7 @@ swaymsg output HEADLESS-1 mode 1280x840 scale 1 > /dev/null
 sleep .8
 wtype -s 150 -M ctrl -M shift d -m shift -m ctrl -s 700
 capture_marker dark 800 600 32,36,43
+check_html_selection dark '#33aa66' 1
 check_seen alpha
 # Beta deliberately refers to the same CID without owning the image.
 open_html 270

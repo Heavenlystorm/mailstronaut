@@ -22,9 +22,9 @@ use gpui::component::{
     toolbar::{Toolbar, ToolbarGroup},
 };
 use gpui::{
-    AppContext as _, Context, Entity, EventEmitter, InteractiveElement as _, IntoElement,
-    KeyBinding, ParentElement as _, PathPromptOptions, Render, SharedString, Styled as _,
-    Subscription, Window, div, prelude::FluentBuilder as _, px,
+    AppContext as _, Context, Entity, EventEmitter, Focusable as _, InteractiveElement as _,
+    IntoElement, KeyBinding, ParentElement as _, PathPromptOptions, Render, SharedString,
+    Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 use mailstronaut_config::{Account, Config};
 use mailstronaut_core::{
@@ -70,7 +70,8 @@ enum Activity {
     Idle,
     Loading,
     Attaching,
-    Sending,
+    SendingDraft,
+    SubmittingQueued,
 }
 
 enum Target {
@@ -84,6 +85,7 @@ pub struct Composer {
     runtime: Arc<Runtime>,
     access: Access,
     lifetime: CancellationToken,
+    declaration: CancellationToken,
     config: Option<Arc<Config>>,
     store: Option<Handle>,
     identities: Vec<Identity>,
@@ -197,6 +199,7 @@ impl Composer {
             access,
             autosave: lifetime.child_token(),
             send_cancel: lifetime.child_token(),
+            declaration: lifetime.child_token(),
             lifetime,
             config: None,
             store: None,
@@ -229,6 +232,18 @@ impl Composer {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Accepted operations finish recording their durable result. Only the
+        // current declaration can publish it into this editor or start SMTP.
+        self.declaration.cancel();
+        self.declaration = self.lifetime.child_token();
+        self.generation = self.generation.wrapping_add(1);
+        let interrupted_editor =
+            matches!(self.activity, Activity::SendingDraft | Activity::Attaching);
+        self.activity = Activity::Idle;
+        self.drafts.clear();
+        self.outgoing.clear();
+        self.error = None;
+        self.status = "".into();
         self.config = Some(config.clone());
         self.store = store;
         self.identities = config
@@ -253,10 +268,11 @@ impl Composer {
             identity.set_items(SearchableVec::new(labels), window, cx);
         });
         if let Some(draft) = &self.draft {
-            if config
-                .accounts
-                .iter()
-                .any(|account| account.id == draft.account)
+            if !interrupted_editor
+                && config
+                    .accounts
+                    .iter()
+                    .any(|account| account.id == draft.account)
             {
                 self.sync_identity(window, cx);
             } else {
@@ -329,12 +345,16 @@ impl Composer {
             return;
         };
         let revision = draft.revision;
+        let generation = self.generation;
         let job = self
             .runtime
             .spawn(async move { save_snapshot(&store, draft).await });
         cx.spawn(async move |this, cx| {
             let result = job.await;
             _ = this.update(cx, |this, cx| {
+                if generation != this.generation {
+                    return;
+                }
                 this.saved(
                     revision,
                     joined(result, "Saving the draft was interrupted."),
@@ -399,7 +419,8 @@ impl Composer {
         let (Some(store), Some(draft)) = (self.store.clone(), self.draft.clone()) else {
             return;
         };
-        let (cancel, revision) = (self.autosave.clone(), draft.revision);
+        let (cancel, revision, generation) =
+            (self.autosave.clone(), draft.revision, self.generation);
         let job = self.runtime.spawn(async move {
             cancel
                 .run_until_cancelled(async {
@@ -410,18 +431,23 @@ impl Composer {
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
-            _ = this.update_in(cx, |this, window, cx| match result {
-                Ok(None) => {}
-                Ok(Some(saved)) => {
-                    this.saved(revision, saved.map_err(|error| error.to_string()), cx);
-                    this.refresh_lists(window, cx);
+            _ = this.update_in(cx, |this, window, cx| {
+                if generation != this.generation {
+                    return;
                 }
-                Err(_) => {
-                    this.saved(
-                        revision,
-                        Err("Saving the draft was interrupted.".into()),
-                        cx,
-                    );
+                match result {
+                    Ok(None) => {}
+                    Ok(Some(saved)) => {
+                        this.saved(revision, saved.map_err(|error| error.to_string()), cx);
+                        this.refresh_lists(window, cx);
+                    }
+                    Err(_) => {
+                        this.saved(
+                            revision,
+                            Err("Saving the draft was interrupted.".into()),
+                            cx,
+                        );
+                    }
                 }
             });
         })
@@ -571,6 +597,7 @@ impl Composer {
 
     fn close_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.autosave.cancel();
+        self.generation = self.generation.wrapping_add(1);
         self.draft = None;
         self.saved_revision = 0;
         self.copies_open = false;
@@ -601,10 +628,11 @@ impl Composer {
             return;
         };
         self.autosave.cancel();
-        self.activity = Activity::Sending;
+        self.activity = Activity::SendingDraft;
         self.error = None;
         self.status = "Sending…".into();
-        self.send_cancel = self.lifetime.child_token();
+        self.send_cancel = self.declaration.child_token();
+        let declaration = self.declaration.clone();
         let (access, cancel) = (self.access.clone(), self.send_cancel.clone());
         let job = self
             .runtime
@@ -612,6 +640,10 @@ impl Composer {
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
+                if declaration.is_cancelled() {
+                    this.refresh_lists(window, cx);
+                    return;
+                }
                 this.activity = Activity::Idle;
                 match result {
                     Ok(Sent::NotQueued(error)) => {
@@ -661,10 +693,11 @@ impl Composer {
             cx.notify();
             return;
         };
-        self.activity = Activity::Sending;
+        self.activity = Activity::SubmittingQueued;
         self.error = None;
         self.status = "Sending…".into();
-        self.send_cancel = self.lifetime.child_token();
+        self.send_cancel = self.declaration.child_token();
+        let declaration = self.declaration.clone();
         let (access, cancel, id) = (
             self.access.clone(),
             self.send_cancel.clone(),
@@ -678,6 +711,10 @@ impl Composer {
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
+                if declaration.is_cancelled() {
+                    this.refresh_lists(window, cx);
+                    return;
+                }
                 this.activity = Activity::Idle;
                 let outcome = result
                     .unwrap_or_else(|_| Err("Sending was interrupted. Check the outbox.".into()));
@@ -698,7 +735,7 @@ impl Composer {
         let job = self
             .runtime
             .spawn(async move { store.cancel_submission(account, id).await });
-        Self::after_store_change(
+        self.after_store_change(
             job,
             "Queued message cancelled. Its draft was restored.",
             window,
@@ -707,14 +744,19 @@ impl Composer {
     }
 
     fn after_store_change(
+        &self,
         job: tokio::task::JoinHandle<Result<(), worker::Error>>,
         success: &'static str,
         window: &Window,
         cx: &Context<Self>,
     ) {
+        let declaration = self.declaration.clone();
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
+                if declaration.is_cancelled() {
+                    return;
+                }
                 match joined(result, "The change was interrupted.") {
                     Ok(()) => this.status = success.into(),
                     Err(error) => this.error = Some(error.into()),
@@ -726,8 +768,9 @@ impl Composer {
         .detach();
     }
 
-    fn confirm_discard(window: &mut Window, cx: &mut Context<Self>) {
+    fn confirm_discard(&self, window: &mut Window, cx: &mut Context<Self>) {
         let this = cx.entity().downgrade();
+        let generation = self.generation;
         window.open_alert_dialog(cx, move |alert, _, _| {
             let this = this.clone();
             alert
@@ -737,7 +780,11 @@ impl Composer {
                 .ok_text("Discard")
                 .ok_variant(ButtonVariant::Danger)
                 .on_ok(move |_, window, cx| {
-                    _ = this.update(cx, |this, cx| this.discard(window, cx));
+                    _ = this.update(cx, |this, cx| {
+                        if generation == this.generation {
+                            this.discard(window, cx);
+                        }
+                    });
                     true
                 })
         });
@@ -754,7 +801,7 @@ impl Composer {
         });
         self.saved_revision = u64::MAX;
         self.close_editor(window, cx);
-        Self::after_store_change(job, "Draft discarded.", window, cx);
+        self.after_store_change(job, "Draft discarded.", window, cx);
     }
 
     fn attach(&mut self, window: &Window, cx: &mut Context<Self>) {
@@ -775,6 +822,13 @@ impl Composer {
             return;
         };
         self.autosave.cancel();
+        // A portal can stay open indefinitely. Save the pending edit while the
+        // chooser is open and order the attachment transaction after that write.
+        let pending = self.unsaved().map(|draft| {
+            let store = store.clone();
+            self.runtime
+                .spawn(async move { save_snapshot(&store, draft).await })
+        });
         self.activity = Activity::Attaching;
         self.error = None;
         let paths = cx.prompt_for_paths(PathPromptOptions {
@@ -784,17 +838,34 @@ impl Composer {
             prompt: Some("Attach".into()),
         });
         let runtime = self.runtime.clone();
+        let declaration = self.declaration.clone();
         cx.spawn_in(window, async move |this, cx| {
-            let selection = paths.await;
+            let Some(selection) = declaration.run_until_cancelled(paths).await else {
+                return;
+            };
+            let active = declaration.clone();
             let job = runtime.spawn(async move {
-                let Ok(Ok(Some(paths))) = selection else {
-                    return Err("The file chooser is unavailable. Nothing was attached.".to_owned());
+                if let Some(pending) = pending {
+                    pending
+                        .await
+                        .map_err(|_| "Saving the draft was interrupted.")?
+                        .map_err(|error| error.to_string())?;
+                }
+                let paths = match selection {
+                    Ok(Ok(Some(paths))) => paths,
+                    Ok(Ok(None)) => return Ok(draft),
+                    _ => {
+                        return Err("The file chooser is unavailable. Nothing was attached.".into());
+                    }
                 };
                 let files = tokio::task::spawn_blocking(move || read_files(paths, remaining))
                     .await
                     .map_err(|_| "Importing the files was interrupted.".to_owned())??;
                 if files.is_empty() {
                     return Ok(draft);
+                }
+                if active.is_cancelled() {
+                    return Err("The draft's account configuration changed.".into());
                 }
                 store
                     .ensure_account(draft.account.clone())
@@ -807,6 +878,9 @@ impl Composer {
             });
             let result = job.await;
             _ = this.update_in(cx, |this, _, cx| {
+                if declaration.is_cancelled() {
+                    return;
+                }
                 this.activity = Activity::Idle;
                 this.apply_attachments(result, cx);
             });
@@ -824,6 +898,7 @@ impl Composer {
         };
         self.autosave.cancel();
         self.activity = Activity::Attaching;
+        let declaration = self.declaration.clone();
         let job = self.runtime.spawn(async move {
             store
                 .remove_attachment(draft, id)
@@ -833,6 +908,9 @@ impl Composer {
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, _, cx| {
+                if declaration.is_cancelled() {
+                    return;
+                }
                 this.activity = Activity::Idle;
                 this.apply_attachments(result, cx);
             });
@@ -859,6 +937,7 @@ impl Composer {
     }
 
     pub fn refresh_lists(&self, window: &Window, cx: &Context<Self>) {
+        let declaration = self.declaration.clone();
         let (Some(store), Some(config)) = (self.store.clone(), self.config.clone()) else {
             return;
         };
@@ -875,6 +954,9 @@ impl Composer {
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, _, cx| {
+                if declaration.is_cancelled() {
+                    return;
+                }
                 match result {
                     Ok(Ok((drafts, outgoing))) => {
                         this.drafts = drafts;
@@ -890,6 +972,21 @@ impl Composer {
         .detach();
     }
 
+    fn toggle_copies(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.draft.is_none() || self.busy() {
+            return;
+        }
+        self.copies_open = !self.copies_open;
+        if self.copies_open {
+            self.cc.update(cx, |cc, cx| cc.focus(window, cx));
+        } else if self.cc.focus_handle(cx).is_focused(window)
+            || self.bcc.focus_handle(cx).is_focused(window)
+        {
+            self.to.update(cx, |to, cx| to.focus(window, cx));
+        }
+        cx.notify();
+    }
+
     fn actions(&self, cx: &Context<Self>) -> impl IntoElement {
         let busy = self.busy();
         Toolbar::new("composer-actions")
@@ -902,18 +999,26 @@ impl Composer {
                             .icon(IconName::Send)
                             .accessibility_label("Send message")
                             .tooltip("Send message · Ctrl+Enter")
-                            .loading(self.activity == Activity::Sending)
+                            .loading(self.activity == Activity::SendingDraft)
                             .disabled(busy)
                             .on_click(cx.listener(|this, _, window, cx| this.send(window, cx))),
                     )
-                    .when(self.activity == Activity::Sending, |group| {
-                        group.child(Button::new("cancel-send").ghost().label("Cancel").on_click(
-                            cx.listener(|this, _, _, cx| {
-                                this.send_cancel.cancel();
-                                cx.notify();
-                            }),
-                        ))
-                    }),
+                    .when(
+                        matches!(
+                            self.activity,
+                            Activity::SendingDraft | Activity::SubmittingQueued
+                        ),
+                        |group| {
+                            group.child(
+                                Button::new("cancel-send").ghost().label("Cancel").on_click(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.send_cancel.cancel();
+                                        cx.notify();
+                                    }),
+                                ),
+                            )
+                        },
+                    ),
             )
             .content(
                 ToolbarGroup::new("composer-draft")
@@ -932,9 +1037,9 @@ impl Composer {
                             .icon(IconName::Users)
                             .accessibility_label("Show or hide Cc and Bcc")
                             .tooltip("Cc/Bcc · Ctrl+Shift+B")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.copies_open = !this.copies_open;
-                                cx.notify();
+                            .disabled(busy)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.toggle_copies(window, cx);
                             })),
                     )
                     .child(
@@ -944,8 +1049,8 @@ impl Composer {
                             .accessibility_label("Discard draft")
                             .tooltip("Discard draft")
                             .disabled(busy)
-                            .on_click(cx.listener(|_, _, window, cx| {
-                                Self::confirm_discard(window, cx);
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.confirm_discard(window, cx);
                             })),
                     ),
             )
@@ -963,26 +1068,32 @@ impl Composer {
                 ),
             )
             .child(
-                Field::new()
-                    .label("To")
-                    .child(Input::new(&self.to).disabled(busy)),
+                Field::new().label("To").child(
+                    Input::new(&self.to)
+                        .aria_label("To recipients")
+                        .disabled(busy),
+                ),
             )
             .child(
-                Field::new()
-                    .label("Cc")
-                    .visible(self.copies_open)
-                    .child(Input::new(&self.cc).disabled(busy)),
+                Field::new().label("Cc").visible(self.copies_open).child(
+                    Input::new(&self.cc)
+                        .aria_label("Cc recipients")
+                        .disabled(busy),
+                ),
             )
             .child(
-                Field::new()
-                    .label("Bcc")
-                    .visible(self.copies_open)
-                    .child(Input::new(&self.bcc).disabled(busy)),
+                Field::new().label("Bcc").visible(self.copies_open).child(
+                    Input::new(&self.bcc)
+                        .aria_label("Bcc recipients")
+                        .disabled(busy),
+                ),
             )
             .child(
-                Field::new()
-                    .label("Subject")
-                    .child(Input::new(&self.subject).disabled(busy)),
+                Field::new().label("Subject").child(
+                    Input::new(&self.subject)
+                        .aria_label("Subject")
+                        .disabled(busy),
+                ),
             )
     }
 
@@ -1068,11 +1179,7 @@ impl Render for Composer {
             .size_full()
             .key_context("Composer")
             .on_action(cx.listener(|this, _: &ToggleCopies, window, cx| {
-                this.copies_open = !this.copies_open;
-                if this.copies_open {
-                    this.cc.update(cx, |cc, cx| cc.focus(window, cx));
-                }
-                cx.notify();
+                this.toggle_copies(window, cx);
             }))
             .flex()
             .flex_col()

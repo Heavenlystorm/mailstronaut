@@ -78,10 +78,17 @@ elif action == "delete-without-expunge":
     client.select("INBOX")
     _, found = client.uid("SEARCH", None, "BODY", sys.argv[6])
     client.uid("STORE", found[0].split()[-1], "+FLAGS", r"(\Deleted)")
+elif action == "create-folder":
+    assert client.create(sys.argv[6])[0] == "OK"
 client.logout()
 PY
 }
 capabilities=$(other_client capabilities)
+if [[ $variant == full ]]; then
+  # The menu shows the decoded label Project-Été. IMAP and SQLite use this wire name.
+  picked_folder='Project-&AMk-t&AOk-'
+  other_client create-folder "$picked_folder"
+fi
 for capability in MOVE UIDPLUS; do
   case "$variant,$capability" in
     full,*) wanted=yes ;;
@@ -170,6 +177,31 @@ elif [[ $variant == no-move ]]; then
   sleep 1
   capture moved
 else
+  await 'the searchable destination was discovered' 1 "SELECT count(*) FROM folders WHERE name='$picked_folder'"
+  open_newest
+  click 922 244
+  wtype -s 300 'Project' -s 350
+  capture move-folder-search
+  wtype -k Escape -s 300
+  [[ $(query 'SELECT count(*) FROM pending_moves') == 0 ]]
+  [[ $(query "$in_inbox") == 4 ]]
+  # Changing the account declaration while its popup is open retires its choice.
+  click 922 244
+  wtype -s 300 'Project' -s 300 -M ctrl -M shift r -m shift -m ctrl -s 1000 -k Return -s 300
+  [[ $(query 'SELECT count(*) FROM pending_moves') == 0 ]]
+  open_newest
+  click 922 244
+  wtype -s 300 'Project' -s 350 -k Down -k Return -s 350
+  await 'the searched label queued its exact IMAP wire name' "$picked_folder" 'SELECT destination FROM pending_moves'
+  click 1205 76
+  await 'Undo cancelled the searched move' 0 'SELECT count(*) FROM pending_moves'
+  await 'Undo restored the original membership' 4 "$in_inbox"
+  sleep 9
+  server_flags INBOX marker-delta > /dev/null
+  if server_flags "$picked_folder" marker-delta > /dev/null 2>&1; then
+    printf '%s\n' 'The server received an undone picker move' >&2; exit 1
+  fi
+  printf '%s\n' 'OK: dismissing, reloading and undoing the picker left the server message in its inbox'
   # Keep delta open while using the menu on the next unread row, charlie.
   open_newest
   seen="SELECT count(*) FROM effective_memberships WHERE seen=1"

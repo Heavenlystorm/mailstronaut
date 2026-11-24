@@ -1,0 +1,32 @@
+{
+  "nodes_exposed": 66,
+  "unreadable_nodes": [],
+  "row_names_sample": [
+    "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 29 Oct 2026 \u00b7 21:39 UTC \u00b7 unread \u00b7 Synthetic performance original 001. R\u00e9inscription au doctorat. Scadenza di domani.",
+    "Performance 001"
+  ],
+  "focused_after_first_down": [
+    "Zo\u00eb \u00b7 Performance 000 \u00b7 R\u00e9inscription et suivi de la demande de remboursement avant le prochain conseil \u00b7 conversation-synthetic \u00b7 23 Nov 2026 \u00b7 17:18 UTC \u00b7 unread \u00b7 Needs attention \u00b7 Due tomorrow \u00b7 Could you send me your expense report by tomorrow?"
+  ],
+  "focused_after_second_down": [
+    "Synthetic \u00b7 Performance 001 \u00b7 conversation-synthetic \u00b7 29 Oct 2026 \u00b7 21:39 UTC \u00b7 unread \u00b7 Synthetic performance original 001. R\u00e9inscription au doctorat. Scadenza di domani."
+  ],
+  "reader_exposes_exact_text": true,
+  "checks": {
+    "application_window_exposed": true,
+    "row_names_exposed": true,
+    "search_field_exposed": true,
+    "focus_follows_list_row_one": true,
+    "focus_follows_list_row_two": true,
+    "focus_moved_between_rows": true,
+    "priority_row_and_dismiss_button_named": true,
+    "focused_row_exposes_visible_date_and_preview": true,
+    "drag_resizes_message_list": true,
+    "drag_resizes_sidebar": true,
+    "focused_row_survives_960x720": true,
+    "focused_row_survives_1280x840": true,
+    "priority_reader_exposes_reason_and_deadline": true,
+    "reader_text_focused": true,
+    "reader_rejects_typed_edits": true
+  }
+}

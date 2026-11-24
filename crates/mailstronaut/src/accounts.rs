@@ -301,6 +301,11 @@ impl AccountPane {
                         } else {
                             &self.password
                         })
+                        .aria_label(if outgoing {
+                            "Outgoing password"
+                        } else {
+                            "Incoming password"
+                        })
                         .mask_toggle()
                         .disabled(self.busy),
                     ),
@@ -392,17 +397,25 @@ impl Render for AccountPane {
             .flex_col()
             .gap_3()
             .child(div().text_sm().child("Incoming login"))
-            .child(Input::new(&self.login).disabled(
-                !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
-            ))
+            .child(
+                Input::new(&self.login)
+                    .aria_label("Incoming login")
+                    .disabled(
+                        !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
+                    ),
+            )
             .child(
                 div()
                     .text_sm()
                     .child("Outgoing login (leave empty for provider default)"),
             )
-            .child(Input::new(&self.smtp_login).disabled(
-                !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
-            ))
+            .child(
+                Input::new(&self.smtp_login)
+                    .aria_label("Outgoing login")
+                    .disabled(
+                        !self.preferences.read(cx).editable() || self.preferences.read(cx).busy(),
+                    ),
+            )
             .child(
                 Button::new("save-logins")
                     .label("Save login names")

@@ -127,6 +127,9 @@ pub struct Status {
     pub headers_truncated: bool,
     /// Attachment descriptors exceeded their limit.
     pub attachments_truncated: bool,
+    /// Oversized filename, media type or Content-ID omitted from a retained descriptor.
+    #[serde(default)]
+    pub attachment_metadata_truncated: bool,
     /// A body alternative exceeded its limit.
     pub body_truncated: bool,
     /// Malformed structure or decoded body.
@@ -193,6 +196,9 @@ impl Projection {
             let Some(cid) = part.content_id() else {
                 continue;
             };
+            if cid.len() > MAX_HEADER_BYTES {
+                continue;
+            }
             let media_type = if part.is_content_type("image", "png") {
                 "image/png"
             } else if part.is_content_type("image", "jpeg") {
@@ -228,14 +234,20 @@ impl Projection {
         Ok(images)
     }
 
-    /// Attachments a person would expect to see listed. Inline images referenced by
-    /// the HTML body are part of the message, not separate files.
+    /// Attachments a person can save separately. Only local raster types supported
+    /// by the HTML reader can be omitted as inline body images.
     #[must_use]
     pub fn listed_attachments(&self) -> Vec<(usize, &Attachment)> {
         self.attachments
             .iter()
             .enumerate()
-            .filter(|(_, part)| !part.inline || part.content_id.is_none())
+            .filter(|(_, part)| {
+                let raster = part.media_type.as_deref().is_some_and(|kind| {
+                    kind.eq_ignore_ascii_case("image/png")
+                        || kind.eq_ignore_ascii_case("image/jpeg")
+                });
+                !(part.inline && part.content_id.is_some() && raster)
+            })
             .collect()
     }
 
@@ -331,21 +343,21 @@ fn addresses(list: Option<AddressList<'_>>, status: &mut Status) -> Vec<Mailbox>
             break;
         }
         result.push(Mailbox {
-            name: header(mailbox.name(), status, true),
+            name: header(mailbox.name(), &mut status.headers_truncated, true),
             // Never invent a different routing address by truncating it.
-            address: header(mailbox.address(), status, false),
+            address: header(mailbox.address(), &mut status.headers_truncated, false),
         });
     }
     result
 }
 
 /// Bound retained headers without altering a routing/identity field's meaning.
-fn header(value: Option<&str>, status: &mut Status, display: bool) -> Option<String> {
+fn header(value: Option<&str>, truncated: &mut bool, display: bool) -> Option<String> {
     let value = value?;
     if value.len() <= MAX_HEADER_BYTES {
         return Some(value.to_owned());
     }
-    status.headers_truncated = true;
+    *truncated = true;
     if !display {
         return None;
     }
@@ -363,7 +375,7 @@ fn identifiers<'a>(values: impl Iterator<Item = &'a str>, status: &mut Status) -
             status.headers_truncated = true;
             break;
         }
-        if let Some(value) = header(Some(value), status, false) {
+        if let Some(value) = header(Some(value), &mut status.headers_truncated, false) {
             result.push(value);
         }
     }
@@ -373,9 +385,34 @@ fn identifiers<'a>(values: impl Iterator<Item = &'a str>, status: &mut Status) -
 /// Accept only a conservative, unambiguous Content-ID lookup key.
 fn valid_cid(cid: &str) -> bool {
     !cid.is_empty()
+        && cid.len() <= MAX_HEADER_BYTES
         && cid
             .bytes()
             .all(|byte| byte.is_ascii_graphic() && !matches!(byte, b'<' | b'>'))
+}
+
+/// Keep descriptors addressable by original part index even when their metadata is omitted.
+fn attachment(part: MessagePart<'_>, truncated: &mut bool) -> Attachment {
+    let name = header(part.attachment_name(), truncated, false);
+    let content_id = header(part.content_id(), truncated, false).filter(|cid| valid_cid(cid));
+    let media_type = part.content_type().and_then(|kind| {
+        let top = kind.ctype();
+        let subtype = kind.subtype().unwrap_or("");
+        if top.len() + subtype.len() + 1 > MAX_HEADER_BYTES {
+            *truncated = true;
+            return None;
+        }
+        Some(format!("{top}/{subtype}"))
+    });
+    Attachment {
+        name,
+        content_id,
+        media_type,
+        raw_body: usize::try_from(part.offset_body()).unwrap_or_default()
+            ..usize::try_from(part.offset_end()).unwrap_or_default(),
+        decoded_size: part.decoded_len(),
+        inline: part.is_inline(),
+    }
 }
 
 /// Record parser flags and encrypted containers recursively.
@@ -439,7 +476,7 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
     let revision: [u8; 32] = Sha256::digest(raw).into();
     let mut status = Status::default();
     let headers = Headers {
-        message_id: header(message.message_id(), &mut status, false),
+        message_id: header(message.message_id(), &mut status.headers_truncated, false),
         references: message
             .references()
             .map_or_else(Vec::new, |values| identifiers(values.iter(), &mut status)),
@@ -451,7 +488,7 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
         to: addresses(message.to(), &mut status),
         cc: addresses(message.cc(), &mut status),
         bcc: addresses(message.bcc(), &mut status),
-        subject: header(message.subject(), &mut status, true),
+        subject: header(message.subject(), &mut status.headers_truncated, true),
         date: message.date().map(|date| date.to_timestamp()),
     };
     inspect(message.root_part(), &mut status);
@@ -461,20 +498,7 @@ pub fn project(raw: &[u8]) -> Result<Projection, Error> {
             status.attachments_truncated = true;
             break;
         }
-        attachments.push(Attachment {
-            name: part.attachment_name().map(str::to_owned),
-            media_type: part
-                .content_type()
-                .map(|kind| format!("{}/{}", kind.ctype(), kind.subtype().unwrap_or(""))),
-            content_id: part
-                .content_id()
-                .filter(|cid| valid_cid(cid))
-                .map(str::to_owned),
-            raw_body: usize::try_from(part.offset_body()).unwrap_or_default()
-                ..usize::try_from(part.offset_end()).unwrap_or_default(),
-            decoded_size: part.decoded_len(),
-            inline: part.is_inline(),
-        });
+        attachments.push(attachment(part, &mut status.attachment_metadata_truncated));
     }
     let (text, html, preview) = if status.encrypted_unsupported {
         (None, None, None)
