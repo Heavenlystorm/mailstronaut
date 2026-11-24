@@ -378,8 +378,13 @@ async fn seed_conversation_gui() {
                 .mime
                 .clone()
                 .unwrap_or_else(|| format!("\r\n{body}\r\n"));
+            let details = if key == "first" {
+                "Cc: observer@example.test\r\nDate: Thu, 29 Oct 2026 20:15:00 +0000\r\n"
+            } else {
+                ""
+            };
             let raw = format!(
-                "From: {from}\r\nTo: alice@example.test, {}\r\nMessage-ID: <{mid}>\r\nReferences: {references}\r\nSubject: {subject}\r\n{content}",
+                "From: {from}\r\nTo: alice@example.test, {}\r\n{details}Message-ID: <{mid}>\r\nReferences: {references}\r\nSubject: {subject}\r\n{content}",
                 account.address
             );
             let id = store

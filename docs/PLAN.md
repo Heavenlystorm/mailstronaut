@@ -453,12 +453,11 @@ Use the [mailbox/search component mapping](INTERFACE.md#p06-mailbox-threads-and-
   open. The bounded same-scope path is implemented above; complete account/folder,
   conversation-merge, paging, removal and large-list acceptance before this row
   is complete. Preserve unread siblings through every state change.
-- [ ] Display each account-local thread once, include cached Sent ancestry, open
+- [x] Display each account-local thread once, include cached Sent ancestry, open
   the matching original and allow per-message selection/actions.
   Reuse `Collapsible` originals (or `Accordion::multiple(true)` if appropriate)
   and `DescriptionList` for From/To/Cc/date; do not adopt chat/tail-following behavior.
-  [Selection and opening pass](evidence/P06-navigation.md); per-message actions
-  arrive with P07.
+  [Individual-original flags, replies and header details](evidence/P06-navigation.md#acting-on-an-older-original).
 - [x] Mark Seen only after an **explicit open action loads that original's content**.
   Passive focus/selection/restoration/search/previews/refresh never mark read;
   opening one member does not mark its whole thread. Preserve explicit unread.
