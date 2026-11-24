@@ -1366,7 +1366,20 @@ impl Workspace {
         let excerpt = (self.search_mode == SearchMode::Words)
             .then(|| BodyExcerpt::for_words(&self.query))
             .flatten();
+        let workspace = cx.entity().downgrade();
+        let revision = self.declaration.revision();
+        let scope = self.scope.clone();
         self.list.update(cx, |list, cx| {
+            list.delegate_mut().on_row_action = Some(Rc::new(move |target, action, window, cx| {
+                _ = workspace.update(cx, |this, cx| {
+                    if this.view == View::Inbox
+                        && this.declaration.revision() == revision
+                        && this.scope == scope
+                    {
+                        this.row_action(target, action, window, cx);
+                    }
+                });
+            }));
             crate::mailbox::replace_with_priority(list, rows, group, window, cx);
             list.delegate_mut().body_excerpt = excerpt;
             list.delegate_mut().more = self.browse.more;
@@ -1737,29 +1750,51 @@ impl Workspace {
     }
 
     fn apply_flag(&mut self, flag: FlagChange, desired: bool, window: &Window, cx: &Context<Self>) {
-        let (Some(handle), Some(row)) = (self.handle(), self.selected.as_mut()) else {
+        let Some(row) = &self.selected else {
+            return;
+        };
+        self.apply_row_flag(row.account.clone(), row.id, flag, desired, window, cx);
+    }
+
+    fn apply_row_flag(
+        &mut self,
+        account_id: String,
+        id: i64,
+        flag: FlagChange,
+        desired: bool,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
+        let Some(handle) = self.handle() else {
             return;
         };
         let Some(account) = self.declaration.active().and_then(|config| {
             config
                 .accounts
                 .iter()
-                .find(|account| account.id == row.account)
+                .find(|account| account.id == account_id)
         }) else {
             return;
         };
         let Ok(context) = mailstronaut_core::store::flags::context(account) else {
             return;
         };
-        match flag {
-            FlagChange::Seen => row.seen = desired,
-            FlagChange::Starred => row.starred = desired,
+        if let Some(row) = self
+            .selected
+            .as_mut()
+            .filter(|row| row.account == account_id && row.id == id)
+        {
+            match flag {
+                FlagChange::Seen => row.seen = desired,
+                FlagChange::Starred => row.starred = desired,
+            }
         }
-        let (account, id) = (row.account.clone(), row.id);
         let revision = self.declaration.revision();
-        let job = self
-            .runtime
-            .spawn(async move { handle.set_flag(account, id, flag, desired, context).await });
+        let job = self.runtime.spawn(async move {
+            handle
+                .set_flag(account_id, id, flag, desired, context)
+                .await
+        });
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
@@ -1797,23 +1832,54 @@ impl Workspace {
             .filter(move |folder| folder.account == account)
     }
 
-    fn role_folder(&self, role: FolderRole) -> Option<&Folder> {
-        let row = self.selected.as_ref()?;
-        self.folders
-            .iter()
-            .find(|folder| folder.account == row.account && folder.role == Some(role))
+    fn row_action(
+        &mut self,
+        target: &Row,
+        action: crate::mailbox::RowAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::mailbox::RowAction;
+        let Some(row) = self.list.read(cx).delegate().current(target).cloned() else {
+            return;
+        };
+        match action {
+            RowAction::Open => self.open(row, window, cx),
+            RowAction::Flag(flag, desired) => {
+                self.apply_row_flag(row.account, row.id, flag, desired, window, cx);
+            }
+            RowAction::Move(role) => self.move_row_to_role(row, role, window, cx),
+        }
     }
 
     fn move_to_role(&mut self, role: FolderRole, window: &Window, cx: &mut Context<Self>) {
-        let Some(destination) = self.role_folder(role).map(|folder| folder.name.clone()) else {
-            self.reader_notice = format!(
+        if let Some(row) = self.selected.clone() {
+            self.move_row_to_role(row, role, window, cx);
+        }
+    }
+
+    fn move_row_to_role(
+        &mut self,
+        row: Row,
+        role: FolderRole,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let destination = self
+            .account_folders(&row.account)
+            .find(|folder| folder.role == Some(role))
+            .map(|folder| folder.name.clone());
+        if let Some(destination) = destination {
+            self.move_row(row, destination, role.label().to_owned(), window, cx);
+        } else {
+            let message = format!(
                 "This account has no {} folder. Set one in your Nix configuration.",
                 role.label()
             );
+            self.reader_notice.clone_from(&message);
+            self.status = message;
             cx.notify();
-            return;
-        };
-        self.move_open(destination, role.label().to_owned(), window, cx);
+        }
     }
 
     /// Hide the open conversation now and report it with Undo. The server is told on
@@ -1825,7 +1891,24 @@ impl Workspace {
         window: &Window,
         cx: &mut Context<Self>,
     ) {
-        let (Some(handle), Some(row)) = (self.handle(), self.selected.clone()) else {
+        if self.move_picker.take().is_none() {
+            return;
+        }
+        cx.notify();
+        if let Some(row) = self.selected.clone() {
+            self.move_row(row, destination, label, window, cx);
+        }
+    }
+
+    fn move_row(
+        &self,
+        row: Row,
+        destination: String,
+        label: String,
+        window: &Window,
+        cx: &Context<Self>,
+    ) {
+        let Some(handle) = self.handle() else {
             return;
         };
         let Some(context) = self.declaration.active().and_then(|config| {
@@ -1840,10 +1923,6 @@ impl Workspace {
         };
         let revision = self.declaration.revision();
         let generation = self.reading_generation;
-        if self.move_picker.take().is_none() {
-            return;
-        }
-        cx.notify();
         let (account, id) = (row.account.clone(), row.id);
         // The hold is stored with the move: IDLE can start a sync pass at any moment, and
         // opening a message is usually what makes it happen.
@@ -1856,6 +1935,7 @@ impl Workspace {
                 .await
         });
         let undo = (row.account, row.id);
+        let conversation = row.conversation;
         cx.spawn_in(window, async move |this, cx| {
             let result = job.await;
             _ = this.update_in(cx, |this, window, cx| {
@@ -1865,7 +1945,14 @@ impl Workspace {
                 let current = generation == this.reading_generation;
                 match result {
                     Ok(Ok(_)) => {
-                        if current {
+                        if current
+                            && this.selected.as_ref().is_some_and(|open| {
+                                open.account == undo.0
+                                    && (open.id == undo.1
+                                        || conversation.is_some()
+                                            && open.conversation == conversation)
+                            })
+                        {
                             this.retire_open(window, cx);
                         }
                         this.after_move(undo, &label, window, cx);

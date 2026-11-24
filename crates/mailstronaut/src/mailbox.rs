@@ -10,6 +10,7 @@ use gpui::component::{
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyTitle},
     label::Label,
     list::{ListDelegate, ListItem, ListState},
+    menu::{ContextMenuExt as _, PopupMenu, PopupMenuItem},
     tag::Tag,
 };
 use gpui::{
@@ -17,6 +18,8 @@ use gpui::{
     Pixels, Role, StatefulInteractiveElement as _, Styled as _, StyledText, Window, div,
     prelude::FluentBuilder as _, px, rems,
 };
+use mailstronaut_core::store::mailbox::FolderRole;
+use mailstronaut_mail::imap::FlagChange;
 use mailstronaut_search::excerpt::BodyExcerpt;
 
 const ROW_HEIGHT: Pixels = px(124.);
@@ -167,6 +170,37 @@ pub fn addresses(addresses: &[mailstronaut_core::mime::Mailbox]) -> String {
 }
 
 pub type Dismiss = Rc<dyn Fn(i64, &mut Window, &mut App)>;
+pub type RowMenuAction = Rc<dyn Fn(&Row, RowAction, &mut Window, &mut App)>;
+
+#[derive(Clone, Copy)]
+pub enum RowAction {
+    Open,
+    Flag(FlagChange, bool),
+    Move(FolderRole),
+}
+
+fn row_menu(mut menu: PopupMenu, row: &Row, action: &RowMenuAction) -> PopupMenu {
+    for (title, choice) in [
+        ("Open", RowAction::Open),
+        (
+            if row.seen { "Mark unread" } else { "Mark read" },
+            RowAction::Flag(FlagChange::Seen, !row.seen),
+        ),
+        (
+            if row.starred { "Unstar" } else { "Star" },
+            RowAction::Flag(FlagChange::Starred, !row.starred),
+        ),
+        ("Archive", RowAction::Move(FolderRole::Archive)),
+        ("Trash", RowAction::Move(FolderRole::Trash)),
+    ] {
+        let row = row.clone();
+        let action = action.clone();
+        menu = menu.item(PopupMenuItem::new(title).on_click(move |_, window, cx| {
+            action(&row, choice, window, cx);
+        }));
+    }
+    menu
+}
 /// Called when the user asks to see every conversation that needs attention.
 pub type ShowAll = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -195,6 +229,7 @@ pub struct Rows {
     pub time_zone: String,
     /// Called with a row's message when the user dismisses it from the priority group.
     pub on_dismiss: Option<Dismiss>,
+    pub on_row_action: Option<RowMenuAction>,
     /// Called when the user asks for every conversation that needs attention.
     pub on_show_all: Option<ShowAll>,
     /// Kit calls this near the end of the virtualized list.
@@ -208,6 +243,12 @@ pub struct Rows {
 }
 
 impl Rows {
+    pub fn current(&self, target: &Row) -> Option<&Row> {
+        self.items
+            .iter()
+            .chain(&self.priority.rows)
+            .find(|row| row.account == target.account && row.id == target.id)
+    }
     /// Append metadata without duplicating canonical conversations or ungrouped originals.
     pub fn append(&mut self, rows: Vec<Row>) {
         let existing = self.items.iter().chain(&self.priority.rows);
@@ -429,6 +470,8 @@ impl ListDelegate for Rows {
             .flatten()
             .map(|dismiss| (dismiss, row.id));
         let unread = row.unread > 0;
+        let action = self.on_row_action.clone();
+        let target = row.clone();
         Some(
             // A list item is exposed as a named row only with an explicit role. Kit's item
             // supplies the id and the label; without the role, assistive technology sees an
@@ -446,6 +489,7 @@ impl ListDelegate for Rows {
                 .accessibility_label(row.accessibility_label(&received, priority, due.as_deref()))
                 .child(
                     div()
+                        .id(("message-row-menu", row.id.cast_unsigned()))
                         .w_full()
                         .min_w_0()
                         .child(
@@ -501,7 +545,11 @@ impl ListDelegate for Rows {
                         .when_some(due, |view, due| {
                             view.child(div().flex().child(Tag::warning().small().child(due)))
                         })
-                        .child(row_footer(row, received, muted)),
+                        .child(row_footer(row, received, muted))
+                        .context_menu(move |menu, _, _| match &action {
+                            Some(action) => row_menu(menu, &target, action),
+                            None => menu,
+                        }),
                 ),
         )
     }
